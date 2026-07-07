@@ -1,0 +1,29 @@
+BBVA
+==============================
+EXTRACTO DE CUENTA CORRIENTE
+Periodo: 01/05/2026 - 31/05/2026
+==============================
+
+Titular: FICTICIO CLIENTE TEST
+NIF: 00000000T
+No de cuenta: ES49 0182 6370 8002 0151 3307
+Tarjeta vinculada: 4532 0151 1283 3467
+
+Saldo anterior (01/05/2026): 1.450,00
+
+MOVIMIENTOS
+
+Fecha        Concepto                                          Importe        Saldo
+-------------------------------------------------------------------------------------------
+02/05/2026   COMPRA EN MERCADONA C/MAYOR 1 MADRID              -45,30         1.404,70
+05/05/2026   RECIBO ENDESA LUZ MAY26                           -78,50         1.326,20
+08/05/2026   GASOLINERA REPSOL GETAFE                          -60,00         1.266,20
+10/05/2026   RESTAURANTE EL PORTAL SL MADRID                   -32,80         1.233,40
+15/05/2026   NOMINA EMPRESA TECH SL                          2.850,00         4.083,40
+18/05/2026   DEVOLUCION AMAZON EU SARL                          29,99          4.113,39
+20/05/2026   COMPRA EN EXTERIOR AMAZON USA                     -25,00 USD      4.090,24
+22/05/2026   COMISION MANTENIMIENTO CUENTA                      -4,00          4.086,24
+25/05/2026   COMPRA EN LIDL MADRID CARABANCHEL                 -38,20          4.048,04
+28/05/2026   RECIBO GAS NATURGY MAY26                          -52,10          3.995,94
+
+Saldo final (31/05/2026): 3.995,94

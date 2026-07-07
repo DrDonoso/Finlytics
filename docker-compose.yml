@@ -1,0 +1,48 @@
+services:
+  api:
+    image: drdonoso/finlytics
+    restart: unless-stopped
+    ports:
+      - "${FINLYTICS_PORT:-8000}:8000"
+
+    environment:
+      # --- PostgreSQL connection ---
+      DATABASE_URL: "postgresql+asyncpg://${POSTGRES_USER:-finlytics}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-finlytics}"
+
+      # --- OpenAI-compatible AI (self-hosted LiteLLM) for transaction extraction ---
+      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
+      OPENAI_BASE_URL: "${OPENAI_BASE_URL:-}"
+      OPENAI_MODEL: "${OPENAI_MODEL:-}"
+
+      # --- App config ---
+      TIMEZONE: "${TIMEZONE:-Europe/Madrid}"
+      UPLOAD_DIR: /app/uploads
+
+    volumes:
+      - uploads:/app/uploads
+
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_USER: "${POSTGRES_USER:-finlytics}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+      POSTGRES_DB: "${POSTGRES_DB:-finlytics}"
+
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-finlytics}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  pgdata:
+  uploads:

@@ -1,0 +1,147 @@
+"""Prompt templates for the LLM extraction step.
+
+Keeping prompts in version-controlled files (not inline strings) makes them
+auditable, diffable, and easy to iterate on without touching business logic.
+"""
+
+from __future__ import annotations
+
+from finlytics.extraction.taxonomy import CATEGORIZATION_GUIDANCE, categories_for_prompt
+
+# ---------------------------------------------------------------------------
+# System prompt
+# ---------------------------------------------------------------------------
+
+_SYSTEM_TEMPLATE = """
+You are a financial data extraction assistant specialising in Spanish and EU bank statements.
+Your task is to extract ALL transactions from the provided bank-statement text and return them
+as structured JSON matching the given schema.
+
+## Extraction rules
+- Extract EVERY transaction visible in the text. Do not skip any.
+- Dates must be in ISO 8601 format: YYYY-MM-DD.
+- Amounts are SIGNED: negative = money OUT (expenses, fees, debits),
+  positive = money IN (income, refunds, credits).
+- Currency defaults to "EUR" unless explicitly stated otherwise in the statement.
+- `raw_line`: copy the verbatim line(s) from the statement that this transaction came from.
+- `account_ref`: MUST be set to "{account_ref}".
+- ⚠ PII boundary: do NOT include account numbers, IBANs, or card numbers in the
+  `description` field. Use the merchant name or a generic label instead.
+- If the statement shows a running balance per transaction, populate `balance_after`.
+
+{year_handling}
+
+{merchant_extraction}
+
+{categorization_guidance}
+
+{tag_suggestion}
+
+## Output
+Return ONLY valid JSON matching the schema. No markdown fences, no commentary.
+""".strip()
+
+# ---------------------------------------------------------------------------
+# Year-handling instruction blocks
+# ---------------------------------------------------------------------------
+
+_YEAR_KNOWN_BLOCK = """
+## Year handling
+The statement year is {year}. Transaction lines may show only day/month (e.g. "15/06" or "15 jun").
+- When a line has no explicit year, assign {year}.
+- If a line contains a full date with an explicit year, use THAT explicit year.
+- You MUST NOT invent or guess a year. Use only the year present on the line, or {year} as the fallback.
+""".strip()
+
+_YEAR_UNKNOWN_BLOCK = """
+## Year handling
+No statement year could be determined from the document metadata.
+- Use a year ONLY when it is explicitly present on the transaction line or elsewhere in the statement text.
+- You MUST NOT fabricate or invent a year. If no year can be found for a transaction, use the year from the nearest dated context in the statement.
+""".strip()
+
+# ---------------------------------------------------------------------------
+# Merchant extraction instruction block
+# ---------------------------------------------------------------------------
+
+_MERCHANT_BLOCK = """
+## Merchant extraction
+
+For each transaction, extract the normalized brand or vendor name.
+
+Rules:
+- Use the **well-known brand name in Title Case**: e.g. "Amazon", "Mercadona", "Zara",
+  "H&M", "Octopus Energy", "Netflix", "Renfe", "Uber", "Spotify", "Iberdrola".
+- Do NOT include branch locations, city names, reference codes, or terminal IDs — brand only.
+- Brand names are NOT translated — always use the official brand name
+  (e.g. "Amazon" not "Amazón", "H&M" not "H y M").
+- Return **null** when there is no identifiable merchant:
+  - Transfers between accounts or to a person (TRANSFERENCIA, BIZUM to a person)
+  - ATM withdrawals or cash transactions
+  - Taxes or fees paid to government bodies
+  - Salary / payroll / nómina entries
+  - Any line where the merchant cannot be reliably determined from the description
+- Do NOT invent merchants. If uncertain, return null.
+""".strip()
+
+# ---------------------------------------------------------------------------
+# Tag-suggestion instruction block
+# ---------------------------------------------------------------------------
+
+_TAG_SUGGESTION_BLOCK = """
+## Tag suggestion
+
+For each transaction suggest **0–3** short, free-form tag names that capture the specific
+merchant or purpose with more granularity than the category alone.
+
+Rules:
+- Tags are OPTIONAL — use an empty list (`[]`) when nothing meaningful applies.
+- Tags are in **Spanish, lowercase, 1–2 words** (e.g. "luz", "agua", "mercadona", "netflix").
+- Tags COMPLEMENT the category — they are the fine detail, not a replacement.
+  Example: category = "Utilities", tag = "luz" for an IBERDROLA electricity bill.
+- Preferred seed tags — reuse these when they apply:
+  luz · agua · gas · internet · teléfono
+- New tags are allowed when the seed list does not cover the merchant/purpose
+  (e.g. "netflix", "spotify", "mercadona", "amazon").
+- Do NOT include PII in tags (no account numbers, card numbers, or the account holder's name).
+- Cap at 3 tags per transaction.
+""".strip()
+
+# ---------------------------------------------------------------------------
+# User prompt
+# ---------------------------------------------------------------------------
+
+_USER_TEMPLATE = """
+Extract all transactions from the following bank statement text.
+
+--- STATEMENT START ---
+{statement_text}
+--- STATEMENT END ---
+""".strip()
+
+
+# ---------------------------------------------------------------------------
+# Public builders
+# ---------------------------------------------------------------------------
+
+
+def build_system_prompt(account_ref: str, statement_year: int | None = None) -> str:
+    """Render the system prompt for a given account source."""
+    guidance = CATEGORIZATION_GUIDANCE.format(categories=categories_for_prompt())
+    year_block = (
+        _YEAR_KNOWN_BLOCK.format(year=statement_year)
+        if statement_year is not None
+        else _YEAR_UNKNOWN_BLOCK
+    )
+    return _SYSTEM_TEMPLATE.format(
+        account_ref=account_ref,
+        categorization_guidance=guidance,
+        year_handling=year_block,
+        merchant_extraction=_MERCHANT_BLOCK,
+        tag_suggestion=_TAG_SUGGESTION_BLOCK,
+    )
+
+
+def build_user_prompt(statement_text: str) -> str:
+    """Render the user prompt for the given raw statement text."""
+    return _USER_TEMPLATE.format(statement_text=statement_text)
