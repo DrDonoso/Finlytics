@@ -5,12 +5,34 @@ from __future__ import annotations
 import io
 from decimal import Decimal
 from datetime import date
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import HTTPException
 
 from finlytics.contracts import ExtractedTransaction
+
+
+def _make_rule(**overrides) -> SimpleNamespace:
+    """Return a minimal SimpleNamespace satisfying RuleProtocol for tests."""
+    defaults = dict(
+        id=1,
+        name="Hipoteca",
+        priority=100,
+        enabled=True,
+        description_mode="contains",
+        description_value="hipoteca",
+        amount_sign=None,
+        account_ref=None,
+        currency=None,
+        set_category="Vivienda",
+        set_merchant=None,
+        add_tags=["hipoteca"],
+        skip_ai=False,
+    )
+    defaults.update(overrides)
+    return SimpleNamespace(**defaults)
 
 
 def _make_extracted() -> list[ExtractedTransaction]:
@@ -45,6 +67,7 @@ async def test_import_success(client_with_llm):
               return_value=fake_account),
         patch("finlytics.api.imports.extract_transactions", new_callable=AsyncMock,
               return_value=extracted),
+        patch("finlytics.api.imports.list_rules", new_callable=AsyncMock, return_value=[]),
         patch("finlytics.api.imports.upsert_transactions", new_callable=AsyncMock,
               return_value=(1, 0)),
         patch("finlytics.api.imports.ImportRun", return_value=fake_import_run),
@@ -131,6 +154,7 @@ async def test_preview_returns_transactions(client_with_llm):
         patch("finlytics.api.imports.parse_statement", return_value="statement text"),
         patch("finlytics.api.imports.extract_transactions", new_callable=AsyncMock,
               return_value=extracted),
+        patch("finlytics.api.imports.list_rules", new_callable=AsyncMock, return_value=[]),
     ):
         resp = await client.post(
             "/api/imports/preview",
@@ -158,6 +182,7 @@ async def test_preview_does_not_persist(client_with_llm, mock_session):
         patch("finlytics.api.imports.parse_statement", return_value="text"),
         patch("finlytics.api.imports.extract_transactions", new_callable=AsyncMock,
               return_value=_make_extracted()),
+        patch("finlytics.api.imports.list_rules", new_callable=AsyncMock, return_value=[]),
     ):
         await client.post(
             "/api/imports/preview",
@@ -199,6 +224,7 @@ async def test_preview_year_detected(client_with_llm):
         patch("finlytics.api.imports.detect_statement_year", return_value=2026),
         patch("finlytics.api.imports.extract_transactions", new_callable=AsyncMock,
               return_value=extracted),
+        patch("finlytics.api.imports.list_rules", new_callable=AsyncMock, return_value=[]),
     ):
         resp = await client.post(
             "/api/imports/preview",
@@ -222,6 +248,7 @@ async def test_preview_year_not_detected(client_with_llm):
         patch("finlytics.api.imports.detect_statement_year", return_value=None),
         patch("finlytics.api.imports.extract_transactions", new_callable=AsyncMock,
               return_value=extracted),
+        patch("finlytics.api.imports.list_rules", new_callable=AsyncMock, return_value=[]),
     ):
         resp = await client.post(
             "/api/imports/preview",
@@ -390,6 +417,7 @@ async def test_preview_suggested_tags_empty_when_all_existing(client_with_llm, m
         patch("finlytics.api.imports.parse_statement", return_value="text"),
         patch("finlytics.api.imports.extract_transactions", new_callable=AsyncMock,
               return_value=extracted),
+        patch("finlytics.api.imports.list_rules", new_callable=AsyncMock, return_value=[]),
         patch("finlytics.api.imports.suggest_tag_colors", suggest_mock),
     ):
         resp = await client.post(
@@ -555,3 +583,253 @@ async def test_get_or_create_tag_does_not_recolor_existing():
     assert returned is existing
     assert returned.color == "#aabbcc"   # unchanged
     mock_sess.add.assert_not_called()
+
+
+# ── Preview: rules wiring ─────────────────────────────────────────────────────
+
+async def test_preview_applies_matching_rule(client_with_llm):
+    """preview_import applies rules post-extraction: matching tx gets category
+    overridden to rule.set_category, matched_rule_name set, and add_tags merged."""
+    client, _ = client_with_llm
+    extracted = [
+        ExtractedTransaction(
+            transaction_date=date(2024, 6, 1),
+            amount=Decimal("-800.00"),
+            currency="EUR",
+            description="Pago hipoteca Banco Santander",
+            category="Otros",   # LLM guessed wrong
+            account_ref="BBVA",
+            tags=["mensual"],   # pre-existing tag; "hipoteca" should be merged
+        )
+    ]
+    rule = _make_rule()  # contains "hipoteca" → set_category=Vivienda, add_tags=["hipoteca"]
+
+    with (
+        patch("finlytics.api.imports.parse_statement", return_value="text"),
+        patch("finlytics.api.imports.extract_transactions", new_callable=AsyncMock,
+              return_value=extracted),
+        patch("finlytics.api.imports.list_rules", new_callable=AsyncMock,
+              return_value=[rule]),
+    ):
+        resp = await client.post(
+            "/api/imports/preview",
+            files={"file": ("bank.pdf", io.BytesIO(b"fake"), "application/pdf")},
+            data={"account_name": "BBVA"},
+        )
+
+    assert resp.status_code == 200
+    tx = resp.json()["transactions"][0]
+    assert tx["category"] == "Vivienda"
+    assert tx["category_confidence"] == 1.0
+    assert tx["matched_rule_name"] == "Hipoteca"
+    assert tx["matched_rule_id"] == 1
+    assert "hipoteca" in tx["tags"]   # merged from rule
+    assert "mensual" in tx["tags"]    # original preserved
+
+
+async def test_preview_non_matching_transaction_untouched(client_with_llm):
+    """preview_import: a transaction whose description does not match any rule
+    is returned unmodified — matched_rule_id and matched_rule_name stay null."""
+    client, _ = client_with_llm
+    extracted = [
+        ExtractedTransaction(
+            transaction_date=date(2024, 6, 2),
+            amount=Decimal("-30.00"),
+            currency="EUR",
+            description="MERCADONA supermercado",
+            category="Groceries",
+            account_ref="BBVA",
+        )
+    ]
+    rule = _make_rule()  # only matches descriptions containing "hipoteca"
+
+    with (
+        patch("finlytics.api.imports.parse_statement", return_value="text"),
+        patch("finlytics.api.imports.extract_transactions", new_callable=AsyncMock,
+              return_value=extracted),
+        patch("finlytics.api.imports.list_rules", new_callable=AsyncMock,
+              return_value=[rule]),
+    ):
+        resp = await client.post(
+            "/api/imports/preview",
+            files={"file": ("bank.pdf", io.BytesIO(b"fake"), "application/pdf")},
+            data={"account_name": "BBVA"},
+        )
+
+    assert resp.status_code == 200
+    tx = resp.json()["transactions"][0]
+    assert tx["category"] == "Groceries"     # unchanged
+    assert tx["matched_rule_id"] is None
+    assert tx["matched_rule_name"] is None
+
+
+# ── Phase 2: pre-match pipeline ───────────────────────────────────────────────
+
+async def test_preview_prematch_matched_tx_in_result_and_llm_gets_remaining(client_with_llm):
+    """pre_match_rules returns a matched tx + remaining text.
+
+    Assertions:
+    - The matched tx appears in the response with matched_rule_name set.
+    - extract_transactions is called with ONLY the remaining text (not the full statement).
+    """
+    client, _ = client_with_llm
+
+    matched_tx = ExtractedTransaction(
+        transaction_date=date(2026, 5, 15),
+        amount=Decimal("-800.00"),
+        currency="EUR",
+        description="Pago hipoteca",
+        category="Vivienda",
+        account_ref="BBVA",
+        matched_rule_id=1,
+        matched_rule_name="Hipoteca",
+    )
+    llm_tx = ExtractedTransaction(
+        transaction_date=date(2026, 5, 16),
+        amount=Decimal("-45.30"),
+        currency="EUR",
+        description="MERCADONA",
+        category="Groceries",
+        account_ref="BBVA",
+    )
+    rule = _make_rule()
+    mock_extract = AsyncMock(return_value=[llm_tx])
+
+    with (
+        patch("finlytics.api.imports.parse_statement", return_value="full statement text"),
+        patch("finlytics.api.imports.list_rules", new_callable=AsyncMock, return_value=[rule]),
+        patch("finlytics.api.imports.pre_match_rules",
+              return_value=([matched_tx], "remaining text")),
+        patch("finlytics.api.imports.extract_transactions", mock_extract),
+    ):
+        resp = await client.post(
+            "/api/imports/preview",
+            files={"file": ("bank.pdf", io.BytesIO(b"fake"), "application/pdf")},
+            data={"account_name": "BBVA"},
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body["transactions"]) == 2
+    matched = next(tx for tx in body["transactions"] if tx["description"] == "Pago hipoteca")
+    assert matched["matched_rule_name"] == "Hipoteca"
+    assert matched["matched_rule_id"] == 1
+    # extract_transactions received only the remaining (unmatched) text
+    mock_extract.assert_called_once()
+    assert mock_extract.call_args[0][0] == "remaining text"
+
+
+async def test_preview_no_prematch_llm_gets_full_text(client_with_llm):
+    """When no rule pre-matches, extract_transactions is called with the full statement text."""
+    client, _ = client_with_llm
+    extracted = _make_extracted()
+    mock_extract = AsyncMock(return_value=extracted)
+
+    with (
+        patch("finlytics.api.imports.parse_statement", return_value="full statement text"),
+        patch("finlytics.api.imports.list_rules", new_callable=AsyncMock, return_value=[]),
+        patch("finlytics.api.imports.pre_match_rules",
+              return_value=([], "full statement text")),
+        patch("finlytics.api.imports.extract_transactions", mock_extract),
+    ):
+        resp = await client.post(
+            "/api/imports/preview",
+            files={"file": ("bank.pdf", io.BytesIO(b"fake"), "application/pdf")},
+            data={"account_name": "BBVA"},
+        )
+
+    assert resp.status_code == 200
+    mock_extract.assert_called_once()
+    assert mock_extract.call_args[0][0] == "full statement text"
+
+
+async def test_preview_all_lines_matched_skips_llm(client_with_llm):
+    """When remaining_text is empty, extract_transactions is never called."""
+    client, _ = client_with_llm
+
+    matched_tx = ExtractedTransaction(
+        transaction_date=date(2026, 5, 15),
+        amount=Decimal("-800.00"),
+        currency="EUR",
+        description="Pago hipoteca",
+        category="Vivienda",
+        account_ref="BBVA",
+        matched_rule_id=1,
+        matched_rule_name="Hipoteca",
+    )
+    rule = _make_rule()
+    mock_extract = AsyncMock(return_value=[])
+
+    with (
+        patch("finlytics.api.imports.parse_statement", return_value="full statement text"),
+        patch("finlytics.api.imports.list_rules", new_callable=AsyncMock, return_value=[rule]),
+        patch("finlytics.api.imports.pre_match_rules",
+              return_value=([matched_tx], "")),   # all lines matched
+        patch("finlytics.api.imports.extract_transactions", mock_extract),
+    ):
+        resp = await client.post(
+            "/api/imports/preview",
+            files={"file": ("bank.pdf", io.BytesIO(b"fake"), "application/pdf")},
+            data={"account_name": "BBVA"},
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body["transactions"]) == 1
+    assert body["transactions"][0]["matched_rule_name"] == "Hipoteca"
+    mock_extract.assert_not_called()
+
+
+async def test_import_prematch_rule_reduces_llm_input(client_with_llm):
+    """create_import: pre-matched tx in result; extract_transactions receives only remaining text."""
+    client, _ = client_with_llm
+
+    matched_tx = ExtractedTransaction(
+        transaction_date=date(2026, 5, 15),
+        amount=Decimal("-800.00"),
+        currency="EUR",
+        description="Pago hipoteca",
+        category="Vivienda",
+        account_ref="BBVA",
+        matched_rule_id=1,
+        matched_rule_name="Hipoteca",
+    )
+    llm_tx = ExtractedTransaction(
+        transaction_date=date(2026, 5, 16),
+        amount=Decimal("-45.30"),
+        currency="EUR",
+        description="MERCADONA",
+        category="Groceries",
+        account_ref="BBVA",
+    )
+    rule = _make_rule()
+    fake_account = MagicMock()
+    fake_account.id = 1
+    fake_account.name = "BBVA"
+    fake_import_run = MagicMock()
+    fake_import_run.id = 42
+    mock_extract = AsyncMock(return_value=[llm_tx])
+
+    with (
+        patch("finlytics.api.imports.parse_statement", return_value="full statement text"),
+        patch("finlytics.api.imports._resolve_account", new_callable=AsyncMock,
+              return_value=fake_account),
+        patch("finlytics.api.imports.list_rules", new_callable=AsyncMock, return_value=[rule]),
+        patch("finlytics.api.imports.pre_match_rules",
+              return_value=([matched_tx], "remaining text")),
+        patch("finlytics.api.imports.extract_transactions", mock_extract),
+        patch("finlytics.api.imports.upsert_transactions", new_callable=AsyncMock,
+              return_value=(2, 0)),
+        patch("finlytics.api.imports.ImportRun", return_value=fake_import_run),
+    ):
+        resp = await client.post(
+            "/api/imports",
+            files={"file": ("statement.pdf", io.BytesIO(b"fake pdf"), "application/pdf")},
+            data={"account_name": "BBVA"},
+        )
+
+    assert resp.status_code == 201
+    body = resp.json()
+    assert body["num_parsed"] == 2
+    mock_extract.assert_called_once()
+    assert mock_extract.call_args[0][0] == "remaining text"

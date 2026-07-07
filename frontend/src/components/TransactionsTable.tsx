@@ -4,6 +4,7 @@ import { getTransactions, updateTransaction } from '../api/client'
 import { useT, categoryLabel, formatDate, DEFAULT_TAG_COLOR, tagTextColor } from '../i18n'
 import CategorySelect from './CategorySelect'
 import TagEditor from './TagEditor'
+import RuleFormModal from './RuleFormModal'
 
 interface Props {
   globalFilters: GlobalFilters
@@ -45,6 +46,15 @@ export default function TransactionsTable({ globalFilters, categories, allTags, 
   const [editData,   setEditData]   = useState<EditData | null>(null)
   const [saving,     setSaving]     = useState(false)
   const [saveError,  setSaveError]  = useState<string | null>(null)
+
+  const [createRuleFor, setCreateRuleFor] = useState<Transaction | null>(null)
+  const [ruleToast,     setRuleToast]     = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!ruleToast) return
+    const id = setTimeout(() => setRuleToast(null), 4000)
+    return () => clearTimeout(id)
+  }, [ruleToast])
 
   // ── Dynamic ES labels for non-base categories
   const dynamicEs = useMemo(
@@ -184,7 +194,8 @@ export default function TransactionsTable({ globalFilters, categories, allTags, 
   }
 
   return (
-    <div className="card">
+    <>
+      <div className="card">
       <div className="card-title">{t.tableTitle}</div>
 
       {!hideInternalFilters && (
@@ -398,6 +409,11 @@ export default function TransactionsTable({ globalFilters, categories, allTags, 
                       <td>
                         <div className="td-actions">
                           <button
+                            className="btn-row-icon btn-create-rule"
+                            onClick={() => setCreateRuleFor(tx)}
+                            title={t.createRuleBtn}
+                          >⚙+</button>
+                          <button
                             className="btn-row-icon btn-row-edit"
                             onClick={() => startEdit(tx)}
                             title={t.tableEditRow}
@@ -423,5 +439,24 @@ export default function TransactionsTable({ globalFilters, categories, allTags, 
         </>
       )}
     </div>
+
+      {createRuleFor && (
+        <RuleFormModal
+          initialValues={{
+            description_mode:  'contains',
+            description_value: createRuleFor.description,
+            set_category:      createRuleFor.category,
+            set_merchant:      createRuleFor.merchant,
+            add_tags:          createRuleFor.tags,
+          }}
+          categories={categories}
+          availableTags={allTags}
+          onSave={() => { setCreateRuleFor(null); setRuleToast(t.createRuleToast) }}
+          onClose={() => setCreateRuleFor(null)}
+        />
+      )}
+
+      {ruleToast && <div className="rule-toast">{ruleToast}</div>}
+    </>
   )
 }

@@ -7,6 +7,7 @@ import SettingsPage from './pages/SettingsPage'
 import CategoriesPage from './pages/CategoriesPage'
 import AppearancePage from './pages/AppearancePage'
 import BackupPage from './pages/BackupPage'
+import RulesPage from './pages/RulesPage'
 import LoginPage from './pages/LoginPage'
 import SetupPage from './pages/SetupPage'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
@@ -39,6 +40,7 @@ function AppContent() {
             <Route path="categories" element={<CategoriesPage />} />
             <Route path="appearance" element={<AppearancePage />} />
             <Route path="backup" element={<BackupPage />} />
+            <Route path="rules" element={<RulesPage />} />
           </Route>
         </Route>
       </Routes>

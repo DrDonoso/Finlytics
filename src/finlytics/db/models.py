@@ -25,12 +25,14 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    JSON,
     Numeric,
     String,
     Table,
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -261,3 +263,54 @@ class Transaction(Base):
             f"<Transaction id={self.id} date={self.transaction_date} "
             f"amount={self.amount} desc={self.description[:30]!r}>"
         )
+
+
+class Rule(Base):
+    """User-defined rule for deterministic transaction categorisation.
+
+    Rules are evaluated in ascending (priority, id) order — lower priority
+    integer = matched first.  The first matching rule wins (no fall-through).
+
+    Match criteria (all AND-ed with description_mode/value):
+      amount_sign, account_ref, currency — each null = wildcard.
+
+    Actions: set_category, set_merchant, add_tags override AI output.
+    skip_ai = True removes the line from the LLM call entirely (Phase 2).
+    Validation: skip_ai=True requires set_category to be non-null.
+    """
+
+    __tablename__ = "rules"
+    __table_args__ = (
+        Index("ix_rules_priority_id", "priority", "id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    priority: Mapped[int] = mapped_column(Integer, nullable=False, server_default="100")
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
+
+    # ── Match criteria ────────────────────────────────────────────────────────
+    # description_mode: contains | starts_with | exact | regex
+    description_mode: Mapped[str] = mapped_column(String(20), nullable=False)
+    description_value: Mapped[str] = mapped_column(Text, nullable=False)
+    amount_sign: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    account_ref: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    currency: Mapped[str | None] = mapped_column(String(3), nullable=True)
+
+    # ── Actions ───────────────────────────────────────────────────────────────
+    set_category: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    set_merchant: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    # JSON array of tag name strings; empty list = no tags to add.
+    add_tags: Mapped[list] = mapped_column(JSON, nullable=False, server_default=text("'[]'"))
+    skip_ai: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+
+    # ── Metadata ──────────────────────────────────────────────────────────────
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return f"<Rule id={self.id} name={self.name!r} priority={self.priority}>"
