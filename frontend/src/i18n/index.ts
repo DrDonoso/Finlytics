@@ -177,6 +177,61 @@ export interface Dict {
   // ── Import preview — merchant + tag typeahead ─────────────────────────
   importMerchantPlaceholder: string
   tagTypeaheadPlaceholder: string
+  // ── Rules page ────────────────────────────────────────────────────────────
+  settingsSubRules: string
+  rulesTitle: string
+  rulesAddBtn: string
+  rulesAddTitle: string
+  rulesEditTitle: string
+  rulesEmpty: string
+  rulesFieldName: string
+  rulesFieldNamePlaceholder: string
+  rulesFieldPriority: string
+  rulesFieldPriorityHint: string
+  rulesFieldEnabled: string
+  rulesFieldDescMode: string
+  rulesFieldDescValue: string
+  rulesFieldDescValuePlaceholder: string
+  rulesFieldAmountSign: string
+  rulesFieldAmountAny: string
+  rulesFieldAmountExpense: string
+  rulesFieldAmountIncome: string
+  rulesFieldAccount: string
+  rulesFieldAccountPlaceholder: string
+  rulesFieldCurrency: string
+  rulesFieldCurrencyPlaceholder: string
+  rulesFieldCategory: string
+  rulesFieldMerchant: string
+  rulesFieldMerchantPlaceholder: string
+  rulesFieldTags: string
+  rulesFieldSkipAi: string
+  rulesFieldSkipAiHint: string
+  rulesBtnSave: string
+  rulesBtnCancel: string
+  rulesBtnEdit: string
+  rulesBtnDelete: string
+  rulesDeleteConfirm: (name: string) => string
+  rulesColName: string
+  rulesColPattern: string
+  rulesColCategory: string
+  rulesColMerchant: string
+  rulesColTags: string
+  rulesColPriority: string
+  rulesColEnabled: string
+  rulesColActions: string
+  rulesModeContains: string
+  rulesModeStartsWith: string
+  rulesModeExact: string
+  rulesModeRegex: string
+  rulesValidationName: string
+  rulesValidationPattern: string
+  rulesValidationCategory: string
+  rulesValidationRegex: (msg: string) => string
+  // ── Create rule from row ──────────────────────────────────────────────────
+  createRuleBtn: string
+  ruleMatchBadge: string
+  ruleMatchTooltip: (name: string) => string
+  createRuleToast: string
 }
 
 const ES_LABELS: Record<string, string> = {

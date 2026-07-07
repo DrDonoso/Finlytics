@@ -40,6 +40,7 @@ from finlytics.api.backup import router as backup_router
 from finlytics.api.categories import router as categories_router
 from finlytics.api.deps import get_current_user
 from finlytics.api.imports import router as imports_router
+from finlytics.api.rules import router as rules_router
 from finlytics.api.summary import router as summary_router
 from finlytics.api.tags import router as tags_router
 from finlytics.api.transactions import router as transactions_router
@@ -63,6 +64,7 @@ _auth = [Depends(get_current_user)]
 app.include_router(accounts_router,     prefix="/api", dependencies=_auth)
 app.include_router(backup_router,       prefix="/api", dependencies=_auth)
 app.include_router(categories_router,   prefix="/api", dependencies=_auth)
+app.include_router(rules_router,        prefix="/api", dependencies=_auth)
 app.include_router(tags_router,         prefix="/api", dependencies=_auth)
 app.include_router(transactions_router, prefix="/api", dependencies=_auth)
 app.include_router(summary_router,      prefix="/api", dependencies=_auth)

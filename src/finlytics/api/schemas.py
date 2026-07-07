@@ -7,7 +7,8 @@ the DB stores full Numeric(14,2) precision.
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -249,3 +250,56 @@ class ConfirmIn(BaseModel):
     source_filename: str
     transactions: list[ExtractedTransaction]
     tag_colors: dict[str, str] | None = None
+
+
+# ── Rules ─────────────────────────────────────────────────────────────────────
+
+class RuleIn(BaseModel):
+    """Request body for POST /api/rules."""
+    name: str
+    priority: int = 100
+    enabled: bool = True
+    description_mode: Literal["contains", "starts_with", "exact", "regex"]
+    description_value: str
+    amount_sign: Literal["negative", "positive"] | None = None
+    account_ref: str | None = None
+    currency: str | None = None
+    set_category: str | None = None
+    set_merchant: str | None = None
+    add_tags: list[str] = []
+    skip_ai: bool = False
+
+
+class RuleUpdate(BaseModel):
+    """Request body for PATCH /api/rules/{id} — all fields optional."""
+    name: str | None = None
+    priority: int | None = None
+    enabled: bool | None = None
+    description_mode: Literal["contains", "starts_with", "exact", "regex"] | None = None
+    description_value: str | None = None
+    amount_sign: Literal["negative", "positive"] | None = None
+    account_ref: str | None = None
+    currency: str | None = None
+    set_category: str | None = None
+    set_merchant: str | None = None
+    add_tags: list[str] | None = None
+    skip_ai: bool | None = None
+
+
+class RuleOut(BaseModel):
+    """Response schema for a rule."""
+    id: int
+    name: str
+    priority: int
+    enabled: bool
+    description_mode: str
+    description_value: str
+    amount_sign: str | None = None
+    account_ref: str | None = None
+    currency: str | None = None
+    set_category: str | None = None
+    set_merchant: str | None = None
+    add_tags: list[str] = []
+    skip_ai: bool
+    created_at: datetime
+    updated_at: datetime

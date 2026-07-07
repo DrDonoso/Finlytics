@@ -5,6 +5,7 @@ import type {
   TransactionsParams, SummaryParams, MonthSummaryParams,
   Transaction, TransactionPatch, CashflowSummary, CategoryPatch,
   AuthStatus, AuthUser, BackupImportSummary,
+  Rule, RuleInput, RulePatch,
 } from './types'
 import {
   mockGetAccounts, mockGetCategories, mockGetTags, mockGetTransactions,
@@ -213,6 +214,62 @@ export async function createCategory(name: string, color?: string): Promise<Cate
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, ...(color ? { color } : {}) }),
   })
+}
+
+// ─── Rules CRUD ───────────────────────────────────────────────────────────────
+
+/** GET /api/rules — returns all rules ordered by (priority, id). No mock fallback. */
+export async function getRules(): Promise<Rule[]> {
+  return apiFetch<Rule[]>('/api/rules')
+}
+
+/** POST /api/rules — surfaces backend 422 detail on validation failure. */
+export async function createRule(input: RuleInput): Promise<Rule> {
+  const res = await fetch('/api/rules', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  if (res.status === 401) { _on401?.(); throw new Error('HTTP 401 Unauthorized') }
+  if (!res.ok) {
+    const data: { detail?: unknown } = await res.json().catch(() => ({}))
+    const msg = typeof data.detail === 'string'
+      ? data.detail
+      : Array.isArray(data.detail)
+        ? (data.detail as Array<{ msg?: string }>).map(d => d.msg ?? String(d)).join('; ')
+        : `HTTP ${res.status}`
+    throw new Error(msg)
+  }
+  return res.json() as Promise<Rule>
+}
+
+/** PATCH /api/rules/{id} — surfaces backend 422 detail on validation failure. */
+export async function updateRule(id: number, patch: RulePatch): Promise<Rule> {
+  const res = await fetch(`/api/rules/${id}`, {
+    method: 'PATCH',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  })
+  if (res.status === 401) { _on401?.(); throw new Error('HTTP 401 Unauthorized') }
+  if (!res.ok) {
+    const data: { detail?: unknown } = await res.json().catch(() => ({}))
+    const msg = typeof data.detail === 'string'
+      ? data.detail
+      : Array.isArray(data.detail)
+        ? (data.detail as Array<{ msg?: string }>).map(d => d.msg ?? String(d)).join('; ')
+        : `HTTP ${res.status}`
+    throw new Error(msg)
+  }
+  return res.json() as Promise<Rule>
+}
+
+/** DELETE /api/rules/{id} — returns 204 on success. */
+export async function deleteRule(id: number): Promise<void> {
+  const res = await fetch(`/api/rules/${id}`, { method: 'DELETE', credentials: 'same-origin' })
+  if (res.status === 401) { _on401?.(); throw new Error('HTTP 401 Unauthorized') }
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
 }
 
 // ─── Backup ───────────────────────────────────────────────────────────────────

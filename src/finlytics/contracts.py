@@ -85,6 +85,17 @@ class ExtractedTransaction(BaseModel):
             "or null when no merchant is identifiable"
         ),
     )
+    # Set when a user-defined rule matched this transaction (apply_rules).
+    # Used by the import preview to show a "🔗 Regla" badge.
+    # Intentionally ignored by the persistence layer (Shuri).
+    matched_rule_id: Optional[int] = Field(
+        default=None,
+        description="ID of the rule that matched this transaction, if any",
+    )
+    matched_rule_name: Optional[str] = Field(
+        default=None,
+        description="Human-readable name of the matched rule, if any",
+    )
 
     # Ensure Decimal fields serialise as JSON numbers, not strings, so the API
     # contract ("amount: number") is honoured without lossy float arithmetic in
