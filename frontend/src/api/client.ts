@@ -1,0 +1,265 @@
+import type {
+  Account, Category, Tag, TransactionPage, Overview,
+  CategorySummary, MonthSummary, AccountSummary, ImportResult,
+  ImportTransaction, PreviewResponse, ConfirmRequest,
+  TransactionsParams, SummaryParams, MonthSummaryParams,
+  Transaction, TransactionPatch, CashflowSummary, CategoryPatch,
+  AuthStatus, AuthUser, BackupImportSummary,
+} from './types'
+import {
+  mockGetAccounts, mockGetCategories, mockGetTags, mockGetTransactions,
+  mockGetOverview, mockGetByCategory, mockGetByMonth,
+  mockGetByAccount, mockPostImport, mockPreviewImport, mockConfirmImport,
+  mockUpdateTransaction, mockGetCashflow,
+  mockCreateTag, mockUpdateTag, mockDeleteTag, mockUpdateCategory,
+  mockCreateCategory,
+  mockGetAuthStatus, mockSetupUser, mockLogin, mockLogout, mockGetMe,
+} from './mock'
+
+const USE_MOCK = import.meta.env.VITE_USE_MOCK === '1'
+
+// ─── 401 global handler ───────────────────────────────────────────────────────
+
+let _on401: (() => void) | null = null
+
+/** Register a callback invoked whenever any protected API call gets a 401 response. */
+export function registerOn401Handler(fn: () => void): void {
+  _on401 = fn
+}
+
+// ─── URL builder ─────────────────────────────────────────────────────────────
+
+/** Builds a URL with query params. Arrays are serialised as repeated params.
+ *  Special mapping: key 'tags' → URL param name 'tag' (backend uses ?tag=x&tag=y). */
+function buildUrl(path: string, params?: Record<string, unknown>): string {
+  const url = new URL(path, window.location.origin)
+  if (params) {
+    for (const [k, v] of Object.entries(params)) {
+      if (v === undefined || v === null) continue
+      if (Array.isArray(v)) {
+        const urlKey = k === 'tags' ? 'tag' : k
+        for (const item of v) url.searchParams.append(urlKey, String(item))
+      } else {
+        url.searchParams.set(k, String(v))
+      }
+    }
+  }
+  return url.toString()
+}
+
+async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
+  const res = await fetch(url, { credentials: 'same-origin', ...options })
+  if (res.status === 401) {
+    _on401?.()
+    throw new Error('HTTP 401 Unauthorized')
+  }
+  if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`)
+  return res.json() as Promise<T>
+}
+
+/** POST to an auth endpoint without triggering the global 401 handler.
+ *  Attaches status to thrown errors so callers can branch on 401 / 409. */
+async function authPost<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(path, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const data: { detail?: string } = await res.json().catch(() => ({}))
+    throw Object.assign(new Error(data.detail ?? `HTTP ${res.status}`), { status: res.status })
+  }
+  return res.json() as Promise<T>
+}
+
+// ─── Public API ───────────────────────────────────────────────────────────────
+
+export async function getAccounts(): Promise<Account[]> {
+  if (USE_MOCK) return mockGetAccounts()
+  try { return await apiFetch<Account[]>(buildUrl('/api/accounts')) }
+  catch { return mockGetAccounts() }
+}
+
+export async function getCategories(): Promise<Category[]> {
+  if (USE_MOCK) return mockGetCategories()
+  try { return await apiFetch<Category[]>(buildUrl('/api/categories')) }
+  catch { return mockGetCategories() }
+}
+
+export async function getTags(): Promise<Tag[]> {
+  if (USE_MOCK) return mockGetTags()
+  try { return await apiFetch<Tag[]>(buildUrl('/api/tags')) }
+  catch { return mockGetTags() }
+}
+
+export async function getTransactions(params?: TransactionsParams): Promise<TransactionPage> {
+  if (USE_MOCK) return mockGetTransactions(params)
+  try { return await apiFetch<TransactionPage>(buildUrl('/api/transactions', params as Record<string, unknown>)) }
+  catch { return mockGetTransactions(params) }
+}
+
+export async function getOverview(params?: SummaryParams): Promise<Overview> {
+  if (USE_MOCK) return mockGetOverview(params)
+  try { return await apiFetch<Overview>(buildUrl('/api/summary/overview', params as Record<string, unknown>)) }
+  catch { return mockGetOverview(params) }
+}
+
+export async function getByCategory(params?: SummaryParams): Promise<CategorySummary[]> {
+  if (USE_MOCK) return mockGetByCategory(params)
+  try { return await apiFetch<CategorySummary[]>(buildUrl('/api/summary/by-category', params as Record<string, unknown>)) }
+  catch { return mockGetByCategory(params) }
+}
+
+export async function getByMonth(params?: MonthSummaryParams): Promise<MonthSummary[]> {
+  if (USE_MOCK) return mockGetByMonth(params)
+  try { return await apiFetch<MonthSummary[]>(buildUrl('/api/summary/by-month', params as Record<string, unknown>)) }
+  catch { return mockGetByMonth(params) }
+}
+
+export async function getByAccount(params?: SummaryParams): Promise<AccountSummary[]> {
+  if (USE_MOCK) return mockGetByAccount(params)
+  try { return await apiFetch<AccountSummary[]>(buildUrl('/api/summary/by-account', params as Record<string, unknown>)) }
+  catch { return mockGetByAccount(params) }
+}
+
+export async function postImport(file: File, accountName: string): Promise<ImportResult> {
+  if (USE_MOCK) return mockPostImport(file, accountName)
+  try {
+    const form = new FormData()
+    form.append('file', file)
+    form.append('account_name', accountName)
+    return await apiFetch<ImportResult>('/api/imports', { method: 'POST', body: form })
+  } catch { return mockPostImport(file, accountName) }
+}
+
+// ─── Two-step import ──────────────────────────────────────────────────────────
+
+export async function previewImport(file: File, accountName: string): Promise<PreviewResponse> {
+  if (USE_MOCK) return mockPreviewImport(file, accountName)
+  const form = new FormData()
+  form.append('file', file)
+  if (accountName) form.append('account_name', accountName)
+  return apiFetch<PreviewResponse>('/api/imports/preview', { method: 'POST', body: form })
+}
+
+/** Call POST /api/imports/confirm — does NOT fall back to mock on real errors. */
+export async function confirmImport(payload: ConfirmRequest): Promise<ImportResult> {
+  if (USE_MOCK) return mockConfirmImport(payload)
+  return apiFetch<ImportResult>('/api/imports/confirm', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+}
+
+/** PATCH /api/transactions/{id} — does NOT fall back to mock on real errors.
+ *  Returns 404 if missing, 409 on dedup collision. */
+export async function updateTransaction(id: number, patch: TransactionPatch): Promise<Transaction> {
+  if (USE_MOCK) return mockUpdateTransaction(id, patch)
+  return apiFetch<Transaction>(`/api/transactions/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  })
+}
+
+export async function getCashflow(params?: SummaryParams): Promise<CashflowSummary> {
+  if (USE_MOCK) return mockGetCashflow(params)
+  try { return await apiFetch<CashflowSummary>(buildUrl('/api/summary/cashflow', params as Record<string, unknown>)) }
+  catch { return mockGetCashflow(params) }
+}
+
+// ─── Tag CRUD ─────────────────────────────────────────────────────────────────
+
+export async function createTag(name: string, color: string): Promise<Tag> {
+  if (USE_MOCK) return mockCreateTag(name, color)
+  return apiFetch<Tag>('/api/tags', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, color }),
+  })
+}
+
+export async function updateTag(id: number, patch: { name?: string; color?: string; emoji?: string | null }): Promise<Tag> {
+  if (USE_MOCK) return mockUpdateTag(id, patch)
+  return apiFetch<Tag>(`/api/tags/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  })
+}
+
+export async function deleteTag(id: number): Promise<void> {
+  if (USE_MOCK) return mockDeleteTag(id)
+  const res = await fetch(`/api/tags/${id}`, { method: 'DELETE', credentials: 'same-origin' })
+  if (res.status === 401) { _on401?.(); throw new Error('HTTP 401 Unauthorized') }
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+}
+
+export async function updateCategory(id: number, patch: CategoryPatch): Promise<Category> {
+  if (USE_MOCK) return mockUpdateCategory(id, patch)
+  return apiFetch<Category>(`/api/categories/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  })
+}
+
+export async function createCategory(name: string, color?: string): Promise<Category> {
+  if (USE_MOCK) return mockCreateCategory(name, color)
+  return apiFetch<Category>('/api/categories', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, ...(color ? { color } : {}) }),
+  })
+}
+
+// ─── Backup ───────────────────────────────────────────────────────────────────
+
+/** GET /api/backup/export — returns full backup JSON. Does NOT fall back to mock. */
+export async function exportBackup(): Promise<unknown> {
+  return apiFetch<unknown>('/api/backup/export')
+}
+
+/** POST /api/backup/import — restores a backup. Does NOT fall back to mock. */
+export async function importBackup(data: unknown): Promise<BackupImportSummary> {
+  return apiFetch<BackupImportSummary>('/api/backup/import', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+}
+
+// ─── Shared formatter ─────────────────────────────────────────────────────────
+
+export function formatEur(amount: number): string {
+  return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(amount)
+}
+
+// ─── Auth ─────────────────────────────────────────────────────────────────────
+
+export async function getAuthStatus(): Promise<AuthStatus> {
+  if (USE_MOCK) return mockGetAuthStatus()
+  return apiFetch<AuthStatus>(buildUrl('/api/auth/status'))
+}
+
+export async function setupUser(username: string, password: string): Promise<AuthUser> {
+  if (USE_MOCK) return mockSetupUser(username, password)
+  return authPost<AuthUser>('/api/auth/setup', { username, password })
+}
+
+export async function login(username: string, password: string): Promise<AuthUser> {
+  if (USE_MOCK) return mockLogin(username, password)
+  return authPost<AuthUser>('/api/auth/login', { username, password })
+}
+
+export async function logout(): Promise<void> {
+  if (USE_MOCK) return mockLogout()
+  await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' })
+}
+
+export async function getMe(): Promise<AuthUser> {
+  if (USE_MOCK) return mockGetMe()
+  return apiFetch<AuthUser>(buildUrl('/api/auth/me'))
+}

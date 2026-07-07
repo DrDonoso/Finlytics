@@ -1,0 +1,36 @@
+# Version control
+.git
+.gitattributes
+.gitignore
+
+# Secrets — never in image
+.env
+.env.*
+!.env.example
+
+# Python artifacts
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.pytest_cache/
+
+# Frontend: node_modules and compiled output (rebuilt in Stage 1)
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Tests (not needed at runtime)
+tests/
+
+# Project management / squad docs
+.squad/
+DEPLOY.md
+
+# Editor & OS noise
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
