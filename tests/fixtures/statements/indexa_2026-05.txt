@@ -1,0 +1,23 @@
+INDEXA CAPITAL
+==============================
+EXTRACTO DE CARTERA - MAYO 2026
+Periodo: 01/05/2026 - 31/05/2026
+==============================
+
+Titular: FICTICIO CLIENTE TEST
+DNI: 00000000T
+Cuenta de valores: ES76 0487 0500 5100 0503 8471
+
+Valor cartera (01/05/2026): 12.450,00 EUR
+
+MOVIMIENTOS DEL PERIODO
+
+Fecha        Concepto                                          Importe      Valor Cartera
+-------------------------------------------------------------------------------------------
+05/05/2026   APORTACION PERIODICA AUTOMATICA                  +500,00       12.950,00
+12/05/2026   COMISION DE GESTION INDEXA CAPITAL                 -3,25       12.946,75
+15/05/2026   DIVIDENDO VANGUARD GLOBAL STOCKS ETF              +12,50       12.959,25
+20/05/2026   INTERES CUENTA REMUNERADA                          +8,75       12.968,00
+28/05/2026   TRANSFERENCIA A ES49 0182 6370 8002 0151 3307    -200,00       12.768,00
+
+Valor cartera (31/05/2026): 12.768,00 EUR

@@ -1,0 +1,57 @@
+[
+  {
+    "transaction_date": "2026-05-05",
+    "amount": "500.00",
+    "currency": "EUR",
+    "description": "APORTACION PERIODICA AUTOMATICA",
+    "raw_line": "05/05/2026   APORTACION PERIODICA AUTOMATICA                  +500,00       12.950,00",
+    "category": "Investments",
+    "category_confidence": 0.99,
+    "account_ref": "Indexa Capital",
+    "balance_after": "12950.00"
+  },
+  {
+    "transaction_date": "2026-05-12",
+    "amount": "-3.25",
+    "currency": "EUR",
+    "description": "COMISION DE GESTION INDEXA CAPITAL",
+    "raw_line": "12/05/2026   COMISION DE GESTION INDEXA CAPITAL                 -3,25       12.946,75",
+    "category": "Bank Fees",
+    "category_confidence": 0.99,
+    "account_ref": "Indexa Capital",
+    "balance_after": "12946.75"
+  },
+  {
+    "transaction_date": "2026-05-15",
+    "amount": "12.50",
+    "currency": "EUR",
+    "description": "DIVIDENDO VANGUARD GLOBAL STOCKS ETF",
+    "raw_line": "15/05/2026   DIVIDENDO VANGUARD GLOBAL STOCKS ETF              +12,50       12.959,25",
+    "category": "Income",
+    "category_confidence": 0.98,
+    "account_ref": "Indexa Capital",
+    "balance_after": "12959.25"
+  },
+  {
+    "transaction_date": "2026-05-20",
+    "amount": "8.75",
+    "currency": "EUR",
+    "description": "INTERES CUENTA REMUNERADA",
+    "raw_line": "20/05/2026   INTERES CUENTA REMUNERADA                          +8,75       12.968,00",
+    "category": "Income",
+    "category_confidence": 0.97,
+    "account_ref": "Indexa Capital",
+    "balance_after": "12968.00"
+  },
+  {
+    "transaction_date": "2026-05-28",
+    "amount": "-200.00",
+    "currency": "EUR",
+    "description": "TRANSFERENCIA A BBVA",
+    "raw_line": null,
+    "category": "Transfers",
+    "category_confidence": 0.96,
+    "account_ref": "Indexa Capital",
+    "balance_after": "12768.00"
+  }
+]
