@@ -1,0 +1,112 @@
+[
+  {
+    "transaction_date": "2026-05-02",
+    "amount": "-45.30",
+    "currency": "EUR",
+    "description": "COMPRA EN MERCADONA C/MAYOR 1 MADRID",
+    "raw_line": "02/05/2026   COMPRA EN MERCADONA C/MAYOR 1 MADRID              -45,30         1.404,70",
+    "category": "Groceries",
+    "category_confidence": 0.99,
+    "account_ref": "BBVA",
+    "balance_after": "1404.70"
+  },
+  {
+    "transaction_date": "2026-05-05",
+    "amount": "-78.50",
+    "currency": "EUR",
+    "description": "RECIBO ENDESA LUZ MAY26",
+    "raw_line": "05/05/2026   RECIBO ENDESA LUZ MAY26                           -78,50         1.326,20",
+    "category": "Utilities",
+    "category_confidence": 0.97,
+    "account_ref": "BBVA",
+    "balance_after": "1326.20"
+  },
+  {
+    "transaction_date": "2026-05-08",
+    "amount": "-60.00",
+    "currency": "EUR",
+    "description": "GASOLINERA REPSOL GETAFE",
+    "raw_line": "08/05/2026   GASOLINERA REPSOL GETAFE                          -60,00         1.266,20",
+    "category": "Fuel",
+    "category_confidence": 0.98,
+    "account_ref": "BBVA",
+    "balance_after": "1266.20"
+  },
+  {
+    "transaction_date": "2026-05-10",
+    "amount": "-32.80",
+    "currency": "EUR",
+    "description": "RESTAURANTE EL PORTAL SL MADRID",
+    "raw_line": "10/05/2026   RESTAURANTE EL PORTAL SL MADRID                   -32,80         1.233,40",
+    "category": "Dining",
+    "category_confidence": 0.95,
+    "account_ref": "BBVA",
+    "balance_after": "1233.40"
+  },
+  {
+    "transaction_date": "2026-05-15",
+    "amount": "2850.00",
+    "currency": "EUR",
+    "description": "NOMINA EMPRESA TECH SL",
+    "raw_line": "15/05/2026   NOMINA EMPRESA TECH SL                          2.850,00         4.083,40",
+    "category": "Income",
+    "category_confidence": 0.99,
+    "account_ref": "BBVA",
+    "balance_after": "4083.40"
+  },
+  {
+    "transaction_date": "2026-05-18",
+    "amount": "29.99",
+    "currency": "EUR",
+    "description": "DEVOLUCION AMAZON EU SARL",
+    "raw_line": "18/05/2026   DEVOLUCION AMAZON EU SARL                          29,99          4.113,39",
+    "category": "Shopping",
+    "category_confidence": 0.88,
+    "account_ref": "BBVA",
+    "balance_after": "4113.39"
+  },
+  {
+    "transaction_date": "2026-05-20",
+    "amount": "-25.00",
+    "currency": "USD",
+    "description": "COMPRA EN EXTERIOR AMAZON USA",
+    "raw_line": "20/05/2026   COMPRA EN EXTERIOR AMAZON USA                     -25,00 USD      4.090,24",
+    "category": "Shopping",
+    "category_confidence": 0.90,
+    "account_ref": "BBVA",
+    "balance_after": "4090.24"
+  },
+  {
+    "transaction_date": "2026-05-22",
+    "amount": "-4.00",
+    "currency": "EUR",
+    "description": "COMISION MANTENIMIENTO CUENTA",
+    "raw_line": "22/05/2026   COMISION MANTENIMIENTO CUENTA                      -4,00          4.086,24",
+    "category": "Bank Fees",
+    "category_confidence": 0.99,
+    "account_ref": "BBVA",
+    "balance_after": "4086.24"
+  },
+  {
+    "transaction_date": "2026-05-25",
+    "amount": "-38.20",
+    "currency": "EUR",
+    "description": "COMPRA EN LIDL MADRID CARABANCHEL",
+    "raw_line": "25/05/2026   COMPRA EN LIDL MADRID CARABANCHEL                 -38,20          4.048,04",
+    "category": "Groceries",
+    "category_confidence": 0.98,
+    "account_ref": "BBVA",
+    "balance_after": "4048.04"
+  },
+  {
+    "transaction_date": "2026-05-28",
+    "amount": "-52.10",
+    "currency": "EUR",
+    "description": "RECIBO GAS NATURGY MAY26",
+    "raw_line": "28/05/2026   RECIBO GAS NATURGY MAY26                          -52,10          3.995,94",
+    "category": "Utilities",
+    "category_confidence": 0.97,
+    "account_ref": "BBVA",
+    "balance_after": "3995.94"
+  }
+]
