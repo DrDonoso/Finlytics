@@ -23,8 +23,10 @@ from finlytics.api.deps import get_db, get_llm_client
 from finlytics.api.schemas import ConfirmIn, ImportResult, PreviewOut, SuggestedTag
 from finlytics.contracts import ExtractedTransaction
 from finlytics.db.models import Account, ImportRun, Tag
-from finlytics.db.repository import upsert_transactions
+from finlytics.db.repository import list_rules, upsert_transactions
 from finlytics.extraction.extractor import detect_statement_year, extract_transactions
+from finlytics.extraction.prematch import pre_match_rules
+from finlytics.extraction.rules import apply_rules
 from finlytics.extraction.llm_client import LLMClient
 from finlytics.extraction.parser import parse_statement
 from finlytics.extraction.tag_colors import suggest_tag_colors
@@ -131,18 +133,31 @@ async def preview_import(
 
     year = detect_statement_year(statement_text)
 
+    rules = await list_rules(session, enabled_only=True)
+    matched_txs, remaining_text = pre_match_rules(
+        statement_text, rules,
+        statement_year=year,
+        account_ref=account_name or "",
+    )
+
     try:
-        extracted = await extract_transactions(
-            statement_text, account_name or "", llm_client, statement_year=year
-        )
+        if remaining_text.strip():
+            extracted = await extract_transactions(
+                remaining_text, account_name or "", llm_client, statement_year=year
+            )
+        else:
+            extracted = []
     except HTTPException:
         raise
     except Exception as exc:
         log.error("LLM extraction failed: %s", exc)
         raise HTTPException(status_code=502, detail=f"LLM extraction failed: {exc}") from exc
 
-    # Collect distinct normalized tag names across all extracted transactions.
-    all_tag_names = list({name.strip().lower() for tx in extracted for name in tx.tags})
+    extracted = apply_rules(extracted, rules)
+    all_txs = sorted(matched_txs + extracted, key=lambda t: t.transaction_date)
+
+    # Collect distinct normalized tag names across all transactions.
+    all_tag_names = list({name.strip().lower() for tx in all_txs for name in tx.tags})
 
     suggested_tags: list[SuggestedTag] = []
     if all_tag_names:
@@ -161,7 +176,7 @@ async def preview_import(
     return PreviewOut(
         account_ref=account_name,
         filename=filename,
-        transactions=extracted,
+        transactions=all_txs,
         statement_year=year,
         year_detected=(year is not None),
         suggested_tags=suggested_tags,
@@ -207,14 +222,25 @@ async def create_import(
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "pdf"
 
     statement_text = _parse_file(file_bytes, ext, error_status=422)
+    year = detect_statement_year(statement_text)
 
     async with session.begin():
         account = await _resolve_account(session, account_id, account_name)
 
+        rules = await list_rules(session, enabled_only=True)
+        matched_txs, remaining_text = pre_match_rules(
+            statement_text, rules,
+            statement_year=year,
+            account_ref=account.name,
+        )
+
         try:
-            extracted = await extract_transactions(
-                statement_text, account.name, llm_client
-            )
+            if remaining_text.strip():
+                extracted = await extract_transactions(
+                    remaining_text, account.name, llm_client, statement_year=year
+                )
+            else:
+                extracted = []
         except HTTPException:
             raise
         except Exception as exc:
@@ -223,6 +249,9 @@ async def create_import(
                 status_code=502, detail=f"LLM extraction failed: {exc}"
             ) from exc
 
-        result = await _persist_import_run(session, account.id, filename, extracted)
+        extracted = apply_rules(extracted, rules)
+        all_txs = sorted(matched_txs + extracted, key=lambda t: t.transaction_date)
+
+        result = await _persist_import_run(session, account.id, filename, all_txs)
 
     return result

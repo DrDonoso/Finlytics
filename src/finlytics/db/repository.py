@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import date
+from datetime import date, datetime, timezone
 from decimal import Decimal
 
 from sqlalchemy import select
@@ -24,7 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from finlytics.contracts import ExtractedTransaction
-from finlytics.db.models import Category, ImportRun, Tag, Transaction, transaction_tags
+from finlytics.db.models import Category, ImportRun, Rule, Tag, Transaction, transaction_tags
 from finlytics.extraction.translate import translate_category_name
 
 
@@ -243,3 +243,73 @@ async def upsert_transactions(
             num_duplicates += 1
 
     return num_inserted, num_duplicates
+
+
+# ── Rules CRUD ────────────────────────────────────────────────────────────────
+
+async def list_rules(
+    session: AsyncSession,
+    *,
+    enabled_only: bool = False,
+) -> list[Rule]:
+    """Return all rules ordered by (priority, id).
+
+    Pass ``enabled_only=True`` to fetch only rules where enabled=True.
+    The caller is responsible for the session transaction scope.
+    """
+    stmt = select(Rule)
+    if enabled_only:
+        stmt = stmt.where(Rule.enabled.is_(True))
+    stmt = stmt.order_by(Rule.priority, Rule.id)
+    result = await session.execute(stmt)
+    return list(result.scalars().all())
+
+
+async def get_rule(session: AsyncSession, rule_id: int) -> Rule | None:
+    """Return the Rule with the given id, or None if not found."""
+    result = await session.execute(select(Rule).where(Rule.id == rule_id))
+    return result.scalar_one_or_none()
+
+
+async def create_rule(session: AsyncSession, **kwargs) -> Rule:
+    """Insert a new Rule and return it with its generated id.
+
+    The caller is responsible for managing the session transaction
+    (``session.begin()`` / commit / rollback).
+    """
+    rule = Rule(**kwargs)
+    session.add(rule)
+    await session.flush()  # materialise id + server defaults
+    return rule
+
+
+async def update_rule(session: AsyncSession, rule_id: int, **kwargs) -> Rule | None:
+    """Apply partial updates to a Rule.
+
+    Returns the updated Rule, or None if not found.
+    The caller is responsible for managing the session transaction.
+    Cross-field validation (skip_ai → set_category) is the caller's
+    responsibility; this function applies values unconditionally.
+    """
+    rule = await get_rule(session, rule_id)
+    if rule is None:
+        return None
+    for field, value in kwargs.items():
+        setattr(rule, field, value)
+    rule.updated_at = datetime.now(timezone.utc)
+    await session.flush()
+    return rule
+
+
+async def delete_rule(session: AsyncSession, rule_id: int) -> bool:
+    """Delete a Rule by id.
+
+    Returns True if deleted, False if not found.
+    The caller is responsible for managing the session transaction.
+    """
+    rule = await get_rule(session, rule_id)
+    if rule is None:
+        return False
+    await session.delete(rule)
+    await session.flush()
+    return True

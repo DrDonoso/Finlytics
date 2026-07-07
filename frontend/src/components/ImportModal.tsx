@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from 'react'
+import { useState, useRef, useMemo, useEffect } from 'react'
 import type {
   Account, Category, Tag,
   ImportTransaction, PreviewResponse, ConfirmRequest, ImportResult,
@@ -8,6 +8,7 @@ import { useT, categoryLabel, type Dict } from '../i18n'
 import DateInput from './DateInput'
 import CategorySelect from './CategorySelect'
 import TagTypeahead from './TagTypeahead'
+import RuleFormModal from './RuleFormModal'
 
 type Step = 'upload' | 'extracting' | 'preview' | 'saving'
 
@@ -69,6 +70,15 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
   const [rows,        setRows]        = useState<EditRow[]>([])
   const [error,       setError]       = useState<string | null>(null)
   const nextKey = useRef(0)
+
+  const [createRuleRow, setCreateRuleRow] = useState<EditRow | null>(null)
+  const [ruleToast,     setRuleToast]     = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!ruleToast) return
+    const id = setTimeout(() => setRuleToast(null), 4000)
+    return () => clearTimeout(id)
+  }, [ruleToast])
 
   const dynamicEs = useMemo(
     () => Object.fromEntries(categories.filter(c => c.name_es).map(c => [c.name, c.name_es!])),
@@ -206,8 +216,9 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
   const hasLowConf = rows.some(r => r.category_confidence !== null && r.category_confidence < 0.5)
 
   return (
-    <div className="modal-backdrop">
-      <div className="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="modal-title-id">
+    <>
+      <div className="modal-backdrop">
+        <div className="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="modal-title-id">
 
         <div className="modal-header">
           <h2 className="modal-title" id="modal-title-id">
@@ -398,14 +409,24 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
                           </td>
 
                           <td>
-                            <CategorySelect
-                              value={row.category}
-                              baseCategories={baseCategories}
-                              extraCategories={customCategories}
-                              lang={lang}
-                              t={t}
-                              onChange={val => updateRow(row._key, { category: val })}
-                            />
+                            <div className="category-cell-wrap">
+                              <CategorySelect
+                                value={row.category}
+                                baseCategories={baseCategories}
+                                extraCategories={customCategories}
+                                lang={lang}
+                                t={t}
+                                onChange={val => updateRow(row._key, { category: val })}
+                              />
+                              {row.matched_rule_id != null && (
+                                <span
+                                  className="rule-match-badge"
+                                  title={t.ruleMatchTooltip(row.matched_rule_name ?? '')}
+                                >
+                                  {t.ruleMatchBadge}
+                                </span>
+                              )}
+                            </div>
                           </td>
 
                           <td>
@@ -440,11 +461,18 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
                           </td>
 
                           <td>
-                            <button
-                              className="btn-row-delete"
-                              onClick={() => deleteRow(row._key)}
-                              title={t.previewDeleteRow}
-                            >✕</button>
+                            <div className="td-actions">
+                              <button
+                                className="btn-row-icon btn-create-rule"
+                                onClick={() => setCreateRuleRow(row)}
+                                title={t.createRuleBtn}
+                              >⚙+</button>
+                              <button
+                                className="btn-row-delete"
+                                onClick={() => deleteRow(row._key)}
+                                title={t.previewDeleteRow}
+                              >✕</button>
+                            </div>
                           </td>
                         </tr>
                       )
@@ -501,7 +529,26 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
           </div>
         )}
 
+        </div>
       </div>
-    </div>
+
+      {createRuleRow && (
+        <RuleFormModal
+          initialValues={{
+            description_mode:  'contains',
+            description_value: createRuleRow.description,
+            set_category:      createRuleRow.category,
+            set_merchant:      createRuleRow.merchant,
+            add_tags:          createRuleRow.tags,
+          }}
+          categories={categories}
+          availableTags={allTags}
+          onSave={() => { setCreateRuleRow(null); setRuleToast(t.createRuleToast) }}
+          onClose={() => setCreateRuleRow(null)}
+        />
+      )}
+
+      {ruleToast && <div className="rule-toast">{ruleToast}</div>}
+    </>
   )
 }

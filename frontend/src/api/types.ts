@@ -140,6 +140,9 @@ export interface ImportTransaction {
   balance_after: number | null
   tags: string[]
   merchant: string | null
+  /** Set when a classification rule matched this line during preview. */
+  matched_rule_id?: number | null
+  matched_rule_name?: string | null
 }
 
 export interface PreviewResponse {
@@ -213,6 +216,59 @@ export interface AuthStatus {
 
 export interface AuthUser {
   username: string
+}
+
+// ─── Rules ────────────────────────────────────────────────────────────────────
+
+export type DescriptionMode = 'contains' | 'starts_with' | 'exact' | 'regex'
+export type AmountSign = 'negative' | 'positive'
+
+export interface Rule {
+  id: number
+  name: string
+  priority: number
+  enabled: boolean
+  description_mode: DescriptionMode
+  description_value: string
+  amount_sign: AmountSign | null
+  account_ref: string | null
+  currency: string | null
+  set_category: string | null
+  set_merchant: string | null
+  add_tags: string[]
+  skip_ai: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface RuleInput {
+  name: string
+  priority?: number
+  enabled?: boolean
+  description_mode: DescriptionMode
+  description_value: string
+  amount_sign?: AmountSign | null
+  account_ref?: string | null
+  currency?: string | null
+  set_category?: string | null
+  set_merchant?: string | null
+  add_tags?: string[]
+  skip_ai?: boolean
+}
+
+export interface RulePatch {
+  name?: string
+  priority?: number
+  enabled?: boolean
+  description_mode?: DescriptionMode
+  description_value?: string
+  amount_sign?: AmountSign | null
+  account_ref?: string | null
+  currency?: string | null
+  set_category?: string | null
+  set_merchant?: string | null
+  add_tags?: string[]
+  skip_ai?: boolean
 }
 
 // ─── UI types ─────────────────────────────────────────────────────────────────
