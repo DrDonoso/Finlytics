@@ -4,6 +4,11 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260708] - 2026-07-08
+
+- feat(ui): move Reglas to a top-level menu item
+
+
 ## [20260707.03] - 2026-07-07
 
 - rules table (migration 0008) + Rule model + /api/rules CRUD (regex + skip_ai validation)
