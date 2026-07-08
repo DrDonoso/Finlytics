@@ -93,7 +93,6 @@ export interface Dict {
   navSettings: string
   settingsTagsTitle: string
   settingsTagsAddName: string
-  settingsTagsAddColor: string
   settingsTagsAddBtn: string
   settingsTagsDelete: string
   settingsTagsDeleteConfirm: (name: string) => string
@@ -105,8 +104,8 @@ export interface Dict {
   settingsCatsEmpty: string
   settingsCatsSaved: string
   settingsCatsAddName: string
-  settingsCatsAddColor: string
   settingsCatsAddBtn: string
+  colorSwatchCustom: string
   settingsCountLabel: (n: number) => string
   // ── Auth ──────────────────────────────────────────────────────────────────
   authLoginTitle: string
@@ -232,6 +231,24 @@ export interface Dict {
   ruleMatchBadge: string
   ruleMatchTooltip: (name: string) => string
   createRuleToast: string
+  // ── Tag filter typeahead ──────────────────────────────────────────────────
+  filterTagSearchPlaceholder: string
+  filterTagMostUsed: string
+  // ── Rule detail condition ─────────────────────────────────────────────────
+  rulesFieldDetailLabel: string
+  rulesFieldDetailHint: string
+  rulesFieldDetailValuePlaceholder: string
+  // ── Rule form section headings ────────────────────────────────────────────
+  rulesSectionIdentity: string
+  rulesSectionMatch: string
+  rulesSectionActions: string
+  rulesConditionTitle: string
+  rulesConditionFilters: string
+  // ── Rule amount filter ────────────────────────────────────────────────────
+  rulesFieldAmountMin: string
+  rulesFieldAmountMax: string
+  rulesFieldAmountHint: string
+  rulesValidationAmount: string
 }
 
 const ES_LABELS: Record<string, string> = {
@@ -274,6 +291,19 @@ export function langLocale(lang: Lang): string {
 
 /** Fallback color for tags that have no color assigned yet. */
 export const DEFAULT_TAG_COLOR = '#94a3b8'
+
+/** Deterministic palette used for name-based color derivation. */
+export const PALETTE = [
+  '#3b82f6', '#f97316', '#8b5cf6', '#eab308', '#10b981',
+  '#ef4444', '#ec4899', '#06b6d4', '#84cc16', '#f59e0b',
+]
+
+/** Map a name string to a stable palette color. */
+export function paletteColor(name: string): string {
+  let h = 0
+  for (const c of name) h = (h * 31 + c.charCodeAt(0)) & 0xffffffff
+  return PALETTE[Math.abs(h) % PALETTE.length]
+}
 
 /** Returns 'black' or 'white' for maximum contrast on the given hex background. */
 export function tagTextColor(hex: string): 'black' | 'white' {

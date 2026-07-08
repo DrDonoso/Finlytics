@@ -58,6 +58,7 @@ export default function Layout() {
         >
           <span className="hamburger-icon">☰</span>
         </button>
+        <img src="/logo.png" alt="Finlytics" className="topbar-logo-img" />
         <span className="topbar-logo">Finlytics</span>
       </header>
 
