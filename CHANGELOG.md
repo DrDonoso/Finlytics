@@ -4,6 +4,22 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260708.02] - 2026-07-08
+
+- Tag filter becomes a searchable typeahead showing the top-5 most-used tags when there are many
+- New tags and categories get a color derived from their name, with a swatch color picker and a live preview
+- App logo added: browser-tab favicon, top bar, and the with-text logo on the login screen
+- The extracted detail is shown under each description in the import preview and the transactions table
+- Rule editor redesigned into Identity / Conditions / Actions sections, collapsible, with an amount filter and the active toggle moved to the top-left and to the first column of the rules table
+- Rules can match on an optional detail condition (e.g. detail contains "octopus") to separate charges that share the same title
+- Rules can filter by amount magnitude (e.g. only charges over 1000)
+- Transaction detail is persisted and included in the de-duplication key so distinct charges are no longer merged
+- Parser now separates the bold concept (e.g. "Adeudo a su cargo") from the non-bold detail line (e.g. "Octopus Energy" vs a community address), so look-alike charges can be told apart
+- Extracted transactions gain a `detail` field carrying that sub-line
+- Descriptions are normalized to readable text instead of raw uppercase, unspaced bank tokens
+- Extraction is processed in chunks so large statements no longer exceed the model output limit (fixes a 502 on full-month imports)
+
+
 ## [20260708] - 2026-07-08
 
 - feat(ui): move Reglas to a top-level menu item
