@@ -18,6 +18,7 @@ _TX = {
     "balance_after": 1200.0,
     "tags": [],
     "merchant": None,
+    "detail": None,
 }
 
 
@@ -41,7 +42,7 @@ async def test_transaction_schema_fields(client):
     expected_keys = {
         "id", "transaction_date", "amount", "currency", "description",
         "category", "account", "category_confidence", "balance_after", "tags",
-        "merchant",
+        "merchant", "detail",
     }
     assert set(item.keys()) == expected_keys
 
@@ -183,7 +184,7 @@ async def test_patch_response_schema_fields(client):
     assert set(resp.json().keys()) == {
         "id", "transaction_date", "amount", "currency", "description",
         "category", "account", "category_confidence", "balance_after", "tags",
-        "merchant",
+        "merchant", "detail",
     }
 
 

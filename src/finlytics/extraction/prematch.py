@@ -344,6 +344,11 @@ def pre_match_rules(
                 continue
             if rule.amount_sign == "positive" and line_data.amount <= 0:
                 continue
+            # Magnitude filters: abs(line_data.amount) vs optional bounds.
+            if rule.amount_min is not None and abs(line_data.amount) < rule.amount_min:
+                continue
+            if rule.amount_max is not None and abs(line_data.amount) > rule.amount_max:
+                continue
             if rule.account_ref is not None:
                 if (account_ref or "").lower() != rule.account_ref.lower():
                     continue

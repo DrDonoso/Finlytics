@@ -52,12 +52,16 @@ class _Rule:
     priority: int = 100
     enabled: bool = True
     amount_sign: Optional[str] = None
+    amount_min: Optional[Decimal] = None
+    amount_max: Optional[Decimal] = None
     account_ref: Optional[str] = None
     currency: Optional[str] = None
     set_category: Optional[str] = None
     set_merchant: Optional[str] = None
     add_tags: list[str] = field(default_factory=list)
     skip_ai: bool = False
+    detail_mode: Optional[str] = None
+    detail_value: Optional[str] = None
 
 
 assert isinstance(_Rule(1, "t", "contains", "x"), RuleProtocol)

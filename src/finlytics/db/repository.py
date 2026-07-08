@@ -35,12 +35,18 @@ def compute_dedup_hash(
     transaction_date: date,
     amount: Decimal,
     description: str,
+    detail: str | None = None,
 ) -> str:
     """Return a deterministic SHA-256 hex digest for a transaction.
 
     The hash is stable across imports: the same real-world transaction always
     produces the same hash regardless of how many times the statement is
     re-uploaded.
+
+    When ``detail`` is non-empty the hash input gains a ``|<detail>`` suffix so
+    transactions with the same core fields but different sub-line text produce
+    distinct rows.  When ``detail`` is None or empty the result is byte-identical
+    to the pre-detail formula, preserving all existing dedup_hash values.
     """
     payload = json.dumps(
         {
@@ -51,6 +57,8 @@ def compute_dedup_hash(
         },
         sort_keys=True,
     )
+    if detail and detail.strip():
+        payload = payload + "|" + detail.strip().lower()
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
@@ -208,6 +216,7 @@ async def upsert_transactions(
             transaction_date=tx.transaction_date,
             amount=tx.amount,
             description=tx.description,
+            detail=tx.detail,
         )
 
         category = await _resolve_category(tx.category)
@@ -226,6 +235,7 @@ async def upsert_transactions(
                 category_confidence=tx.category_confidence,
                 balance_after=tx.balance_after,
                 merchant=tx.merchant,
+                detail=tx.detail,
                 dedup_hash=dedup_hash,
             )
             .on_conflict_do_nothing(index_elements=["dedup_hash"])

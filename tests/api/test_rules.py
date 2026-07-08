@@ -23,8 +23,12 @@ def _make_rule(**overrides):
     rule.description_mode = overrides.get("description_mode", "contains")
     rule.description_value = overrides.get("description_value", "amortización")
     rule.amount_sign = overrides.get("amount_sign", "negative")
+    rule.amount_min = overrides.get("amount_min", None)
+    rule.amount_max = overrides.get("amount_max", None)
     rule.account_ref = overrides.get("account_ref", "BBVA")
     rule.currency = overrides.get("currency", "EUR")
+    rule.detail_mode = overrides.get("detail_mode", None)
+    rule.detail_value = overrides.get("detail_value", None)
     rule.set_category = overrides.get("set_category", "Housing")
     rule.set_merchant = overrides.get("set_merchant", None)
     rule.add_tags = overrides.get("add_tags", ["hipoteca"])
@@ -42,8 +46,12 @@ _RULE_DICT = {
     "description_mode": "contains",
     "description_value": "amortización",
     "amount_sign": "negative",
+    "amount_min": None,
+    "amount_max": None,
     "account_ref": "BBVA",
     "currency": "EUR",
+    "detail_mode": None,
+    "detail_value": None,
     "set_category": "Housing",
     "set_merchant": None,
     "add_tags": ["hipoteca"],
@@ -83,7 +91,9 @@ async def test_list_rules_schema_fields(client):
     expected_keys = {
         "id", "name", "priority", "enabled",
         "description_mode", "description_value",
-        "amount_sign", "account_ref", "currency",
+        "amount_sign", "amount_min", "amount_max",
+        "account_ref", "currency",
+        "detail_mode", "detail_value",
         "set_category", "set_merchant", "add_tags",
         "skip_ai", "created_at", "updated_at",
     }

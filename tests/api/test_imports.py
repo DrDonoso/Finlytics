@@ -24,12 +24,16 @@ def _make_rule(**overrides) -> SimpleNamespace:
         description_mode="contains",
         description_value="hipoteca",
         amount_sign=None,
+        amount_min=None,
+        amount_max=None,
         account_ref=None,
         currency=None,
         set_category="Vivienda",
         set_merchant=None,
         add_tags=["hipoteca"],
         skip_ai=False,
+        detail_mode=None,
+        detail_value=None,
     )
     defaults.update(overrides)
     return SimpleNamespace(**defaults)

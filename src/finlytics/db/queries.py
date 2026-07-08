@@ -411,6 +411,7 @@ async def get_transactions(
             Transaction.category_confidence,
             Transaction.balance_after,
             Transaction.merchant,
+            Transaction.detail,
             Category.name.label("category_name"),
             Account.name.label("account_name"),
         )
@@ -475,6 +476,7 @@ async def get_transactions(
             ),
             "tags": tag_map.get(row["id"], []),
             "merchant": row["merchant"],
+            "detail": row["detail"],
         }
         for row in rows
     ]
@@ -736,6 +738,7 @@ async def update_transaction(
                 transaction_date=tx.transaction_date,
                 amount=new_amount,
                 description=new_description,
+                detail=tx.detail,
             )
             if candidate != tx.dedup_hash:
                 collision_id = (
@@ -796,6 +799,7 @@ async def update_transaction(
             ),
             "tags": [t.name for t in tx.tags],
             "merchant": tx.merchant,
+            "detail": tx.detail,
         }
 
 
