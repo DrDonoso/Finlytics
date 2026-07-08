@@ -89,6 +89,7 @@ class TransactionOut(BaseModel):
     balance_after: float | None
     tags: list[str] = []   # tag names; empty when no tags are attached
     merchant: str | None = None
+    detail: str | None = None
 
 
 class TransactionPage(BaseModel):
@@ -262,8 +263,12 @@ class RuleIn(BaseModel):
     description_mode: Literal["contains", "starts_with", "exact", "regex"]
     description_value: str
     amount_sign: Literal["negative", "positive"] | None = None
+    amount_min: float | None = None   # abs(tx.amount) >= amount_min when set; must be >= 0
+    amount_max: float | None = None   # abs(tx.amount) <= amount_max when set; must be >= 0
     account_ref: str | None = None
     currency: str | None = None
+    detail_mode: Literal["contains", "starts_with", "exact", "regex"] | None = None
+    detail_value: str | None = None
     set_category: str | None = None
     set_merchant: str | None = None
     add_tags: list[str] = []
@@ -278,8 +283,12 @@ class RuleUpdate(BaseModel):
     description_mode: Literal["contains", "starts_with", "exact", "regex"] | None = None
     description_value: str | None = None
     amount_sign: Literal["negative", "positive"] | None = None
+    amount_min: float | None = None
+    amount_max: float | None = None
     account_ref: str | None = None
     currency: str | None = None
+    detail_mode: Literal["contains", "starts_with", "exact", "regex"] | None = None
+    detail_value: str | None = None
     set_category: str | None = None
     set_merchant: str | None = None
     add_tags: list[str] | None = None
@@ -295,8 +304,12 @@ class RuleOut(BaseModel):
     description_mode: str
     description_value: str
     amount_sign: str | None = None
+    amount_min: float | None = None
+    amount_max: float | None = None
     account_ref: str | None = None
     currency: str | None = None
+    detail_mode: str | None = None
+    detail_value: str | None = None
     set_category: str | None = None
     set_merchant: str | None = None
     add_tags: list[str] = []

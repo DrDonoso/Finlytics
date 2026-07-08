@@ -51,12 +51,16 @@ def _rule(**overrides) -> SimpleNamespace:
         description_mode="contains",
         description_value="hipoteca",
         amount_sign=None,
+        amount_min=None,
+        amount_max=None,
         account_ref=None,
         currency=None,
         set_category="Housing",
         set_merchant=None,
         add_tags=[],
         skip_ai=True,
+        detail_mode=None,
+        detail_value=None,
     )
     defaults.update(overrides)
     return SimpleNamespace(**defaults)

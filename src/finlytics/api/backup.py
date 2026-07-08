@@ -296,6 +296,7 @@ async def import_backup(
                 transaction_date=tx.transaction_date,
                 amount=Decimal(str(tx.amount)),
                 description=tx.description,
+                detail=None,  # BackupTransactionIn has no detail field
             )
 
             insert_stmt = (
