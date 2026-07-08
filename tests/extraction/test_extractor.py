@@ -10,14 +10,17 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from finlytics.extraction.extractor import (
+    _CHUNK_LINES,
+    _EXTRACTION_MAX_TOKENS,
     _ExtractionResult,
     _RawTransaction,
     _drop_category_tags,
     _drop_merchant_tags,
     _normalize_tags,
+    _split_into_chunks,
     extract_transactions,
 )
-from finlytics.extraction.llm_client import LLMClient
+from finlytics.extraction.llm_client import LLMClient, LLMError
 from finlytics.extraction.schema import ExtractedTransaction
 from finlytics.extraction.taxonomy import BASE_CATEGORIES, BASE_CATEGORY_ES
 
@@ -589,3 +592,178 @@ async def test_pipeline_base_category_es_covers_all_20():
     """BASE_CATEGORY_ES has exactly one entry per base category."""
     assert set(BASE_CATEGORY_ES.keys()) == set(BASE_CATEGORIES)
     assert len(BASE_CATEGORY_ES) == len(BASE_CATEGORIES)
+
+
+# ---------------------------------------------------------------------------
+# Chunked extraction helpers
+# ---------------------------------------------------------------------------
+
+
+def _make_chunked_client(results_per_chunk: list[list[_RawTransaction]]) -> LLMClient:
+    """Return an LLMClient whose .parse() returns successive canned results (one per chunk call)."""
+    mock_inner = MagicMock()
+    client = LLMClient(
+        api_key="test-key",
+        base_url="http://localhost",
+        model="test-model",
+        _client=mock_inner,
+    )
+    client.parse = AsyncMock(
+        side_effect=[_ExtractionResult(transactions=txs) for txs in results_per_chunk]
+    )
+    return client
+
+
+def _multi_line_stmt(n_lines: int) -> str:
+    """Build a synthetic statement with *n_lines* transaction-like lines."""
+    return "\n".join(f"{i:02d}/06 MERCHANT_{i} -{i * 10}.00" for i in range(1, n_lines + 1))
+
+
+# ---------------------------------------------------------------------------
+# _split_into_chunks unit tests
+# ---------------------------------------------------------------------------
+
+
+def test_split_into_chunks_empty_returns_empty():
+    assert _split_into_chunks("") == []
+
+
+def test_split_into_chunks_whitespace_only_returns_empty():
+    assert _split_into_chunks("   \n\n  \n") == []
+
+
+def test_split_into_chunks_single_chunk_when_below_limit():
+    text = "\n".join(["line1", "line2", "line3"])
+    chunks = _split_into_chunks(text, chunk_size=10)
+    assert chunks == [text]
+
+
+def test_split_into_chunks_splits_at_boundary():
+    lines = [f"line {i}" for i in range(10)]
+    text = "\n".join(lines)
+    chunks = _split_into_chunks(text, chunk_size=5)
+    assert len(chunks) == 2
+    assert chunks[0] == "\n".join(lines[:5])
+    assert chunks[1] == "\n".join(lines[5:])
+
+
+def test_split_into_chunks_skips_blank_chunks():
+    text = "\n".join(["line1", "line2", "", "", "", "line3"])
+    chunks = _split_into_chunks(text, chunk_size=3)
+    # chunk 0 = "line1\nline2\n" (non-blank), chunk 1 = "\n\n\nline3" (non-blank via strip)
+    assert all(c.strip() for c in chunks)
+
+
+def test_split_into_chunks_preserves_whole_lines():
+    """No line should be split mid-way — every chunk joins only whole lines."""
+    text = "\n".join(f"tx line {i}" for i in range(7))
+    for chunk in _split_into_chunks(text, chunk_size=3):
+        for line in chunk.splitlines():
+            assert line.startswith("tx line")
+
+
+# ---------------------------------------------------------------------------
+# Chunked extraction — pipeline tests
+# ---------------------------------------------------------------------------
+
+
+async def test_large_statement_calls_parse_multiple_times():
+    """A statement with more than _CHUNK_LINES lines triggers >1 parse call."""
+    stmt = _multi_line_stmt(_CHUNK_LINES + 10)  # spans 2 chunks
+
+    raw1 = _simple_raw(transaction_date="2024-06-01", description="Chunk1 Tx", amount=-10.0)
+    raw2 = _simple_raw(transaction_date="2024-06-02", description="Chunk2 Tx", amount=-20.0)
+
+    client = _make_chunked_client([[raw1], [raw2]])
+    result = await extract_transactions(stmt, "BBVA", client)
+
+    assert client.parse.call_count == 2
+    assert len(result) == 2
+    assert result[0].description == "Chunk1 Tx"
+    assert result[1].description == "Chunk2 Tx"
+
+
+async def test_small_statement_calls_parse_exactly_once():
+    """A statement within one chunk results in exactly one parse call."""
+    stmt = _multi_line_stmt(5)  # 5 lines — well below _CHUNK_LINES
+
+    raw = _simple_raw(description="Only Tx")
+    client = _make_chunked_client([[raw]])
+    result = await extract_transactions(stmt, "BBVA", client)
+
+    assert client.parse.call_count == 1
+    assert len(result) == 1
+
+
+async def test_chunked_extraction_preserves_order_across_chunks():
+    """Transactions from all chunks are concatenated in order."""
+    stmt = _multi_line_stmt(_CHUNK_LINES * 2 + 5)  # 3 chunks
+
+    chunk1_txs = [_simple_raw(transaction_date="2024-06-01", description=f"C1T{i}") for i in range(3)]
+    chunk2_txs = [_simple_raw(transaction_date="2024-06-02", description=f"C2T{i}") for i in range(4)]
+    chunk3_txs = [_simple_raw(transaction_date="2024-06-03", description=f"C3T{i}") for i in range(2)]
+
+    client = _make_chunked_client([chunk1_txs, chunk2_txs, chunk3_txs])
+    result = await extract_transactions(stmt, "BBVA", client)
+
+    assert len(result) == 9
+    descriptions = [t.description for t in result]
+    assert descriptions[:3] == ["C1T0", "C1T1", "C1T2"]
+    assert descriptions[3:7] == ["C2T0", "C2T1", "C2T2", "C2T3"]
+    assert descriptions[7:] == ["C3T0", "C3T1"]
+
+
+async def test_extraction_passes_raised_max_completion_tokens():
+    """Every parse call uses _EXTRACTION_MAX_TOKENS (8192), not the legacy 4096."""
+    stmt = _multi_line_stmt(_CHUNK_LINES + 5)  # 2 chunks
+
+    client = _make_chunked_client([[_simple_raw()], [_simple_raw()]])
+    await extract_transactions(stmt, "BBVA", client)
+
+    for call in client.parse.call_args_list:
+        assert call.kwargs.get("max_completion_tokens") == _EXTRACTION_MAX_TOKENS
+
+
+# ---------------------------------------------------------------------------
+# Graceful degradation — truncation errors
+# ---------------------------------------------------------------------------
+
+
+async def test_truncation_triggers_half_split_retry():
+    """A truncation error on the first parse causes a half-split retry."""
+    # 4-line statement → 1 chunk; first call truncates → retried as 2 halves
+    stmt = "\n".join(["01/06 TX1 -10.00", "02/06 TX2 -20.00", "03/06 TX3 -30.00", "04/06 TX4 -40.00"])
+
+    raw_a = _simple_raw(transaction_date="2024-06-01", description="HalfA")
+    raw_b = _simple_raw(transaction_date="2024-06-02", description="HalfB")
+
+    mock_inner = MagicMock()
+    client = LLMClient(api_key="k", base_url="http://x", model="m", _client=mock_inner)
+    client.parse = AsyncMock(
+        side_effect=[
+            LLMError("Could not parse response content as the length limit was reached"),
+            _ExtractionResult(transactions=[raw_a]),
+            _ExtractionResult(transactions=[raw_b]),
+        ]
+    )
+
+    result = await extract_transactions(stmt, "BBVA", client)
+
+    assert client.parse.call_count == 3  # initial + 2 half-retries
+    assert len(result) == 2
+    assert result[0].description == "HalfA"
+    assert result[1].description == "HalfB"
+
+
+async def test_truncation_irrecoverable_raises_clear_llm_error():
+    """When even the retry halves truncate, a clear LLMError with 'token limit' is raised."""
+    stmt = "01/06 TX1 -10.00\n02/06 TX2 -20.00"
+
+    mock_inner = MagicMock()
+    client = LLMClient(api_key="k", base_url="http://x", model="m", _client=mock_inner)
+    client.parse = AsyncMock(
+        side_effect=LLMError("length limit was reached")
+    )
+
+    with pytest.raises(LLMError, match="token limit"):
+        await extract_transactions(stmt, "BBVA", client)
