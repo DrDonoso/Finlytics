@@ -3,6 +3,7 @@ import type { Account, Category, Tag, Overview, TransactionsViewFilters } from '
 import { getAccounts, getCategories, getTags, getOverview } from '../api/client'
 import { useT, categoryLabel, formatDate, DEFAULT_TAG_COLOR, tagTextColor } from '../i18n'
 import TransactionsTable from '../components/TransactionsTable'
+import TagFilterSelect from '../components/TagFilterSelect'
 import { defaultRange } from '../utils'
 
 const { from: defaultFrom, to: defaultTo } = defaultRange()
@@ -228,31 +229,11 @@ export default function TransactionsPage() {
           {allTags.length > 0 && (
             <div className="filter-group">
               <label>{t.filterTag}</label>
-              <div className="tag-multi-select">
-                {allTags.map(tag => {
-                  const selected = filters.tags.includes(tag.name)
-                  const color = tag.color || DEFAULT_TAG_COLOR
-                  return (
-                    <button
-                      key={tag.id}
-                      type="button"
-                      className="tag-toggle-btn"
-                      style={selected
-                        ? { background: color, borderColor: color, color: tagTextColor(color) }
-                        : { background: 'transparent', borderColor: color, color: color }
-                      }
-                      onClick={() => {
-                        const newTags = selected
-                          ? filters.tags.filter(n => n !== tag.name)
-                          : [...filters.tags, tag.name]
-                        setFilters(f => ({ ...f, tags: newTags }))
-                      }}
-                    >
-                      {tag.emoji ? `${tag.emoji} ` : ''}{tag.name}
-                    </button>
-                  )
-                })}
-              </div>
+              <TagFilterSelect
+                availableTags={allTags}
+                selected={filters.tags}
+                onChange={next => setFilters(f => ({ ...f, tags: next }))}
+              />
             </div>
           )}
 

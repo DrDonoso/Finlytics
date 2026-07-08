@@ -1,6 +1,7 @@
 import type { Account, Category, Tag, GlobalFilters } from '../api/types'
 import { useT, categoryLabel, DEFAULT_TAG_COLOR, tagTextColor } from '../i18n'
 import { useMemo } from 'react'
+import TagFilterSelect from './TagFilterSelect'
 
 interface Props {
   filters: GlobalFilters
@@ -75,31 +76,11 @@ export default function GlobalFilterBar({ filters, accounts, categories, tags, o
       {tags.length > 0 && (
         <div className="filter-group">
           <label>{t.filterTag}</label>
-          <div className="tag-multi-select">
-            {tags.map(tag => {
-              const selected = filters.tags.includes(tag.name)
-              const color = tag.color || DEFAULT_TAG_COLOR
-              return (
-                <button
-                  key={tag.id}
-                  type="button"
-                  className="tag-toggle-btn"
-                  style={selected
-                    ? { background: color, borderColor: color, color: tagTextColor(color) }
-                    : { background: 'transparent', borderColor: color, color: color }
-                  }
-                  onClick={() => {
-                    const newTags = selected
-                      ? filters.tags.filter(n => n !== tag.name)
-                      : [...filters.tags, tag.name]
-                    set({ tags: newTags })
-                  }}
-                >
-                  {tag.emoji ? `${tag.emoji} ` : ''}{tag.name}
-                </button>
-              )
-            })}
-          </div>
+          <TagFilterSelect
+            availableTags={tags}
+            selected={filters.tags}
+            onChange={next => set({ tags: next })}
+          />
         </div>
       )}
 

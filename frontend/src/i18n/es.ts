@@ -88,7 +88,6 @@ const es: Dict = {
   navSettings: 'Ajustes',
   settingsTagsTitle: 'Etiquetas',
   settingsTagsAddName: 'Nombre de la etiqueta',
-  settingsTagsAddColor: 'Color',
   settingsTagsAddBtn: 'Añadir',
   settingsTagsDelete: 'Eliminar',
   settingsTagsDeleteConfirm: (name) => `¿Eliminar «${name}»?`,
@@ -100,8 +99,8 @@ const es: Dict = {
   settingsCatsEmpty: 'No hay categorías.',
   settingsCatsSaved: '✓ Color actualizado',
   settingsCatsAddName: 'Nombre',
-  settingsCatsAddColor: 'Color',
   settingsCatsAddBtn: 'Añadir categoría',
+  colorSwatchCustom: 'Color personalizado',
   settingsCountLabel: (n) => `${n} movimientos`,
   authLoginTitle: 'Iniciar sesión',
   authSetupTitle: 'Crear usuario',
@@ -220,5 +219,23 @@ const es: Dict = {
   ruleMatchBadge: '🔗 Regla',
   ruleMatchTooltip: (name) => `Clasificado por regla: ${name}`,
   createRuleToast: 'Regla creada. Futuras líneas similares se clasificarán automáticamente.',
+  // ── Tag filter typeahead ──────────────────────────────────────────────────
+  filterTagSearchPlaceholder: 'Buscar etiqueta…',
+  filterTagMostUsed: 'Más usadas',
+  // ── Rule detail condition ─────────────────────────────────────────────────
+  rulesFieldDetailLabel: 'Detalle (opcional)',
+  rulesFieldDetailHint: "Diferencia cargos con el mismo título — p. ej. 'octopus' vs 'comunidad'.",
+  rulesFieldDetailValuePlaceholder: 'Texto a buscar en el detalle',
+  // ── Rule form section headings ────────────────────────────────────────────
+  rulesSectionIdentity: 'Identidad',
+  rulesSectionMatch: 'Condiciones',
+  rulesSectionActions: 'Acciones',
+  rulesConditionTitle: 'Título (descripción)',
+  rulesConditionFilters: 'Acotar por…',
+  // ── Rule amount filter ────────────────────────────────────────────────────
+  rulesFieldAmountMin: 'Importe mínimo',
+  rulesFieldAmountMax: 'Importe máximo',
+  rulesFieldAmountHint: 'Importe absoluto, p. ej. mínimo 1000 para cargos grandes',
+  rulesValidationAmount: 'El importe mínimo debe ser ≤ al máximo y ambos ≥ 0',
 }
 export default es

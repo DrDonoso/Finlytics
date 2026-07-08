@@ -4,7 +4,7 @@ import type {
   ImportTransaction, PreviewResponse, ConfirmRequest, ImportResult,
 } from '../api/types'
 import { previewImport, confirmImport } from '../api/client'
-import { useT, categoryLabel, type Dict } from '../i18n'
+import { useT, categoryLabel, type Dict, paletteColor } from '../i18n'
 import DateInput from './DateInput'
 import CategorySelect from './CategorySelect'
 import TagTypeahead from './TagTypeahead'
@@ -45,20 +45,10 @@ function toImportTxn(row: EditRow): ImportTransaction {
     balance_after:       row.balance_after,
     tags:                row.tags,
     merchant:            row.merchant,
+    detail:              row.detail,
   }
 }
 
-
-/** Deterministic palette color for new tags (mirrors TagTypeahead). */
-const PALETTE = [
-  '#3b82f6', '#f97316', '#8b5cf6', '#eab308', '#10b981',
-  '#ef4444', '#ec4899', '#06b6d4', '#84cc16', '#f59e0b',
-]
-function paletteColor(name: string): string {
-  let h = 0
-  for (const c of name) h = (h * 31 + c.charCodeAt(0)) & 0xffffffff
-  return PALETTE[Math.abs(h) % PALETTE.length]
-}
 
 export default function ImportModal({ accounts, categories, allTags, onClose, onSuccess }: Props) {
   const { t, lang, formatCurrency } = useT()
@@ -366,6 +356,9 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
                               value={row.description}
                               onChange={e => updateRow(row._key, { description: e.target.value })}
                             />
+                            {row.detail && (
+                              <div className="tx-detail-subline tx-detail-subline--input-aligned">{row.detail}</div>
+                            )}
                           </td>
 
                           <td>

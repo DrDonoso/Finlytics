@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from 'react'
 import type { Category } from '../api/types'
 import { getCategories, updateCategory, createCategory } from '../api/client'
-import { useT, categoryLabel, DEFAULT_TAG_COLOR } from '../i18n'
+import { useT, categoryLabel, DEFAULT_TAG_COLOR, paletteColor, tagTextColor } from '../i18n'
+import ColorSwatchPicker from '../components/ColorSwatchPicker'
 
 export default function CategoriesPage() {
   const { t, lang } = useT()
@@ -9,10 +10,13 @@ export default function CategoriesPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Per-category: color being edited (before save) and save state
-  const [pendingColors, setPendingColors] = useState<Record<number, string>>({})
+  // Save state
   const [savingId, setSavingId] = useState<number | null>(null)
-  const [savedId, setSavedId] = useState<number | null>(null)
+  const [savedId,  setSavedId]  = useState<number | null>(null)
+
+  // Per-category inline color edit
+  const [editCatId,    setEditCatId]    = useState<number | null>(null)
+  const [editCatColor, setEditCatColor] = useState('')
 
   // Add form state
   const [addName,  setAddName]  = useState('')
@@ -38,25 +42,23 @@ export default function CategoriesPage() {
       .catch(e  => { setError(String(e)); setLoading(false) })
   }, [])
 
-  function getPendingColor(cat: Category): string {
-    return pendingColors[cat.id] ?? cat.color ?? '#94a3b8'
-  }
-
-  async function handleColorChange(cat: Category, color: string) {
-    setPendingColors(prev => ({ ...prev, [cat.id]: color }))
-    setSavingId(cat.id)
+  async function handleSaveCatColor() {
+    if (editCatId === null) return
+    const catId = editCatId
+    const color = editCatColor
+    setSavingId(catId)
     setSavedId(null)
     setError(null)
     try {
-      const updated = await updateCategory(cat.id, { color })
-      setCategories(prev => prev.map(c => c.id === cat.id ? updated : c))
-      setPendingColors(prev => { const next = { ...prev }; delete next[cat.id]; return next })
-      setSavedId(cat.id)
-      setTimeout(() => setSavedId(id => id === cat.id ? null : id), 1800)
+      const updated = await updateCategory(catId, { color })
+      setCategories(prev => prev.map(c => c.id === catId ? updated : c))
+      setSavedId(catId)
+      setTimeout(() => setSavedId(id => id === catId ? null : id), 1800)
+      setEditCatId(null)
     } catch (e) {
       setError(String(e))
     } finally {
-      setSavingId(id => id === cat.id ? null : id)
+      setSavingId(id => id === catId ? null : id)
     }
   }
 
@@ -86,18 +88,26 @@ export default function CategoriesPage() {
       <div className="settings-add-form">
         <div className="settings-add-title">{t.settingsCatsAddBtn}</div>
         <div className="settings-add-row">
-          <input
-            type="color"
-            value={addColor}
-            onChange={e => setAddColor(e.target.value)}
-            className="tag-color-input"
-            disabled={adding}
-            title={t.settingsCatsAddColor}
-          />
+          <span
+            className="preview-tag-chip"
+            style={{
+              background: addColor,
+              color: tagTextColor(addColor),
+              borderColor: addColor + '88',
+              opacity: addName.trim() ? 1 : 0.4,
+              flexShrink: 0,
+            }}
+          >
+            {addName.trim() || '…'}
+          </span>
           <input
             type="text"
             value={addName}
-            onChange={e => setAddName(e.target.value)}
+            onChange={e => {
+              const v = e.target.value
+              setAddName(v)
+              setAddColor(v.trim() ? paletteColor(v.trim().toLowerCase()) : DEFAULT_TAG_COLOR)
+            }}
             placeholder={t.settingsCatsAddName}
             className="form-input settings-tag-name-input"
             disabled={adding}
@@ -126,34 +136,69 @@ export default function CategoriesPage() {
       ) : (
         <div className="settings-cats-list">
           {sortedCategories.map(cat => {
-            const currentColor = getPendingColor(cat)
             const isSaving = savingId === cat.id
             const justSaved = savedId === cat.id
+            const catLabel = categoryLabel(cat.name, lang, dynamicEs)
+
+            if (editCatId === cat.id) {
+              return (
+                <div key={cat.id} className="settings-cat-row settings-cat-row-editing">
+                  <span className="settings-cat-label">{catLabel}</span>
+                  <div className="settings-cat-edit-block">
+                    <ColorSwatchPicker
+                      value={editCatColor}
+                      onChange={setEditCatColor}
+                      disabled={isSaving}
+                    />
+                    <div className="settings-cat-edit-footer">
+                      <span
+                        className="preview-tag-chip"
+                        style={{
+                          background: editCatColor,
+                          color: tagTextColor(editCatColor),
+                          borderColor: editCatColor + '88',
+                        }}
+                      >
+                        {catLabel}
+                      </span>
+                      <div className="settings-cat-actions">
+                        {isSaving && <span className="settings-cat-saving">…</span>}
+                        <button
+                          className="btn-row-icon btn-row-save"
+                          onClick={handleSaveCatColor}
+                          disabled={isSaving}
+                          title={t.tableSaveRow}
+                        >✓</button>
+                        <button
+                          className="btn-row-icon btn-row-cancel"
+                          onClick={() => setEditCatId(null)}
+                          disabled={isSaving}
+                          title={t.tableCancelEdit}
+                        >✕</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )
+            }
+
             return (
               <div key={cat.id} className="settings-cat-row">
                 <span
                   className="settings-cat-swatch"
-                  style={{ background: currentColor, borderColor: currentColor + '55' }}
+                  style={{ background: cat.color || '#94a3b8', borderColor: (cat.color || '#94a3b8') + '55' }}
                 />
-                <span className="settings-cat-label">
-                  {categoryLabel(cat.name, lang, dynamicEs)}
-                </span>
+                <span className="settings-cat-label">{catLabel}</span>
                 <span className="settings-count">{t.settingsCountLabel(cat.tx_count)}</span>
                 <div className="settings-cat-actions">
-                  {justSaved && (
-                    <span className="settings-cat-saved">{t.settingsCatsSaved}</span>
-                  )}
-                  {isSaving && (
-                    <span className="settings-cat-saving">…</span>
-                  )}
-                  <input
-                    type="color"
-                    value={currentColor}
-                    onChange={e => handleColorChange(cat, e.target.value)}
-                    className="tag-color-input"
+                  {justSaved && <span className="settings-cat-saved">{t.settingsCatsSaved}</span>}
+                  {isSaving && <span className="settings-cat-saving">…</span>}
+                  <button
+                    className="btn-row-icon btn-row-edit"
+                    onClick={() => { setEditCatId(cat.id); setEditCatColor(cat.color || DEFAULT_TAG_COLOR) }}
                     disabled={isSaving}
-                    title={currentColor}
-                  />
+                    title={t.tableEditRow}
+                  >✎</button>
                 </div>
               </div>
             )

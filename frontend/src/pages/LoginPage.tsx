@@ -29,7 +29,7 @@ export default function LoginPage() {
   return (
     <div className="auth-container">
       <div className="auth-card">
-        <div className="auth-logo">Finlytics</div>
+        <img src="/logo_withtext.png" alt="Finlytics" className="auth-logo-img" />
         <h1 className="auth-title">{t.authLoginTitle}</h1>
         <form onSubmit={handleSubmit} className="auth-form">
           <div className="auth-field">
