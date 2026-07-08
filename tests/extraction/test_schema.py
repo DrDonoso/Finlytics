@@ -96,3 +96,32 @@ def test_merchant_field_accepts_null():
     data["merchant"] = None
     t = ExtractedTransaction(**data)
     assert t.merchant is None
+
+
+# ---------------------------------------------------------------------------
+# detail field (Wave 2 bold/non-bold feature)
+# ---------------------------------------------------------------------------
+
+
+def test_detail_field_defaults_to_none():
+    t = ExtractedTransaction(**_base())
+    assert t.detail is None
+
+
+def test_detail_field_in_model_fields():
+    assert "detail" in ExtractedTransaction.model_fields
+
+
+def test_detail_field_accepts_string():
+    data = _base()
+    data["detail"] = "GCREOCTOPUSENERGY"
+    t = ExtractedTransaction(**data)
+    assert t.detail == "GCREOCTOPUSENERGY"
+
+
+def test_detail_field_accepts_none_explicitly():
+    data = _base()
+    data["detail"] = None
+    t = ExtractedTransaction(**data)
+    assert t.detail is None
+

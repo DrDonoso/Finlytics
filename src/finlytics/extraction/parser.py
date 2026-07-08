@@ -11,6 +11,20 @@ Dispatch order:
     pdf   → pdfplumber (lazy import, only when processing PDFs)
     xlsx  → NotImplementedError (openpyxl-based; add when xlsx fixtures available)
     csv   → stdlib csv (minimal implementation; not yet validated against bank exports)
+
+Bold/detail markup (bold_markup=True, default on):
+    BBVA statement PDFs encode transaction descriptions with distinct fonts:
+      - Bold title (Helvetica-Bold, ~8pt) — the main concept, e.g. ADEUDOASUCARGO
+      - Oblique detail (Helvetica-Oblique, ~7pt) — the sub-detail on the next visual
+        line, e.g. GCREOCTOPUSENERGY
+
+    When bold_markup=True the parser marks bold titles as **TITLE** and merges the
+    immediately-following oblique detail onto the same logical line:
+        **ADEUDOASUCARGO** GCREOCTOPUSENERGY
+
+    This markup is consumed by the LLM extractor to populate
+    ExtractedTransaction.description (bold concept) and .detail (oblique text).
+    Set bold_markup=False to disable (useful in tests against non-BBVA fixtures).
 """
 
 from __future__ import annotations
@@ -18,6 +32,8 @@ from __future__ import annotations
 import csv
 import io
 import logging
+import re
+from collections import Counter
 from pathlib import Path
 from typing import Union
 
@@ -25,14 +41,22 @@ log = logging.getLogger(__name__)
 
 Source = Union[Path, bytes]
 
+# Matches lines that start with a date (DD/MM) — used to avoid consuming
+# Courier-Oblique date/amount rows as bold-detail lines.
+_DATE_ROW_RE = re.compile(r"^\d{2}/\d{2}")
 
-def parse_statement(source: Source, *, file_type: str | None = None) -> str:
+
+def parse_statement(source: Source, *, file_type: str | None = None, bold_markup: bool = True) -> str:
     """Parse a bank-statement file and return extracted text.
 
     Args:
-        source:    A Path to the file on disk, or raw file bytes.
-        file_type: Explicit file type override ('pdf', 'xlsx', 'csv').
-                   If None, inferred from the file extension (requires a Path).
+        source:      A Path to the file on disk, or raw file bytes.
+        file_type:   Explicit file type override ('pdf', 'xlsx', 'csv').
+                     If None, inferred from the file extension (requires a Path).
+        bold_markup: When True (default) and the file is a PDF, annotate bold
+                     titles and merge oblique detail lines (see module docstring).
+                     Pass False to get plain text output (useful in tests that
+                     use non-BBVA PDF fixtures without Helvetica-Bold fonts).
 
     Returns:
         Raw text content suitable for passing to the LLM extractor.
@@ -45,7 +69,7 @@ def parse_statement(source: Source, *, file_type: str | None = None) -> str:
     log.debug("Parsing statement as %s", resolved_type)
 
     if resolved_type == "pdf":
-        return _parse_pdf(source)
+        return _parse_pdf(source, bold_markup=bold_markup)
     if resolved_type == "xlsx":
         return _parse_xlsx(source)
     if resolved_type == "csv":
@@ -77,7 +101,7 @@ def _to_bytes(source: Source) -> bytes:
     return source
 
 
-def _parse_pdf(source: Source) -> str:
+def _parse_pdf(source: Source, *, bold_markup: bool = True) -> str:
     """Extract text from a PDF using pdfplumber word positions.
 
     Strategy per page:
@@ -89,6 +113,9 @@ def _parse_pdf(source: Source) -> str:
 
       Words are grouped by y-coordinate into lines and joined with spaces,
       improving readability for PDFs that encode text without inter-word spaces.
+
+      When bold_markup=True each page is post-processed by _merge_bold_detail
+      to annotate bold-title + oblique-detail pairs.
     """
     import pdfplumber  # lazy import — only required when processing PDFs
 
@@ -100,7 +127,7 @@ def _parse_pdf(source: Source) -> str:
     pages: list[str] = []
     with ctx as pdf:
         for page_num, page in enumerate(pdf.pages, start=1):
-            page_text = _extract_page_text(page)
+            page_text = _extract_page_text(page, bold_markup=bold_markup)
             if page_text:
                 pages.append(f"[Page {page_num}]\n{page_text}")
 
@@ -111,7 +138,78 @@ def _parse_pdf(source: Source) -> str:
     return "\n\n".join(pages)
 
 
-def _extract_page_text(page) -> str:
+# ---------------------------------------------------------------------------
+# Bold / detail markup helpers (pure — unit-testable without a real PDF)
+# ---------------------------------------------------------------------------
+
+
+def _is_bold_font(fontname: str) -> bool:
+    """Return True when *fontname* indicates a bold weight (e.g. 'Helvetica-Bold')."""
+    return "Bold" in fontname
+
+
+def _is_oblique_font(fontname: str) -> bool:
+    """Return True when *fontname* indicates oblique/italic style (e.g. 'Helvetica-Oblique')."""
+    return "Oblique" in fontname or "Italic" in fontname
+
+
+def _dominant_font(words: list) -> str:
+    """Return the most common fontname among a group of word dicts."""
+    if not words:
+        return ""
+    fonts = [w.get("fontname", "") for w in words]
+    return Counter(fonts).most_common(1)[0][0]
+
+
+def _merge_bold_detail(lines_with_font: list[tuple[str, str]]) -> list[str]:
+    """Merge bold-title + oblique-detail line pairs into single logical lines.
+
+    For each bold-title line (dominant fontname contains 'Bold') optionally
+    followed by an oblique-detail line (dominant fontname contains 'Oblique' or
+    'Italic', AND the line does not look like a date/amount row), the pair is
+    collapsed into a single logical line::
+
+        **{bold_title}** {oblique_detail}
+
+    A bold-title line with NO qualifying following line becomes::
+
+        **{bold_title}**
+
+    Non-bold lines (including Courier-Oblique date/amount rows) pass through
+    unchanged.
+
+    This is a PURE function — it does not open any file; inputs are plain
+    Python strings. Unit-test it directly with synthetic (text, fontname) tuples.
+
+    Args:
+        lines_with_font: List of ``(text, dominant_fontname)`` tuples, one per
+                         visual line in top-to-bottom order.
+
+    Returns:
+        List of output text lines with bold/detail pairs merged.
+    """
+    result: list[str] = []
+    i = 0
+    while i < len(lines_with_font):
+        text, font = lines_with_font[i]
+        if _is_bold_font(font):
+            # Peek at the next line: consume it as detail when it is oblique
+            # and does NOT look like a date/amount row (DD/MM prefix).
+            if i + 1 < len(lines_with_font):
+                next_text, next_font = lines_with_font[i + 1]
+                if _is_oblique_font(next_font) and not _DATE_ROW_RE.match(next_text):
+                    result.append(f"**{text}** {next_text}")
+                    i += 2
+                    continue
+            result.append(f"**{text}**")
+            i += 1
+        else:
+            result.append(text)
+            i += 1
+    return result
+
+
+def _extract_page_text(page, *, bold_markup: bool = True) -> str:
     """Reconstruct page text from word positions with proper line spacing.
 
     Uses page.extract_words() which segments by character bounding-box gaps,
@@ -120,10 +218,13 @@ def _extract_page_text(page) -> str:
     without the tables-only discarding bug, and improves word spacing versus
     the raw extract_text() output for PDFs that encode text without spaces.
 
+    When bold_markup=True, font information is requested (fontname, size) and
+    _merge_bold_detail is applied to annotate bold-title + oblique-detail pairs.
+
     Falls back to page.extract_text() for scanned / image-based pages where
     no word objects are available.
     """
-    words = page.extract_words(x_tolerance=3, y_tolerance=3)
+    words = page.extract_words(x_tolerance=3, y_tolerance=3, extra_attrs=["fontname", "size"])
     if not words:
         return page.extract_text() or ""
 
@@ -134,10 +235,18 @@ def _extract_page_text(page) -> str:
         y_key = round(float(word["top"]) / 2) * 2
         lines.setdefault(y_key, []).append(word)
 
-    text_lines: list[str] = []
+    # Build (text, dominant_fontname) pairs for each visual line.
+    raw_lines: list[tuple[str, str]] = []
     for y_key in sorted(lines):
         row = sorted(lines[y_key], key=lambda w: float(w["x0"]))
-        text_lines.append(" ".join(w["text"] for w in row))
+        text = " ".join(w["text"] for w in row)
+        font = _dominant_font(row) if bold_markup else ""
+        raw_lines.append((text, font))
+
+    if bold_markup:
+        text_lines = _merge_bold_detail(raw_lines)
+    else:
+        text_lines = [t for t, _ in raw_lines]
 
     return "\n".join(text_lines)
 

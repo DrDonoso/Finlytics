@@ -85,6 +85,13 @@ class ExtractedTransaction(BaseModel):
             "or null when no merchant is identifiable"
         ),
     )
+    # Non-bold sub-detail text parsed from the statement (the oblique line that
+    # immediately follows the bold concept, e.g. "GCREOCTOPUSENERGY" from
+    # "**ADEUDOASUCARGO** GCREOCTOPUSENERGY").  None when absent.
+    detail: Optional[str] = Field(
+        default=None,
+        description="Non-bold sub-detail from the statement line, or null when absent",
+    )
     # Set when a user-defined rule matched this transaction (apply_rules).
     # Used by the import preview to show a "🔗 Regla" badge.
     # Intentionally ignored by the persistence layer (Shuri).

@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from finlytics.extraction.prompts import (
+    _BOLD_DETAIL_BLOCK,
     _MERCHANT_BLOCK,
     _TAG_SUGGESTION_BLOCK,
     build_system_prompt,
@@ -144,3 +145,76 @@ def test_prompt_tag_block_forbids_merchant_names():
 def test_prompt_tag_block_no_tags_is_acceptable():
     """Tag block must convey that zero tags is perfectly fine."""
     assert "perfectly fine" in _TAG_SUGGESTION_BLOCK or "common" in _TAG_SUGGESTION_BLOCK
+
+
+# ---------------------------------------------------------------------------
+# build_system_prompt — bold/detail markup block (readable-normalization)
+# ---------------------------------------------------------------------------
+
+
+def test_bold_detail_block_present_in_prompt():
+    prompt = build_system_prompt("BBVA")
+    assert "## Bold concept" in prompt
+
+
+def test_bold_detail_block_instructs_readable_normalization():
+    """Block must mention normalisation / readable text — not verbatim copying."""
+    block = _BOLD_DETAIL_BLOCK.lower()
+    assert "normalise" in block or "normalize" in block or "readable" in block
+
+
+def test_bold_detail_block_no_verbatim_copy_instruction():
+    """Old 'put ONLY the bold concept' verbatim instruction must be gone."""
+    assert "put ONLY the bold concept" not in _BOLD_DETAIL_BLOCK
+
+
+def test_bold_detail_block_forbids_all_caps_no_space_output():
+    """Block must explicitly prohibit ALL-CAPS-no-space strings in output."""
+    assert "ALL-CAPS" in _BOLD_DETAIL_BLOCK or "ALL CAPS" in _BOLD_DETAIL_BLOCK.upper()
+
+
+def test_bold_detail_block_describes_concept_detail_split():
+    """Block must still explain the description vs detail split."""
+    assert "description" in _BOLD_DETAIL_BLOCK
+    assert "detail" in _BOLD_DETAIL_BLOCK
+
+
+def test_bold_detail_block_forbids_double_asterisks_in_output():
+    """Block must tell the LLM not to include ** in the output fields."""
+    assert "**" in _BOLD_DETAIL_BLOCK  # mentions the markup format
+    assert "Do NOT include" in _BOLD_DETAIL_BLOCK or "do not include" in _BOLD_DETAIL_BLOCK.lower()
+
+
+def test_bold_detail_block_gives_adeudo_example():
+    """The canonical ADEUDOASUCARGO example must appear with its readable form."""
+    assert "ADEUDOASUCARGO" in _BOLD_DETAIL_BLOCK
+    assert "Adeudo a su cargo" in _BOLD_DETAIL_BLOCK
+
+
+def test_bold_detail_block_gives_additional_examples():
+    """At least two further normalisation examples must be present."""
+    assert "PAGOCONTARJETAENSUPERMERCADOS" in _BOLD_DETAIL_BLOCK or \
+           "CASHBACKPROMOCIONCOMERCIAL" in _BOLD_DETAIL_BLOCK
+
+
+def test_bold_detail_block_instructs_stable_descriptions():
+    """Block must mention stability so rules can be written against descriptions."""
+    block = _BOLD_DETAIL_BLOCK.lower()
+    assert "stable" in block or "same" in block
+
+
+def test_bold_detail_null_when_no_detail():
+    """Block must state that detail is null when there is no non-bold text."""
+    assert "null" in _BOLD_DETAIL_BLOCK
+
+
+def test_system_prompt_has_general_readability_rule():
+    """System prompt extraction rules must include a general readability instruction."""
+    prompt = build_system_prompt("BBVA")
+    assert "READABILITY" in prompt or "human-readable" in prompt
+
+
+def test_system_prompt_readability_rule_mentions_all_caps():
+    """General readability rule must reference ALL-CAPS-no-space bank encoding."""
+    prompt = build_system_prompt("BBVA")
+    assert "ALL-CAPS" in prompt or "ALL CAPS" in prompt.upper()
