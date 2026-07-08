@@ -28,8 +28,13 @@ as structured JSON matching the given schema.
 - ⚠ PII boundary: do NOT include account numbers, IBANs, or card numbers in the
   `description` field. Use the merchant name or a generic label instead.
 - If the statement shows a running balance per transaction, populate `balance_after`.
+- ⚠ READABILITY: `description` and `detail` must always be human-readable. Bank statements
+  often encode concepts as ALL-CAPS-no-space tokens (e.g. "ADEUDOASUCARGO"). NEVER copy these
+  raw tokens verbatim — infer proper word boundaries and use natural sentence/Title case.
 
 {year_handling}
+
+{bold_detail_handling}
 
 {merchant_extraction}
 
@@ -118,6 +123,43 @@ Rules:
 """.strip()
 
 # ---------------------------------------------------------------------------
+# Bold/detail markup instruction block
+# ---------------------------------------------------------------------------
+
+_BOLD_DETAIL_BLOCK = """
+## Bold concept / detail markup
+
+The statement parser may have annotated some transaction descriptions with bold/detail markup.
+Bank statements often encode concept titles WITHOUT spaces and in ALL CAPS
+(e.g. `**ADEUDOASUCARGO**`). Do NOT copy these raw tokens verbatim — always normalise
+to readable Spanish text.
+
+Format:  **BOLDCONCEPT** optional-non-bold-detail
+
+Extraction rules:
+- Strip the `**` markers.
+- `description` = the bold concept, rewritten as human-readable Spanish with proper word
+  spacing and natural sentence/Title case. The readable form MUST be STABLE for the same
+  concept type so users can write rules against it — every occurrence of the same concept
+  must produce the exact same readable description.
+  Examples of normalisation:
+    `**ADEUDOASUCARGO**`                → description "Adeudo a su cargo"
+    `**PAGOCONTARJETAENSUPERMERCADOS**` → description "Pago con tarjeta en supermercados"
+    `**CASHBACKPROMOCIONCOMERCIAL**`    → description "Cashback promoción comercial"
+- `detail` = the non-bold text that follows the `**...**` marker, likewise normalised to
+  readable text (infer word boundaries; use natural brand/name casing).
+  Set `detail` to null when there is no non-bold text after the marker.
+  Examples of normalisation:
+    `**ADEUDOASUCARGO** GCREOCTOPUSENERGY`            → detail "Octopus Energy"
+    `**ADEUDOASUCARGO** PASSATGEFERROCARRILSCATALANS40-42` → detail "Passatge Ferrocarrils Catalans 40-42"
+- If a line has NO `**` markers, set `description` to the full line text (normalised, not
+  verbatim) and `detail` to null.
+- ⚠ Do NOT include the `**` characters in `description` or `detail`.
+- ⚠ NEVER emit ALL-CAPS-no-space strings in `description` or `detail` — always the
+  readable, properly spaced form.
+""".strip()
+
+# ---------------------------------------------------------------------------
 # User prompt
 # ---------------------------------------------------------------------------
 
@@ -147,6 +189,7 @@ def build_system_prompt(account_ref: str, statement_year: int | None = None) -> 
         account_ref=account_ref,
         categorization_guidance=guidance,
         year_handling=year_block,
+        bold_detail_handling=_BOLD_DETAIL_BLOCK,
         merchant_extraction=_MERCHANT_BLOCK,
         tag_suggestion=_TAG_SUGGESTION_BLOCK,
     )

@@ -18,13 +18,26 @@ from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator
 
-from finlytics.extraction.llm_client import LLMClient
+from finlytics.extraction.llm_client import LLMClient, LLMError
 from finlytics.extraction.prompts import build_system_prompt, build_user_prompt
 from finlytics.extraction.redaction import redact_pii
 from finlytics.extraction.schema import ExtractedTransaction
 from finlytics.extraction.taxonomy import BASE_CATEGORIES, BASE_CATEGORY_ES
 
 log = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Chunking constants
+# ---------------------------------------------------------------------------
+
+# Maximum completion tokens per LLM call — raised well above the legacy 4096
+# default to give each chunk ample output headroom.
+_EXTRACTION_MAX_TOKENS = 8192
+
+# Maximum raw-text lines per LLM call.  A BBVA monthly statement has
+# roughly 2–4 raw lines per transaction, so 50 lines ≈ 15–20 transactions
+# per chunk — comfortably within the token budget above.
+_CHUNK_LINES = 50
 
 
 # ---------------------------------------------------------------------------
@@ -187,6 +200,13 @@ class _RawTransaction(BaseModel):
             "or null when no merchant is identifiable"
         ),
     )
+    detail: Optional[str] = Field(
+        default=None,
+        description=(
+            "Non-bold sub-detail text that followed the bold concept in the statement "
+            "(parsed from **CONCEPT** detail markup); null when absent"
+        ),
+    )
 
     @field_validator("transaction_date", mode="before")
     @classmethod
@@ -246,23 +266,24 @@ async def extract_transactions(
     redacted_text = redact_pii(statement_text)
 
     system_prompt = build_system_prompt(account_ref, statement_year=effective_year)
-    user_prompt = build_user_prompt(redacted_text)
+    chunks = _split_into_chunks(redacted_text)
 
     log.info(
-        "Extracting transactions: account=%s, input_chars=%d, statement_year=%s",
+        "Extracting transactions: account=%s, input_chars=%d, statement_year=%s, chunks=%d",
         account_ref,
         len(statement_text),
         effective_year,
+        len(chunks),
     )
 
-    result: _ExtractionResult = await client.parse(
-        system=system_prompt,
-        user=user_prompt,
-        response_format=_ExtractionResult,
-        temperature=0.0,
-    )
+    all_raw: list[_RawTransaction] = []
+    for idx, chunk_text in enumerate(chunks):
+        raw_txns = await _extract_chunk_with_retry(
+            client, system_prompt, chunk_text, idx, len(chunks)
+        )
+        all_raw.extend(raw_txns)
 
-    transactions = [_coerce(raw, account_ref) for raw in result.transactions]
+    transactions = [_coerce(raw, account_ref) for raw in all_raw]
 
     proposed = [t for t in transactions if t.category not in BASE_CATEGORIES]
     if proposed:
@@ -279,6 +300,82 @@ async def extract_transactions(
 # ---------------------------------------------------------------------------
 # Private helpers
 # ---------------------------------------------------------------------------
+
+
+def _split_into_chunks(text: str, chunk_size: int = _CHUNK_LINES) -> list[str]:
+    """Split *text* into non-empty chunks of at most *chunk_size* lines each."""
+    lines = text.splitlines()
+    chunks: list[str] = []
+    for i in range(0, len(lines), chunk_size):
+        chunk = "\n".join(lines[i : i + chunk_size])
+        if chunk.strip():
+            chunks.append(chunk)
+    return chunks
+
+
+def _is_truncation_error(exc: LLMError) -> bool:
+    """Return True when *exc* represents an LLM output truncation (length limit)."""
+    msg = str(exc).lower()
+    return "length limit" in msg or "finish_reason" in msg
+
+
+async def _extract_chunk_with_retry(
+    client: LLMClient,
+    system_prompt: str,
+    chunk_text: str,
+    chunk_index: int,
+    total_chunks: int,
+) -> list[_RawTransaction]:
+    """Parse one text chunk, retrying once with a half-size split on truncation.
+
+    If the retry halves also truncate, re-raises a clear LLMError that names
+    the chunk so the caller (and Shuri's error mapping) can surface a useful
+    message instead of a raw 502.
+    """
+    label = f"chunk {chunk_index + 1}/{total_chunks}"
+    try:
+        result: _ExtractionResult = await client.parse(
+            system=system_prompt,
+            user=build_user_prompt(chunk_text),
+            response_format=_ExtractionResult,
+            temperature=0.0,
+            max_completion_tokens=_EXTRACTION_MAX_TOKENS,
+        )
+        return result.transactions
+    except LLMError as exc:
+        if not _is_truncation_error(exc):
+            raise
+
+    # Truncation: split in half and retry each sub-chunk once.
+    lines = chunk_text.splitlines()
+    mid = len(lines) // 2
+    if mid == 0:
+        raise LLMError(
+            f"Statement {label} exceeded the LLM output token limit "
+            f"({_EXTRACTION_MAX_TOKENS} tokens) and is too small to split further. "
+            "The statement section may contain unusually long lines."
+        )
+
+    txns: list[_RawTransaction] = []
+    for sub_text in ("\n".join(lines[:mid]), "\n".join(lines[mid:])):
+        if not sub_text.strip():
+            continue
+        try:
+            sub_result: _ExtractionResult = await client.parse(
+                system=system_prompt,
+                user=build_user_prompt(sub_text),
+                response_format=_ExtractionResult,
+                temperature=0.0,
+                max_completion_tokens=_EXTRACTION_MAX_TOKENS,
+            )
+            txns.extend(sub_result.transactions)
+        except LLMError as sub_exc:
+            raise LLMError(
+                f"Statement {label} exceeded the LLM output token limit "
+                f"({_EXTRACTION_MAX_TOKENS} tokens) even after splitting. "
+                "The statement section may be too dense or the model too slow."
+            ) from sub_exc
+    return txns
 
 
 def _coerce(raw: _RawTransaction, account_ref: str) -> ExtractedTransaction:
@@ -315,6 +412,7 @@ def _coerce(raw: _RawTransaction, account_ref: str) -> ExtractedTransaction:
         balance_after=balance_after,
         tags=clean_tags,
         merchant=raw.merchant,
+        detail=raw.detail,
     )
 
 
