@@ -237,5 +237,14 @@ const en: Dict = {
   rulesFieldAmountMax: 'Max amount',
   rulesFieldAmountHint: 'Absolute amount, e.g. min 1000 for large charges',
   rulesValidationAmount: 'Min amount must be ≤ max amount and both ≥ 0',
+  // ── Period comparison ─────────────────────────────────────────────────────
+  kpiSavingsRate: 'Savings rate',
+  deltaBadgeNew: 'NEW',
+  moversTitle: 'Top movers · vs prev month',
+  moversColCategory: 'CATEGORY',
+  moversColCurrent: 'THIS MONTH',
+  moversColPrevious: 'PREV MONTH',
+  moversColChange: 'CHANGE',
+  moversNoPrevious: 'No previous month data to compare',
 }
 export default en
