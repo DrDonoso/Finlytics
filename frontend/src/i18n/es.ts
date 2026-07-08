@@ -237,5 +237,14 @@ const es: Dict = {
   rulesFieldAmountMax: 'Importe máximo',
   rulesFieldAmountHint: 'Importe absoluto, p. ej. mínimo 1000 para cargos grandes',
   rulesValidationAmount: 'El importe mínimo debe ser ≤ al máximo y ambos ≥ 0',
+  // ── Period comparison ─────────────────────────────────────────────────────
+  kpiSavingsRate: 'Tasa de ahorro',
+  deltaBadgeNew: 'NUEVO',
+  moversTitle: 'Mayores cambios · vs mes anterior',
+  moversColCategory: 'CATEGORÍA',
+  moversColCurrent: 'ESTE MES',
+  moversColPrevious: 'MES ANTERIOR',
+  moversColChange: 'CAMBIO',
+  moversNoPrevious: 'Sin datos del mes anterior para comparar',
 }
 export default es

@@ -2753,3 +2753,58 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
   gap: 8px;
   flex-wrap: wrap;
 }
+
+/* ─── KPI delta badges (compact header) ─────────────────────────────── */
+.header-kpi-delta {
+  font-size: 10px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  line-height: 1.3;
+}
+.header-kpi-delta-good    { color: var(--income); }
+.header-kpi-delta-bad     { color: var(--expense); }
+.header-kpi-delta-neutral { color: var(--text-muted); }
+
+/* ─── Category movers table ──────────────────────────────────────────── */
+.movers-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.movers-th {
+  padding: 0 8px 7px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  text-align: right;
+}
+.movers-th-name   { text-align: left; }
+.movers-th-change { text-align: right; }
+.movers-row {
+  border-bottom: 1px solid var(--border);
+  transition: background 0.1s;
+}
+.movers-row:last-child { border-bottom: none; }
+.movers-row:hover { background: var(--bg); }
+.movers-td {
+  padding: 6px 8px;
+  vertical-align: middle;
+}
+.movers-td-name   { font-size: 12px; min-width: 90px; }
+.movers-td-num    { text-align: right; font-variant-numeric: tabular-nums; }
+.movers-td-prev   { color: var(--text-muted); }
+.movers-td-change { text-align: right; }
+.movers-delta {
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.movers-delta-up      { color: var(--expense); }
+.movers-delta-down    { color: var(--income); }
+.movers-delta-neutral { color: var(--text-muted); font-style: italic; }
+.movers-delta-dash    { color: var(--text-muted); }

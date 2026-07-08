@@ -10,10 +10,12 @@ import SpendingByCategory from '../components/SpendingByCategory'
 import SpendingOverTime from '../components/SpendingOverTime'
 import SpendingByAccount from '../components/SpendingByAccount'
 import CashflowSankey from '../components/CashflowSankey'
+import CategoryMovers from '../components/CategoryMovers'
 import TransactionsTable from '../components/TransactionsTable'
 import ImportModal from '../components/ImportModal'
 import { useT } from '../i18n'
 import { defaultRange } from '../utils'
+import { previousCalendarMonth } from '../utils/comparison'
 
 function makeDefaultFilters(): GlobalFilters {
   return { ...defaultRange(), tags: [] }
@@ -39,6 +41,10 @@ export default function Dashboard() {
   const [byMonth,    setByMonth]    = useState<AsyncState<MonthSummary[]>>(idle())
   const [byAccount,  setByAccount]  = useState<AsyncState<AccountSummary[]>>(idle())
   const [cashflow,   setCashflow]   = useState<AsyncState<CashflowSummary>>(idle())
+
+  // Previous-period data for comparison (Slice 1 + 2 — fetched client-side)
+  const [prevOverview,    setPrevOverview]    = useState<AsyncState<Overview>>(idle())
+  const [prevByCategory,  setPrevByCategory]  = useState<AsyncState<CategorySummary[]>>(idle())
 
   const [showImport, setShowImport] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
@@ -72,6 +78,8 @@ export default function Dashboard() {
     setByMonth(idle())
     setByAccount(idle())
     setCashflow(idle())
+    setPrevOverview(idle())
+    setPrevByCategory(idle())
 
     getOverview(params)
       .then(d  => setOverview ({ loading: false, error: null,     data: d }))
@@ -94,6 +102,26 @@ export default function Dashboard() {
     getCashflow(params)
       .then(d  => setCashflow({ loading: false, error: null,     data: d }))
       .catch(e => setCashflow({ loading: false, error: String(e), data: null }))
+
+    // ── Previous-period fetches (Slice 1 + 2) ─────────────────────────────
+    // Derive previous calendar month from the filter's from-date.
+    // Pass same non-date filters (account, tags, flow) to both calls for consistency.
+    const prevRange = previousCalendarMonth(filters.from)
+    if (prevRange) {
+      const prevParams = { ...params, from: prevRange.from, to: prevRange.to }
+      getOverview(prevParams)
+        .then(d  => setPrevOverview({ loading: false, error: null,     data: d }))
+        .catch(() => setPrevOverview({ loading: false, error: null,     data: null }))
+
+      // Previous by-category: same as current (no category_id, all categories)
+      getByCategory({ from: prevRange.from, to: prevRange.to, account_id: params.account_id, tags: params.tags, flow: params.flow })
+        .then(d  => setPrevByCategory({ loading: false, error: null,     data: d }))
+        .catch(() => setPrevByCategory({ loading: false, error: null,     data: null }))
+    } else {
+      // No valid previous range (edge case) — clear comparison data
+      setPrevOverview({ loading: false, error: null, data: null })
+      setPrevByCategory({ loading: false, error: null, data: null })
+    }
   }, [filters, refreshKey])
 
   function handleFlowClick(flow: 'expense' | 'income' | undefined) {
@@ -117,6 +145,7 @@ export default function Dashboard() {
             loading={overview.loading}
             error={overview.error}
             compact
+            previousOverview={prevOverview.data}
           />
           <button
             className="btn-primary dashboard-header-import"
@@ -143,6 +172,16 @@ export default function Dashboard() {
             refreshKey={refreshKey}
           />
         </div>
+
+        {/* Top movers: current vs previous calendar month */}
+        <CategoryMovers
+          current={byCategory.data ?? []}
+          previous={prevByCategory.data ?? []}
+          categories={categories}
+          loading={byCategory.loading}
+          prevLoading={prevByCategory.loading}
+          error={byCategory.error}
+        />
 
         {/* Row A: desglose por cuenta | evolución mensual */}
         <div className="charts-row">

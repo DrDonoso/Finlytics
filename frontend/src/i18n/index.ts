@@ -249,6 +249,15 @@ export interface Dict {
   rulesFieldAmountMax: string
   rulesFieldAmountHint: string
   rulesValidationAmount: string
+  // ── Period comparison ─────────────────────────────────────────────────────
+  kpiSavingsRate: string
+  deltaBadgeNew: string
+  moversTitle: string
+  moversColCategory: string
+  moversColCurrent: string
+  moversColPrevious: string
+  moversColChange: string
+  moversNoPrevious: string
 }
 
 const ES_LABELS: Record<string, string> = {
