@@ -131,6 +131,7 @@ const es: Dict = {
   catColWeight: 'PESO',
   catCenterLabel: 'Gastos totales',
   navTransactions: 'Transacciones',
+  navRules: 'Reglas',
   txTitle: 'Transacciones',
   filterCategory: 'Categoría',
   filterAllCategories: 'Todas',
@@ -166,7 +167,6 @@ const es: Dict = {
   importMerchantPlaceholder: 'Comercio',
   tagTypeaheadPlaceholder: 'Añadir etiqueta…',
   // ── Rules page ────────────────────────────────────────────────────────────
-  settingsSubRules: 'Reglas',
   rulesTitle: 'Reglas de clasificación',
   rulesAddBtn: 'Añadir regla',
   rulesAddTitle: 'Nueva regla',

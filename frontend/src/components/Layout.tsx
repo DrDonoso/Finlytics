@@ -90,6 +90,11 @@ export default function Layout() {
             <span className="nav-label">{t.navTransactions}</span>
           </NavLink>
 
+          <NavLink to="/rules" className={navLinkClass}>
+            <span className="nav-icon">📏</span>
+            <span className="nav-label">{t.navRules}</span>
+          </NavLink>
+
           {/* Ajustes expandable section */}
           <div className="sidebar-section">
             <button
@@ -114,9 +119,6 @@ export default function Layout() {
                 </NavLink>
                 <NavLink to="/settings/backup" className={navLinkClass}>
                   <span className="nav-label">{t.settingsSubBackup}</span>
-                </NavLink>
-                <NavLink to="/settings/rules" className={navLinkClass}>
-                  <span className="nav-label">{t.settingsSubRules}</span>
                 </NavLink>
               </div>
             )}

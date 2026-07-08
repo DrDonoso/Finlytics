@@ -34,13 +34,13 @@ function AppContent() {
         <Route path="/" element={<Layout />}>
           <Route index element={<Dashboard />} />
           <Route path="transactions" element={<TransactionsPage />} />
+          <Route path="rules" element={<RulesPage />} />
           <Route path="settings" element={<SettingsLayout />}>
             <Route index element={<Navigate to="tags" replace />} />
             <Route path="tags" element={<SettingsPage />} />
             <Route path="categories" element={<CategoriesPage />} />
             <Route path="appearance" element={<AppearancePage />} />
             <Route path="backup" element={<BackupPage />} />
-            <Route path="rules" element={<RulesPage />} />
           </Route>
         </Route>
       </Routes>
