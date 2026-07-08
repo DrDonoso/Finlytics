@@ -131,6 +131,7 @@ const en: Dict = {
   catColWeight: 'WEIGHT',
   catCenterLabel: 'Total',
   navTransactions: 'Transactions',
+  navRules: 'Rules',
   txTitle: 'Transactions',
   filterCategory: 'Category',
   filterAllCategories: 'All',
@@ -166,7 +167,6 @@ const en: Dict = {
   importMerchantPlaceholder: 'Merchant',
   tagTypeaheadPlaceholder: 'Add tag…',
   // ── Rules page ────────────────────────────────────────────────────────────
-  settingsSubRules: 'Rules',
   rulesTitle: 'Classification rules',
   rulesAddBtn: 'Add rule',
   rulesAddTitle: 'New rule',

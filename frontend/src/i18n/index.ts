@@ -141,6 +141,7 @@ export interface Dict {
   catCenterLabel: string
   // ── Transactions page ─────────────────────────────────────────────────
   navTransactions: string
+  navRules: string
   txTitle: string
   filterCategory: string
   filterAllCategories: string
@@ -178,7 +179,6 @@ export interface Dict {
   importMerchantPlaceholder: string
   tagTypeaheadPlaceholder: string
   // ── Rules page ────────────────────────────────────────────────────────────
-  settingsSubRules: string
   rulesTitle: string
   rulesAddBtn: string
   rulesAddTitle: string

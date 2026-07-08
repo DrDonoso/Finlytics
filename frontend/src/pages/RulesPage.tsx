@@ -113,7 +113,10 @@ export default function RulesPage() {
 
   return (
     <>
-      <div className="card settings-card rules-card">
+      <main className="settings-page">
+        <div className="settings-container">
+          <h1 className="settings-heading">{t.navRules}</h1>
+          <div className="card settings-card rules-card">
         <h2 className="settings-section-title">{t.rulesTitle}</h2>
 
         {error && <div className="import-error" style={{ marginBottom: 16 }}>{error}</div>}
@@ -238,7 +241,9 @@ export default function RulesPage() {
           </table>
         </div>
       )}
-      </div>
+        </div>
+        </div>
+      </main>
 
       {ruleModalOpen && (
         <RuleFormModal
