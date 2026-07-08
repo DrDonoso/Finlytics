@@ -36,6 +36,7 @@ export interface Transaction {
   balance_after: number | null
   tags: string[]
   merchant: string | null
+  detail?: string | null
 }
 
 export interface TransactionPage {
@@ -140,6 +141,7 @@ export interface ImportTransaction {
   balance_after: number | null
   tags: string[]
   merchant: string | null
+  detail?: string | null
   /** Set when a classification rule matched this line during preview. */
   matched_rule_id?: number | null
   matched_rule_name?: string | null
@@ -230,7 +232,11 @@ export interface Rule {
   enabled: boolean
   description_mode: DescriptionMode
   description_value: string
+  detail_mode?: DescriptionMode | null
+  detail_value?: string | null
   amount_sign: AmountSign | null
+  amount_min?: number | null
+  amount_max?: number | null
   account_ref: string | null
   currency: string | null
   set_category: string | null
@@ -247,7 +253,11 @@ export interface RuleInput {
   enabled?: boolean
   description_mode: DescriptionMode
   description_value: string
+  detail_mode?: DescriptionMode | null
+  detail_value?: string | null
   amount_sign?: AmountSign | null
+  amount_min?: number | null
+  amount_max?: number | null
   account_ref?: string | null
   currency?: string | null
   set_category?: string | null
@@ -262,7 +272,11 @@ export interface RulePatch {
   enabled?: boolean
   description_mode?: DescriptionMode
   description_value?: string
+  detail_mode?: DescriptionMode | null
+  detail_value?: string | null
   amount_sign?: AmountSign | null
+  amount_min?: number | null
+  amount_max?: number | null
   account_ref?: string | null
   currency?: string | null
   set_category?: string | null

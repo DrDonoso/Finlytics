@@ -377,6 +377,9 @@ export default function TransactionsTable({ globalFilters, categories, allTags, 
                       <td style={{ color: 'var(--text-muted)', fontSize: 13 }}>{tx.account}</td>
                       <td title={tx.description}>
                         <div className="td-desc">{tx.description}</div>
+                        {tx.detail && (
+                          <div className="tx-detail-subline">{tx.detail}</div>
+                        )}
                       </td>
                       <td className="td-merchant">{tx.merchant ?? ''}</td>
                       <td><span

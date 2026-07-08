@@ -1,19 +1,7 @@
 import { useState, useRef, useId, useMemo } from 'react'
 import type { CSSProperties, KeyboardEvent } from 'react'
 import type { Tag } from '../api/types'
-import { tagTextColor } from '../i18n'
-
-/** Deterministic palette for brand-new tags not yet in the DB. */
-const PALETTE = [
-  '#3b82f6', '#f97316', '#8b5cf6', '#eab308', '#10b981',
-  '#ef4444', '#ec4899', '#06b6d4', '#84cc16', '#f59e0b',
-]
-
-function paletteColor(name: string): string {
-  let h = 0
-  for (const c of name) h = (h * 31 + c.charCodeAt(0)) & 0xffffffff
-  return PALETTE[Math.abs(h) % PALETTE.length]
-}
+import { tagTextColor, paletteColor } from '../i18n'
 
 interface Props {
   tags: string[]

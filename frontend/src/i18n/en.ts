@@ -88,7 +88,6 @@ const en: Dict = {
   navSettings: 'Settings',
   settingsTagsTitle: 'Tags',
   settingsTagsAddName: 'Tag name',
-  settingsTagsAddColor: 'Color',
   settingsTagsAddBtn: 'Add',
   settingsTagsDelete: 'Delete',
   settingsTagsDeleteConfirm: (name) => `Delete '${name}'?`,
@@ -100,8 +99,8 @@ const en: Dict = {
   settingsCatsEmpty: 'No categories found.',
   settingsCatsSaved: '✓ Color updated',
   settingsCatsAddName: 'Name',
-  settingsCatsAddColor: 'Color',
   settingsCatsAddBtn: 'Add category',
+  colorSwatchCustom: 'Custom color',
   settingsCountLabel: (n) => `${n} transactions`,
   authLoginTitle: 'Log in',
   authSetupTitle: 'Create user',
@@ -220,5 +219,23 @@ const en: Dict = {
   ruleMatchBadge: '🔗 Rule',
   ruleMatchTooltip: (name) => `Classified by rule: ${name}`,
   createRuleToast: 'Rule created. Future similar lines will be classified automatically.',
+  // ── Tag filter typeahead ──────────────────────────────────────────────────
+  filterTagSearchPlaceholder: 'Search tags…',
+  filterTagMostUsed: 'Most used',
+  // ── Rule detail condition ─────────────────────────────────────────────────
+  rulesFieldDetailLabel: 'Detail (optional)',
+  rulesFieldDetailHint: "Differentiate charges with the same title — e.g. 'octopus' vs 'comunidad'.",
+  rulesFieldDetailValuePlaceholder: 'Text to match in detail',
+  // ── Rule form section headings ────────────────────────────────────────────
+  rulesSectionIdentity: 'Identity',
+  rulesSectionMatch: 'Conditions',
+  rulesSectionActions: 'Actions',
+  rulesConditionTitle: 'Title (description)',
+  rulesConditionFilters: 'Narrow by…',
+  // ── Rule amount filter ────────────────────────────────────────────────────
+  rulesFieldAmountMin: 'Min amount',
+  rulesFieldAmountMax: 'Max amount',
+  rulesFieldAmountHint: 'Absolute amount, e.g. min 1000 for large charges',
+  rulesValidationAmount: 'Min amount must be ≤ max amount and both ≥ 0',
 }
 export default en

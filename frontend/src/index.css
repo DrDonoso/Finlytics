@@ -69,6 +69,12 @@ a { color: var(--primary); text-decoration: none; }
   color: var(--primary);
   letter-spacing: -0.5px;
 }
+.topbar-logo-img {
+  height: 30px;
+  width: auto;
+  display: block;
+  flex-shrink: 0;
+}
 .hamburger-btn {
   width: 36px;
   height: 36px;
@@ -527,6 +533,9 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
 .td-amount.pos { color: var(--income); }
 .td-date { color: var(--text-muted); white-space: nowrap; }
 .td-desc { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tx-detail-subline { display: block; font-size: 11px; color: var(--text-muted); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 260px; }
+/* In import preview the description is an <input> with padding: 0 8px — indent sub-line to match the text start */
+.tx-detail-subline--input-aligned { padding-left: 8px; }
 /* Comercio column — dedicated column, secondary but readable */
 .th-merchant { min-width: 100px; }
 .td-merchant {
@@ -1138,6 +1147,13 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
   letter-spacing: -0.5px;
   margin-bottom: 6px;
 }
+.auth-logo-img {
+  display: block;
+  width: 100%;
+  max-width: 220px;
+  height: auto;
+  margin: 0 auto 6px;
+}
 .auth-title {
   font-size: 20px;
   font-weight: 700;
@@ -1475,7 +1491,43 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
 }
 .tag-toggle-btn:hover { opacity: 0.75; }
 
-/* ─── Category chart — donut + table layout ─────────────────────────── */
+/* ─── Tag filter typeahead (filter bars) ───────────────────────────── */
+/* Input wrapper in the filter group — stretches naturally inside .filter-group */
+.tag-filter-select {
+  position: relative;
+  width: 100%;
+}
+.tag-filter-input {
+  width: 100%;
+  box-sizing: border-box;
+  height: 36px;
+  padding: 0 10px;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.12s;
+}
+.tag-filter-input:focus { border-color: var(--primary); }
+/* Section heading in the suggestions list ("Most used" / "Más usadas") */
+.tag-filter-suggestions-header {
+  padding: 4px 10px 2px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted, var(--text));
+  opacity: 0.55;
+  cursor: default;
+  user-select: none;
+}
+/* Keyboard-highlighted option */
+.tag-filter-option-active { background: var(--bg) !important; }
+
+
 .cat-chart-layout {
   display: flex;
   flex-direction: column;
@@ -1670,7 +1722,7 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
   background: var(--bg);
   min-height: 44px;
 }
-.settings-tag-row-editing { background: rgba(37, 99, 235, 0.03); border-color: var(--primary); }
+/* .settings-tag-row-editing — layout overrides defined in the Color swatch picker section below */
 .settings-tag-row-confirm { background: rgba(239, 68, 68, 0.04); border-color: rgba(239, 68, 68, 0.3); }
 .settings-tag-swatch {
   width: 18px;
@@ -2306,12 +2358,89 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
   border-top: 1px solid var(--border);
 }
 
-/* Visual section divider between "match criteria" (name/pattern) and
-   "actions" (category/merchant/tags/…) — 4th child = set_category field */
-.rules-form-grid > .rules-field-group:nth-child(4) {
-  padding-top: 16px;
-  border-top: 1px solid var(--border);
-  margin-top: 4px;
+/* ── Form sections ───────────────────────────────────────────────────── */
+.rules-sections-container {
+  /* wrapper; enables :first-child targeting for heading top-margin */
+}
+.rules-section-heading {
+  /* button reset */
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  text-align: left;
+  width: 100%;
+  cursor: pointer;
+  /* layout */
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  /* typography */
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text);
+  /* divider */
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 6px;
+  margin-top: 22px;
+  margin-bottom: 14px;
+}
+.rules-section-heading:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+.rules-section-chevron {
+  font-size: 11px;
+  flex-shrink: 0;
+  margin-left: 6px;
+  color: var(--text-muted);
+}
+.rules-sections-container > .rules-section-heading:first-child {
+  margin-top: 0;
+}
+.rules-enabled-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.rules-condition-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.rules-condition-block:last-child {
+  margin-bottom: 0;
+}
+.rules-condition-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+}
+.rules-optional-block {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.rules-optional-block:last-child {
+  margin-bottom: 0;
+}
+.rules-condition-block .rules-form-grid,
+.rules-optional-block .rules-form-grid {
+  margin-bottom: 0;
 }
 
 /* ── List table ──────────────────────────────────────────────────────── */
@@ -2394,7 +2523,6 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
 @media (max-width: 640px) {
   .rules-form-grid { grid-template-columns: 1fr; }
   .rules-span-2 { grid-column: 1; }
-  /* Section divider still renders correctly in single-column layout */
 }
 
 /* ── Rule match badge (import preview — category cell) ───────────────── */
@@ -2511,4 +2639,117 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
     max-width: none;
     text-align: left;
   }
+}
+
+/* ─── Color swatch picker ──────────────────────────────────────────────── */
+.color-swatch-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  position: relative;
+}
+.color-swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+  outline: none;
+  transition: transform 0.12s, box-shadow 0.12s;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: inherit;
+  font-size: 13px;
+}
+.color-swatch:hover:not(:disabled) {
+  transform: scale(1.18);
+  z-index: 1;
+}
+.color-swatch-selected {
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px rgba(0, 0, 0, 0.6) !important;
+  transform: scale(1.1);
+}
+[data-theme="dark"] .color-swatch-selected {
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px rgba(255, 255, 255, 0.7) !important;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .color-swatch-selected {
+    box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px rgba(255, 255, 255, 0.7) !important;
+  }
+}
+.color-swatch:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.color-swatch:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.color-swatch-custom {
+  background: conic-gradient(
+    #ef4444, #f97316, #eab308, #84cc16, #10b981,
+    #06b6d4, #3b82f6, #8b5cf6, #ec4899, #ef4444
+  ) !important;
+  color: white;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
+  font-weight: 700;
+  line-height: 1;
+}
+.color-swatch-hidden-input {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+  border: none;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* ─── Tag edit row (column layout) ────────────────────────────────────── */
+.settings-tag-row-editing {
+  background: rgba(37, 99, 235, 0.03);
+  border-color: var(--primary);
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  padding: 10px 12px;
+}
+.settings-tag-edit-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.settings-tag-edit-bottom {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* ─── Category edit row (column layout) ───────────────────────────────── */
+.settings-cat-row-editing {
+  flex-direction: column;
+  align-items: stretch;
+  background: rgba(37, 99, 235, 0.03);
+  border-color: var(--primary);
+  gap: 8px;
+  padding: 10px 12px;
+}
+.settings-cat-edit-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.settings-cat-edit-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }

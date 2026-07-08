@@ -142,13 +142,13 @@ export default function RulesPage() {
           <table className="rules-table">
             <thead>
               <tr>
+                <th>{t.rulesColEnabled}</th>
                 <th>{t.rulesColName}</th>
                 <th>{t.rulesColPattern}</th>
                 <th>{t.rulesColCategory}</th>
                 <th>{t.rulesColMerchant}</th>
                 <th>{t.rulesColTags}</th>
                 <th>{t.rulesColPriority}</th>
-                <th>{t.rulesColEnabled}</th>
                 <th>{t.rulesColActions}</th>
               </tr>
             </thead>
@@ -183,6 +183,15 @@ export default function RulesPage() {
 
                 return (
                   <tr key={rule.id} className={rule.enabled ? '' : 'rules-row-disabled'}>
+                    <td className="rules-td-enabled">
+                      <input
+                        type="checkbox"
+                        className="rules-checkbox"
+                        checked={rule.enabled}
+                        onChange={() => handleToggleEnabled(rule)}
+                        title={t.rulesFieldEnabled}
+                      />
+                    </td>
                     <td className="rules-td-name">{rule.name}</td>
                     <td className="rules-td-pattern">
                       <span className="rules-mode-badge">{modeLabel(rule.description_mode)}</span>
@@ -206,15 +215,6 @@ export default function RulesPage() {
                         : <span className="rules-null">—</span>}
                     </td>
                     <td className="rules-td-priority">{rule.priority}</td>
-                    <td className="rules-td-enabled">
-                      <input
-                        type="checkbox"
-                        className="rules-checkbox"
-                        checked={rule.enabled}
-                        onChange={() => handleToggleEnabled(rule)}
-                        title={t.rulesFieldEnabled}
-                      />
-                    </td>
                     <td className="rules-td-actions">
                       <div className="td-actions">
                         <button

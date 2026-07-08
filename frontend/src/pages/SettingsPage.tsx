@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from 'react'
 import type { Tag } from '../api/types'
 import { getTags, createTag, updateTag, deleteTag } from '../api/client'
-import { useT, DEFAULT_TAG_COLOR, tagTextColor } from '../i18n'
+import { useT, DEFAULT_TAG_COLOR, tagTextColor, paletteColor } from '../i18n'
+import ColorSwatchPicker from '../components/ColorSwatchPicker'
 
 function tagLabel(tag: Tag): string {
   return tag.emoji ? `${tag.emoji} ${tag.name}` : tag.name
@@ -14,9 +15,9 @@ export default function SettingsPage() {
   const [error, setError] = useState<string | null>(null)
 
   // Add form
-  const [addName,  setAddName]  = useState('')
-  const [addColor, setAddColor] = useState(DEFAULT_TAG_COLOR)
-  const [adding,   setAdding]   = useState(false)
+  const [addName,         setAddName]         = useState('')
+  const [addColor,        setAddColor]        = useState(DEFAULT_TAG_COLOR)
+  const [adding,          setAdding]          = useState(false)
 
   // Inline edit
   const [editId,    setEditId]    = useState<number | null>(null)
@@ -106,18 +107,26 @@ export default function SettingsPage() {
       <div className="settings-add-form">
         <div className="settings-add-title">{t.settingsTagsAddBtn}</div>
         <div className="settings-add-row">
-          <input
-            type="color"
-            value={addColor}
-            onChange={e => setAddColor(e.target.value)}
-            className="tag-color-input"
-            disabled={adding}
-            title={t.settingsTagsAddColor}
-          />
+          <span
+            className="preview-tag-chip"
+            style={{
+              background: addColor,
+              color: tagTextColor(addColor),
+              borderColor: addColor + '88',
+              opacity: addName.trim() ? 1 : 0.4,
+              flexShrink: 0,
+            }}
+          >
+            {addName.trim() || '…'}
+          </span>
           <input
             type="text"
             value={addName}
-            onChange={e => setAddName(e.target.value)}
+            onChange={e => {
+              const v = e.target.value
+              setAddName(v)
+              setAddColor(v.trim() ? paletteColor(v.trim().toLowerCase()) : DEFAULT_TAG_COLOR)
+            }}
             placeholder={t.settingsTagsAddName}
             className="form-input settings-tag-name-input"
             disabled={adding}
@@ -152,40 +161,43 @@ export default function SettingsPage() {
             if (editId === tag.id) {
               return (
                 <div key={tag.id} className="settings-tag-row settings-tag-row-editing">
-                  <input
-                    type="color"
-                    value={editColor}
-                    onChange={e => setEditColor(e.target.value)}
-                    className="tag-color-input"
-                    disabled={saving}
-                    title={t.settingsTagsAddColor}
-                  />
-                  <input
-                    type="text"
-                    value={editName}
-                    onChange={e => setEditName(e.target.value)}
-                    className="form-input settings-tag-name-input"
-                    disabled={saving}
-                    autoFocus
-                    placeholder={t.settingsTagsAddName}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter') handleSave()
-                      if (e.key === 'Escape') setEditId(null)
-                    }}
-                  />
-                  <div className="td-actions">
-                    <button
-                      className="btn-row-icon btn-row-save"
-                      onClick={handleSave}
+                  <div className="settings-tag-edit-top">
+                    <input
+                      type="text"
+                      value={editName}
+                      onChange={e => setEditName(e.target.value)}
+                      className="form-input settings-tag-name-input"
                       disabled={saving}
-                      title={t.tableSaveRow}
-                    >✓</button>
-                    <button
-                      className="btn-row-icon btn-row-cancel"
-                      onClick={() => setEditId(null)}
-                      disabled={saving}
-                      title={t.tableCancelEdit}
-                    >✕</button>
+                      autoFocus
+                      placeholder={t.settingsTagsAddName}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') handleSave()
+                        if (e.key === 'Escape') setEditId(null)
+                      }}
+                    />
+                    <div className="td-actions">
+                      <button
+                        className="btn-row-icon btn-row-save"
+                        onClick={handleSave}
+                        disabled={saving}
+                        title={t.tableSaveRow}
+                      >✓</button>
+                      <button
+                        className="btn-row-icon btn-row-cancel"
+                        onClick={() => setEditId(null)}
+                        disabled={saving}
+                        title={t.tableCancelEdit}
+                      >✕</button>
+                    </div>
+                  </div>
+                  <div className="settings-tag-edit-bottom">
+                    <ColorSwatchPicker value={editColor} onChange={setEditColor} disabled={saving} />
+                    <span
+                      className="preview-tag-chip"
+                      style={{ background: editColor, color: tagTextColor(editColor), borderColor: editColor + '88' }}
+                    >
+                      {editName.trim() || '…'}
+                    </span>
                   </div>
                 </div>
               )
