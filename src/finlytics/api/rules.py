@@ -26,8 +26,12 @@ def _rule_dict(rule: Any) -> dict[str, Any]:
         "description_mode": rule.description_mode,
         "description_value": rule.description_value,
         "amount_sign": rule.amount_sign,
+        "amount_min": float(rule.amount_min) if rule.amount_min is not None else None,
+        "amount_max": float(rule.amount_max) if rule.amount_max is not None else None,
         "account_ref": rule.account_ref,
         "currency": rule.currency,
+        "detail_mode": rule.detail_mode,
+        "detail_value": rule.detail_value,
         "set_category": rule.set_category,
         "set_merchant": rule.set_merchant,
         "add_tags": rule.add_tags or [],
@@ -42,6 +46,10 @@ def _validate_rule_fields(
     description_mode: str,
     description_value: str,
     set_category: str | None,
+    detail_mode: str | None = None,
+    detail_value: str | None = None,
+    amount_min: float | None = None,
+    amount_max: float | None = None,
 ) -> None:
     """Raise HTTP 422 when rule business constraints are violated.
 
@@ -49,6 +57,10 @@ def _validate_rule_fields(
     - skip_ai=True requires set_category to be non-null (line removed from LLM
       input entirely; must be fully categorised by the rule).
     - description_mode="regex" requires description_value to compile.
+    - detail_mode and detail_value must BOTH be set or BOTH be null.
+    - detail_mode="regex" requires detail_value to compile.
+    - amount_min, amount_max must each be >= 0 when set.
+    - When both are set, amount_min <= amount_max.
     """
     if skip_ai and not set_category:
         raise HTTPException(
@@ -63,6 +75,42 @@ def _validate_rule_fields(
                 status_code=422,
                 detail=f"description_value is not a valid regular expression: {exc}",
             )
+    # detail_mode / detail_value: both set or both null
+    if bool(detail_mode) != bool(detail_value):
+        if detail_mode and not detail_value:
+            raise HTTPException(
+                status_code=422,
+                detail="detail_value is required when detail_mode is set.",
+            )
+        else:
+            raise HTTPException(
+                status_code=422,
+                detail="detail_mode is required when detail_value is set.",
+            )
+    if detail_mode == "regex" and detail_value:
+        try:
+            re.compile(detail_value)
+        except re.error as exc:
+            raise HTTPException(
+                status_code=422,
+                detail=f"detail_value is not a valid regular expression: {exc}",
+            )
+    # amount_min / amount_max: each must be >= 0; min <= max when both set
+    if amount_min is not None and amount_min < 0:
+        raise HTTPException(
+            status_code=422,
+            detail="amount_min must be >= 0.",
+        )
+    if amount_max is not None and amount_max < 0:
+        raise HTTPException(
+            status_code=422,
+            detail="amount_max must be >= 0.",
+        )
+    if amount_min is not None and amount_max is not None and amount_min > amount_max:
+        raise HTTPException(
+            status_code=422,
+            detail="amount_min must be <= amount_max.",
+        )
 
 
 @router.get("", response_model=list[RuleOut])
@@ -89,6 +137,10 @@ async def create_rule(
         body.description_mode,
         body.description_value,
         body.set_category,
+        body.detail_mode,
+        body.detail_value,
+        body.amount_min,
+        body.amount_max,
     )
     async with session.begin():
         rule = await repository.create_rule(session, **body.model_dump())
@@ -118,8 +170,14 @@ async def update_rule(
         effective_mode = updates.get("description_mode", rule.description_mode)
         effective_value = updates.get("description_value", rule.description_value)
         effective_category = updates.get("set_category", rule.set_category)
+        effective_detail_mode = updates.get("detail_mode", rule.detail_mode)
+        effective_detail_value = updates.get("detail_value", rule.detail_value)
+        effective_amount_min = updates.get("amount_min", rule.amount_min)
+        effective_amount_max = updates.get("amount_max", rule.amount_max)
         _validate_rule_fields(
-            effective_skip_ai, effective_mode, effective_value, effective_category
+            effective_skip_ai, effective_mode, effective_value, effective_category,
+            effective_detail_mode, effective_detail_value,
+            effective_amount_min, effective_amount_max,
         )
         for field, value in updates.items():
             setattr(rule, field, value)

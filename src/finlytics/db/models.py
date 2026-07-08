@@ -237,6 +237,11 @@ class Transaction(Base):
     # Nullable; NOT part of dedup_hash so edits never break idempotency.
     merchant: Mapped[str | None] = mapped_column(String(200), nullable=True)
 
+    # ── Detail (non-bold sub-line from statement, e.g. "GCREOCTOPUSENERGY") ──
+    # Nullable; IS part of dedup_hash when non-empty so the same concept line
+    # with different detail sub-texts produces distinct rows.
+    detail: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
     # ── Idempotency ───────────────────────────────────────────────────────────
     dedup_hash: Mapped[str] = mapped_column(
         String(64), nullable=False, unique=True
@@ -294,8 +299,17 @@ class Rule(Base):
     description_mode: Mapped[str] = mapped_column(String(20), nullable=False)
     description_value: Mapped[str] = mapped_column(Text, nullable=False)
     amount_sign: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    # Magnitude filters (abs-value comparison, sign-agnostic). Each is independent;
+    # either, both, or neither may be set.  Semantics: abs(tx.amount) >= amount_min
+    # and abs(tx.amount) <= amount_max.  Both must be >= 0 when set.
+    amount_min: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+    amount_max: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
     account_ref: Mapped[str | None] = mapped_column(String(100), nullable=True)
     currency: Mapped[str | None] = mapped_column(String(3), nullable=True)
+    # detail_mode / detail_value mirror description_mode/value but match against
+    # Transaction.detail (the non-bold sub-line).  Both null = no detail filter.
+    detail_mode: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    detail_value: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     # ── Actions ───────────────────────────────────────────────────────────────
     set_category: Mapped[str | None] = mapped_column(String(100), nullable=True)

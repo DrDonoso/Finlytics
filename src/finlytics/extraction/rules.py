@@ -5,6 +5,13 @@ transaction against the enabled rules (sorted by ``(priority, id)`` ascending,
 lowest first) and, on the first match, applies the rule's actions directly to
 the transaction.
 
+Match conditions (ALL must hold):
+- ``description_mode`` + ``description_value`` (always case-insensitive)
+- Optional ``detail_mode`` + ``detail_value``: when both are set, the rule
+  also requires ``(tx.detail or "")`` to satisfy the detail condition (AND).
+  Rules without a detail condition are unchanged — backward compatible.
+- ``amount_sign``, ``account_ref``, ``currency`` optional filters
+
 Phase 2 note
 ------------
 ``skip_ai`` on a rule is intentionally NOT handled here.  That flag is a
@@ -29,6 +36,7 @@ from __future__ import annotations
 
 import logging
 import re
+from decimal import Decimal
 from typing import Iterable, Optional, Protocol, runtime_checkable
 
 from finlytics.contracts import ExtractedTransaction
@@ -60,8 +68,14 @@ class RuleProtocol(Protocol):
     description_mode: str           # "contains" | "starts_with" | "exact" | "regex"
     description_value: str          # pattern / substring (case-insensitive always)
     amount_sign: Optional[str]      # "negative" | "positive" | None
+    amount_min: Optional[Decimal]   # abs(tx.amount) >= amount_min when set; None = no lower bound
+    amount_max: Optional[Decimal]   # abs(tx.amount) <= amount_max when set; None = no upper bound
     account_ref: Optional[str]      # None = any account
     currency: Optional[str]         # None = any currency
+    # Optional detail condition — both must be set to activate (AND with description).
+    # Uses the same modes as description_mode (contains/starts_with/exact/regex).
+    detail_mode: Optional[str]      # None = no detail condition
+    detail_value: Optional[str]     # None = no detail condition
 
     # Actions
     set_category: Optional[str]     # None = don't override
@@ -94,48 +108,119 @@ def _compile_regex(rule: RuleProtocol) -> re.Pattern[str] | None:
         return None
 
 
+def _compile_detail_regex(rule: RuleProtocol) -> re.Pattern[str] | None:
+    """Compile *rule.detail_value* as a case-insensitive regex.
+
+    Returns ``None`` (and logs a warning) on ``re.error``; the caller must
+    treat ``None`` as "this detail condition never matches".
+    """
+    if not rule.detail_value:
+        return None
+    try:
+        return re.compile(rule.detail_value, re.IGNORECASE)
+    except re.error as exc:
+        logger.warning(
+            "Rule %d (%r): invalid detail regex %r — detail condition skipped. Error: %s",
+            rule.id,
+            rule.name,
+            rule.detail_value,
+            exc,
+        )
+        return None
+
+
+def _value_matches(
+    text: str,
+    mode: str,
+    value: str,
+    compiled: re.Pattern[str] | None,
+) -> bool | None:
+    """Case-insensitive field matcher shared by description and detail conditions.
+
+    Returns:
+        True  — condition satisfied
+        False — condition not satisfied
+        None  — unknown mode (caller should log a warning and treat as no-match)
+    """
+    text_lower = text.lower()
+    value_lower = value.lower()
+
+    if mode == "contains":
+        return value_lower in text_lower
+    if mode == "starts_with":
+        return text_lower.startswith(value_lower)
+    if mode == "exact":
+        return text_lower == value_lower
+    if mode == "regex":
+        if compiled is None:
+            return False
+        return bool(compiled.search(text))
+
+    return None  # unknown mode
+
+
 def _description_matches(
     description: str,
     rule: RuleProtocol,
     compiled_regex: re.Pattern[str] | None,
 ) -> bool:
     """Return True if *description* satisfies the rule's description condition."""
-    desc_lower = description.lower()
-    value_lower = rule.description_value.lower()
-    mode = rule.description_mode
-
-    if mode == "contains":
-        return value_lower in desc_lower
-    if mode == "starts_with":
-        return desc_lower.startswith(value_lower)
-    if mode == "exact":
-        return desc_lower == value_lower
-    if mode == "regex":
-        if compiled_regex is None:
-            return False
-        return bool(compiled_regex.search(description))
-
-    logger.warning(
-        "Rule %d (%r): unknown description_mode %r — rule skipped.",
-        rule.id,
-        rule.name,
-        mode,
+    result = _value_matches(
+        description, rule.description_mode, rule.description_value, compiled_regex
     )
-    return False
+    if result is None:
+        logger.warning(
+            "Rule %d (%r): unknown description_mode %r — rule skipped.",
+            rule.id,
+            rule.name,
+            rule.description_mode,
+        )
+        return False
+    return result
 
 
 def _matches(
     tx: ExtractedTransaction,
     rule: RuleProtocol,
     compiled_regex: re.Pattern[str] | None,
+    compiled_detail_regex: re.Pattern[str] | None = None,
 ) -> bool:
-    """Return True if *tx* satisfies ALL conditions of *rule*."""
+    """Return True if *tx* satisfies ALL conditions of *rule*.
+
+    Evaluates, in order:
+    1. Description condition (always required)
+    2. Detail condition (AND — only when rule.detail_mode and rule.detail_value are both set)
+    3. amount_sign filter
+    4. account_ref filter
+    5. currency filter
+    """
     if not _description_matches(tx.description, rule, compiled_regex):
         return False
+
+    # Detail condition: AND-ed when both detail_mode and detail_value are present.
+    if rule.detail_mode and rule.detail_value:
+        detail_text = tx.detail or ""
+        result = _value_matches(detail_text, rule.detail_mode, rule.detail_value, compiled_detail_regex)
+        if result is None:
+            logger.warning(
+                "Rule %d (%r): unknown detail_mode %r — detail condition treated as no-match.",
+                rule.id,
+                rule.name,
+                rule.detail_mode,
+            )
+            return False
+        if not result:
+            return False
 
     if rule.amount_sign == "negative" and tx.amount >= 0:
         return False
     if rule.amount_sign == "positive" and tx.amount <= 0:
+        return False
+
+    # Magnitude filters: compare abs(tx.amount) against optional bounds.
+    if rule.amount_min is not None and abs(tx.amount) < rule.amount_min:
+        return False
+    if rule.amount_max is not None and abs(tx.amount) > rule.amount_max:
         return False
 
     if rule.account_ref is not None:
@@ -219,12 +304,18 @@ def apply_rules(
         for r in enabled_rules
         if r.description_mode == "regex"
     }
+    compiled_detail: dict[int, re.Pattern[str] | None] = {
+        r.id: _compile_detail_regex(r)
+        for r in enabled_rules
+        if r.detail_mode == "regex"
+    }
 
     result: list[ExtractedTransaction] = []
     for tx in transactions:
         for rule in enabled_rules:
             regex_pat = compiled.get(rule.id)
-            if not _matches(tx, rule, regex_pat):
+            detail_pat = compiled_detail.get(rule.id)
+            if not _matches(tx, rule, regex_pat, detail_pat):
                 continue
 
             # First match — apply actions

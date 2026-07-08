@@ -34,12 +34,16 @@ class _Rule:
     priority: int = 100
     enabled: bool = True
     amount_sign: Optional[str] = None
+    amount_min: Optional[Decimal] = None
+    amount_max: Optional[Decimal] = None
     account_ref: Optional[str] = None
     currency: Optional[str] = None
     set_category: Optional[str] = None
     set_merchant: Optional[str] = None
     add_tags: list[str] = field(default_factory=list)
     skip_ai: bool = False
+    detail_mode: Optional[str] = None
+    detail_value: Optional[str] = None
 
 
 # Verify _Rule satisfies the protocol at import time
@@ -495,3 +499,149 @@ def test_matched_rule_fields_set():
     result = _apply([_tx(description="AMORTIZACION PRESTAMO")], [rule])
     assert result[0].matched_rule_id == 42
     assert result[0].matched_rule_name == "Hipoteca BBVA"
+
+
+# ---------------------------------------------------------------------------
+# Detail condition — apply_rules (Wave 2 of rules: detail_mode / detail_value)
+# ---------------------------------------------------------------------------
+
+
+def _tx_with_detail(detail: str | None = None, **kwargs) -> ExtractedTransaction:
+    """Helper: ExtractedTransaction with an explicit detail value."""
+    return _tx(detail=detail, **kwargs)
+
+
+def test_detail_contains_matches_when_present():
+    rule = _Rule(
+        1, "Energy detail", "contains", "adeudo",
+        detail_mode="contains", detail_value="octopus",
+        set_category="Utilities",
+    )
+    tx = _tx_with_detail(
+        description="ADEUDOASUCARGO",
+        detail="GCREOCTOPUSENERGY",
+    )
+    result = _apply([tx], [rule])
+    assert result[0].matched_rule_id == 1
+    assert result[0].category == "Utilities"
+
+
+def test_detail_contains_no_match_when_detail_differs():
+    rule = _Rule(
+        1, "Energy detail", "contains", "adeudo",
+        detail_mode="contains", detail_value="iberdrola",
+        set_category="Utilities",
+    )
+    tx = _tx_with_detail(
+        description="ADEUDOASUCARGO",
+        detail="GCREOCTOPUSENERGY",
+    )
+    result = _apply([tx], [rule])
+    assert result[0].matched_rule_id is None  # AND failed
+
+
+def test_detail_contains_no_match_when_detail_is_none():
+    rule = _Rule(
+        1, "Energy detail", "contains", "adeudo",
+        detail_mode="contains", detail_value="octopus",
+        set_category="Utilities",
+    )
+    tx = _tx_with_detail(description="ADEUDOASUCARGO", detail=None)
+    result = _apply([tx], [rule])
+    # detail is None → treated as "" → "octopus" not in "" → no match
+    assert result[0].matched_rule_id is None
+
+
+def test_detail_exact_match():
+    rule = _Rule(
+        1, "Exact detail rule", "exact", "gcreoctopusenergy",
+        detail_mode="exact", detail_value="gcreoctopusenergy",
+        set_category="Utilities",
+    )
+    tx = _tx_with_detail(
+        description="GCREOCTOPUSENERGY",
+        detail="GCREOCTOPUSENERGY",
+    )
+    result = _apply([tx], [rule])
+    assert result[0].matched_rule_id == 1
+
+
+def test_detail_starts_with_match():
+    rule = _Rule(
+        1, "Starts with rule", "contains", "adeudo",
+        detail_mode="starts_with", detail_value="gcre",
+        set_category="Utilities",
+    )
+    tx = _tx_with_detail(
+        description="ADEUDOASUCARGO",
+        detail="GCREOCTOPUSENERGY",
+    )
+    result = _apply([tx], [rule])
+    assert result[0].matched_rule_id == 1
+
+
+def test_detail_regex_match():
+    rule = _Rule(
+        1, "Regex detail", "contains", "adeudo",
+        detail_mode="regex", detail_value=r"octopus\w+",
+        set_category="Utilities",
+    )
+    tx = _tx_with_detail(
+        description="ADEUDOASUCARGO",
+        detail="GCREOCTOPUSENERGY",
+    )
+    result = _apply([tx], [rule])
+    assert result[0].matched_rule_id == 1
+
+
+def test_detail_regex_no_match():
+    rule = _Rule(
+        1, "Regex detail", "contains", "adeudo",
+        detail_mode="regex", detail_value=r"^IBERDROLA",
+        set_category="Utilities",
+    )
+    tx = _tx_with_detail(
+        description="ADEUDOASUCARGO",
+        detail="GCREOCTOPUSENERGY",
+    )
+    result = _apply([tx], [rule])
+    assert result[0].matched_rule_id is None
+
+
+def test_detail_case_insensitive():
+    rule = _Rule(
+        1, "Case insensitive detail", "contains", "adeudo",
+        detail_mode="contains", detail_value="OCTOPUS",
+        set_category="Utilities",
+    )
+    tx = _tx_with_detail(
+        description="ADEUDOASUCARGO",
+        detail="gcreoctopusenergy",  # lowercase detail
+    )
+    result = _apply([tx], [rule])
+    assert result[0].matched_rule_id == 1
+
+
+def test_detail_condition_backward_compat_no_detail_fields():
+    """Rules with no detail_mode/detail_value work exactly as before."""
+    rule = _Rule(
+        1, "No detail condition", "contains", "amazon",
+        set_category="Shopping",
+        # detail_mode and detail_value default to None
+    )
+    tx = _tx(description="AMAZON MARKETPLACE")
+    result = _apply([tx], [rule])
+    assert result[0].matched_rule_id == 1
+    assert result[0].category == "Shopping"
+
+
+def test_detail_condition_backward_compat_ignores_tx_detail():
+    """Rule without detail condition matches regardless of tx.detail content."""
+    rule = _Rule(
+        1, "No detail condition", "contains", "amazon",
+        set_category="Shopping",
+    )
+    tx = _tx_with_detail(description="AMAZON MARKETPLACE", detail="some detail")
+    result = _apply([tx], [rule])
+    assert result[0].matched_rule_id == 1
+
