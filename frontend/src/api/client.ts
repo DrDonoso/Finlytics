@@ -37,7 +37,7 @@ function buildUrl(path: string, params?: Record<string, unknown>): string {
   const url = new URL(path, window.location.origin)
   if (params) {
     for (const [k, v] of Object.entries(params)) {
-      if (v === undefined || v === null) continue
+      if (v === undefined || v === null || v === '') continue
       if (Array.isArray(v)) {
         const urlKey = k === 'tags' ? 'tag' : k
         for (const item of v) url.searchParams.append(urlKey, String(item))
