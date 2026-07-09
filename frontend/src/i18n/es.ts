@@ -246,5 +246,17 @@ const es: Dict = {
   moversColPrevious: 'MES ANTERIOR',
   moversColChange: 'CAMBIO',
   moversNoPrevious: 'Sin datos del mes anterior para comparar',
+  // ── Statements page ──────────────────────────────────────────────────────────
+  navStatements: 'Extractos',
+  stmtsPrev: 'Mes anterior',
+  stmtsNext: 'Mes siguiente',
+  stmtsDeleteMonth: '🗑 Borrar mes',
+  stmtsDeleteTitle: (monthLabel) => `Borrar ${monthLabel}`,
+  stmtsDeleteBody: (n, monthLabel) => `Esto borrará ${n} transacción${n !== 1 ? 'es' : ''} de ${monthLabel} de forma permanente. Esta acción no se puede deshacer. Una vez borradas, puedes volver a subir el PDF de ese mes.`,
+  stmtsDeleteBtn: '🗑 Borrar mes',
+  stmtsDeleteOk: '✓ Mes eliminado',
+  stmtsEmptyTitle: (monthLabel) => `Sin transacciones en ${monthLabel}`,
+  stmtsEmptyHint: 'Puedes importar el extracto de este mes.',
+  stmtsImportBtn: 'Importar extracto',
 }
 export default es

@@ -6,6 +6,7 @@ import type {
   Transaction, TransactionPatch, CashflowSummary, CategoryPatch,
   AuthStatus, AuthUser, BackupImportSummary,
   Rule, RuleInput, RulePatch,
+  StatementMonth,
 } from './types'
 import {
   mockGetAccounts, mockGetCategories, mockGetTags, mockGetTransactions,
@@ -286,6 +287,21 @@ export async function importBackup(data: unknown): Promise<BackupImportSummary> 
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   })
+}
+
+// ─── Statements ───────────────────────────────────────────────────────────────
+
+/** GET /api/statements/months → months with transactions, sorted DESC by (year, month). */
+export async function getStatementMonths(): Promise<StatementMonth[]> {
+  return apiFetch<StatementMonth[]>('/api/statements/months')
+}
+
+/** DELETE /api/statements/month?year={y}&month={m} → { deleted: number }. */
+export async function deleteStatementMonth(year: number, month: number): Promise<{ deleted: number }> {
+  return apiFetch<{ deleted: number }>(
+    buildUrl('/api/statements/month', { year, month }),
+    { method: 'DELETE' },
+  )
 }
 
 // ─── Shared formatter ─────────────────────────────────────────────────────────

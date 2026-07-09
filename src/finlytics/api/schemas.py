@@ -160,6 +160,20 @@ class CashflowOut(BaseModel):
     currency: str
 
 
+# ── Statements ────────────────────────────────────────────────────────────────
+
+class StatementMonth(BaseModel):
+    """One calendar month that has ≥1 transaction."""
+    year: int
+    month: int
+    count: int
+
+
+class DeleteMonthResult(BaseModel):
+    """Response for DELETE /api/statements/month."""
+    deleted: int
+
+
 # ── Backup ────────────────────────────────────────────────────────────────────
 
 class BackupAccountIn(BaseModel):

@@ -14,11 +14,12 @@ Expense aggregations return **positive magnitudes** (−amount WHERE amount < 0)
 from __future__ import annotations
 
 import re
+from calendar import monthrange
 from datetime import date
 from decimal import Decimal
 from typing import Any, Literal
 
-from sqlalchemy import case, func, nullslast, select
+from sqlalchemy import case, delete, func, nullslast, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -883,3 +884,49 @@ async def get_cashflow(
         "total_expense": sum(r["amount"] for r in expense),
         "currency": currency,
     }
+
+
+# ── Statements (monthly view) ─────────────────────────────────────────────────
+
+async def get_statement_months(session: AsyncSession) -> list[dict[str, Any]]:
+    """Return one entry per (year, month) that has ≥1 transaction, sorted DESC."""
+    year_col = func.extract("year", Transaction.transaction_date)
+    month_col = func.extract("month", Transaction.transaction_date)
+    stmt = (
+        select(
+            year_col.label("year"),
+            month_col.label("month"),
+            func.count(Transaction.id).label("count"),
+        )
+        .select_from(Transaction)
+        .group_by(year_col, month_col)
+        .order_by(year_col.desc(), month_col.desc())
+    )
+    rows = (await session.execute(stmt)).all()
+    return [{"year": int(r.year), "month": int(r.month), "count": r.count} for r in rows]
+
+
+async def delete_statement_month(
+    session: AsyncSession,
+    *,
+    year: int,
+    month: int,
+) -> int:
+    """Hard-delete all transactions whose date falls within the given calendar month.
+
+    The ``transaction_tags`` junction table is cleaned up automatically via the
+    DB-level ``ON DELETE CASCADE`` on its ``transaction_id`` FK — no explicit
+    junction delete is required.
+
+    Returns the number of transactions deleted.
+    """
+    first_day = date(year, month, 1)
+    last_day = date(year, month, monthrange(year, month)[1])
+    async with session.begin():
+        result = await session.execute(
+            delete(Transaction).where(
+                Transaction.transaction_date >= first_day,
+                Transaction.transaction_date <= last_day,
+            )
+        )
+        return result.rowcount

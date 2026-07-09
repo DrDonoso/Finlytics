@@ -246,5 +246,17 @@ const en: Dict = {
   moversColPrevious: 'PREV MONTH',
   moversColChange: 'CHANGE',
   moversNoPrevious: 'No previous month data to compare',
+  // ── Statements page ──────────────────────────────────────────────────────────
+  navStatements: 'Statements',
+  stmtsPrev: 'Previous month',
+  stmtsNext: 'Next month',
+  stmtsDeleteMonth: '🗑 Delete month',
+  stmtsDeleteTitle: (monthLabel) => `Delete ${monthLabel}`,
+  stmtsDeleteBody: (n, monthLabel) => `This will permanently delete ${n} transaction${n !== 1 ? 's' : ''} from ${monthLabel}. This action cannot be undone. Once deleted, you can re-upload the PDF for that month.`,
+  stmtsDeleteBtn: '🗑 Delete month',
+  stmtsDeleteOk: '✓ Month deleted',
+  stmtsEmptyTitle: (monthLabel) => `No transactions in ${monthLabel}`,
+  stmtsEmptyHint: "You can import this month's statement.",
+  stmtsImportBtn: 'Import statement',
 }
 export default en

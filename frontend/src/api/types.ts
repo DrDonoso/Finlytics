@@ -196,6 +196,14 @@ export interface CashflowSummary {
   currency: string
 }
 
+// ─── Statements ──────────────────────────────────────────────────────────────
+
+export interface StatementMonth {
+  year: number
+  month: number
+  count: number
+}
+
 // ─── Backup ───────────────────────────────────────────────────────────────────
 
 export interface BackupImportSummary {
