@@ -2,6 +2,7 @@ import type { Account, Category, Tag, GlobalFilters } from '../api/types'
 import { useT, categoryLabel, DEFAULT_TAG_COLOR, tagTextColor } from '../i18n'
 import { useMemo } from 'react'
 import TagFilterSelect from './TagFilterSelect'
+import DatePicker from './DatePicker'
 
 interface Props {
   filters: GlobalFilters
@@ -39,21 +40,19 @@ export default function GlobalFilterBar({ filters, accounts, categories, tags, o
       <div className="date-range-wrap">
         <div className="filter-group">
           <label>{t.filterFrom}</label>
-          <input
-            type="date"
-            className="date-input-native"
+          <DatePicker
             value={filters.from}
-            onChange={e => set({ from: e.target.value })}
+            onChange={v => set({ from: v })}
+            ariaLabel={t.filterFrom}
           />
         </div>
         <span className="date-range-sep" aria-hidden="true">—</span>
         <div className="filter-group">
           <label>{t.filterTo}</label>
-          <input
-            type="date"
-            className="date-input-native"
+          <DatePicker
             value={filters.to}
-            onChange={e => set({ to: e.target.value })}
+            onChange={v => set({ to: v })}
+            ariaLabel={t.filterTo}
           />
         </div>
       </div>

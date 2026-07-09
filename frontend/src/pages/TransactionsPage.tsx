@@ -4,6 +4,7 @@ import { getAccounts, getCategories, getTags, getOverview } from '../api/client'
 import { useT, categoryLabel, formatDate, DEFAULT_TAG_COLOR, tagTextColor } from '../i18n'
 import TransactionsTable from '../components/TransactionsTable'
 import TagFilterSelect from '../components/TagFilterSelect'
+import DatePicker from '../components/DatePicker'
 
 const DEFAULT_FILTERS: TransactionsViewFilters = {
   from: '',
@@ -176,21 +177,19 @@ export default function TransactionsPage() {
           <div className="date-range-wrap">
             <div className="filter-group">
               <label>{t.filterFrom}</label>
-              <input
-                type="date"
-                className="date-input-native"
+              <DatePicker
                 value={filters.from}
-                onChange={e => setFilters(f => ({ ...f, from: e.target.value }))}
+                onChange={v => setFilters(f => ({ ...f, from: v }))}
+                ariaLabel={t.filterFrom}
               />
             </div>
             <span className="date-range-sep" aria-hidden="true">—</span>
             <div className="filter-group">
               <label>{t.filterTo}</label>
-              <input
-                type="date"
-                className="date-input-native"
+              <DatePicker
                 value={filters.to}
-                onChange={e => setFilters(f => ({ ...f, to: e.target.value }))}
+                onChange={v => setFilters(f => ({ ...f, to: v }))}
+                ariaLabel={t.filterTo}
               />
             </div>
           </div>

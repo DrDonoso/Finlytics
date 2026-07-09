@@ -283,5 +283,12 @@ const es: Dict = {
   // ── Import modal validation ───────────────────────────────────────────────
   modalFileRequired: 'Selecciona un archivo.',
   modalAccountRequired: 'La cuenta es obligatoria.',
+  // ── DatePicker ────────────────────────────────────────────────────────────────
+  datePickerTriggerLabel: (formatted) => `Seleccionar fecha, actualmente ${formatted}`,
+  datePickerDialogLabel: 'Selector de fecha',
+  datePickerToday: 'Hoy',
+  datePickerPrevMonth: 'Mes anterior',
+  datePickerNextMonth: 'Mes siguiente',
+  datePickerPlaceholder: 'Seleccionar fecha',
 }
 export default es
