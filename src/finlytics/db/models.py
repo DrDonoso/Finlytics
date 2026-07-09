@@ -69,6 +69,8 @@ class Account(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
+    # IBAN or other account identifier; unique when non-NULL (enforced by partial index).
+    account_number: Mapped[str | None] = mapped_column(String(34), nullable=True, unique=True)
     # e.g. "bank", "broker", "savings"
     type: Mapped[str] = mapped_column(String(50), nullable=False)
     currency: Mapped[str] = mapped_column(String(3), nullable=False, server_default="EUR")

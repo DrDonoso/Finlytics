@@ -291,5 +291,16 @@ const es: Dict = {
   datePickerPrevMonth: 'Mes anterior',
   datePickerNextMonth: 'Mes siguiente',
   datePickerPlaceholder: 'Seleccionar fecha',
+  // ── Import account resolution (Phase 2) ───────────────────────────────────────
+  importDetectedAccount: (masked, name) => `Cuenta detectada: ${masked} → ${name}`,
+  importNewAccountDetected: (masked) => `Cuenta nueva detectada: ${masked}`,
+  modalBtnContinue: 'Continuar',
+  // ── Accounts — edit name ──────────────────────────────────────────────────────
+  accountsEditBtn: '✏️ Editar nombre',
+  accountsEditTitle: (name) => `Renombrar cuenta «${name}»`,
+  accountsEditLabel: 'Nuevo nombre',
+  accountsEditSave: 'Guardar',
+  accountsEditToast: (name) => `✓ Cuenta renombrada a «${name}»`,
+  accountsEditNameRequired: 'El nombre de la cuenta es obligatorio.',
 }
 export default es

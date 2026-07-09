@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import type { Account } from '../api/types'
-import { getAccounts, deleteAccount } from '../api/client'
+import { getAccounts, deleteAccount, patchAccount } from '../api/client'
 import { useT } from '../i18n'
 
 export default function AccountsPage() {
@@ -12,6 +12,10 @@ export default function AccountsPage() {
 
   const [deleteTarget, setDeleteTarget] = useState<Account | null>(null)
   const [deleting, setDeleting] = useState(false)
+
+  const [editTarget, setEditTarget] = useState<Account | null>(null)
+  const [editName,   setEditName]   = useState('')
+  const [editSaving, setEditSaving] = useState(false)
 
   useEffect(() => {
     setLoading(true)
@@ -41,6 +45,21 @@ export default function AccountsPage() {
     }
   }
 
+  async function handleEditSave() {
+    if (!editTarget || !editName.trim()) return
+    setEditSaving(true)
+    try {
+      const updated = await patchAccount(editTarget.id, editName.trim())
+      setAccounts(prev => prev.map(a => a.id === updated.id ? updated : a))
+      setEditTarget(null)
+      showToast(t.accountsEditToast(updated.name))
+    } catch (e) {
+      setError(String(e))
+    } finally {
+      setEditSaving(false)
+    }
+  }
+
   return (
     <>
       <div className="card settings-card">
@@ -62,9 +81,20 @@ export default function AccountsPage() {
           <div className="settings-cats-list">
             {accounts.map(account => (
               <div key={account.id} className="settings-cat-row">
-                <span className="settings-cat-label">{account.name}</span>
+                <div className="settings-cat-label">
+                  <span>{account.name}</span>
+                  {account.account_number_masked && (
+                    <span className="acct-number-chip">{account.account_number_masked}</span>
+                  )}
+                </div>
                 <span className="settings-count">{t.settingsCountLabel(account.tx_count)}</span>
                 <div className="settings-cat-actions">
+                  <button
+                    className="btn-row-icon"
+                    onClick={() => { setEditTarget(account); setEditName(account.name) }}
+                    title={t.accountsEditBtn}
+                    aria-label={t.accountsEditBtn}
+                  >✏️</button>
                   <button
                     className="btn-row-icon btn-row-delete"
                     onClick={() => setDeleteTarget(account)}
@@ -77,6 +107,17 @@ export default function AccountsPage() {
           </div>
         )}
       </div>
+
+      {editTarget && (
+        <AccountEditModal
+          account={editTarget}
+          name={editName}
+          saving={editSaving}
+          onChangeName={setEditName}
+          onConfirm={handleEditSave}
+          onCancel={() => { if (!editSaving) setEditTarget(null) }}
+        />
+      )}
 
       {deleteTarget && (
         <AccountDeleteModal
@@ -98,6 +139,113 @@ export default function AccountsPage() {
     </>
   )
 }
+
+// ── Edit name modal ────────────────────────────────────────────────────────────
+
+interface EditModalProps {
+  account: Account
+  name: string
+  saving: boolean
+  onChangeName: (v: string) => void
+  onConfirm: () => void
+  onCancel: () => void
+}
+
+function AccountEditModal({ account, name, saving, onChangeName, onConfirm, onCancel }: EditModalProps) {
+  const { t } = useT()
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [attempted, setAttempted] = useState(false)
+  const nameValid = name.trim().length > 0
+
+  useEffect(() => { inputRef.current?.focus() }, [])
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape' && !saving) onCancel()
+      if (e.key === 'Enter' && !saving) { setAttempted(true); if (nameValid) onConfirm() }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [saving, nameValid, onCancel, onConfirm])
+
+  function handleConfirm() {
+    setAttempted(true)
+    if (!nameValid) return
+    onConfirm()
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={() => { if (!saving) onCancel() }}>
+      <div
+        className="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="acct-edit-title"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="modal-header">
+          <span className="modal-title" id="acct-edit-title">
+            {t.accountsEditTitle(account.name)}
+          </span>
+          <button
+            className="modal-close"
+            type="button"
+            aria-label={t.modalClose}
+            onClick={onCancel}
+            disabled={saving}
+          >✕</button>
+        </div>
+
+        <div className="modal-body">
+          <div className="form-group">
+            <label htmlFor="acct-edit-name">
+              {t.accountsEditLabel} <span className="rules-required">*</span>
+            </label>
+            <input
+              ref={inputRef}
+              id="acct-edit-name"
+              type="text"
+              className={`form-input${attempted && !nameValid ? ' form-input--error' : ''}`}
+              value={name}
+              onChange={e => onChangeName(e.target.value)}
+              disabled={saving}
+            />
+            {attempted && !nameValid && (
+              <span className="form-field-error">{t.accountsEditNameRequired}</span>
+            )}
+            {account.account_number_masked && (
+              <span className="form-hint">
+                {account.account_number_masked}
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="modal-footer">
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={onCancel}
+            disabled={saving}
+          >
+            {t.modalBtnCancel}
+          </button>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={handleConfirm}
+            disabled={saving || !nameValid}
+          >
+            {saving && <span className="btn-spinner" aria-hidden="true" />}
+            {t.accountsEditSave}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Delete modal ───────────────────────────────────────────────────────────────
 
 interface DeleteModalProps {
   account: Account

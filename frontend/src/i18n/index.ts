@@ -303,6 +303,17 @@ export interface Dict {
   datePickerPrevMonth: string
   datePickerNextMonth: string
   datePickerPlaceholder: string
+  // ── Import account resolution (Phase 2) ───────────────────────────────────────
+  importDetectedAccount: (masked: string, name: string) => string
+  importNewAccountDetected: (masked: string) => string
+  modalBtnContinue: string
+  // ── Accounts — edit name ──────────────────────────────────────────────────────
+  accountsEditBtn: string
+  accountsEditTitle: (name: string) => string
+  accountsEditLabel: string
+  accountsEditSave: string
+  accountsEditToast: (name: string) => string
+  accountsEditNameRequired: string
 }
 
 const ES_LABELS: Record<string, string> = {

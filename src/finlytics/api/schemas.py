@@ -46,12 +46,36 @@ class TagUpdate(BaseModel):
 
 # ── Accounts ──────────────────────────────────────────────────────────────────
 
+def mask_account_number(number: str | None) -> str | None:
+    """Mask an IBAN for display: country code (2 chars) + last 4 visible, middle masked.
+
+    Examples:
+      ``"ES7921000813610123456789"``  →  ``"ES******************6789"``
+      ``None``                        →  ``None``
+      Very short (≤6 chars)          →  returned as-is
+    """
+    if number is None:
+        return None
+    if len(number) <= 6:
+        return number
+    return number[:2] + "*" * (len(number) - 6) + number[-4:]
+
+
 class AccountOut(BaseModel):
     id: int
     name: str
     type: str | None
     currency: str
     tx_count: int = 0
+    account_number_masked: str | None = None
+
+
+class AccountPatch(BaseModel):
+    """Request body for PATCH /api/accounts/{account_id} — name only.
+
+    Account number is immutable and may not be updated through this endpoint.
+    """
+    name: str
 
 
 class DeleteAccountResult(BaseModel):
@@ -263,14 +287,20 @@ class PreviewOut(BaseModel):
     statement_year: int | None
     year_detected: bool
     suggested_tags: list[SuggestedTag] = []
+    # IBAN detection fields (None when no IBAN found in the statement header)
+    detected_account_masked: str | None = None  # masked IBAN for display
+    detected_account_iban: str | None = None    # full IBAN (owner-approved over localhost)
+    matched_account_id: int | None = None       # set when IBAN maps to an existing account
+    matched_account_name: str | None = None     # name of the matched account
 
 
 class ConfirmIn(BaseModel):
     """Request body for POST /api/imports/confirm — user-reviewed transaction list."""
-    account_name: str
+    account_name: str | None = None  # required when account_number absent or new
     source_filename: str
     transactions: list[ExtractedTransaction]
     tag_colors: dict[str, str] | None = None
+    account_number: str | None = None  # full IBAN; when provided, account resolved by number
 
 
 # ── Rules ─────────────────────────────────────────────────────────────────────

@@ -10,7 +10,7 @@ import CategorySelect from './CategorySelect'
 import TagTypeahead from './TagTypeahead'
 import RuleFormModal from './RuleFormModal'
 
-type Step = 'upload' | 'extracting' | 'preview' | 'saving'
+type Step = 'upload' | 'extracting' | 'account' | 'preview' | 'saving'
 
 type EditRow = ImportTransaction & { _key: number }
 
@@ -57,16 +57,25 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
   const [accountName,     setAccountName]     = useState('')
   const [newAccountMode,  setNewAccountMode]  = useState(false)
   const [preview,         setPreview]         = useState<PreviewResponse | null>(null)
-  const [rows,        setRows]        = useState<EditRow[]>([])
-  const [error,       setError]       = useState<string | null>(null)
+  const [rows,            setRows]            = useState<EditRow[]>([])
+  const [error,           setError]           = useState<string | null>(null)
   const nextKey = useRef(0)
 
-  const [submitAttempted, setSubmitAttempted] = useState(false)
-  const [accountTouched,  setAccountTouched]  = useState(false)
+  // Account detection state (populated after preview call)
+  const [detectedMasked, setDetectedMasked] = useState<string | null>(null)
+  const [detectedIban,   setDetectedIban]   = useState<string | null>(null)
+  const [matchedId,      setMatchedId]      = useState<number | null>(null)
+  const [matchedName,    setMatchedName]    = useState<string | null>(null)
 
-  const accountValid    = accountName.trim().length > 0
+  // Phase 1 validation
+  const [submitAttempted,         setSubmitAttempted]         = useState(false)
+  // Phase 2 validation
+  const [accountContinueAttempted, setAccountContinueAttempted] = useState(false)
+  const [accountTouched,           setAccountTouched]           = useState(false)
+
+  const accountValid    = matchedId != null || accountName.trim().length > 0
   const showFileError   = submitAttempted && !file
-  const showAccountError = (submitAttempted || accountTouched) && !accountValid
+  const showAccountError = (accountContinueAttempted || accountTouched) && !accountValid
 
   const [createRuleRow, setCreateRuleRow] = useState<EditRow | null>(null)
   const [ruleToast,     setRuleToast]     = useState<string | null>(null)
@@ -134,34 +143,56 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
     return txns.map(tx => ({ ...tx, _key: nextKey.current++ }))
   }
 
-  async function handleExtract() {
+  // ── Phase 1 → upload file, call preview ──────────────────────────────────────
+
+  async function handleUpload() {
     setSubmitAttempted(true)
-    if (!file || !accountValid) return
-    const trimmedAccount = accountName.trim()
-    setAccountName(trimmedAccount)
+    if (!file) return
     setStep('extracting')
     setError(null)
     try {
-      const p = await previewImport(file, trimmedAccount)
+      const p = await previewImport(file)
+      setPreview(p)
+
+      const dm = p.detected_account_masked ?? null
+      const di = p.detected_account_iban ?? null
+      const mid = p.matched_account_id ?? null
+      const mn = p.matched_account_name ?? null
+      setDetectedMasked(dm)
+      setDetectedIban(di)
+      setMatchedId(mid)
+      setMatchedName(mn)
+
+      // Pre-set account name for matched accounts
+      if (mid != null && mn) setAccountName(mn)
+
       const txns = p.transactions.map(tx => ({
         ...tx,
-        account_ref: tx.account_ref || trimmedAccount || p.account_ref || '',
+        account_ref: tx.account_ref || p.account_ref || '',
       }))
-      setPreview(p)
       setRows(toEditRows(txns))
-      setStep('preview')
+      setStep('account')
     } catch (e) {
       setError(friendlyError(e, t))
       setStep('upload')
     }
   }
 
+  // ── Phase 2 → account resolution → proceed to preview ────────────────────────
+
+  function handleAccountContinue() {
+    setAccountContinueAttempted(true)
+    if (!accountValid) return
+    setStep('preview')
+  }
+
+  // ── Phase 3 → confirm & save ──────────────────────────────────────────────────
+
   async function handleConfirm() {
     if (!preview) return
     setStep('saving')
     setError(null)
     try {
-      // Build tag_colors for brand-new tags (not already in DB)
       const dbTagNames = new Set(allTags.map(t => t.name))
       const suggestedMap = Object.fromEntries(
         (preview.suggested_tags ?? []).map(s => [s.name, s.color])
@@ -179,6 +210,8 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
         source_filename: preview.filename,
         transactions:    rows.map(toImportTxn),
         ...(Object.keys(tag_colors).length > 0 ? { tag_colors } : {}),
+        // Send full IBAN only when creating a brand-new detected account
+        ...(matchedId == null && detectedIban ? { account_number: detectedIban } : {}),
       }
       const result = await confirmImport(payload)
       onSuccess(result)
@@ -230,6 +263,7 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
         </div>
 
         <div className="modal-body">
+          {/* ── Phase 1: File picker ────────────────────────────────────────── */}
           {step === 'upload' && (
             <div className="upload-form">
               <div className="form-group">
@@ -247,64 +281,108 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
                 }
               </div>
 
-              <div className="form-group">
-                <label htmlFor="import-account">{t.modalAccountLabel} <span className="rules-required">*</span></label>
-                {accounts.length === 0 ? (
-                  <input
-                    id="import-account"
-                    className={`form-input${showAccountError ? ' form-input--error' : ''}`}
-                    type="text"
-                    placeholder={t.modalAccountPlaceholder}
-                    value={accountName}
-                    onChange={e => setAccountName(e.target.value)}
-                    onBlur={() => setAccountTouched(true)}
-                  />
-                ) : (
-                  <>
-                    <select
-                      id="import-account"
-                      className={`form-input${showAccountError && !newAccountMode ? ' form-input--error' : ''}`}
-                      value={newAccountMode ? '__new__' : accountName}
-                      onChange={e => {
-                        if (e.target.value === '__new__') {
-                          setNewAccountMode(true)
-                          setAccountName('')
-                          setAccountTouched(false)
-                        } else {
-                          setNewAccountMode(false)
-                          setAccountName(e.target.value)
-                          setAccountTouched(true)
-                        }
-                      }}
-                      onBlur={() => !newAccountMode && setAccountTouched(true)}
-                    >
-                      <option value="">{t.modalAccountPlaceholder}</option>
-                      {accounts.map(a => (
-                        <option key={a.id} value={a.name}>{a.name}</option>
-                      ))}
-                      <option value="__new__">{t.modalAccountNew}</option>
-                    </select>
-                    {newAccountMode && (
-                      <input
-                        className={`form-input${showAccountError ? ' form-input--error' : ''}`}
-                        type="text"
-                        placeholder={t.modalAccountPlaceholder}
-                        value={accountName}
-                        onChange={e => setAccountName(e.target.value)}
-                        onBlur={() => setAccountTouched(true)}
-                        style={{ marginTop: 4 }}
-                        autoFocus
-                      />
-                    )}
-                  </>
-                )}
-                {showAccountError
-                  ? <span className="form-field-error">{t.modalAccountRequired}</span>
-                  : <span className="form-hint">{t.modalAccountHint}</span>
-                }
-              </div>
-
               {error && <div className="import-error">{error}</div>}
+            </div>
+          )}
+
+          {/* ── Phase 2: Account resolution ─────────────────────────────────── */}
+          {step === 'account' && (
+            <div className="upload-form">
+              {matchedId != null ? (
+                // Case A: existing account matched → show confirmation banner
+                <div className="import-acct-banner import-acct-banner--matched">
+                  ✓ {t.importDetectedAccount(detectedMasked ?? '', matchedName ?? '')}
+                </div>
+              ) : detectedMasked ? (
+                // Case B: new IBAN detected — ask for account name
+                <>
+                  <div className="import-acct-banner import-acct-banner--new">
+                    {t.importNewAccountDetected(detectedMasked)}
+                  </div>
+                  <div className="form-group" style={{ marginTop: 16 }}>
+                    <label htmlFor="import-new-name">
+                      {t.modalAccountLabel} <span className="rules-required">*</span>
+                    </label>
+                    <input
+                      id="import-new-name"
+                      type="text"
+                      className={`form-input${showAccountError ? ' form-input--error' : ''}`}
+                      placeholder={t.modalAccountPlaceholder}
+                      value={accountName}
+                      onChange={e => setAccountName(e.target.value)}
+                      onBlur={() => setAccountTouched(true)}
+                      autoFocus
+                    />
+                    {showAccountError
+                      ? <span className="form-field-error">{t.modalAccountRequired}</span>
+                      : <span className="form-hint">{t.modalAccountHint}</span>
+                    }
+                  </div>
+                </>
+              ) : (
+                // Case C: no IBAN detected — manual account entry (fallback)
+                <div className="form-group">
+                  <label htmlFor="import-account">
+                    {t.modalAccountLabel} <span className="rules-required">*</span>
+                  </label>
+                  {accounts.length === 0 ? (
+                    <input
+                      id="import-account"
+                      className={`form-input${showAccountError ? ' form-input--error' : ''}`}
+                      type="text"
+                      placeholder={t.modalAccountPlaceholder}
+                      value={accountName}
+                      onChange={e => setAccountName(e.target.value)}
+                      onBlur={() => setAccountTouched(true)}
+                      autoFocus
+                    />
+                  ) : (
+                    <>
+                      <select
+                        id="import-account"
+                        className={`form-input${showAccountError && !newAccountMode ? ' form-input--error' : ''}`}
+                        value={newAccountMode ? '__new__' : accountName}
+                        onChange={e => {
+                          if (e.target.value === '__new__') {
+                            setNewAccountMode(true)
+                            setAccountName('')
+                            setAccountTouched(false)
+                          } else {
+                            setNewAccountMode(false)
+                            setAccountName(e.target.value)
+                            setAccountTouched(true)
+                          }
+                        }}
+                        onBlur={() => !newAccountMode && setAccountTouched(true)}
+                      >
+                        <option value="">{t.modalAccountPlaceholder}</option>
+                        {accounts.map(a => (
+                          <option key={a.id} value={a.name}>{a.name}</option>
+                        ))}
+                        <option value="__new__">{t.modalAccountNew}</option>
+                      </select>
+                      {newAccountMode && (
+                        <input
+                          className={`form-input${showAccountError ? ' form-input--error' : ''}`}
+                          type="text"
+                          placeholder={t.modalAccountPlaceholder}
+                          value={accountName}
+                          onChange={e => setAccountName(e.target.value)}
+                          onBlur={() => setAccountTouched(true)}
+                          style={{ marginTop: 4 }}
+                          autoFocus
+                        />
+                      )}
+                    </>
+                  )}
+                  {showAccountError
+                    ? <span className="form-field-error">{t.modalAccountRequired}</span>
+                    : <span className="form-hint">{t.modalAccountHint}</span>
+                  }
+                </div>
+              )}
+
+              {error && <div className="import-error" style={{ marginTop: 12 }}>{error}</div>}
             </div>
           )}
 
@@ -317,6 +395,7 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
             </div>
           )}
 
+          {/* ── Phase 3: Transaction preview table ──────────────────────────── */}
           {step === 'preview' && preview && (
             <div>
               <div className="preview-meta">
@@ -524,10 +603,20 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
             {step === 'upload' && (
               <button
                 className="btn-primary"
-                onClick={handleExtract}
-                disabled={!file || !accountValid}
+                onClick={handleUpload}
+                disabled={!file}
               >
                 {t.modalBtnExtract}
+              </button>
+            )}
+
+            {step === 'account' && (
+              <button
+                className="btn-primary"
+                onClick={handleAccountContinue}
+                disabled={matchedId == null && accountName.trim().length === 0}
+              >
+                {t.modalBtnContinue}
               </button>
             )}
 

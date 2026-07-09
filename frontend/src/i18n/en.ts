@@ -291,5 +291,16 @@ const en: Dict = {
   datePickerPrevMonth: 'Previous month',
   datePickerNextMonth: 'Next month',
   datePickerPlaceholder: 'Select date',
+  // ── Import account resolution (Phase 2) ───────────────────────────────────────
+  importDetectedAccount: (masked, name) => `Detected account: ${masked} → ${name}`,
+  importNewAccountDetected: (masked) => `New account detected: ${masked}`,
+  modalBtnContinue: 'Continue',
+  // ── Accounts — edit name ──────────────────────────────────────────────────────
+  accountsEditBtn: '✏️ Edit name',
+  accountsEditTitle: (name) => `Rename account '${name}'`,
+  accountsEditLabel: 'New name',
+  accountsEditSave: 'Save',
+  accountsEditToast: (name) => `✓ Account renamed to '${name}'`,
+  accountsEditNameRequired: 'Account name is required.',
 }
 export default en

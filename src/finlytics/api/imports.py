@@ -20,11 +20,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from finlytics.api.deps import get_db, get_llm_client
-from finlytics.api.schemas import ConfirmIn, ImportResult, PreviewOut, SuggestedTag
+from finlytics.api.schemas import ConfirmIn, ImportResult, PreviewOut, SuggestedTag, mask_account_number
 from finlytics.contracts import ExtractedTransaction
 from finlytics.db.models import Account, ImportRun, Tag
 from finlytics.db.repository import list_rules, upsert_transactions
-from finlytics.extraction.extractor import detect_statement_year, extract_transactions
+from finlytics.extraction.extractor import detect_statement_year, extract_account_number, extract_transactions
 from finlytics.extraction.prematch import pre_match_rules
 from finlytics.extraction.rules import apply_rules
 from finlytics.extraction.llm_client import LLMClient
@@ -133,17 +133,35 @@ async def preview_import(
 
     year = detect_statement_year(statement_text)
 
+    # Detect IBAN from statement header; look up existing account if found.
+    detected_iban = extract_account_number(statement_text)
+    matched_account_id: int | None = None
+    matched_account_name: str | None = None
+
+    if detected_iban is not None:
+        iban_result = await session.execute(
+            select(Account).where(Account.account_number == detected_iban)
+        )
+        matched_account = iban_result.scalar_one_or_none()
+        if matched_account is not None:
+            matched_account_id = matched_account.id
+            matched_account_name = matched_account.name
+            account_name = matched_account.name  # use DB name as extraction ref
+
+    # account_ref for rules/extraction — use known name or empty string (don't crash)
+    effective_ref = account_name or ""
+
     rules = await list_rules(session, enabled_only=True)
     matched_txs, remaining_text = pre_match_rules(
         statement_text, rules,
         statement_year=year,
-        account_ref=account_name or "",
+        account_ref=effective_ref,
     )
 
     try:
         if remaining_text.strip():
             extracted = await extract_transactions(
-                remaining_text, account_name or "", llm_client, statement_year=year
+                remaining_text, effective_ref, llm_client, statement_year=year
             )
         else:
             extracted = []
@@ -180,6 +198,10 @@ async def preview_import(
         statement_year=year,
         year_detected=(year is not None),
         suggested_tags=suggested_tags,
+        detected_account_masked=mask_account_number(detected_iban),
+        detected_account_iban=detected_iban,
+        matched_account_id=matched_account_id,
+        matched_account_name=matched_account_name,
     )
 
 
@@ -190,9 +212,50 @@ async def confirm_import(
     body: ConfirmIn = Body(...),
     session: AsyncSession = Depends(get_db),
 ) -> ImportResult:
-    """Persist the user-reviewed (and optionally edited) transaction list from a preview."""
+    """Persist the user-reviewed (and optionally edited) transaction list from a preview.
+
+    Account resolution order:
+    1. If ``account_number`` (IBAN) is provided:
+       - Found in DB → use existing account (name is ignored; IBAN is immutable key).
+       - Not found   → create new Account(name=account_name, account_number=account_number).
+    2. If ``account_number`` is None → get-or-create by ``account_name`` (legacy path).
+
+    CRITICAL: ``account_ref`` inside each ExtractedTransaction stays the account NAME
+    throughout. It must NOT be replaced with the IBAN so that ``compute_dedup_hash``
+    behaviour is unchanged and re-imports remain idempotent.
+    """
     async with session.begin():
-        account = await _resolve_account(session, None, body.account_name)
+        if body.account_number is not None:
+            result = await session.execute(
+                select(Account).where(Account.account_number == body.account_number)
+            )
+            account = result.scalar_one_or_none()
+            if account is None:
+                if not body.account_name:
+                    raise HTTPException(
+                        status_code=422,
+                        detail="account_name is required when account_number is new.",
+                    )
+                account = Account(
+                    name=body.account_name,
+                    account_number=body.account_number,
+                    type="bank",
+                    currency="EUR",
+                )
+                session.add(account)
+                await session.flush()
+                log.info(
+                    "Auto-created account %r with IBAN %r",
+                    body.account_name, body.account_number,
+                )
+        else:
+            if not body.account_name:
+                raise HTTPException(
+                    status_code=422,
+                    detail="Provide account_name or account_number.",
+                )
+            account = await _resolve_account(session, None, body.account_name)
+
         result = await _persist_import_run(
             session, account.id, body.source_filename, body.transactions,
             tag_colors=body.tag_colors,
