@@ -1,6 +1,6 @@
-import { useState, useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import type { Rule, RuleInput, DescriptionMode, AmountSign, Category, Tag } from '../api/types'
-import { createRule, updateRule } from '../api/client'
+import { createRule, updateRule, previewRule, applyRule } from '../api/client'
 import { useT, categoryLabel } from '../i18n'
 import CategorySelect from './CategorySelect'
 import TagTypeahead from './TagTypeahead'
@@ -126,6 +126,13 @@ export default function RuleFormModal({
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
 
+  // Preview / apply state
+  const [previewCount, setPreviewCount] = useState<number | null>(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [previewErr, setPreviewErr] = useState(false)
+  const [applying, setApplying] = useState(false)
+  const [applyToast, setApplyToast] = useState<string | null>(null)
+
   function toggleSection(section: 'identity' | 'conditions' | 'actions') {
     setOpen(prev => ({ ...prev, [section]: !prev[section] }))
   }
@@ -154,14 +161,8 @@ export default function RuleFormModal({
     return null
   }
 
-  async function handleSave() {
-    const validErr = validate()
-    if (validErr) { setFormError(validErr); return }
-
-    setSaving(true)
-    setFormError(null)
-
-    const payload: RuleInput = {
+  function buildPayload(): RuleInput {
+    return {
       name:              form.name.trim(),
       priority:          form.priority,
       enabled:           form.enabled,
@@ -179,6 +180,58 @@ export default function RuleFormModal({
       add_tags:          form.add_tags,
       skip_ai:           form.skip_ai,
     }
+  }
+
+  const conditionsEmpty = !form.description_value.trim()
+
+  // Debounced preview: re-query when condition fields change
+  useEffect(() => {
+    if (conditionsEmpty) {
+      setPreviewCount(null)
+      setPreviewLoading(false)
+      setPreviewErr(false)
+      return
+    }
+    setPreviewLoading(true)
+    setPreviewErr(false)
+    const payload = buildPayload()
+    const timer = setTimeout(async () => {
+      try {
+        const res = await previewRule(payload)
+        setPreviewCount(res.count)
+      } catch {
+        setPreviewErr(true)
+      } finally {
+        setPreviewLoading(false)
+      }
+    }, 400)
+    return () => clearTimeout(timer)
+  }, [form.description_value, form.description_mode, form.detail_value, form.detail_mode, form.amount_sign, form.amount_min, form.amount_max, form.account_ref, form.currency]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function handleApply() {
+    setApplying(true)
+    setApplyToast(null)
+    try {
+      const result = await applyRule(buildPayload())
+      setApplyToast(t.rulesApplySuccess(result.applied))
+      setPreviewCount(0)
+      setTimeout(() => setApplyToast(null), 5000)
+    } catch (e) {
+      setApplyToast(String(e))
+      setTimeout(() => setApplyToast(null), 5000)
+    } finally {
+      setApplying(false)
+    }
+  }
+
+  async function handleSave() {
+    const validErr = validate()
+    if (validErr) { setFormError(validErr); return }
+
+    setSaving(true)
+    setFormError(null)
+
+    const payload = buildPayload()
     try {
       const result = editingRule !== undefined
         ? await updateRule(editingRule.id, payload)
@@ -490,10 +543,45 @@ export default function RuleFormModal({
         </div>
 
         <div className="modal-footer">
-          <button type="button" className="btn-secondary" onClick={onClose} disabled={saving}>
+          {/* ── Preview count bar (left side) ─────────────────── */}
+          <div className="rule-preview-bar">
+            {applyToast ? (
+              <span className="rule-preview-text rule-preview-text--ok">{applyToast}</span>
+            ) : !conditionsEmpty ? (
+              previewLoading ? (
+                <span className="rule-preview-text rule-preview-text--loading">{t.rulesPreviewLoading}</span>
+              ) : previewErr ? (
+                <span className="rule-preview-text rule-preview-text--error">{t.rulesPreviewError}</span>
+              ) : previewCount !== null && previewCount > 0 ? (
+                <span className="rule-preview-text">{t.rulesPreviewCount(previewCount)}</span>
+              ) : previewCount === 0 ? (
+                <span className="rule-preview-text rule-preview-text--none">{t.rulesPreviewNone}</span>
+              ) : null
+            ) : null}
+          </div>
+
+          {/* ── Apply button (visible when there are matches) ──── */}
+          {!conditionsEmpty && previewCount !== null && previewCount > 0 && (
+            <button
+              type="button"
+              className="btn-apply-rule"
+              onClick={handleApply}
+              disabled={applying || saving}
+              title={t.rulesApplyBtn(previewCount)}
+            >
+              {applying ? <span className="btn-spinner btn-spinner--amber" /> : t.rulesApplyBtn(previewCount)}
+            </button>
+          )}
+          {applying && (previewCount === null || previewCount === 0) && (
+            <button type="button" className="btn-apply-rule" disabled>
+              <span className="btn-spinner btn-spinner--amber" />
+            </button>
+          )}
+
+          <button type="button" className="btn-secondary" onClick={onClose} disabled={saving || applying}>
             {t.rulesBtnCancel}
           </button>
-          <button type="button" className="btn-primary" onClick={handleSave} disabled={saving}>
+          <button type="button" className="btn-primary" onClick={handleSave} disabled={saving || applying}>
             {saving ? '…' : t.rulesBtnSave}
           </button>
         </div>

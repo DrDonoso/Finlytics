@@ -276,6 +276,13 @@ export interface Dict {
   monthPickerCurrentMonth: string
   monthPickerPrevYear: string
   monthPickerNextYear: string
+  // ── Rule preview / apply ──────────────────────────────────────────────────────
+  rulesPreviewLoading: string
+  rulesPreviewCount: (n: number) => string
+  rulesPreviewNone: string
+  rulesPreviewError: string
+  rulesApplyBtn: (n: number) => string
+  rulesApplySuccess: (n: number) => string
 }
 
 const ES_LABELS: Record<string, string> = {

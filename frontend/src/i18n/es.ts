@@ -264,5 +264,12 @@ const es: Dict = {
   monthPickerCurrentMonth: 'Mes actual',
   monthPickerPrevYear: 'Año anterior',
   monthPickerNextYear: 'Año siguiente',
+  // ── Rule preview / apply ──────────────────────────────────────────────────────
+  rulesPreviewLoading: 'Comprobando coincidencias…',
+  rulesPreviewCount: (n) => `Se aplicará a ${n} transacción${n !== 1 ? 'es' : ''} actual${n !== 1 ? 'es' : ''}`,
+  rulesPreviewNone: 'Sin transacciones coincidentes',
+  rulesPreviewError: 'No se pudieron comprobar las coincidencias',
+  rulesApplyBtn: (n) => `Aplicar a ${n}`,
+  rulesApplySuccess: (n) => `✓ ${n} transacción${n !== 1 ? 'es' : ''} actualizada${n !== 1 ? 's' : ''}`,
 }
 export default es

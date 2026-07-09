@@ -48,6 +48,9 @@ export default function StatementsPage() {
   const [selY, setSelY] = useState(0)
   const [selM, setSelM] = useState(0)
 
+  // Selected account filter (undefined = all accounts)
+  const [selAccountId, setSelAccountId] = useState<number | undefined>(undefined)
+
   // Overview for the selected month (income / expense / net / count)
   const [overview,        setOverview]        = useState<Overview | null>(null)
   const [overviewLoading, setOverviewLoading] = useState(false)
@@ -74,12 +77,12 @@ export default function StatementsPage() {
     getTags().then(setAllTags).catch(() => {})
   }, [])
 
-  // ── Load statement months (re-runs on full refresh after delete/import) ─────
+  // ── Load statement months (re-runs on full refresh after delete/import, or account change) ─
   useEffect(() => {
     let cancelled = false
     setMonthsLoading(true)
     setMonthsError(null)
-    getStatementMonths()
+    getStatementMonths(selAccountId)
       .then(data => {
         if (cancelled) return
         setMonths(data)
@@ -100,14 +103,14 @@ export default function StatementsPage() {
         setMonthsLoading(false)
       })
     return () => { cancelled = true }
-  }, [refreshKey]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [refreshKey, selAccountId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Derived date strings ────────────────────────────────────────────────────
   const from = selY ? `${selY}-${pad2(selM)}-01` : ''
   const to   = selY ? `${selY}-${pad2(selM)}-${pad2(lastDayOf(selY, selM))}` : ''
 
-  // Global filters for TransactionsTable — month-scoped, no other filters
-  const globalFilters = useMemo<GlobalFilters>(() => ({ from, to, tags: [] }), [from, to])
+  // Global filters for TransactionsTable — month-scoped, account-scoped
+  const globalFilters = useMemo<GlobalFilters>(() => ({ from, to, account_id: selAccountId, tags: [] }), [from, to, selAccountId])
 
   // Whether the selected month has any data (avoids unnecessary overview fetch)
   const currentMonthHasData = months.some(s => s.year === selY && s.month === selM)
@@ -122,11 +125,11 @@ export default function StatementsPage() {
     let cancelled = false
     setOverviewLoading(true)
     setOverview(null)
-    getOverview({ from, to })
+    getOverview({ from, to, account_id: selAccountId })
       .then(d  => { if (!cancelled) { setOverview(d);  setOverviewLoading(false) } })
       .catch(() => { if (!cancelled) { setOverviewLoading(false) } })
     return () => { cancelled = true }
-  }, [from, to, currentMonthHasData, refreshKey, overviewRefKey]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [from, to, currentMonthHasData, refreshKey, overviewRefKey, selAccountId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Navigation helpers ──────────────────────────────────────────────────────
   const today  = todayYM()
@@ -163,7 +166,7 @@ export default function StatementsPage() {
   async function handleDeleteConfirm() {
     setDeleting(true)
     try {
-      await deleteStatementMonth(selY, selM)
+      await deleteStatementMonth(selY, selM, selAccountId)
       setShowDelete(false)
       showToast(t.stmtsDeleteOk)
       setRefreshKey(k => k + 1)
@@ -218,6 +221,21 @@ export default function StatementsPage() {
         if (e.key === 'ArrowRight') navNext()
       }}
     >
+      {/* ── Account selector (only when more than one account) ── */}
+      {accounts.length > 1 && (
+        <div className="stmts-account-bar">
+          <label htmlFor="stmts-acct-sel">{t.filterAccount}</label>
+          <select
+            id="stmts-acct-sel"
+            value={selAccountId ?? ''}
+            onChange={e => setSelAccountId(e.target.value ? Number(e.target.value) : undefined)}
+          >
+            <option value="">{t.filterAllAccounts}</option>
+            {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </select>
+        </div>
+      )}
+
       {/* ── Month nav bar ─────────────────────────────────────── */}
       <div className="month-nav">
         <button
@@ -291,10 +309,17 @@ export default function StatementsPage() {
           <div className="month-header-actions">
             <button
               type="button"
-              className="btn-secondary month-header-delete"
+              className="btn-icon-trash"
               onClick={() => setShowDelete(true)}
+              aria-label={t.stmtsDeleteMonth}
+              title={t.stmtsDeleteMonth}
             >
-              {t.stmtsDeleteMonth}
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <polyline points="3 6 5 6 21 6"/>
+                <path d="M19 6l-1 14H6L5 6"/>
+                <path d="M10 11v6M14 11v6"/>
+                <path d="M9 6V4h6v2"/>
+              </svg>
             </button>
           </div>
         </div>

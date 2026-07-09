@@ -130,3 +130,69 @@ async def test_delete_month_different_params(client):
     assert kwargs["year"] == 2023
     assert kwargs["month"] == 1
     assert resp.json()["deleted"] == 15
+
+
+# ── Account-scoped GET /api/statements/months?account_id= ─────────────────────
+
+async def test_list_months_account_id_forwarded(client):
+    """?account_id is passed through to the query function."""
+    with patch("finlytics.db.queries.get_statement_months", new_callable=AsyncMock) as mock:
+        mock.return_value = [_MONTHS[0]]
+        resp = await client.get("/api/statements/months?account_id=3")
+
+    assert resp.status_code == 200
+    _, kwargs = mock.call_args
+    assert kwargs["account_id"] == 3
+
+
+async def test_list_months_no_account_id_passes_none(client):
+    """Omitting ?account_id passes account_id=None to the query (all accounts)."""
+    with patch("finlytics.db.queries.get_statement_months", new_callable=AsyncMock) as mock:
+        mock.return_value = _MONTHS
+        resp = await client.get("/api/statements/months")
+
+    assert resp.status_code == 200
+    _, kwargs = mock.call_args
+    assert kwargs["account_id"] is None
+
+
+async def test_list_months_account_id_filters_result(client):
+    """Account-scoped call returns only the entries the query function gives back."""
+    scoped = [{"year": 2024, "month": 5, "count": 3}]
+    with patch("finlytics.db.queries.get_statement_months", new_callable=AsyncMock) as mock:
+        mock.return_value = scoped
+        resp = await client.get("/api/statements/months?account_id=7")
+
+    assert resp.json() == scoped
+
+
+# ── Account-scoped DELETE /api/statements/month?account_id= ───────────────────
+
+async def test_delete_month_account_id_forwarded(client):
+    """?account_id is forwarded to the query function."""
+    with patch("finlytics.db.queries.delete_statement_month", new_callable=AsyncMock) as mock:
+        mock.return_value = 4
+        resp = await client.delete("/api/statements/month?year=2024&month=6&account_id=2")
+
+    assert resp.status_code == 200
+    _, kwargs = mock.call_args
+    assert kwargs["account_id"] == 2
+
+
+async def test_delete_month_no_account_id_passes_none(client):
+    """Omitting ?account_id passes account_id=None to the query (all accounts)."""
+    with patch("finlytics.db.queries.delete_statement_month", new_callable=AsyncMock) as mock:
+        mock.return_value = 8
+        await client.delete("/api/statements/month?year=2024&month=5")
+
+    _, kwargs = mock.call_args
+    assert kwargs["account_id"] is None
+
+
+async def test_delete_month_account_scoped_returns_count(client):
+    """Account-scoped delete returns the correct {deleted: N} count."""
+    with patch("finlytics.db.queries.delete_statement_month", new_callable=AsyncMock) as mock:
+        mock.return_value = 2
+        resp = await client.delete("/api/statements/month?year=2024&month=3&account_id=5")
+
+    assert resp.json() == {"deleted": 2}

@@ -264,5 +264,12 @@ const en: Dict = {
   monthPickerCurrentMonth: 'Current month',
   monthPickerPrevYear: 'Previous year',
   monthPickerNextYear: 'Next year',
+  // ── Rule preview / apply ──────────────────────────────────────────────────────
+  rulesPreviewLoading: 'Checking matches…',
+  rulesPreviewCount: (n) => `Applies to ${n} current transaction${n !== 1 ? 's' : ''}`,
+  rulesPreviewNone: 'No matching transactions',
+  rulesPreviewError: 'Could not check matches',
+  rulesApplyBtn: (n) => `Apply to ${n}`,
+  rulesApplySuccess: (n) => `✓ ${n} transaction${n !== 1 ? 's' : ''} updated`,
 }
 export default en
