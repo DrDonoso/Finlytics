@@ -51,6 +51,12 @@ class AccountOut(BaseModel):
     name: str
     type: str | None
     currency: str
+    tx_count: int = 0
+
+
+class DeleteAccountResult(BaseModel):
+    """Response for DELETE /api/accounts/{account_id}."""
+    deleted: int
 
 
 # ── Categories ────────────────────────────────────────────────────────────────

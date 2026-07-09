@@ -9,8 +9,8 @@ import type {
 // ─── Static reference data ────────────────────────────────────────────────────
 
 export const MOCK_ACCOUNTS: Account[] = [
-  { id: 1, name: 'BBVA', type: 'checking', currency: 'EUR' },
-  { id: 2, name: 'Indexa Capital', type: 'investment', currency: 'EUR' },
+  { id: 1, name: 'BBVA', type: 'checking', currency: 'EUR', tx_count: 42 },
+  { id: 2, name: 'Indexa Capital', type: 'investment', currency: 'EUR', tx_count: 8 },
 ]
 
 export const MOCK_CATEGORIES: Category[] = [

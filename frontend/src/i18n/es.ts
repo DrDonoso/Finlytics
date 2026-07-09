@@ -271,5 +271,14 @@ const es: Dict = {
   rulesPreviewError: 'No se pudieron comprobar las coincidencias',
   rulesApplyBtn: (n) => `Aplicar a ${n}`,
   rulesApplySuccess: (n) => `✓ ${n} transacción${n !== 1 ? 'es' : ''} actualizada${n !== 1 ? 's' : ''}`,
+  // ── Accounts settings page ────────────────────────────────────────────────────
+  settingsSubAccounts: 'Cuentas',
+  accountsPageTitle: 'Cuentas',
+  accountsEmpty: 'No hay cuentas.',
+  accountsDeleteBtn: '🗑 Eliminar',
+  accountsDeleteTitle: (name) => `Eliminar cuenta «${name}»`,
+  accountsDeleteBody: (name, n) => `⚠️ Se borrará la cuenta «${name}» y sus ${n} transacción${n !== 1 ? 'es' : ''} de forma permanente. Esta acción no se puede deshacer.`,
+  accountsDeleteOk: '🗑 Eliminar cuenta',
+  accountsDeleteToast: (name, n) => `✓ «${name}» eliminada · ${n} transacción${n !== 1 ? 'es' : ''} borradas`,
 }
 export default es

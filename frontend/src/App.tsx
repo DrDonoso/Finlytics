@@ -9,6 +9,7 @@ import CategoriesPage from './pages/CategoriesPage'
 import AppearancePage from './pages/AppearancePage'
 import BackupPage from './pages/BackupPage'
 import RulesPage from './pages/RulesPage'
+import AccountsPage from './pages/AccountsPage'
 import LoginPage from './pages/LoginPage'
 import SetupPage from './pages/SetupPage'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
@@ -39,6 +40,7 @@ function AppContent() {
           <Route path="rules" element={<RulesPage />} />
           <Route path="settings" element={<SettingsLayout />}>
             <Route index element={<Navigate to="tags" replace />} />
+            <Route path="accounts" element={<AccountsPage />} />
             <Route path="tags" element={<SettingsPage />} />
             <Route path="categories" element={<CategoriesPage />} />
             <Route path="appearance" element={<AppearancePage />} />
