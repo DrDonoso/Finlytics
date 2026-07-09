@@ -270,6 +270,12 @@ export interface Dict {
   stmtsEmptyTitle: (monthLabel: string) => string
   stmtsEmptyHint: string
   stmtsImportBtn: string
+  // ── MonthPicker ───────────────────────────────────────────────────────────────
+  monthPickerTriggerLabel: (formatted: string) => string
+  monthPickerDialogLabel: string
+  monthPickerCurrentMonth: string
+  monthPickerPrevYear: string
+  monthPickerNextYear: string
 }
 
 const ES_LABELS: Record<string, string> = {

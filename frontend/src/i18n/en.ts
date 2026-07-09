@@ -258,5 +258,11 @@ const en: Dict = {
   stmtsEmptyTitle: (monthLabel) => `No transactions in ${monthLabel}`,
   stmtsEmptyHint: "You can import this month's statement.",
   stmtsImportBtn: 'Import statement',
+  // ── MonthPicker ───────────────────────────────────────────────────────────────
+  monthPickerTriggerLabel: (formatted) => `Select month, currently ${formatted}`,
+  monthPickerDialogLabel: 'Month picker',
+  monthPickerCurrentMonth: 'Current month',
+  monthPickerPrevYear: 'Previous year',
+  monthPickerNextYear: 'Next year',
 }
 export default en

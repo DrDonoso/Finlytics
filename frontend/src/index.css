@@ -475,33 +475,102 @@ a { color: var(--primary); text-decoration: none; }
 .filter-group input:focus,
 .filter-group select:focus { border-color: var(--primary); }
 
-/* Native date picker — calendar opens on click, value is always YYYY-MM-DD */
+/* ── Native date input — styled trigger (calendar popup stays native) ─────
+   sure pattern: px-3 py-1.5 border border-primary rounded-lg text-sm
+   bg-container-inset text-primary → translated to Finlytics tokens          */
 .date-input-native {
-  min-width: 140px;
+  min-width: 130px;
   cursor: pointer;
-  color-scheme: light dark; /* auto-adapts calendar popup to system theme */
+  color-scheme: light dark;
+  /* Compact height matching sure's py-1.5 feel — 36px desktop, 44px mobile */
+  height: 36px;
+  padding: 0 8px 0 12px;
 }
+/* Override the generic .filter-group input height (44px) with our explicit 36px */
+.filter-group input.date-input-native {
+  height: 36px;
+  padding: 0 8px 0 12px;
+}
+/* Calendar icon — subtle default, visible on hover/focus, dark-safe */
+.date-input-native::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.5;
+  border-radius: 3px;
+  padding: 2px;
+  transition: opacity 0.12s;
+}
+.date-input-native::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+/* Dark: pure white icon */
 [data-theme="dark"] .date-input-native { color-scheme: dark; }
 [data-theme="dark"] .date-input-native::-webkit-calendar-picker-indicator {
-  filter: invert(0.8);
-  cursor: pointer;
+  filter: brightness(0) invert(1);
+  opacity: 0.55;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .date-input-native { color-scheme: dark; }
   :root:not([data-theme="light"]) .date-input-native::-webkit-calendar-picker-indicator {
-    filter: invert(0.8);
-    cursor: pointer;
+    filter: brightness(0) invert(1);
+    opacity: 0.55;
   }
+}
+
+/* ── Date range wrapper — groups from + to in an inset panel ──────────────
+   Mirrors sure's bg-surface-inset p-3 rounded-lg pattern.
+   Uses var(--bg) inside var(--surface) filter-bar → natural sunken/inset look
+   in both themes without any theme-specific override.                        */
+.date-range-wrap {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  background: var(--bg);
+  padding: 10px 12px;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+/* Em-dash separator between from and to fields */
+.date-range-sep {
+  font-size: 14px;
+  color: var(--text-muted);
+  line-height: 1;
+  padding-bottom: 9px;   /* aligns with input center at align-items: flex-end */
+  flex-shrink: 0;
+  user-select: none;
+}
+/* In date-range-wrap, labels use sure's text-sm font-medium text-secondary */
+.date-range-wrap .filter-group label {
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text-muted);
+}
+/* tx-filter-panel uses CSS grid — wrap spans two columns */
+.tx-filter-panel .date-range-wrap {
+  grid-column: span 2;
 }
 
 @media (max-width: 600px) {
   .filter-bar { padding: 12px; gap: 12px; }
   .filter-group { width: 100%; }
   .filter-group input, .filter-group select { width: 100%; }
+  /* Mobile: restore full 44px touch target */
+  .filter-group input.date-input-native { height: 44px; }
   /* Mobile: full column stack — filters → KPIs → Import */
   .dashboard-header { flex-direction: column; align-items: stretch; }
   .header-kpis { border-left: none; border-top: 1px solid var(--border); justify-content: flex-start; gap: 8px 16px; }
   .dashboard-header > .dashboard-header-import { align-self: center; margin: 0 12px 12px; }
+  /* Single column on mobile — span 1 */
+  .tx-filter-panel .date-range-wrap {
+    grid-column: span 1;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  /* Hide the em-dash when stacked vertically */
+  .tx-filter-panel .date-range-wrap .date-range-sep {
+    display: none;
+  }
 }
 
 /* ─── Table ──────────────────────────────────────────────────────── */
@@ -2850,13 +2919,227 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
   cursor: default;
 }
 
-/* Month input: styled like .date-input-native + centered bold label */
-.month-nav-label {
-  text-align: center;
+/* ─── MonthPicker trigger — replaces <input type="month"> in .month-nav ───
+   Matches sure's period nav: a popover trigger button, font-medium, chevron  */
+.month-picker-trigger {
+  min-width: 180px;
+  height: 44px;
+  padding: 0 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-family: inherit;
   font-size: 15px;
   font-weight: 700;
-  min-width: 180px;
+  color: var(--text);
   cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s, background 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.month-picker-trigger:hover {
+  border-color: var(--primary);
+  background: rgba(37, 99, 235, 0.04);
+}
+.month-picker-trigger:focus-visible,
+.month-picker-trigger.is-open {
+  border-color: var(--primary);
+  outline: 2px solid rgba(37, 99, 235, 0.20);
+  outline-offset: 0;
+}
+.month-picker-trigger:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+/* Small chevron ▾ inside the trigger */
+.month-picker-trigger__chevron {
+  font-size: 10px;
+  color: var(--text-muted);
+  transition: transform 0.15s;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.month-picker-trigger.is-open .month-picker-trigger__chevron {
+  transform: rotate(180deg);
+}
+
+/* ─── Picker panel — shared base for MonthPicker (and future DateField) ───
+   Mirrors .tag-typeahead-suggestions: fixed positioning, surface bg, app shadow.
+   Coordinates injected via inline style in React (getBoundingClientRect).     */
+.picker-panel {
+  position: fixed;
+  z-index: 9999;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12), 0 1px 6px rgba(0, 0, 0, 0.06);
+  padding: 12px;
+  min-width: 240px;
+}
+/* Dark: heavier shadow — same pattern as .tag-typeahead-suggestions */
+[data-theme="dark"] .picker-panel {
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5), 0 1px 6px rgba(0, 0, 0, 0.4);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .picker-panel {
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5), 0 1px 6px rgba(0, 0, 0, 0.4);
+  }
+}
+
+/* Panel header: ‹ [title] › */
+.picker-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  gap: 4px;
+}
+.picker-nav-btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 16px;
+  color: var(--text);
+  cursor: pointer;
+  font-family: inherit;
+  line-height: 1;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+  flex-shrink: 0;
+}
+.picker-nav-btn:hover:not(:disabled) {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: rgba(37, 99, 235, 0.05);
+}
+.picker-nav-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -1px;
+}
+.picker-nav-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.picker-panel-title {
+  flex: 1;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* ─── Month grid (3×4) ─────────────────────────────────────────── */
+.month-picker-panel {
+  /* inherits .picker-panel; specific size */
+  min-width: 240px;
+}
+.month-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+.month-cell {
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 400;
+  border-radius: 8px;
+  border: none;
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.1s, color 0.1s;
+  text-transform: capitalize;
+}
+.month-cell:hover:not(.is-disabled):not(.is-selected) {
+  background: rgba(37, 99, 235, 0.08);
+}
+.month-cell:active:not(.is-disabled) {
+  background: rgba(37, 99, 235, 0.15);
+}
+.month-cell:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+/* Current calendar month (today's month, not the selected one) */
+.month-cell.is-current:not(.is-selected) {
+  font-weight: 700;
+  color: var(--primary);
+}
+/* Selected (the month being viewed) */
+.month-cell.is-selected {
+  background: var(--primary);
+  color: #fff;
+  font-weight: 600;
+}
+/* Inactive = outside min/max or no data when activeMonths provided */
+.month-cell.is-inactive {
+  opacity: 0.28;
+}
+/* Months with no data but still in range — clickable but visually de-emphasized */
+.month-cell.is-empty:not(.is-selected) {
+  opacity: 0.45;
+  font-style: italic;
+}
+/* Hard disabled (outside min/max — non-clickable) */
+.month-cell.is-disabled {
+  opacity: 0.25;
+  cursor: default;
+  pointer-events: none;
+}
+
+/* "Mes actual" shortcut — resets to the current calendar month */
+.picker-today-btn {
+  width: 100%;
+  margin-top: 10px;
+  height: 30px;
+  padding: 0 10px;
+  background: none;
+  color: var(--primary);
+  border: 1px solid rgba(37, 99, 235, 0.30);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+.picker-today-btn:hover {
+  background: rgba(37, 99, 235, 0.06);
+  border-color: var(--primary);
+}
+.picker-today-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+/* Hide the button when the current month is already selected */
+.picker-today-btn.is-hidden {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* Mobile */
+@media (max-width: 600px) {
+  .month-picker-trigger {
+    /* full touch target already 44px — no change needed */
+  }
+  .month-cell { height: 44px; }
+  .picker-panel {
+    min-width: min(240px, calc(100vw - 24px));
+    max-width: calc(100vw - 24px);
+  }
 }
 
 /* ── Month summary header ───────────────────────────────────────────── */
