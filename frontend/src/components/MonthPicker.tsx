@@ -328,7 +328,8 @@ export default function MonthPicker({ value, onChange, min, max, activeMonths, d
 
               let className = 'month-cell'
               if (isSelected) className += ' is-selected'
-              if (isCurrent && !isSelected) className += ' is-current'
+              // is-current only when the month actually has data — empty months must look inert regardless
+              if (isCurrent && !isSelected && !isEmpty && !isDisabled) className += ' is-current'
               if (isDisabled) className += ' is-disabled'
               else if (isEmpty) className += ' is-empty'
 

@@ -3139,11 +3139,12 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
 }
 .month-cell:hover:not(.is-disabled):not(.is-selected):not(.is-empty) {
   background: rgba(37, 99, 235, 0.08);
+  color: var(--primary);
 }
 .month-cell:active:not(.is-disabled):not(.is-empty) {
   background: rgba(37, 99, 235, 0.15);
 }
-.month-cell:focus-visible {
+.month-cell:focus-visible:not(.is-disabled):not(.is-empty) {
   outline: 2px solid var(--primary);
   outline-offset: -2px;
 }
@@ -3162,11 +3163,12 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
 .month-cell.is-inactive {
   opacity: 0.28;
 }
-/* Months with no data but still in range — clearly gray so it's obvious there's nothing there */
+/* Months with no data but still in range — clearly gray/inert; NOT pointer-events:none so cursor:not-allowed renders */
 .month-cell.is-empty:not(.is-selected) {
   color: var(--text-muted);
-  cursor: default;
-  pointer-events: none;
+  opacity: 0.45;
+  cursor: not-allowed;
+  font-weight: 400;
 }
 /* Hard disabled (outside min/max — non-clickable) */
 .month-cell.is-disabled {
