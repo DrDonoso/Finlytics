@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import type { ReactNode } from 'react'
 import type { Category, GlobalFilters, Tag, Transaction, TransactionPage } from '../api/types'
 import { getTransactions, updateTransaction } from '../api/client'
 import { useT, categoryLabel, formatDate, DEFAULT_TAG_COLOR, tagTextColor } from '../i18n'
@@ -18,6 +19,7 @@ interface Props {
   merchant?: string
   hideInternalFilters?: boolean
   onEditSuccess?: () => void
+  headerAction?: ReactNode
 }
 
 interface EditData {
@@ -31,7 +33,7 @@ interface EditData {
 
 const LIMIT = 10
 
-export default function TransactionsTable({ globalFilters, categories, allTags, refreshKey, pageSize, description, amountMin, amountMax, merchant, hideInternalFilters, onEditSuccess }: Props) {
+export default function TransactionsTable({ globalFilters, categories, allTags, refreshKey, pageSize, description, amountMin, amountMax, merchant, hideInternalFilters, onEditSuccess, headerAction }: Props) {
   const { t, lang, formatCurrency } = useT()
   const limit = pageSize ?? LIMIT
   const [categoryId, setCategoryId] = useState<number | undefined>(undefined)
@@ -196,7 +198,10 @@ export default function TransactionsTable({ globalFilters, categories, allTags, 
   return (
     <>
       <div className="card">
-      <div className="card-title">{t.tableTitle}</div>
+      <div className={headerAction ? 'card-title card-title--has-action' : 'card-title'}>
+        {t.tableTitle}
+        {headerAction}
+      </div>
 
       {!hideInternalFilters && (
         <div className="table-filters">

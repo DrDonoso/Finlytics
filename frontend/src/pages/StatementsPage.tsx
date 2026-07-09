@@ -287,41 +287,24 @@ export default function StatementsPage() {
       {/* ── Month summary header — loaded ─────────────────────── */}
       {hasData && !overviewLoading && overview && (
         <div className="month-header">
-          <div className="tx-totals">
-            <div className="tx-total">
-              <span className="tx-total-label">{t.kpiTransactions}</span>
-              <span className="tx-total-value">{overview.num_transactions}</span>
-            </div>
-            <div className="tx-total tx-total--income">
-              <span className="tx-total-label">{t.kpiTotalIncome}</span>
-              <span className="tx-total-value">+{formatCurrency(overview.total_income)}</span>
-            </div>
-            <div className="tx-total tx-total--expense">
-              <span className="tx-total-label">{t.kpiTotalExpense}</span>
-              <span className="tx-total-value">−{formatCurrency(overview.total_expense)}</span>
-            </div>
-            <div className={`tx-total tx-total--${overview.net >= 0 ? 'income' : 'expense'}`}>
-              <span className="tx-total-label">{t.kpiNet}</span>
-              <span className="tx-total-value">{formatCurrency(overview.net)}</span>
-            </div>
+        <div className="tx-totals">
+          <div className="tx-total">
+            <span className="tx-total-label">{t.kpiTransactions}</span>
+            <span className="tx-total-value">{overview.num_transactions}</span>
           </div>
-
-          <div className="month-header-actions">
-            <button
-              type="button"
-              className="btn-icon-trash"
-              onClick={() => setShowDelete(true)}
-              aria-label={t.stmtsDeleteMonth}
-              title={t.stmtsDeleteMonth}
-            >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <polyline points="3 6 5 6 21 6"/>
-                <path d="M19 6l-1 14H6L5 6"/>
-                <path d="M10 11v6M14 11v6"/>
-                <path d="M9 6V4h6v2"/>
-              </svg>
-            </button>
+          <div className="tx-total tx-total--income">
+            <span className="tx-total-label">{t.kpiTotalIncome}</span>
+            <span className="tx-total-value">+{formatCurrency(overview.total_income)}</span>
           </div>
+          <div className="tx-total tx-total--expense">
+            <span className="tx-total-label">{t.kpiTotalExpense}</span>
+            <span className="tx-total-value">−{formatCurrency(overview.total_expense)}</span>
+          </div>
+          <div className={`tx-total tx-total--${overview.net >= 0 ? 'income' : 'expense'}`}>
+            <span className="tx-total-label">{t.kpiNet}</span>
+            <span className="tx-total-value">{formatCurrency(overview.net)}</span>
+          </div>
+        </div>
         </div>
       )}
 
@@ -351,6 +334,22 @@ export default function StatementsPage() {
           pageSize={25}
           hideInternalFilters
           onEditSuccess={() => setOverviewRefKey(k => k + 1)}
+          headerAction={
+            <button
+              type="button"
+              className="btn-icon-trash"
+              onClick={() => setShowDelete(true)}
+              aria-label={t.stmtsDeleteMonth}
+              title={t.stmtsDeleteMonth}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <polyline points="3 6 5 6 21 6"/>
+                <path d="M19 6l-1 14H6L5 6"/>
+                <path d="M10 11v6M14 11v6"/>
+                <path d="M9 6V4h6v2"/>
+              </svg>
+            </button>
+          }
         />
       )}
 

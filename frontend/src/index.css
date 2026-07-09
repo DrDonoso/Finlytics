@@ -374,6 +374,12 @@ a { color: var(--primary); text-decoration: none; }
   margin-bottom: 16px;
 }
 
+.card-title--has-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
 /* ─── KPI cards ──────────────────────────────────────────────────── */
 .kpi-grid {
   display: grid;
@@ -3157,15 +3163,6 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
   min-width: 0;
 }
 
-/* Actions: top-right corner of the month header */
-.month-header-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-  align-self: flex-start;
-}
-
 /* Delete button: small icon-only, low visual weight, red on hover */
 .btn-icon-trash {
   width: 28px;
@@ -3192,7 +3189,6 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
 /* Mobile ≤600px: stack vertically, totals become 2×2 grid */
 @media (max-width: 600px) {
   .month-header { flex-direction: column; }
-  .month-header-actions { align-self: flex-end; }
   .month-header > .tx-totals {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -3201,6 +3197,7 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
   .month-header > .tx-totals .tx-total {
     flex: unset;
   }
+  .btn-icon-trash { width: 44px; height: 44px; }
 }
 
 /* ── Delete confirm modal: compact width ────────────────────────────── */
