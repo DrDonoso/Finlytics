@@ -176,24 +176,26 @@ export default function TransactionsPage() {
       {/* ── Filter panel (collapsible) ────────────────────────── */}
       {panelOpen && (
         <div className="tx-filter-panel">
-          <div className="filter-group">
-            <label>{t.filterFrom}</label>
-            <input
-              type="date"
-              className="date-input-native"
-              value={filters.from}
-              onChange={e => setFilters(f => ({ ...f, from: e.target.value }))}
-            />
-          </div>
-
-          <div className="filter-group">
-            <label>{t.filterTo}</label>
-            <input
-              type="date"
-              className="date-input-native"
-              value={filters.to}
-              onChange={e => setFilters(f => ({ ...f, to: e.target.value }))}
-            />
+          <div className="date-range-wrap">
+            <div className="filter-group">
+              <label>{t.filterFrom}</label>
+              <input
+                type="date"
+                className="date-input-native"
+                value={filters.from}
+                onChange={e => setFilters(f => ({ ...f, from: e.target.value }))}
+              />
+            </div>
+            <span className="date-range-sep" aria-hidden="true">—</span>
+            <div className="filter-group">
+              <label>{t.filterTo}</label>
+              <input
+                type="date"
+                className="date-input-native"
+                value={filters.to}
+                onChange={e => setFilters(f => ({ ...f, to: e.target.value }))}
+              />
+            </div>
           </div>
 
           <div className="filter-group">

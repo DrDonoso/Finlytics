@@ -10,6 +10,7 @@ import type { Lang } from '../i18n'
 import TransactionsTable from '../components/TransactionsTable'
 import StatementsDeleteModal from '../components/StatementsDeleteModal'
 import ImportModal from '../components/ImportModal'
+import MonthPicker from '../components/MonthPicker'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -152,6 +153,7 @@ export default function StatementsPage() {
   const monthInputVal = selY ? `${selY}-${pad2(selM)}` : ''
   const minMonthVal   = oldest ? `${oldest.year}-${pad2(oldest.month)}` : undefined
   const maxMonthVal   = `${today.y}-${pad2(today.m)}`
+  const activeMonths  = months.map(s => `${s.year}-${pad2(s.month)}`)
 
   const isEmpty  = !monthsLoading && !currentMonthHasData
   const hasData  = currentMonthHasData
@@ -227,15 +229,13 @@ export default function StatementsPage() {
           disabled={isPrevDisabled}
         >‹</button>
 
-        <input
-          type="month"
-          className="month-nav-label date-input-native"
+        <MonthPicker
           value={monthInputVal}
           min={minMonthVal}
           max={maxMonthVal}
-          aria-label={monthLabel}
-          onChange={e => {
-            const [y, m] = e.target.value.split('-').map(Number)
+          activeMonths={activeMonths}
+          onChange={v => {
+            const [y, m] = v.split('-').map(Number)
             if (!isNaN(y) && !isNaN(m) && m >= 1 && m <= 12) {
               setSelY(y); setSelM(m)
             }

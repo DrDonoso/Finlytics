@@ -258,5 +258,11 @@ const es: Dict = {
   stmtsEmptyTitle: (monthLabel) => `Sin transacciones en ${monthLabel}`,
   stmtsEmptyHint: 'Puedes importar el extracto de este mes.',
   stmtsImportBtn: 'Importar extracto',
+  // ── MonthPicker ───────────────────────────────────────────────────────────────
+  monthPickerTriggerLabel: (formatted) => `Seleccionar mes, actualmente ${formatted}`,
+  monthPickerDialogLabel: 'Selector de mes',
+  monthPickerCurrentMonth: 'Mes actual',
+  monthPickerPrevYear: 'Año anterior',
+  monthPickerNextYear: 'Año siguiente',
 }
 export default es
