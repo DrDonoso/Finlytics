@@ -5,6 +5,7 @@ export interface Account {
   name: string
   type: string | null
   currency: string
+  tx_count: number
 }
 
 export interface Category {

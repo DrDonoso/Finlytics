@@ -83,6 +83,11 @@ export async function getAccounts(): Promise<Account[]> {
   catch { return mockGetAccounts() }
 }
 
+/** DELETE /api/accounts/{id} → { deleted: number }. Returns 404 if account not found. */
+export async function deleteAccount(id: number): Promise<{ deleted: number }> {
+  return apiFetch<{ deleted: number }>(`/api/accounts/${id}`, { method: 'DELETE' })
+}
+
 export async function getCategories(): Promise<Category[]> {
   if (USE_MOCK) return mockGetCategories()
   try { return await apiFetch<Category[]>(buildUrl('/api/categories')) }

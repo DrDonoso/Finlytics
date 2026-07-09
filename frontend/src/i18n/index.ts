@@ -283,6 +283,15 @@ export interface Dict {
   rulesPreviewError: string
   rulesApplyBtn: (n: number) => string
   rulesApplySuccess: (n: number) => string
+  // ── Accounts settings page ────────────────────────────────────────────────────
+  settingsSubAccounts: string
+  accountsPageTitle: string
+  accountsEmpty: string
+  accountsDeleteBtn: string
+  accountsDeleteTitle: (name: string) => string
+  accountsDeleteBody: (name: string, n: number) => string
+  accountsDeleteOk: string
+  accountsDeleteToast: (name: string, n: number) => string
 }
 
 const ES_LABELS: Record<string, string> = {

@@ -114,6 +114,9 @@ export default function Layout() {
             </button>
             {settingsExpanded && (
               <div className="sidebar-subnav">
+                <NavLink to="/settings/accounts" className={navLinkClass}>
+                  <span className="nav-label">{t.settingsSubAccounts}</span>
+                </NavLink>
                 <NavLink to="/settings/tags" className={navLinkClass}>
                   <span className="nav-label">{t.settingsSubTags}</span>
                 </NavLink>

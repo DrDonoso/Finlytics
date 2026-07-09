@@ -271,5 +271,14 @@ const en: Dict = {
   rulesPreviewError: 'Could not check matches',
   rulesApplyBtn: (n) => `Apply to ${n}`,
   rulesApplySuccess: (n) => `✓ ${n} transaction${n !== 1 ? 's' : ''} updated`,
+  // ── Accounts settings page ────────────────────────────────────────────────────
+  settingsSubAccounts: 'Accounts',
+  accountsPageTitle: 'Accounts',
+  accountsEmpty: 'No accounts found.',
+  accountsDeleteBtn: '🗑 Delete',
+  accountsDeleteTitle: (name) => `Delete account '${name}'`,
+  accountsDeleteBody: (name, n) => `⚠️ Account '${name}' and its ${n} transaction${n !== 1 ? 's' : ''} will be permanently deleted. This action cannot be undone.`,
+  accountsDeleteOk: '🗑 Delete account',
+  accountsDeleteToast: (name, n) => `✓ '${name}' deleted · ${n} transaction${n !== 1 ? 's' : ''} removed`,
 }
 export default en
