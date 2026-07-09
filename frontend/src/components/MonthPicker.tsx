@@ -116,6 +116,7 @@ export default function MonthPicker({ value, onChange, min, max, activeMonths, d
 
   function selectMonth(year: number, month: number) {
     if (isDisabledMonth(year, month)) return
+    if (isEmptyMonth(year, month)) return
     onChange(`${year}-${String(month).padStart(2, '0')}`)
     closePicker()
   }
@@ -201,7 +202,7 @@ export default function MonthPicker({ value, onChange, min, max, activeMonths, d
       }
       case 'Home': {
         e.preventDefault()
-        const first = [1,2,3,4,5,6,7,8,9,10,11,12].find(m => !isDisabledMonth(panelYear, m))
+        const first = [1,2,3,4,5,6,7,8,9,10,11,12].find(m => !isDisabledMonth(panelYear, m) && !isEmptyMonth(panelYear, m))
         if (first !== undefined) {
           focusCellOnRender.current = true
           setFocusedMonth(first)
@@ -210,7 +211,7 @@ export default function MonthPicker({ value, onChange, min, max, activeMonths, d
       }
       case 'End': {
         e.preventDefault()
-        const last = [12,11,10,9,8,7,6,5,4,3,2,1].find(m => !isDisabledMonth(panelYear, m))
+        const last = [12,11,10,9,8,7,6,5,4,3,2,1].find(m => !isDisabledMonth(panelYear, m) && !isEmptyMonth(panelYear, m))
         if (last !== undefined) {
           focusCellOnRender.current = true
           setFocusedMonth(last)
@@ -341,9 +342,9 @@ export default function MonthPicker({ value, onChange, min, max, activeMonths, d
                   role="gridcell"
                   className={className}
                   aria-selected={isSelected}
-                  aria-disabled={isDisabled}
+                  aria-disabled={isDisabled || isEmpty}
                   aria-label={cellLabel}
-                  tabIndex={isFocused ? 0 : -1}
+                  tabIndex={(isFocused && !isEmpty && !isDisabled) ? 0 : -1}
                   onClick={() => selectMonth(panelYear, month)}
                   onFocus={() => setFocusedMonth(month)}
                 >

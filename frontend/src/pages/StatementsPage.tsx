@@ -132,26 +132,29 @@ export default function StatementsPage() {
   }, [from, to, currentMonthHasData, refreshKey, overviewRefKey, selAccountId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Navigation helpers ──────────────────────────────────────────────────────
-  const today  = todayYM()
-  const oldest = months.length > 0 ? months[months.length - 1] : null
-  const isPrevDisabled = oldest
-    ? (selY === oldest.year && selM === oldest.month)
-    : true
-  const isNextDisabled = selY === today.y && selM === today.m
+  // months[] is DESC-sorted (newest first). "prev" = earlier in time = higher idx; "next" = later = lower idx.
+  const selIdx        = months.findIndex(s => s.year === selY && s.month === selM)
+  const prevDataMonth = selIdx >= 0 && selIdx + 1 < months.length ? months[selIdx + 1] : null
+  const nextDataMonth = selIdx > 0 ? months[selIdx - 1] : null
+
+  const isPrevDisabled = prevDataMonth === null
+  const isNextDisabled = nextDataMonth === null
 
   function navPrev() {
-    if (isPrevDisabled) return
-    if (selM === 1) { setSelY(y => y - 1); setSelM(12) }
-    else setSelM(m => m - 1)
+    if (!prevDataMonth) return
+    setSelY(prevDataMonth.year)
+    setSelM(prevDataMonth.month)
   }
 
   function navNext() {
-    if (isNextDisabled) return
-    if (selM === 12) { setSelY(y => y + 1); setSelM(1) }
-    else setSelM(m => m + 1)
+    if (!nextDataMonth) return
+    setSelY(nextDataMonth.year)
+    setSelM(nextDataMonth.month)
   }
 
   // ── Derived display values ──────────────────────────────────────────────────
+  const today       = todayYM()
+  const oldest      = months.length > 0 ? months[months.length - 1] : null
   const monthLabel    = selY ? formatMonthLabel(selY, selM, lang) : ''
   const monthInputVal = selY ? `${selY}-${pad2(selM)}` : ''
   const minMonthVal   = oldest ? `${oldest.year}-${pad2(oldest.month)}` : undefined
@@ -221,20 +224,29 @@ export default function StatementsPage() {
         if (e.key === 'ArrowRight') navNext()
       }}
     >
-      {/* ── Account selector (only when more than one account) ── */}
-      {accounts.length > 1 && (
-        <div className="stmts-account-bar">
-          <label htmlFor="stmts-acct-sel">{t.filterAccount}</label>
-          <select
-            id="stmts-acct-sel"
-            value={selAccountId ?? ''}
-            onChange={e => setSelAccountId(e.target.value ? Number(e.target.value) : undefined)}
-          >
-            <option value="">{t.filterAllAccounts}</option>
-            {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-          </select>
-        </div>
-      )}
+      {/* ── Account selector + Import button ──────────────────── */}
+      <div className="stmts-account-bar">
+        {accounts.length > 1 && (
+          <>
+            <label htmlFor="stmts-acct-sel">{t.filterAccount}</label>
+            <select
+              id="stmts-acct-sel"
+              value={selAccountId ?? ''}
+              onChange={e => setSelAccountId(e.target.value ? Number(e.target.value) : undefined)}
+            >
+              <option value="">{t.filterAllAccounts}</option>
+              {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
+          </>
+        )}
+        <button
+          type="button"
+          className="btn-primary stmts-header-import"
+          onClick={() => setShowImport(true)}
+        >
+          {t.stmtsImportBtn}
+        </button>
+      </div>
 
       {/* ── Month nav bar ─────────────────────────────────────── */}
       <div className="month-nav">
