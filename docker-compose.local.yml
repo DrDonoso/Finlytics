@@ -4,13 +4,13 @@ services:
     image: drdonoso/finlytics
     restart: unless-stopped
     ports:
-      - "${FINLYTICS_PORT:-8000}:8000"
+      - "${FINLYTICS_PORT:-7777}:7777"
 
     environment:
       # --- PostgreSQL connection ---
       DATABASE_URL: "postgresql+asyncpg://${POSTGRES_USER:-finlytics}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-finlytics}"
 
-      # --- OpenAI-compatible AI (self-hosted LiteLLM) for transaction extraction ---
+      # --- OpenAI (for AI transaction extraction) ---
       OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
       OPENAI_BASE_URL: "${OPENAI_BASE_URL:-}"
       OPENAI_MODEL: "${OPENAI_MODEL:-}"

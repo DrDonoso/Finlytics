@@ -7,7 +7,7 @@ def main() -> None:
     uvicorn.run(
         "finlytics.app:app",
         host="0.0.0.0",
-        port=8000,
+        port=7777,
     )
 
 

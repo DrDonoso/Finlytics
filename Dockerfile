@@ -47,7 +47,7 @@ COPY --from=frontend-builder /frontend/dist ./frontend/dist
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 RUN sed -i 's/\r$//' /docker-entrypoint.sh && chmod +x /docker-entrypoint.sh
 
-EXPOSE 8000
+EXPOSE 7777
 
 USER app
 

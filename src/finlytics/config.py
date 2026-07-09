@@ -54,7 +54,7 @@ class Settings(BaseSettings):
             )
         return self
 
-    # ── OpenAI / LiteLLM ─────────────────────────────────────────────────────
+    # ── OpenAI ───────────────────────────────────────────────────────────────
     # Banner's extractor reads these EXACT attribute names — do not rename.
     openai_api_key: str | None = None
     openai_base_url: str | None = None
@@ -62,7 +62,7 @@ class Settings(BaseSettings):
 
     # ── App config ────────────────────────────────────────────────────────────
     timezone: str = "Europe/Madrid"
-    port: int = 8000
+    port: int = 7777
     upload_dir: str = "/app/uploads"
 
     # ── Auth ──────────────────────────────────────────────────────────────────
