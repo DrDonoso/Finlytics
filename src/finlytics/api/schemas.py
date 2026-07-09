@@ -269,6 +269,16 @@ class ConfirmIn(BaseModel):
 
 # ── Rules ─────────────────────────────────────────────────────────────────────
 
+class RulePreviewResult(BaseModel):
+    """Response for POST /api/rules/preview."""
+    count: int
+
+
+class RuleApplyResult(BaseModel):
+    """Response for POST /api/rules/apply and POST /api/rules/{id}/apply."""
+    applied: int
+
+
 class RuleIn(BaseModel):
     """Request body for POST /api/rules."""
     name: str

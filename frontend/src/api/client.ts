@@ -291,17 +291,37 @@ export async function importBackup(data: unknown): Promise<BackupImportSummary> 
 
 // ─── Statements ───────────────────────────────────────────────────────────────
 
-/** GET /api/statements/months → months with transactions, sorted DESC by (year, month). */
-export async function getStatementMonths(): Promise<StatementMonth[]> {
-  return apiFetch<StatementMonth[]>('/api/statements/months')
+/** GET /api/statements/months?account_id={id?} → months with transactions, sorted DESC by (year, month). */
+export async function getStatementMonths(account_id?: number): Promise<StatementMonth[]> {
+  return apiFetch<StatementMonth[]>(buildUrl('/api/statements/months', account_id !== undefined ? { account_id } : undefined))
 }
 
-/** DELETE /api/statements/month?year={y}&month={m} → { deleted: number }. */
-export async function deleteStatementMonth(year: number, month: number): Promise<{ deleted: number }> {
+/** DELETE /api/statements/month?year={y}&month={m}&account_id={id?} → { deleted: number }. */
+export async function deleteStatementMonth(year: number, month: number, account_id?: number): Promise<{ deleted: number }> {
   return apiFetch<{ deleted: number }>(
-    buildUrl('/api/statements/month', { year, month }),
+    buildUrl('/api/statements/month', { year, month, ...(account_id !== undefined ? { account_id } : {}) }),
     { method: 'DELETE' },
   )
+}
+
+// ─── Rules preview / apply ────────────────────────────────────────────────────
+
+/** POST /api/rules/preview — counts current transactions the rule would match. */
+export async function previewRule(payload: RuleInput): Promise<{ count: number }> {
+  return apiFetch<{ count: number }>('/api/rules/preview', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+}
+
+/** POST /api/rules/apply — applies the rule to all matching current transactions. */
+export async function applyRule(payload: RuleInput): Promise<{ applied: number }> {
+  return apiFetch<{ applied: number }>('/api/rules/apply', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
 }
 
 // ─── Shared formatter ─────────────────────────────────────────────────────────

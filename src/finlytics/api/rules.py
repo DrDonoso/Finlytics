@@ -1,19 +1,147 @@
-"""Rules endpoints: GET (list), POST (create), PATCH (update), DELETE."""
+"""Rules endpoints: GET (list), POST (create), PATCH (update), DELETE, preview, apply."""
 
 from __future__ import annotations
 
 import re
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from finlytics.api.deps import get_db
-from finlytics.api.schemas import RuleIn, RuleOut, RuleUpdate
+from finlytics.api.schemas import RuleApplyResult, RuleIn, RuleOut, RulePreviewResult, RuleUpdate
 from finlytics.db import repository
+from finlytics.db.models import Transaction
+from finlytics.db.repository import get_or_create_category, get_or_create_tag
+from finlytics.extraction.rules import (
+    _compile_detail_regex,
+    _compile_regex,
+    _matches,
+    _merge_tags,
+)
 
 router = APIRouter(prefix="/rules", tags=["rules"])
+
+
+# ---------------------------------------------------------------------------
+# Preview / apply helpers
+# ---------------------------------------------------------------------------
+
+
+class _RuleLike:
+    """Duck-typed proxy over a ``RuleIn`` body satisfying ``RuleProtocol``.
+
+    Only used for preview/apply; never persisted.  The ``id``, ``name``,
+    ``priority``, and ``enabled`` fields are synthetic sentinel values.
+    """
+
+    def __init__(self, body: RuleIn) -> None:
+        self.id = 0
+        self.name = "<preview>"
+        self.priority = 0
+        self.enabled = True
+        self.description_mode = body.description_mode
+        self.description_value = body.description_value
+        self.amount_sign = body.amount_sign
+        self.amount_min = Decimal(str(body.amount_min)) if body.amount_min is not None else None
+        self.amount_max = Decimal(str(body.amount_max)) if body.amount_max is not None else None
+        self.account_ref = body.account_ref
+        self.currency = body.currency
+        self.detail_mode = body.detail_mode
+        self.detail_value = body.detail_value
+        self.set_category = body.set_category
+        self.set_merchant = body.set_merchant
+        self.add_tags = list(body.add_tags)
+        self.skip_ai = body.skip_ai
+
+
+class _StoredTxView:
+    """Minimal adapter over a ``Transaction`` ORM row satisfying ``_matches()``."""
+
+    __slots__ = ("description", "detail", "amount", "account_ref", "currency")
+
+    def __init__(self, tx: Transaction) -> None:
+        self.description: str = tx.description
+        self.detail: str | None = tx.detail
+        self.amount: Decimal = tx.amount
+        self.account_ref: str = tx.account.name if tx.account else ""
+        self.currency: str = tx.currency
+
+
+async def _count_matching(session: AsyncSession, rule_like: Any) -> int:
+    """Return the count of stored transactions that match *rule_like* conditions."""
+    compiled_regex = _compile_regex(rule_like) if rule_like.description_mode == "regex" else None
+    compiled_detail = (
+        _compile_detail_regex(rule_like) if rule_like.detail_mode == "regex" else None
+    )
+    txs = (
+        await session.execute(
+            select(Transaction).options(selectinload(Transaction.account))
+        )
+    ).scalars().all()
+    return sum(
+        1 for tx in txs
+        if _matches(_StoredTxView(tx), rule_like, compiled_regex, compiled_detail)
+    )
+
+
+async def _apply_to_transactions(session: AsyncSession, rule_like: Any) -> int:
+    """Apply *rule_like* actions to all matching stored transactions.
+
+    Runs inside a single ``session.begin()`` transaction.  Actions applied:
+    - ``set_category`` → resolve/create category (same as import path), set ``category_id``.
+    - ``set_merchant`` → update ``merchant`` column.
+    - ``add_tags`` → MERGE with existing tags (case-insensitive dedup, order preserved).
+
+    Returns the number of transactions that were matched (and had actions applied).
+    """
+    compiled_regex = _compile_regex(rule_like) if rule_like.description_mode == "regex" else None
+    compiled_detail = (
+        _compile_detail_regex(rule_like) if rule_like.detail_mode == "regex" else None
+    )
+    async with session.begin():
+        txs = (
+            await session.execute(
+                select(Transaction).options(
+                    selectinload(Transaction.account),
+                    selectinload(Transaction.tags),
+                )
+            )
+        ).scalars().all()
+
+        category_cache: dict[str, Any] = {}
+        applied = 0
+
+        for tx in txs:
+            if not _matches(_StoredTxView(tx), rule_like, compiled_regex, compiled_detail):
+                continue
+
+            if rule_like.set_category is not None:
+                if rule_like.set_category not in category_cache:
+                    category_cache[rule_like.set_category] = await get_or_create_category(
+                        session, rule_like.set_category
+                    )
+                tx.category_id = category_cache[rule_like.set_category].id
+
+            if rule_like.set_merchant is not None:
+                tx.merchant = rule_like.set_merchant
+
+            if rule_like.add_tags:
+                existing_names = [t.name for t in tx.tags]
+                merged_names = _merge_tags(existing_names, rule_like.add_tags)
+                new_tags = []
+                for name in merged_names:
+                    new_tags.append(await get_or_create_tag(session, name))
+                tx.tags = new_tags
+
+            applied += 1
+
+        await session.flush()
+        return applied
 
 
 def _rule_dict(rule: Any) -> dict[str, Any]:
@@ -145,6 +273,66 @@ async def create_rule(
     async with session.begin():
         rule = await repository.create_rule(session, **body.model_dump())
     return _rule_dict(rule)
+
+
+@router.post("/preview", response_model=RulePreviewResult)
+async def preview_rule(
+    body: RuleIn,
+    session: AsyncSession = Depends(get_db),
+) -> RulePreviewResult:
+    """Count how many existing transactions match a rule's conditions.
+
+    Body shape is identical to rule-create; action fields (set_category,
+    set_merchant, add_tags) are accepted but ignored — only conditions are
+    evaluated.  No data is modified.
+
+    * 200 — ``{"count": <int>}``
+    """
+    count = await _count_matching(session, _RuleLike(body))
+    return RulePreviewResult(count=count)
+
+
+@router.post("/apply", response_model=RuleApplyResult)
+async def apply_rule_to_transactions(
+    body: RuleIn,
+    session: AsyncSession = Depends(get_db),
+) -> RuleApplyResult:
+    """Apply a rule's conditions + actions to ALL current transactions.
+
+    Body shape is identical to rule-create.  Every transaction that satisfies
+    the rule's conditions has the rule's actions applied:
+
+    - ``set_category`` — resolves or creates the category (same as import path).
+    - ``set_merchant`` — overwrites the merchant column.
+    - ``add_tags`` — merges new tags with existing ones (case-insensitive dedup).
+
+    ``skip_ai`` has no effect here (it is an import-time concern only).
+
+    * 200 — ``{"applied": <int>}`` — number of transactions that were matched
+      and had actions applied.
+    """
+    applied = await _apply_to_transactions(session, _RuleLike(body))
+    return RuleApplyResult(applied=applied)
+
+
+@router.post("/{rule_id}/apply", response_model=RuleApplyResult)
+async def apply_saved_rule(
+    rule_id: int,
+    session: AsyncSession = Depends(get_db),
+) -> RuleApplyResult:
+    """Apply a saved rule's conditions + actions to ALL current transactions.
+
+    Equivalent to ``POST /api/rules/apply`` but reads conditions and actions
+    from the persisted rule identified by *rule_id*.
+
+    * 200 — ``{"applied": <int>}``
+    * 404 — rule not found.
+    """
+    rule = await repository.get_rule(session, rule_id)
+    if rule is None:
+        raise HTTPException(status_code=404, detail="Rule not found.")
+    applied = await _apply_to_transactions(session, rule)
+    return RuleApplyResult(applied=applied)
 
 
 @router.patch("/{rule_id}", response_model=RuleOut)

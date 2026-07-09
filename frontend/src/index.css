@@ -3157,23 +3157,36 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
   min-width: 0;
 }
 
-/* Actions: right-aligned flex row; future actions slot left of delete */
+/* Actions: top-right corner of the month header */
 .month-header-actions {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
-  align-self: center;
+  align-self: flex-start;
 }
 
-/* Delete button: low-weight secondary with red hover */
-.month-header-delete {
-  font-weight: 400;
+/* Delete button: small icon-only, low visual weight, red on hover */
+.btn-icon-trash {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  flex-shrink: 0;
+  padding: 0;
+  font-family: inherit;
 }
-.month-header-delete:hover {
-  border-color: var(--expense) !important;
-  color: var(--expense) !important;
-  background: rgba(239, 68, 68, 0.04) !important;
+.btn-icon-trash:hover {
+  color: var(--expense);
+  border-color: var(--expense);
+  background: rgba(239, 68, 68, 0.06);
 }
 
 /* Mobile ≤600px: stack vertically, totals become 2×2 grid */
@@ -3246,3 +3259,74 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
   gap: 12px;
 }
 .stmts-empty .btn-primary { margin-top: 4px; }
+
+/* ── Statements account selector bar ────────────────────────────────── */
+.stmts-account-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.stmts-account-bar label {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.stmts-account-bar select {
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+  padding: 0 8px;
+  cursor: pointer;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.stmts-account-bar select:focus { border-color: var(--primary); }
+
+/* ── Rule form: preview bar + apply button ───────────────────────────── */
+/* Make the rule modal footer flex-wrap to accommodate the preview bar */
+.modal-footer .rule-preview-bar {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-right: auto;
+}
+.rule-preview-text {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.rule-preview-text--loading { font-style: italic; }
+.rule-preview-text--error   { color: var(--expense); }
+.rule-preview-text--none    { color: var(--text-muted); }
+.rule-preview-text--ok      { color: var(--income, #10b981); font-weight: 500; }
+
+.btn-apply-rule {
+  height: 34px;
+  padding: 0 14px;
+  background: transparent;
+  color: #f59e0b;
+  border: 1.5px solid #f59e0b;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: inherit;
+}
+.btn-apply-rule:hover:not(:disabled) { background: rgba(245, 158, 11, 0.1); }
+.btn-apply-rule:disabled { opacity: 0.45; cursor: default; }
+
+/* Amber spinner variant for the apply button */
+.btn-spinner--amber {
+  border-color: rgba(245, 158, 11, 0.35);
+  border-top-color: #f59e0b;
+}

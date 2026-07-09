@@ -888,8 +888,16 @@ async def get_cashflow(
 
 # ── Statements (monthly view) ─────────────────────────────────────────────────
 
-async def get_statement_months(session: AsyncSession) -> list[dict[str, Any]]:
-    """Return one entry per (year, month) that has ≥1 transaction, sorted DESC."""
+async def get_statement_months(
+    session: AsyncSession,
+    *,
+    account_id: int | None = None,
+) -> list[dict[str, Any]]:
+    """Return one entry per (year, month) that has ≥1 transaction, sorted DESC.
+
+    When *account_id* is provided, restricts results to that account only.
+    When omitted (``None``), all accounts are included (original behaviour).
+    """
     year_col = func.extract("year", Transaction.transaction_date)
     month_col = func.extract("month", Transaction.transaction_date)
     stmt = (
@@ -902,6 +910,8 @@ async def get_statement_months(session: AsyncSession) -> list[dict[str, Any]]:
         .group_by(year_col, month_col)
         .order_by(year_col.desc(), month_col.desc())
     )
+    if account_id is not None:
+        stmt = stmt.where(Transaction.account_id == account_id)
     rows = (await session.execute(stmt)).all()
     return [{"year": int(r.year), "month": int(r.month), "count": r.count} for r in rows]
 
@@ -911,8 +921,13 @@ async def delete_statement_month(
     *,
     year: int,
     month: int,
+    account_id: int | None = None,
 ) -> int:
     """Hard-delete all transactions whose date falls within the given calendar month.
+
+    When *account_id* is provided, only that account's transactions are deleted.
+    When omitted (``None``), transactions for ALL accounts in the month are removed
+    (original behaviour).
 
     The ``transaction_tags`` junction table is cleaned up automatically via the
     DB-level ``ON DELETE CASCADE`` on its ``transaction_id`` FK — no explicit
@@ -922,11 +937,12 @@ async def delete_statement_month(
     """
     first_day = date(year, month, 1)
     last_day = date(year, month, monthrange(year, month)[1])
+    stmt = delete(Transaction).where(
+        Transaction.transaction_date >= first_day,
+        Transaction.transaction_date <= last_day,
+    )
+    if account_id is not None:
+        stmt = stmt.where(Transaction.account_id == account_id)
     async with session.begin():
-        result = await session.execute(
-            delete(Transaction).where(
-                Transaction.transaction_date >= first_day,
-                Transaction.transaction_date <= last_day,
-            )
-        )
+        result = await session.execute(stmt)
         return result.rowcount

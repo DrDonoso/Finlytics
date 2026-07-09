@@ -4,12 +4,10 @@ import { getAccounts, getCategories, getTags, getOverview } from '../api/client'
 import { useT, categoryLabel, formatDate, DEFAULT_TAG_COLOR, tagTextColor } from '../i18n'
 import TransactionsTable from '../components/TransactionsTable'
 import TagFilterSelect from '../components/TagFilterSelect'
-import { defaultRange } from '../utils'
 
-const { from: defaultFrom, to: defaultTo } = defaultRange()
 const DEFAULT_FILTERS: TransactionsViewFilters = {
-  from: defaultFrom,
-  to:   defaultTo,
+  from: '',
+  to:   '',
   tags: [],
 }
 
@@ -101,8 +99,7 @@ export default function TransactionsPage() {
   }, [filters, overviewRefKey])
 
   function clearFilters() {
-    const { from, to } = defaultRange()
-    setFilters({ from, to, tags: [] })
+    setFilters({ from: '', to: '', tags: [] })
     setDescRaw('')
     setAmountMinRaw('')
     setAmountMaxRaw('')
