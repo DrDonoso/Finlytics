@@ -280,5 +280,8 @@ const es: Dict = {
   accountsDeleteBody: (name, n) => `⚠️ Se borrará la cuenta «${name}» y sus ${n} transacción${n !== 1 ? 'es' : ''} de forma permanente. Esta acción no se puede deshacer.`,
   accountsDeleteOk: '🗑 Eliminar cuenta',
   accountsDeleteToast: (name, n) => `✓ «${name}» eliminada · ${n} transacción${n !== 1 ? 'es' : ''} borradas`,
+  // ── Import modal validation ───────────────────────────────────────────────
+  modalFileRequired: 'Selecciona un archivo.',
+  modalAccountRequired: 'La cuenta es obligatoria.',
 }
 export default es

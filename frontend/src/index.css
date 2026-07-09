@@ -882,6 +882,8 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
 }
 .form-input:focus { border-color: var(--primary); }
 .form-hint { font-size: 12px; color: var(--text-muted); }
+.form-field-error { font-size: 12px; color: var(--expense); }
+.form-input--error { border-color: var(--expense) !important; }
 
 /* ─── Spinner ────────────────────────────────────────────────────────── */
 .spinner-wrap {
