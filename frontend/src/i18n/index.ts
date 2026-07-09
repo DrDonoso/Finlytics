@@ -295,6 +295,13 @@ export interface Dict {
   // ── Import modal validation ───────────────────────────────────────────────
   modalFileRequired: string
   modalAccountRequired: string
+  // ── DatePicker ────────────────────────────────────────────────────────────────
+  datePickerTriggerLabel: (formatted: string) => string
+  datePickerDialogLabel: string
+  datePickerToday: string
+  datePickerPrevMonth: string
+  datePickerNextMonth: string
+  datePickerPlaceholder: string
 }
 
 const ES_LABELS: Record<string, string> = {

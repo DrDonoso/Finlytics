@@ -522,6 +522,69 @@ a { color: var(--primary); text-decoration: none; }
   }
 }
 
+/* ── Custom DatePicker trigger ────────────────────────────────────────────
+   Replaces <input type="date"> in filter groups. Styled like a compact form
+   control: same 36px height, border/bg matching other inputs.              */
+.date-picker-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-width: 130px;
+  height: 36px;
+  padding: 0 8px 0 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text);
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s, background 0.15s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.date-picker-trigger:hover {
+  border-color: var(--primary);
+  background: rgba(37, 99, 235, 0.04);
+}
+.date-picker-trigger:focus-visible,
+.date-picker-trigger.is-open {
+  border-color: var(--primary);
+  outline: 2px solid rgba(37, 99, 235, 0.20);
+  outline-offset: 0;
+}
+.date-picker-trigger:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.date-picker-trigger__value {
+  flex: 1;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.date-picker-trigger__placeholder {
+  color: var(--text-muted);
+}
+.date-picker-trigger__icon {
+  color: var(--text-muted);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  transition: color 0.12s;
+}
+.date-picker-trigger:hover .date-picker-trigger__icon,
+.date-picker-trigger.is-open .date-picker-trigger__icon {
+  color: var(--primary);
+}
+/* Fill the filter-group width, matching native date input behaviour */
+.filter-group .date-picker-trigger {
+  width: 100%;
+}
+
 /* ── Date range wrapper — groups from + to in an inset panel ──────────────
    Mirrors sure's bg-surface-inset p-3 rounded-lg pattern.
    Uses var(--bg) inside var(--surface) filter-bar → natural sunken/inset look
@@ -563,6 +626,9 @@ a { color: var(--primary); text-decoration: none; }
   .filter-group input, .filter-group select { width: 100%; }
   /* Mobile: restore full 44px touch target */
   .filter-group input.date-input-native { height: 44px; }
+  /* DatePicker trigger — full width + 44px touch target on mobile */
+  .date-picker-trigger { height: 44px; }
+  .filter-group .date-picker-trigger { width: 100%; height: 44px; }
   /* Mobile: full column stack — filters → KPIs → Import */
   .dashboard-header { flex-direction: column; align-items: stretch; }
   .header-kpis { border-left: none; border-top: 1px solid var(--border); justify-content: flex-start; gap: 8px 16px; }
@@ -3096,10 +3162,9 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
 .month-cell.is-inactive {
   opacity: 0.28;
 }
-/* Months with no data but still in range — clickable but visually de-emphasized */
+/* Months with no data but still in range — clearly gray so it's obvious there's nothing there */
 .month-cell.is-empty:not(.is-selected) {
-  opacity: 0.45;
-  font-style: italic;
+  color: var(--text-muted);
 }
 /* Hard disabled (outside min/max — non-clickable) */
 .month-cell.is-disabled {
@@ -3138,14 +3203,102 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
   pointer-events: none;
 }
 
+/* ─── Day picker panel (DatePicker) ────────────────────────────────────────
+   Inherits .picker-panel. Weekday header + 6×7 day grid.                  */
+.day-picker-panel {
+  width: 280px;
+}
+/* Weekday header row: Mon Tue … Sun */
+.day-weekday-header {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  margin-bottom: 4px;
+}
+.day-weekday-cell {
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+/* Day grid — 6 rows × 7 columns */
+.day-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+.day-cell {
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 400;
+  border-radius: 6px;
+  border: none;
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+  font-family: inherit;
+  padding: 0;
+  line-height: 1;
+  transition: background 0.1s, color 0.1s;
+}
+.day-cell:hover:not(.is-disabled):not(.is-selected) {
+  background: rgba(37, 99, 235, 0.08);
+}
+.day-cell:active:not(.is-disabled) {
+  background: rgba(37, 99, 235, 0.15);
+}
+.day-cell:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+/* Today: bold primary color */
+.day-cell.is-today {
+  font-weight: 700;
+  color: var(--primary);
+}
+/* Selected: primary fill */
+.day-cell.is-selected {
+  background: var(--primary);
+  color: #fff;
+  font-weight: 600;
+}
+/* Outside-month days — muted and slightly transparent */
+.day-cell.is-outside {
+  color: var(--text-muted);
+  opacity: 0.55;
+}
+.day-cell.is-outside.is-today {
+  color: var(--primary);
+  opacity: 1;
+}
+/* Disabled (outside min/max) */
+.day-cell.is-disabled {
+  opacity: 0.25;
+  cursor: default;
+  pointer-events: none;
+}
+
 /* Mobile */
 @media (max-width: 600px) {
   .month-picker-trigger {
     /* full touch target already 44px — no change needed */
   }
   .month-cell { height: 44px; }
+  .day-cell   { height: 44px; }
   .picker-panel {
     min-width: min(240px, calc(100vw - 24px));
+    max-width: calc(100vw - 24px);
+  }
+  .day-picker-panel {
+    width: min(280px, calc(100vw - 24px));
     max-width: calc(100vw - 24px);
   }
 }
