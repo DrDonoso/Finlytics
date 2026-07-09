@@ -292,6 +292,9 @@ export interface Dict {
   accountsDeleteBody: (name: string, n: number) => string
   accountsDeleteOk: string
   accountsDeleteToast: (name: string, n: number) => string
+  // ── Import modal validation ───────────────────────────────────────────────
+  modalFileRequired: string
+  modalAccountRequired: string
 }
 
 const ES_LABELS: Record<string, string> = {

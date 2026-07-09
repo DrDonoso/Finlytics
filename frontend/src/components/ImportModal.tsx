@@ -61,6 +61,13 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
   const [error,       setError]       = useState<string | null>(null)
   const nextKey = useRef(0)
 
+  const [submitAttempted, setSubmitAttempted] = useState(false)
+  const [accountTouched,  setAccountTouched]  = useState(false)
+
+  const accountValid    = accountName.trim().length > 0
+  const showFileError   = submitAttempted && !file
+  const showAccountError = (submitAttempted || accountTouched) && !accountValid
+
   const [createRuleRow, setCreateRuleRow] = useState<EditRow | null>(null)
   const [ruleToast,     setRuleToast]     = useState<string | null>(null)
 
@@ -128,14 +135,17 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
   }
 
   async function handleExtract() {
-    if (!file) return
+    setSubmitAttempted(true)
+    if (!file || !accountValid) return
+    const trimmedAccount = accountName.trim()
+    setAccountName(trimmedAccount)
     setStep('extracting')
     setError(null)
     try {
-      const p = await previewImport(file, accountName)
+      const p = await previewImport(file, trimmedAccount)
       const txns = p.transactions.map(tx => ({
         ...tx,
-        account_ref: tx.account_ref || accountName || p.account_ref || '',
+        account_ref: tx.account_ref || trimmedAccount || p.account_ref || '',
       }))
       setPreview(p)
       setRows(toEditRows(txns))
@@ -165,7 +175,7 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
         }
       }
       const payload: ConfirmRequest = {
-        account_name:    accountName || preview.account_ref || '',
+        account_name:    accountName.trim() || preview.account_ref || '',
         source_filename: preview.filename,
         transactions:    rows.map(toImportTxn),
         ...(Object.keys(tag_colors).length > 0 ? { tag_colors } : {}),
@@ -226,12 +236,15 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
                 <label htmlFor="import-file">{t.modalFileLabel}</label>
                 <input
                   id="import-file"
-                  className="form-input"
+                  className={`form-input${showFileError ? ' form-input--error' : ''}`}
                   type="file"
                   accept=".pdf"
                   onChange={e => setFile(e.target.files?.[0] ?? null)}
                 />
-                <span className="form-hint">{t.modalFileHint}</span>
+                {showFileError
+                  ? <span className="form-field-error">{t.modalFileRequired}</span>
+                  : <span className="form-hint">{t.modalFileHint}</span>
+                }
               </div>
 
               <div className="form-group">
@@ -239,27 +252,31 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
                 {accounts.length === 0 ? (
                   <input
                     id="import-account"
-                    className="form-input"
+                    className={`form-input${showAccountError ? ' form-input--error' : ''}`}
                     type="text"
                     placeholder={t.modalAccountPlaceholder}
                     value={accountName}
                     onChange={e => setAccountName(e.target.value)}
+                    onBlur={() => setAccountTouched(true)}
                   />
                 ) : (
                   <>
                     <select
                       id="import-account"
-                      className="form-input"
+                      className={`form-input${showAccountError && !newAccountMode ? ' form-input--error' : ''}`}
                       value={newAccountMode ? '__new__' : accountName}
                       onChange={e => {
                         if (e.target.value === '__new__') {
                           setNewAccountMode(true)
                           setAccountName('')
+                          setAccountTouched(false)
                         } else {
                           setNewAccountMode(false)
                           setAccountName(e.target.value)
+                          setAccountTouched(true)
                         }
                       }}
+                      onBlur={() => !newAccountMode && setAccountTouched(true)}
                     >
                       <option value="">{t.modalAccountPlaceholder}</option>
                       {accounts.map(a => (
@@ -269,18 +286,22 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
                     </select>
                     {newAccountMode && (
                       <input
-                        className="form-input"
+                        className={`form-input${showAccountError ? ' form-input--error' : ''}`}
                         type="text"
                         placeholder={t.modalAccountPlaceholder}
                         value={accountName}
                         onChange={e => setAccountName(e.target.value)}
+                        onBlur={() => setAccountTouched(true)}
                         style={{ marginTop: 4 }}
                         autoFocus
                       />
                     )}
                   </>
                 )}
-                <span className="form-hint">{t.modalAccountHint}</span>
+                {showAccountError
+                  ? <span className="form-field-error">{t.modalAccountRequired}</span>
+                  : <span className="form-hint">{t.modalAccountHint}</span>
+                }
               </div>
 
               {error && <div className="import-error">{error}</div>}
@@ -504,7 +525,7 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
               <button
                 className="btn-primary"
                 onClick={handleExtract}
-                disabled={!file}
+                disabled={!file || !accountValid}
               >
                 {t.modalBtnExtract}
               </button>

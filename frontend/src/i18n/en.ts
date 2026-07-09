@@ -280,5 +280,8 @@ const en: Dict = {
   accountsDeleteBody: (name, n) => `⚠️ Account '${name}' and its ${n} transaction${n !== 1 ? 's' : ''} will be permanently deleted. This action cannot be undone.`,
   accountsDeleteOk: '🗑 Delete account',
   accountsDeleteToast: (name, n) => `✓ '${name}' deleted · ${n} transaction${n !== 1 ? 's' : ''} removed`,
+  // ── Import modal validation ───────────────────────────────────────────────
+  modalFileRequired: 'Please select a file.',
+  modalAccountRequired: 'Account is required.',
 }
 export default en
