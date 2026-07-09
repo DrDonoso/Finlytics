@@ -91,6 +91,11 @@ export default function Layout() {
             <span className="nav-label">{t.navTransactions}</span>
           </NavLink>
 
+          <NavLink to="/statements" className={navLinkClass}>
+            <span className="nav-icon">📄</span>
+            <span className="nav-label">{t.navStatements}</span>
+          </NavLink>
+
           <NavLink to="/rules" className={navLinkClass}>
             <span className="nav-icon">📏</span>
             <span className="nav-label">{t.navRules}</span>

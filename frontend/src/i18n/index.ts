@@ -258,6 +258,18 @@ export interface Dict {
   moversColPrevious: string
   moversColChange: string
   moversNoPrevious: string
+  // ── Statements page ──────────────────────────────────────────────────────────
+  navStatements: string
+  stmtsPrev: string
+  stmtsNext: string
+  stmtsDeleteMonth: string
+  stmtsDeleteTitle: (monthLabel: string) => string
+  stmtsDeleteBody: (n: number, monthLabel: string) => string
+  stmtsDeleteBtn: string
+  stmtsDeleteOk: string
+  stmtsEmptyTitle: (monthLabel: string) => string
+  stmtsEmptyHint: string
+  stmtsImportBtn: string
 }
 
 const ES_LABELS: Record<string, string> = {

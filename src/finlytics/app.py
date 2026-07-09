@@ -18,6 +18,8 @@ Route layout:
   /api/summary/by-category
   /api/summary/by-month
   /api/summary/by-account
+  GET  /api/statements/months               — months with ≥1 transaction (DESC)
+  DELETE /api/statements/month?year&month   — hard-delete a month's transactions
   POST /api/imports       — upload statement → parse → LLM extract → persist
 
   /{full_path:path}       — React SPA catch-all (GET only; registered AFTER /api)
@@ -41,6 +43,7 @@ from finlytics.api.categories import router as categories_router
 from finlytics.api.deps import get_current_user
 from finlytics.api.imports import router as imports_router
 from finlytics.api.rules import router as rules_router
+from finlytics.api.statements import router as statements_router
 from finlytics.api.summary import router as summary_router
 from finlytics.api.tags import router as tags_router
 from finlytics.api.transactions import router as transactions_router
@@ -65,6 +68,7 @@ app.include_router(accounts_router,     prefix="/api", dependencies=_auth)
 app.include_router(backup_router,       prefix="/api", dependencies=_auth)
 app.include_router(categories_router,   prefix="/api", dependencies=_auth)
 app.include_router(rules_router,        prefix="/api", dependencies=_auth)
+app.include_router(statements_router,   prefix="/api", dependencies=_auth)
 app.include_router(tags_router,         prefix="/api", dependencies=_auth)
 app.include_router(transactions_router, prefix="/api", dependencies=_auth)
 app.include_router(summary_router,      prefix="/api", dependencies=_auth)

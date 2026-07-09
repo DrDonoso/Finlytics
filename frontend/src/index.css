@@ -2808,3 +2808,158 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
 .movers-delta-down    { color: var(--income); }
 .movers-delta-neutral { color: var(--text-muted); font-style: italic; }
 .movers-delta-dash    { color: var(--text-muted); }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Statements page (.stmts-*, .month-nav, .month-header, .btn-danger)
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── Month nav bar ──────────────────────────────────────────────────── */
+.month-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.month-nav-arrow {
+  min-width: 44px;
+  min-height: 44px;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 22px;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  font-family: inherit;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.month-nav-arrow:hover:not(:disabled) {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: rgba(37, 99, 235, 0.05);
+}
+.month-nav-arrow:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+/* Month input: styled like .date-input-native + centered bold label */
+.month-nav-label {
+  text-align: center;
+  font-size: 15px;
+  font-weight: 700;
+  min-width: 180px;
+  cursor: pointer;
+}
+
+/* ── Month summary header ───────────────────────────────────────────── */
+/* Flex row: totals fill available width, actions pinned to the right   */
+.month-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+/* Totals group (reuses .tx-totals) takes the available space */
+.month-header > .tx-totals {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* Actions: right-aligned flex row; future actions slot left of delete */
+.month-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  align-self: center;
+}
+
+/* Delete button: low-weight secondary with red hover */
+.month-header-delete {
+  font-weight: 400;
+}
+.month-header-delete:hover {
+  border-color: var(--expense) !important;
+  color: var(--expense) !important;
+  background: rgba(239, 68, 68, 0.04) !important;
+}
+
+/* Mobile ≤600px: stack vertically, totals become 2×2 grid */
+@media (max-width: 600px) {
+  .month-header { flex-direction: column; }
+  .month-header-actions { align-self: flex-end; }
+  .month-header > .tx-totals {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .month-header > .tx-totals .tx-total {
+    flex: unset;
+  }
+}
+
+/* ── Delete confirm modal: compact width ────────────────────────────── */
+.stmt-delete-modal {
+  max-width: 420px !important;
+  width: min(420px, 100%);
+}
+@media (max-width: 600px) {
+  .stmt-delete-modal {
+    width: 100%;
+    max-width: 100% !important;
+  }
+}
+
+/* ── btn-danger: red fill / white text — same shape as btn-primary ───── */
+.btn-danger {
+  height: 38px;
+  padding: 0 18px;
+  background: var(--expense);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: inherit;
+}
+.btn-danger:hover:not(:disabled) { opacity: 0.85; }
+.btn-danger:disabled { opacity: 0.45; cursor: default; }
+
+/* Inline spinner for btn-danger loading state (reuses existing spin keyframe) */
+.btn-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+/* Mobile touch target */
+@media (max-width: 600px) {
+  .btn-danger { height: 44px; }
+}
+
+/* ── Statements empty state ─────────────────────────────────────────── */
+.stmts-empty {
+  min-height: 240px;
+  gap: 12px;
+}
+.stmts-empty .btn-primary { margin-top: 4px; }

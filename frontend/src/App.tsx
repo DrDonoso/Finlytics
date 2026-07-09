@@ -3,6 +3,7 @@ import Layout from './components/Layout'
 import SettingsLayout from './components/SettingsLayout'
 import Dashboard from './pages/Dashboard'
 import TransactionsPage from './pages/TransactionsPage'
+import StatementsPage from './pages/StatementsPage'
 import SettingsPage from './pages/SettingsPage'
 import CategoriesPage from './pages/CategoriesPage'
 import AppearancePage from './pages/AppearancePage'
@@ -34,6 +35,7 @@ function AppContent() {
         <Route path="/" element={<Layout />}>
           <Route index element={<Dashboard />} />
           <Route path="transactions" element={<TransactionsPage />} />
+          <Route path="statements" element={<StatementsPage />} />
           <Route path="rules" element={<RulesPage />} />
           <Route path="settings" element={<SettingsLayout />}>
             <Route index element={<Navigate to="tags" replace />} />
