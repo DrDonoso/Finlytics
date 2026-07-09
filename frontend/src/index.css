@@ -3137,10 +3137,10 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
   transition: background 0.1s, color 0.1s;
   text-transform: capitalize;
 }
-.month-cell:hover:not(.is-disabled):not(.is-selected) {
+.month-cell:hover:not(.is-disabled):not(.is-selected):not(.is-empty) {
   background: rgba(37, 99, 235, 0.08);
 }
-.month-cell:active:not(.is-disabled) {
+.month-cell:active:not(.is-disabled):not(.is-empty) {
   background: rgba(37, 99, 235, 0.15);
 }
 .month-cell:focus-visible {
@@ -3165,6 +3165,8 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
 /* Months with no data but still in range — clearly gray so it's obvious there's nothing there */
 .month-cell.is-empty:not(.is-selected) {
   color: var(--text-muted);
+  cursor: default;
+  pointer-events: none;
 }
 /* Hard disabled (outside min/max — non-clickable) */
 .month-cell.is-disabled {
@@ -3440,6 +3442,18 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
   transition: border-color 0.15s;
 }
 .stmts-account-bar select:focus { border-color: var(--primary); }
+
+.stmts-header-import {
+  margin-left: auto;
+  height: 32px;
+  padding: 0 12px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+@media (max-width: 600px) {
+  .stmts-account-bar { flex-wrap: wrap; }
+  .stmts-header-import { height: 44px; }
+}
 
 /* ── Rule form: preview bar + apply button ───────────────────────────── */
 /* Make the rule modal footer flex-wrap to accommodate the preview bar */
