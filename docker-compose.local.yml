@@ -19,6 +19,11 @@ services:
       TIMEZONE: "${TIMEZONE:-Europe/Madrid}"
       UPLOAD_DIR: /app/uploads
 
+      # --- Auth ---
+      AUTH_SECRET: "${AUTH_SECRET:-}"
+      AUTH_COOKIE_SECURE: "${AUTH_COOKIE_SECURE:-false}"
+      AUTH_TOKEN_EXPIRE_DAYS: "${AUTH_TOKEN_EXPIRE_DAYS:-7}"
+
     volumes:
       - uploads:/app/uploads
 
