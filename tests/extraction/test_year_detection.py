@@ -42,8 +42,9 @@ def _make_client(transactions: list[_RawTransaction] | None = None) -> LLMClient
 @pytest.mark.parametrize(
     "text, expected",
     [
-        # Priority 2: Spanish month name + year
+        # Priority 0: period title "Extracto/Estado de <month> <year>"
         ("Extracto de julio de 2026\nSaldo 1000.00", 2026),
+        # Priority 2: generic month+year (no extracto/estado prefix)
         ("Estado de cuenta junio de 2025", 2025),
         ("a 30 de junio de 2026\nMovimientos", 2026),
         ("julio 2026", 2026),
@@ -55,22 +56,22 @@ def _make_client(transactions: list[_RawTransaction] | None = None) -> LLMClient
         # Priority 1: period range
         ("Periodo 01/06/2026 - 30/06/2026\nMovimientos", 2026),
         ("Período del extracto: 01/06/2025 - 30/06/2025", 2025),
-        # Priority 1b: desde/hasta
+        # Priority 0b: desde/hasta (period boundary, above issue-date label)
         ("desde 01/06/2026 hasta 30/06/2026", 2026),
         # Priority 4 fallback: bare year only (no full date, no month name)
         ("EXTRACTO DE CUENTA 2026\nMercadona 50.00", 2026),
         # No year at all → None
         ("MOVIMIENTOS DE CUENTA\nMercadona 50.00\nCarrefour 30.00", None),
         # --- Glued-text cases from real BBVA PDF (pdfplumber drops inter-word spaces) ---
-        # Priority 2 (glued month+year, no space): "EXTRACTODEJUNIO2026"
+        # Priority 0 (period title, glued): "EXTRACTODEJUNIO2026"
         ("EXTRACTODEJUNIO2026", 2026),
-        # Priority 2 (month glued directly to year within larger token)
+        # Priority 0 (period title in second line of glued header)
         ("EXTRACTOMENSUALDE CUENTASPERSONALES\nEXTRACTODEJUNIO2026", 2026),
         # Priority 1c (glued label + dd/mm/yyyy)
         ("Fechadeemisi\ufffdn: 01/07/2026", 2026),
         # Priority 1c (glued label, ASCII ó)
         ("Fechadeemisi\u00f3n: 01/07/2026", 2026),
-        # Full real header: both glued month+year AND glued label present
+        # Priority 0 wins: period title (June 2026) over glued issue-date label (July 2026)
         (
             "EXTRACTOMENSUALDE CUENTASPERSONALES\n"
             "EXTRACTODEJUNIO2026 Fechadeemisi\ufffdn: 01/07/2026",
@@ -111,6 +112,24 @@ def test_detect_statement_year_fallback_most_frequent() -> None:
     # 2023 appears in the header-region first full date (priority 3),
     # so it wins via header scan even before the frequency fallback
     assert detect_statement_year(text) == 2023
+
+
+def test_detect_statement_year_period_title_beats_issue_date() -> None:
+    """Regression: BBVA December statement issued in January must return December's year.
+
+    The BBVA header for a December 2025 statement looks like (glued tokens from
+    pdfplumber, replacement char \ufffd for the ó in "emisión"):
+        EXTRACTOMENSUALDE CUENTASPERSONALES
+        EXTRACTODEDICIEMBRE2025 Fechadeemisi\ufffdn: 01/01/2026
+
+    Before the fix _GLUED_LABEL_DATE_RE fired on the issue date first and returned
+    2026.  The period title ("EXTRACTODEDICIEMBRE2025") must now win.
+    """
+    header = (
+        "EXTRACTOMENSUALDE CUENTASPERSONALES\n"
+        "EXTRACTODEDICIEMBRE2025 Fechadeemisi\ufffdn: 01/01/2026\n"
+    )
+    assert detect_statement_year(header) == 2025
 
 
 # ---------------------------------------------------------------------------

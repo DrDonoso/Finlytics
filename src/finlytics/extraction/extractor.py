@@ -78,6 +78,20 @@ _GLUED_LABEL_DATE_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Priority 0 (highest): Statement period title explicitly anchored with
+# "Extracto/Estado de" prefix.  Handles both glued ("EXTRACTODEDICIEMBRE2025")
+# and spaced ("Extracto de diciembre de 2025") forms.  Searched only in the
+# header region (~800 chars) so a month+year buried in transaction body text
+# cannot hijack detection.  This deliberately PRECEDES the issue-date match
+# so a December statement issued in January still returns December's year.
+_PERIOD_TITLE_RE = re.compile(
+    r"(?:extracto|estado)\s*de\s*"  # glued "EXTRACTODE" or spaced "Extracto de"
+    rf"(?:{_MONTHS_ES})"             # Spanish month name
+    r"\s*(?:de\s*)?"                 # optional "de" separator
+    r"(20\d{2})",                    # 4-digit year
+    re.IGNORECASE,
+)
+
 # Priority 2: Spanish month name + 4-digit year.
 # \s* (zero or more spaces) instead of \s+ so "JUNIO2026" (glued) also matches.
 _MONTH_YEAR_RE = re.compile(
@@ -103,13 +117,17 @@ def detect_statement_year(text: str) -> int | None:
     """Detect the statement year from raw statement text.
 
     Uses Spanish/EU-focused heuristics in priority order:
+    0.  Statement period title ("Extracto/Estado de <month> <year>") in the
+        header region (~800 chars) — covers both glued ("EXTRACTODEDICIEMBRE2025")
+        and spaced ("Extracto de diciembre de 2025") forms.  Intentionally ranks
+        above the issue date so a December statement issued in January is correctly
+        attributed to December's year, not the issue year.
+    0b. desde/hasta + full date (period range) — period boundary, not issue date.
     1.  Labeled date keywords (fecha de emisión, periodo, etc.) + full date
-    1b. desde/hasta + full date (period range)
     1c. Any "Fecha..." glued label + colon + full date (handles PDFs that
         encode multi-word labels without spaces, e.g. "Fechadeemisi\ufffdn:")
     2.  Spanish month name (enero…diciembre) optionally followed by "de"/spaces
-        then a 4-digit year — handles glued forms like "JUNIO2026" or
-        "EXTRACTODEJUNIO2026", plus normal "junio de 2026".
+        then a 4-digit year — handles any remaining glued or spaced forms.
     3.  Any full date (dd/mm/yyyy or yyyy-mm-dd) in the header region (~500 chars)
     4.  Fallback: most frequent 4-digit year (2000–2099) across the full text
 
@@ -119,15 +137,24 @@ def detect_statement_year(text: str) -> int | None:
     def _plausible(y: int) -> bool:
         return 2000 <= y <= 2099
 
-    # 1. Labeled keyword + date
-    m = _LABEL_DATE_RE.search(text)
+    # 0. Period title ("Extracto/Estado de <month> <year>") in header region.
+    #    Searching only the first ~800 chars avoids false positives from
+    #    transaction lines that might contain a month name + year.
+    m = _PERIOD_TITLE_RE.search(text[:800])
+    if m:
+        yr = int(m.group(1))
+        if _plausible(yr):
+            return yr
+
+    # 0b. desde / hasta + date (period boundary, ranks above issue date)
+    m = _DESDE_RE.search(text)
     if m:
         yr = int(m.group(1) or m.group(6))
         if _plausible(yr):
             return yr
 
-    # 1b. desde / hasta + date
-    m = _DESDE_RE.search(text)
+    # 1. Labeled keyword + date (fallback when no explicit period title/range)
+    m = _LABEL_DATE_RE.search(text)
     if m:
         yr = int(m.group(1) or m.group(6))
         if _plausible(yr):
