@@ -1361,6 +1361,22 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
 }
 .auth-btn:hover:not(:disabled) { background: #1d4ed8; }
 .auth-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.auth-remember {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+}
+.auth-remember input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--primary);
+  cursor: pointer;
+  flex-shrink: 0;
+}
 .auth-loading {
   font-size: 16px;
   color: var(--text-muted);

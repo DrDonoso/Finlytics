@@ -291,6 +291,100 @@ async def test_login_generic_message_no_info_leak(auth_client):
     )
 
 
+# ── Remember-me flag on login ─────────────────────────────────────────────────
+
+async def test_login_remember_true_sets_persistent_cookie(auth_client):
+    """remember=True → persistent cookie (max-age present) with long-lived JWT."""
+    from datetime import datetime, timezone
+
+    from finlytics.auth.security import decode_token
+    from finlytics.config import settings
+
+    client, session = auth_client
+    session.scalar = AsyncMock(return_value=_fake_user())
+
+    resp = await client.post(
+        "/api/auth/login",
+        json={"username": "drdonoso", "password": "MyStr0ngP@ss!", "remember": True},
+    )
+
+    assert resp.status_code == 200
+    set_cookie = resp.headers.get("set-cookie", "").lower()
+    assert "finlytics_session=" in set_cookie
+    assert "max-age=" in set_cookie
+
+    token = resp.cookies.get("finlytics_session")
+    assert token is not None
+    payload = decode_token(token)
+    assert payload is not None
+    exp = datetime.fromtimestamp(payload["exp"], tz=timezone.utc)
+    delta_seconds = (exp - datetime.now(timezone.utc)).total_seconds()
+    assert abs(delta_seconds - settings.auth_remember_expire_days * 24 * 3600) < 5
+
+
+async def test_login_remember_true_max_age_matches_config(auth_client):
+    """max-age on remember=True cookie must equal auth_remember_expire_days * 86400."""
+    from finlytics.config import settings
+
+    client, session = auth_client
+    session.scalar = AsyncMock(return_value=_fake_user())
+
+    resp = await client.post(
+        "/api/auth/login",
+        json={"username": "drdonoso", "password": "MyStr0ngP@ss!", "remember": True},
+    )
+
+    assert resp.status_code == 200
+    set_cookie = resp.headers.get("set-cookie", "").lower()
+    expected = f"max-age={settings.auth_remember_expire_days * 24 * 3600}"
+    assert expected in set_cookie
+
+
+async def test_login_remember_false_sets_session_cookie(auth_client):
+    """remember=False → session cookie (no max-age), JWT exp = auth_token_expire_days."""
+    from datetime import datetime, timezone
+
+    from finlytics.auth.security import decode_token
+    from finlytics.config import settings
+
+    client, session = auth_client
+    session.scalar = AsyncMock(return_value=_fake_user())
+
+    resp = await client.post(
+        "/api/auth/login",
+        json={"username": "drdonoso", "password": "MyStr0ngP@ss!", "remember": False},
+    )
+
+    assert resp.status_code == 200
+    set_cookie = resp.headers.get("set-cookie", "").lower()
+    assert "finlytics_session=" in set_cookie
+    assert "max-age=" not in set_cookie
+
+    token = resp.cookies.get("finlytics_session")
+    assert token is not None
+    payload = decode_token(token)
+    assert payload is not None
+    exp = datetime.fromtimestamp(payload["exp"], tz=timezone.utc)
+    delta_seconds = (exp - datetime.now(timezone.utc)).total_seconds()
+    assert abs(delta_seconds - settings.auth_token_expire_days * 24 * 3600) < 5
+
+
+async def test_login_no_remember_field_defaults_to_session_cookie(auth_client):
+    """Omitting remember defaults to False: session cookie, no max-age."""
+    client, session = auth_client
+    session.scalar = AsyncMock(return_value=_fake_user())
+
+    resp = await client.post(
+        "/api/auth/login",
+        json={"username": "drdonoso", "password": "MyStr0ngP@ss!"},
+    )
+
+    assert resp.status_code == 200
+    set_cookie = resp.headers.get("set-cookie", "").lower()
+    assert "finlytics_session=" in set_cookie
+    assert "max-age=" not in set_cookie
+
+
 # ── POST /api/auth/logout ─────────────────────────────────────────────────────
 
 async def test_logout_returns_200(auth_client):

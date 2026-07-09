@@ -117,6 +117,7 @@ const en: Dict = {
   authErrorUsernameTooShort: 'Username must be at least 3 characters.',
   authErrorAlreadySetup: 'Setup already completed. Reload the page to log in.',
   authErrorUnexpected: 'Unexpected error. Please try again.',
+  authRememberMe: 'Remember me',
   filterExpenseOnly: 'Expenses only',
   filterIncomeOnly: 'Income only',
   settingsSubAppearance: 'Appearance',

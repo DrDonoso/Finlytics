@@ -20,7 +20,6 @@ from finlytics.db.models import User
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 _COOKIE_NAME = "finlytics_session"
-_COOKIE_MAX_AGE = 7 * 24 * 3600
 # Precomputed at import time — used to equalise bcrypt timing when the username
 # does not exist, preventing username-enumeration via response-time differences.
 _DUMMY_HASH: str = hash_password("__timing_dummy_constant__")
@@ -48,6 +47,7 @@ class LoginIn(_AuthBase):
     the password policy.  Invalid credentials always produce a generic 401.
     """
     password: str = Field(..., min_length=1, max_length=128)
+    remember: bool = Field(default=False)
 
 
 class SetupIn(_AuthBase):
@@ -67,14 +67,14 @@ class StatusResponse(BaseModel):
 
 # ── Cookie helper ─────────────────────────────────────────────────────────────
 
-def _set_session_cookie(response: Response, token: str) -> None:
+def _set_session_cookie(response: Response, token: str, max_age: int | None = None) -> None:
     response.set_cookie(
         key=_COOKIE_NAME,
         value=token,
         httponly=True,
         samesite="lax",
         secure=settings.auth_cookie_secure,
-        max_age=_COOKIE_MAX_AGE,
+        max_age=max_age,
         path="/",
     )
 
@@ -145,7 +145,14 @@ async def auth_login(
     if not verify_password(body.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    _set_session_cookie(response, create_token(user.username))
+    if body.remember:
+        expire_days = settings.auth_remember_expire_days
+        max_age = expire_days * 24 * 3600
+    else:
+        expire_days = settings.auth_token_expire_days
+        max_age = None
+
+    _set_session_cookie(response, create_token(user.username, expire_days), max_age)
     return AuthResponse(username=user.username, message="Login successful")
 
 
