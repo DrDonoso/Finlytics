@@ -70,6 +70,7 @@ class Settings(BaseSettings):
     # (sessions won't survive container restarts — set AUTH_SECRET in .env).
     auth_secret: str = ""
     auth_token_expire_days: int = 7
+    auth_remember_expire_days: int = 30
     # Set False for localhost (http). Set True when behind an https reverse proxy.
     auth_cookie_secure: bool = False
 

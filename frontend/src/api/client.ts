@@ -347,9 +347,9 @@ export async function setupUser(username: string, password: string): Promise<Aut
   return authPost<AuthUser>('/api/auth/setup', { username, password })
 }
 
-export async function login(username: string, password: string): Promise<AuthUser> {
+export async function login(username: string, password: string, remember = false): Promise<AuthUser> {
   if (USE_MOCK) return mockLogin(username, password)
-  return authPost<AuthUser>('/api/auth/login', { username, password })
+  return authPost<AuthUser>('/api/auth/login', { username, password, remember })
 }
 
 export async function logout(): Promise<void> {

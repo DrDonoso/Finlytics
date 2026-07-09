@@ -28,9 +28,10 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         return False
 
 
-def create_token(username: str) -> str:
+def create_token(username: str, expire_days: int | None = None) -> str:
+    days = expire_days if expire_days is not None else settings.auth_token_expire_days
     now = datetime.now(timezone.utc)
-    expire = now + timedelta(days=settings.auth_token_expire_days)
+    expire = now + timedelta(days=days)
     payload = {"sub": username, "exp": expire, "iat": now}
     return jwt.encode(payload, settings.auth_secret, algorithm="HS256")
 

@@ -8,6 +8,7 @@ export default function LoginPage() {
   const { t } = useT()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [remember, setRemember] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
 
@@ -16,7 +17,7 @@ export default function LoginPage() {
     setError(null)
     setPending(true)
     try {
-      const user = await login(username, password)
+      const user = await login(username, password, remember)
       onLoginSuccess(user.username)
     } catch (err: unknown) {
       const status = (err as { status?: number }).status
@@ -55,6 +56,15 @@ export default function LoginPage() {
               required
             />
           </div>
+          <label className="auth-remember">
+            <input
+              id="auth-remember"
+              type="checkbox"
+              checked={remember}
+              onChange={e => setRemember(e.target.checked)}
+            />
+            {t.authRememberMe}
+          </label>
           {error && <div className="auth-error">{error}</div>}
           <button type="submit" className="auth-btn" disabled={pending}>
             {pending ? t.loading : t.authLoginBtn}

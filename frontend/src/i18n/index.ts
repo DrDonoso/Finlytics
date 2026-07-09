@@ -123,6 +123,7 @@ export interface Dict {
   authErrorUsernameTooShort: string
   authErrorAlreadySetup: string
   authErrorUnexpected: string
+  authRememberMe: string
   // ── Flow filter ───────────────────────────────────────────────────────────
   filterExpenseOnly: string
   filterIncomeOnly: string
