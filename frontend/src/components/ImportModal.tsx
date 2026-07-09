@@ -233,7 +233,7 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
           {step === 'upload' && (
             <div className="upload-form">
               <div className="form-group">
-                <label htmlFor="import-file">{t.modalFileLabel}</label>
+                <label htmlFor="import-file">{t.modalFileLabel} <span className="rules-required">*</span></label>
                 <input
                   id="import-file"
                   className={`form-input${showFileError ? ' form-input--error' : ''}`}
@@ -248,7 +248,7 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
               </div>
 
               <div className="form-group">
-                <label htmlFor="import-account">{t.modalAccountLabel}</label>
+                <label htmlFor="import-account">{t.modalAccountLabel} <span className="rules-required">*</span></label>
                 {accounts.length === 0 ? (
                   <input
                     id="import-account"
