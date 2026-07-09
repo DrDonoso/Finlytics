@@ -9,7 +9,7 @@ To run the live accuracy test:
 
     RUN_LLM_ACCURACY=1 \\
     OPENAI_API_KEY=sk-... \\
-    OPENAI_BASE_URL=https://your-litellm/v1 \\
+    OPENAI_BASE_URL=https://api.openai.com/v1 \\
     OPENAI_MODEL=your-model \\
     pytest tests/quality/test_accuracy.py -v
 

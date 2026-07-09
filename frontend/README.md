@@ -1,54 +1,80 @@
 # Finlytics — Frontend
 
-Dashboard de gastos personales. Stack: **Vite + React + TypeScript + Recharts**.
+Personal expense dashboard. Stack: **Vite + React + TypeScript + Recharts**.
 
-## Desarrollo
+## Development
 
 ```bash
 npm install
 npm run dev        # http://localhost:5173
 ```
 
-Requiere que el backend (Shuri/FastAPI) esté corriendo en `http://localhost:8000`.
+Requires the backend (FastAPI) to be running at `http://localhost:7777`.
 
-### Modo mock (sin backend)
+### Mock mode (no backend)
 
 ```bash
 VITE_USE_MOCK=1 npm run dev
 ```
 
-Con `VITE_USE_MOCK=1` el dashboard carga datos de demostración (BBVA + Indexa Capital, mayo–junio 2026) sin llamar a la API.
+With `VITE_USE_MOCK=1` the dashboard loads demo data (BBVA + Indexa Capital, May–June 2026) without calling the API.
 
-## Build de producción
+## Production build
 
 ```bash
-npm run build      # salida: frontend/dist/
-npm run preview    # sirve el build localmente en :4173
+npm run build      # output: frontend/dist/
+npm run preview    # serves the build locally at :4173
 ```
 
-FastAPI sirve `frontend/dist/` como SPA estática en producción (`/` → `index.html`, `/api/*` → API).
+In production, FastAPI serves `frontend/dist/` as a static SPA (`/` → `index.html`, `/api/*` → API).
 
-## Estructura
+## Structure
 
 ```
 src/
 ├── api/
-│   ├── types.ts        # Interfaces TypeScript para todos los contratos de API
-│   ├── client.ts       # Fetch client tipado; fallback a mock en error o VITE_USE_MOCK=1
-│   └── mock.ts         # Datos realistas (BBVA + Indexa, mayo–junio 2026)
+│   ├── types.ts              # TypeScript interfaces for all API contracts
+│   ├── client.ts             # Typed fetch client; falls back to mock on error or VITE_USE_MOCK=1
+│   └── mock.ts               # Realistic demo data (BBVA + Indexa, May–June 2026)
 ├── components/
-│   ├── GlobalFilterBar.tsx    # Filtro global: rango de fechas + cuenta
-│   ├── KpiCards.tsx           # Tarjetas KPI: gasto, ingreso, neto, top categoría
-│   ├── SpendingByCategory.tsx # Donut chart por categoría (Recharts)
-│   ├── SpendingOverTime.tsx   # Bar chart mensual gasto vs ingreso (Recharts)
-│   ├── SpendingByAccount.tsx  # Bar chart por cuenta (Recharts)
-│   └── TransactionsTable.tsx  # Tabla paginada con filtros
+│   ├── Layout.tsx            # Main app shell (nav, sidebar)
+│   ├── SettingsLayout.tsx    # Shared layout for settings sub-pages
+│   ├── GlobalFilterBar.tsx   # Global filters: date range, account, category, tags, amount
+│   ├── KpiCards.tsx          # KPI summary cards (in, out, net, top category)
+│   ├── SpendingByCategory.tsx # Donut chart by category (Recharts)
+│   ├── SpendingOverTime.tsx  # Monthly bar chart: spending vs income (Recharts)
+│   ├── SpendingByAccount.tsx # Bar chart by account (Recharts)
+│   ├── CashflowSankey.tsx    # Cashflow Sankey diagram (Recharts)
+│   ├── TransactionsTable.tsx # Paginated, sortable transaction table
+│   ├── ImportModal.tsx       # PDF import flow (upload → preview → confirm)
+│   ├── RuleFormModal.tsx     # Create/edit rule modal
+│   ├── CategorySelect.tsx    # Category picker dropdown
+│   ├── TagEditor.tsx         # Inline tag editor
+│   ├── TagFilterSelect.tsx   # Multi-tag filter selector
+│   ├── TagTypeahead.tsx      # Tag typeahead input
+│   ├── ColorSwatchPicker.tsx # Color swatch picker for categories/tags
+│   └── DateInput.tsx         # Controlled date input
+├── contexts/
+│   ├── AuthContext.tsx       # Authentication state
+│   └── ThemeContext.tsx      # Light/dark/system theme
+├── i18n/
+│   ├── en.ts                 # English strings
+│   ├── es.ts                 # Spanish strings
+│   └── index.ts              # i18n helper
 └── pages/
-    └── Dashboard.tsx   # Página principal; orquesta todos los componentes
+    ├── LoginPage.tsx         # Login screen
+    ├── SetupPage.tsx         # Initial user setup
+    ├── Dashboard.tsx         # Main dashboard (charts + KPIs)
+    ├── TransactionsPage.tsx  # Full transaction list with filters
+    ├── RulesPage.tsx         # Rules management
+    ├── CategoriesPage.tsx    # Categories & tags management
+    ├── SettingsPage.tsx      # Settings index
+    ├── AppearancePage.tsx    # Theme & language preferences
+    └── BackupPage.tsx        # Export/import backup
 ```
 
-## Variables de entorno
+## Environment variables
 
-| Variable | Valores | Descripción |
-|---|---|---|
-| `VITE_USE_MOCK` | `1` / (vacío) | Fuerza datos mock sin llamar al backend |
+| Variable | Values | Description |
+|----------|--------|-------------|
+| `VITE_USE_MOCK` | `1` / *(empty)* | Forces mock data without calling the backend |
