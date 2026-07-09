@@ -33,3 +33,13 @@ Thumbs.db
 
 # Golden-set fixtures: owner's private real PDFs (never commit real statements)
 tests/fixtures/statements/local/
+
+# Squad / AI-team tooling — kept out of main (lives on the local dev branch + master backup)
+.squad/
+.copilot/
+.squad-workstream
+.github/agents/squad.agent.md
+.github/workflows/squad-heartbeat.yml
+.github/workflows/squad-issue-assign.yml
+.github/workflows/squad-triage.yml
+.github/workflows/sync-squad-labels.yml
