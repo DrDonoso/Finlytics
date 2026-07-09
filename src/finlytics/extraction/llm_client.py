@@ -1,4 +1,4 @@
-"""Thin async wrapper around an OpenAI-compatible endpoint (e.g. LiteLLM proxy).
+"""Thin async wrapper around an OpenAI-compatible endpoint.
 
 Provides a `parse` helper for OpenAI structured outputs
 (beta.chat.completions.parse).
@@ -28,11 +28,11 @@ class LLMError(Exception):
 
 
 class LLMClient:
-    """Async wrapper around AsyncOpenAI pointed at a LiteLLM base URL.
+    """Async wrapper around AsyncOpenAI pointed at an OpenAI base URL.
 
     Args:
-        api_key:   LiteLLM API key (from settings.openai_api_key).
-        base_url:  LiteLLM base URL (from settings.openai_base_url).
+        api_key:   OpenAI API key (from settings.openai_api_key).
+        base_url:  OpenAI base URL (from settings.openai_base_url).
         model:     Model identifier (from settings.openai_model).
         _client:   Optional pre-built AsyncOpenAI — inject a mock for tests.
     """
@@ -142,7 +142,7 @@ class LLMClient:
 
 
 def is_llm_configured(settings: "Settings") -> bool:
-    """Return True only when all three OpenAI/LiteLLM env vars are non-empty."""
+    """Return True only when all three OpenAI env vars are non-empty."""
     return bool(
         settings.openai_api_key
         and settings.openai_base_url

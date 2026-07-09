@@ -7,7 +7,7 @@ cp .env.example .env          # fill in POSTGRES_PASSWORD (required)
 docker compose -f docker-compose.yml -f docker-compose.local.yml up --build
 ```
 
-The stack starts on `http://localhost:8000` (override with `FINLYTICS_PORT` in `.env`).  
+The stack starts on `http://localhost:7777` (override with `FINLYTICS_PORT` in `.env`).  
 On first boot the entrypoint automatically runs `alembic upgrade head` and seeds the base categories.
 
 ---
@@ -71,10 +71,10 @@ This uses only `docker-compose.yml` (published image, no local build needed).
 | `POSTGRES_PASSWORD` | ✅ | — | Database password |
 | `POSTGRES_USER` | — | `finlytics` | Database user |
 | `POSTGRES_DB` | — | `finlytics` | Database name |
-| `OPENAI_API_KEY` | — | — | LiteLLM key (enables AI extraction) |
-| `OPENAI_BASE_URL` | — | — | LiteLLM host, e.g. `https://host/v1` |
+| `OPENAI_API_KEY` | — | — | OpenAI API key (enables AI extraction) |
+| `OPENAI_BASE_URL` | — | — | OpenAI base URL, e.g. `https://api.openai.com/v1` |
 | `OPENAI_MODEL` | — | — | Model name |
-| `FINLYTICS_PORT` | — | `8000` | Host port |
+| `FINLYTICS_PORT` | — | `7777` | Host port |
 | `TIMEZONE` | — | `Europe/Madrid` | Display timezone |
 | `AUTH_SECRET` | — | random per boot | Secret for signing session JWTs. **Set a fixed value in production** (otherwise every restart invalidates all sessions). Generate: `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
 | `AUTH_COOKIE_SECURE` | — | `false` | Set to `true` when serving over **HTTPS** so the session cookie gets the `Secure` flag. Keep `false` only for local `http://localhost`. |

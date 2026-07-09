@@ -1,7 +1,7 @@
 """Category name translation helper.
 
 Translates a category name (any language) to both a canonical English label
-(Title Case) and a Spanish label, using the shared LiteLLM client.
+(Title Case) and a Spanish label, using the shared OpenAI client.
 
 Returns None — never raises — so callers (Shuri's ``get_or_create_category``)
 can always fall back to storing the literal name with ``name_es = NULL``.
