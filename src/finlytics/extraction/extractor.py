@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from finlytics.extraction.llm_client import LLMClient, LLMError
 from finlytics.extraction.prompts import build_system_prompt, build_user_prompt
-from finlytics.extraction.redaction import redact_pii
+from finlytics.extraction.redaction import _IBAN_COMPACT, _IBAN_SPACED, redact_pii
 from finlytics.extraction.schema import ExtractedTransaction
 from finlytics.extraction.taxonomy import BASE_CATEGORIES, BASE_CATEGORY_ES
 
@@ -187,6 +187,89 @@ def detect_statement_year(text: str) -> int | None:
         yr = int(Counter(years).most_common(1)[0][0])
         if _plausible(yr):
             return yr
+
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Account IBAN extraction
+# ---------------------------------------------------------------------------
+
+# Number of header lines to search for the account IBAN.  The account's own
+# IBAN always appears in the first ~3-5 lines of a BBVA/Indexa statement;
+# 30 lines gives comfortable headroom without risking payee IBANs from the
+# transaction body.
+_IBAN_HEADER_LINES = 30
+
+
+def _is_valid_iban(iban: str) -> bool:
+    """Return True iff *iban* passes length, structure, and mod-97 checksum checks.
+
+    Criteria (ISO 13616):
+    - Length 15–34 characters.
+    - First 2 chars: ASCII uppercase letters (country code).
+    - Chars 3–4: decimal check digits.
+    - IBAN mod-97: rearrange (move first 4 chars to end), map each letter
+      A→10…Z→35, parse the resulting digit string as an integer, remainder
+      mod 97 must equal 1.
+    """
+    if not (15 <= len(iban) <= 34):
+        return False
+    if " " in iban:
+        return False
+    if not (iban[:2].isalpha() and iban[2:4].isdigit()):
+        return False
+    rearranged = iban[4:] + iban[:4]
+    numeric_str = "".join(
+        str(ord(ch) - ord("A") + 10) if ch.isalpha() else ch
+        for ch in rearranged
+    )
+    return int(numeric_str) % 97 == 1
+
+
+def extract_account_number(statement_text: str) -> str | None:
+    """Extract the account IBAN from the statement header.
+
+    Searches only the first ``_IBAN_HEADER_LINES`` lines to avoid matching a
+    payee's IBAN buried deeper in the transaction body.  Normalizes each line
+    by replacing the pdfplumber replacement character ``\\ufffd`` with a space
+    so glued tokens adjacent to the IBAN are separated.
+
+    Reuses ``_IBAN_SPACED`` / ``_IBAN_COMPACT`` from :mod:`redaction` so the
+    same regex logic stays in one place.  Each candidate is validated with the
+    full IBAN mod-97 checksum; bare local account numbers and structurally
+    malformed matches are rejected.
+
+    Args:
+        statement_text: Raw text output from the parser (PDF/XLSX/CSV).
+
+    Returns:
+        The first valid IBAN found (compact, uppercase, spaces stripped), e.g.
+        ``"ES7921000813610123456789"``, or ``None`` when no valid IBAN is
+        present in the header.
+    """
+    if not statement_text:
+        return None
+
+    header_lines = statement_text.splitlines()[:_IBAN_HEADER_LINES]
+
+    for line in header_lines:
+        # Replace pdfplumber's replacement char so adjacent tokens don't merge
+        # into the IBAN boundary (e.g. "Fechadeemisi\ufffdn:" → "Fechadeemisi n:")
+        normalized = line.replace("\ufffd", " ")
+
+        # Collect all candidates in this line with their start position so we
+        # always return the leftmost valid IBAN on the topmost line that has one.
+        line_candidates: list[tuple[int, str]] = []
+        for pattern in (_IBAN_SPACED, _IBAN_COMPACT):
+            for m in pattern.finditer(normalized):
+                compact = m.group(0).replace(" ", "").upper()
+                if _is_valid_iban(compact):
+                    line_candidates.append((m.start(), compact))
+
+        if line_candidates:
+            line_candidates.sort(key=lambda x: x[0])
+            return line_candidates[0][1]
 
     return None
 

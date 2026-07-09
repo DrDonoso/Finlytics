@@ -6,6 +6,7 @@ export interface Account {
   type: string | null
   currency: string
   tx_count: number
+  account_number_masked?: string | null
 }
 
 export interface Category {
@@ -156,6 +157,14 @@ export interface PreviewResponse {
   year_detected: boolean
   /** AI-suggested colors for tags the LLM proposed in this preview. */
   suggested_tags?: { name: string; color: string }[]
+  /** Masked IBAN detected from the statement (e.g. ES****…****1332). */
+  detected_account_masked?: string | null
+  /** Full IBAN detected — keep in state, never display. */
+  detected_account_iban?: string | null
+  /** ID of an existing account that matched the detected IBAN. */
+  matched_account_id?: number | null
+  /** Name of the matched account, if any. */
+  matched_account_name?: string | null
 }
 
 export interface ConfirmRequest {
@@ -164,6 +173,8 @@ export interface ConfirmRequest {
   transactions: ImportTransaction[]
   /** Colors for brand-new tags (not yet in the DB). name→hex. */
   tag_colors?: Record<string, string>
+  /** Full IBAN — only sent when creating a brand-new detected account. */
+  account_number?: string | null
 }
 
 // ─── Transaction update ───────────────────────────────────────────────────────

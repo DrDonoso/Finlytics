@@ -83,6 +83,15 @@ export async function getAccounts(): Promise<Account[]> {
   catch { return mockGetAccounts() }
 }
 
+/** PATCH /api/accounts/{id} body { name } → updated account. (Name only; number immutable.) */
+export async function patchAccount(id: number, name: string): Promise<Account> {
+  return apiFetch<Account>(`/api/accounts/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  })
+}
+
 /** DELETE /api/accounts/{id} → { deleted: number }. Returns 404 if account not found. */
 export async function deleteAccount(id: number): Promise<{ deleted: number }> {
   return apiFetch<{ deleted: number }>(`/api/accounts/${id}`, { method: 'DELETE' })
@@ -142,8 +151,8 @@ export async function postImport(file: File, accountName: string): Promise<Impor
 
 // ─── Two-step import ──────────────────────────────────────────────────────────
 
-export async function previewImport(file: File, accountName: string): Promise<PreviewResponse> {
-  if (USE_MOCK) return mockPreviewImport(file, accountName)
+export async function previewImport(file: File, accountName?: string): Promise<PreviewResponse> {
+  if (USE_MOCK) return mockPreviewImport(file, accountName ?? '')
   const form = new FormData()
   form.append('file', file)
   if (accountName) form.append('account_name', accountName)
