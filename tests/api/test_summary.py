@@ -109,6 +109,90 @@ async def test_by_month_passes_category_id_filter(client):
     assert kwargs["category_id"] == 3
 
 
+# ── GET /api/summary/by-day ───────────────────────────────────────────────────
+
+_BY_DAY = [
+    {"day": "2024-05-10", "expense": 50.0, "income": 0.0, "net": -50.0},
+    {"day": "2024-05-15", "expense": 0.0, "income": 3200.0, "net": 3200.0},
+    {"day": "2024-06-03", "expense": 120.75, "income": 0.0, "net": -120.75},
+]
+
+
+async def test_by_day_schema(client):
+    with patch("finlytics.db.queries.get_by_day", new_callable=AsyncMock) as mock:
+        mock.return_value = _BY_DAY
+        resp = await client.get("/api/summary/by-day")
+
+    assert resp.status_code == 200
+    rows = resp.json()
+    assert len(rows) == 3
+    assert set(rows[0].keys()) == {"day", "expense", "income", "net"}
+    assert rows[0]["day"] == "2024-05-10"
+    assert rows[0]["expense"] == 50.0
+    assert rows[0]["net"] == -50.0
+
+
+async def test_by_day_net_computed_correctly(client):
+    data = [{"day": "2024-07-01", "expense": 100.0, "income": 300.0, "net": 200.0}]
+    with patch("finlytics.db.queries.get_by_day", new_callable=AsyncMock) as mock:
+        mock.return_value = data
+        resp = await client.get("/api/summary/by-day")
+
+    row = resp.json()[0]
+    assert row["net"] == row["income"] - row["expense"]
+
+
+async def test_by_day_chronological_order(client):
+    with patch("finlytics.db.queries.get_by_day", new_callable=AsyncMock) as mock:
+        mock.return_value = _BY_DAY
+        resp = await client.get("/api/summary/by-day")
+
+    days = [r["day"] for r in resp.json()]
+    assert days == sorted(days)
+
+
+async def test_by_day_passes_filters(client):
+    with patch("finlytics.db.queries.get_by_day", new_callable=AsyncMock) as mock:
+        mock.return_value = []
+        resp = await client.get(
+            "/api/summary/by-day?from=2024-01-01&to=2024-06-30&account_id=2&category_id=5"
+        )
+
+    assert resp.status_code == 200
+    _, kwargs = mock.call_args
+    assert kwargs["from_date"] == date(2024, 1, 1)
+    assert kwargs["to_date"] == date(2024, 6, 30)
+    assert kwargs["account_id"] == 2
+    assert kwargs["category_id"] == 5
+
+
+async def test_by_day_passes_tag_filter(client):
+    with patch("finlytics.db.queries.get_by_day", new_callable=AsyncMock) as mock:
+        mock.return_value = []
+        resp = await client.get("/api/summary/by-day?tag=food&tag=travel")
+
+    _, kwargs = mock.call_args
+    assert kwargs["tags"] == ["food", "travel"]
+
+
+async def test_by_day_passes_flow_filter(client):
+    with patch("finlytics.db.queries.get_by_day", new_callable=AsyncMock) as mock:
+        mock.return_value = []
+        resp = await client.get("/api/summary/by-day?flow=expense")
+
+    _, kwargs = mock.call_args
+    assert kwargs["flow"] == "expense"
+
+
+async def test_by_day_empty_when_no_transactions(client):
+    with patch("finlytics.db.queries.get_by_day", new_callable=AsyncMock) as mock:
+        mock.return_value = []
+        resp = await client.get("/api/summary/by-day")
+
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
 async def test_by_account_schema(client):
     with patch("finlytics.db.queries.get_by_account", new_callable=AsyncMock) as mock:
         mock.return_value = _BY_ACCOUNT
@@ -684,3 +768,350 @@ async def test_overview_merchant_percent_treated_literally(client):
     _, kwargs = mock.call_args
     # FastAPI URL-decodes %25 → '%'; the literal value must reach the query layer.
     assert kwargs["merchant"] == "100%"
+
+
+# ── GET /api/summary/by-merchant ─────────────────────────────────────────────
+
+_BY_MERCHANT = [
+    {"merchant": "Mercadona", "amount": 240.0, "count": 8},
+    {"merchant": "Netflix",   "amount": 14.99, "count": 1},
+]
+
+
+async def test_by_merchant_schema(client):
+    with patch("finlytics.db.queries.get_by_merchant", new_callable=AsyncMock) as mock:
+        mock.return_value = _BY_MERCHANT
+        resp = await client.get("/api/summary/by-merchant")
+
+    assert resp.status_code == 200
+    rows = resp.json()
+    assert len(rows) == 2
+    assert set(rows[0].keys()) == {"merchant", "amount", "count"}
+    assert rows[0]["merchant"] == "Mercadona"
+    assert rows[0]["amount"] == 240.0
+    assert rows[0]["count"] == 8
+
+
+async def test_by_merchant_expense_magnitude_positive(client):
+    """Amounts are positive magnitudes (expense direction)."""
+    with patch("finlytics.db.queries.get_by_merchant", new_callable=AsyncMock) as mock:
+        mock.return_value = _BY_MERCHANT
+        resp = await client.get("/api/summary/by-merchant")
+
+    for row in resp.json():
+        assert row["amount"] > 0, f"Expected positive magnitude, got {row['amount']}"
+
+
+async def test_by_merchant_sorted_desc(client):
+    """Rows must come back sorted descending by amount."""
+    with patch("finlytics.db.queries.get_by_merchant", new_callable=AsyncMock) as mock:
+        mock.return_value = _BY_MERCHANT
+        resp = await client.get("/api/summary/by-merchant")
+
+    amounts = [r["amount"] for r in resp.json()]
+    assert amounts == sorted(amounts, reverse=True)
+
+
+async def test_by_merchant_empty(client):
+    with patch("finlytics.db.queries.get_by_merchant", new_callable=AsyncMock) as mock:
+        mock.return_value = []
+        resp = await client.get("/api/summary/by-merchant")
+
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+async def test_by_merchant_passes_date_and_account_filters(client):
+    with patch("finlytics.db.queries.get_by_merchant", new_callable=AsyncMock) as mock:
+        mock.return_value = []
+        resp = await client.get(
+            "/api/summary/by-merchant?from=2024-01-01&to=2024-06-30&account_id=3"
+        )
+
+    assert resp.status_code == 200
+    _, kwargs = mock.call_args
+    assert kwargs["from_date"] == date(2024, 1, 1)
+    assert kwargs["to_date"] == date(2024, 6, 30)
+    assert kwargs["account_id"] == 3
+
+
+async def test_by_merchant_tag_filter_passed(client):
+    with patch("finlytics.db.queries.get_by_merchant", new_callable=AsyncMock) as mock:
+        mock.return_value = []
+        resp = await client.get("/api/summary/by-merchant?tag=supermercado")
+
+    assert resp.status_code == 200
+    _, kwargs = mock.call_args
+    assert kwargs["tags"] == ["supermercado"]
+
+
+async def test_by_merchant_multi_tag_passed(client):
+    with patch("finlytics.db.queries.get_by_merchant", new_callable=AsyncMock) as mock:
+        mock.return_value = []
+        resp = await client.get("/api/summary/by-merchant?tag=luz&tag=agua")
+
+    assert resp.status_code == 200
+    _, kwargs = mock.call_args
+    assert set(kwargs["tags"]) == {"luz", "agua"}
+
+
+async def test_by_merchant_flow_filter_passed(client):
+    with patch("finlytics.db.queries.get_by_merchant", new_callable=AsyncMock) as mock:
+        mock.return_value = []
+        resp = await client.get("/api/summary/by-merchant?flow=expense")
+
+    assert resp.status_code == 200
+    _, kwargs = mock.call_args
+    assert kwargs["flow"] == "expense"
+
+
+async def test_by_merchant_flow_invalid_returns_422(client):
+    resp = await client.get("/api/summary/by-merchant?flow=transfer")
+    assert resp.status_code == 422
+
+
+async def test_by_merchant_tag_none_when_not_provided(client):
+    with patch("finlytics.db.queries.get_by_merchant", new_callable=AsyncMock) as mock:
+        mock.return_value = []
+        await client.get("/api/summary/by-merchant")
+
+    _, kwargs = mock.call_args
+    assert kwargs["tags"] is None
+
+
+async def test_by_merchant_flow_none_when_not_provided(client):
+    with patch("finlytics.db.queries.get_by_merchant", new_callable=AsyncMock) as mock:
+        mock.return_value = []
+        await client.get("/api/summary/by-merchant")
+
+    _, kwargs = mock.call_args
+    assert kwargs["flow"] is None
+
+
+# ── Cross-filter: merchant on by-category ────────────────────────────────────
+
+async def test_by_category_merchant_filter_forwarded(client):
+    """?merchant=Mercadona is forwarded to get_by_category."""
+    with patch("finlytics.db.queries.get_by_category", new_callable=AsyncMock) as mock:
+        mock.return_value = _BY_CATEGORY
+        resp = await client.get("/api/summary/by-category?merchant=Mercadona")
+
+    assert resp.status_code == 200
+    _, kwargs = mock.call_args
+    assert kwargs["merchant"] == "Mercadona"
+
+
+async def test_by_category_merchant_none_when_not_provided(client):
+    with patch("finlytics.db.queries.get_by_category", new_callable=AsyncMock) as mock:
+        mock.return_value = []
+        await client.get("/api/summary/by-category")
+
+    _, kwargs = mock.call_args
+    assert kwargs["merchant"] is None
+
+
+async def test_by_category_merchant_narrows_results(client):
+    """A merchant cross-filter returns only that merchant's category totals."""
+    filtered = [{"category_id": 1, "category": "Groceries", "amount": 140.0, "count": 5}]
+    with patch("finlytics.db.queries.get_by_category", new_callable=AsyncMock) as mock:
+        mock.return_value = filtered
+        resp = await client.get("/api/summary/by-category?merchant=Mercadona")
+
+    assert resp.status_code == 200
+    rows = resp.json()
+    assert len(rows) == 1
+    assert rows[0]["category"] == "Groceries"
+    _, kwargs = mock.call_args
+    assert kwargs["merchant"] == "Mercadona"
+
+
+# ── Cross-filter: day on by-category ─────────────────────────────────────────
+
+async def test_by_category_day_filter_forwarded(client):
+    """?day=2024-05-10 is forwarded to get_by_category."""
+    with patch("finlytics.db.queries.get_by_category", new_callable=AsyncMock) as mock:
+        mock.return_value = []
+        resp = await client.get("/api/summary/by-category?day=2024-05-10")
+
+    assert resp.status_code == 200
+    _, kwargs = mock.call_args
+    assert kwargs["day"] == date(2024, 5, 10)
+
+
+async def test_by_category_day_none_when_not_provided(client):
+    with patch("finlytics.db.queries.get_by_category", new_callable=AsyncMock) as mock:
+        mock.return_value = []
+        await client.get("/api/summary/by-category")
+
+    _, kwargs = mock.call_args
+    assert kwargs["day"] is None
+
+
+async def test_by_category_day_narrows_results(client):
+    """?day= returns only that day's category totals."""
+    filtered = [{"category_id": 2, "category": "Dining", "amount": 30.0, "count": 1}]
+    with patch("finlytics.db.queries.get_by_category", new_callable=AsyncMock) as mock:
+        mock.return_value = filtered
+        resp = await client.get("/api/summary/by-category?day=2024-06-03")
+
+    assert resp.status_code == 200
+    rows = resp.json()
+    assert len(rows) == 1
+    assert rows[0]["category"] == "Dining"
+    _, kwargs = mock.call_args
+    assert kwargs["day"] == date(2024, 6, 3)
+
+
+# ── Cross-filter: merchant on by-day ─────────────────────────────────────────
+
+async def test_by_day_merchant_filter_forwarded(client):
+    """?merchant=Netflix is forwarded to get_by_day."""
+    with patch("finlytics.db.queries.get_by_day", new_callable=AsyncMock) as mock:
+        mock.return_value = []
+        resp = await client.get("/api/summary/by-day?merchant=Netflix")
+
+    assert resp.status_code == 200
+    _, kwargs = mock.call_args
+    assert kwargs["merchant"] == "Netflix"
+
+
+async def test_by_day_merchant_none_when_not_provided(client):
+    with patch("finlytics.db.queries.get_by_day", new_callable=AsyncMock) as mock:
+        mock.return_value = []
+        await client.get("/api/summary/by-day")
+
+    _, kwargs = mock.call_args
+    assert kwargs["merchant"] is None
+
+
+async def test_by_day_merchant_narrows_results(client):
+    """?merchant= returns only that merchant's daily totals."""
+    filtered = [{"day": "2024-05-10", "expense": 14.99, "income": 0.0, "net": -14.99}]
+    with patch("finlytics.db.queries.get_by_day", new_callable=AsyncMock) as mock:
+        mock.return_value = filtered
+        resp = await client.get("/api/summary/by-day?merchant=Netflix")
+
+    assert resp.status_code == 200
+    rows = resp.json()
+    assert len(rows) == 1
+    assert rows[0]["day"] == "2024-05-10"
+    _, kwargs = mock.call_args
+    assert kwargs["merchant"] == "Netflix"
+
+
+# ── Cross-filter: category_id on by-merchant ─────────────────────────────────
+
+async def test_by_merchant_category_id_filter_forwarded(client):
+    """?category_id=1 is forwarded to get_by_merchant."""
+    with patch("finlytics.db.queries.get_by_merchant", new_callable=AsyncMock) as mock:
+        mock.return_value = _BY_MERCHANT
+        resp = await client.get("/api/summary/by-merchant?category_id=1")
+
+    assert resp.status_code == 200
+    _, kwargs = mock.call_args
+    assert kwargs["category_id"] == 1
+
+
+async def test_by_merchant_category_id_none_when_not_provided(client):
+    with patch("finlytics.db.queries.get_by_merchant", new_callable=AsyncMock) as mock:
+        mock.return_value = []
+        await client.get("/api/summary/by-merchant")
+
+    _, kwargs = mock.call_args
+    assert kwargs["category_id"] is None
+
+
+async def test_by_merchant_category_id_narrows_results(client):
+    """?category_id=N returns only merchants that appear in that category."""
+    filtered = [{"merchant": "Mercadona", "amount": 240.0, "count": 8}]
+    with patch("finlytics.db.queries.get_by_merchant", new_callable=AsyncMock) as mock:
+        mock.return_value = filtered
+        resp = await client.get("/api/summary/by-merchant?category_id=1")
+
+    assert resp.status_code == 200
+    rows = resp.json()
+    assert len(rows) == 1
+    assert rows[0]["merchant"] == "Mercadona"
+    _, kwargs = mock.call_args
+    assert kwargs["category_id"] == 1
+
+
+# ── Cross-filter: day on by-merchant ─────────────────────────────────────────
+
+async def test_by_merchant_day_filter_forwarded(client):
+    """?day=2024-05-10 is forwarded to get_by_merchant."""
+    with patch("finlytics.db.queries.get_by_merchant", new_callable=AsyncMock) as mock:
+        mock.return_value = []
+        resp = await client.get("/api/summary/by-merchant?day=2024-05-10")
+
+    assert resp.status_code == 200
+    _, kwargs = mock.call_args
+    assert kwargs["day"] == date(2024, 5, 10)
+
+
+async def test_by_merchant_day_none_when_not_provided(client):
+    with patch("finlytics.db.queries.get_by_merchant", new_callable=AsyncMock) as mock:
+        mock.return_value = []
+        await client.get("/api/summary/by-merchant")
+
+    _, kwargs = mock.call_args
+    assert kwargs["day"] is None
+
+
+async def test_by_merchant_day_narrows_results(client):
+    """?day= returns only merchants with transactions on that day."""
+    filtered = [{"merchant": "Netflix", "amount": 14.99, "count": 1}]
+    with patch("finlytics.db.queries.get_by_merchant", new_callable=AsyncMock) as mock:
+        mock.return_value = filtered
+        resp = await client.get("/api/summary/by-merchant?day=2024-06-03")
+
+    assert resp.status_code == 200
+    rows = resp.json()
+    assert len(rows) == 1
+    assert rows[0]["merchant"] == "Netflix"
+    _, kwargs = mock.call_args
+    assert kwargs["day"] == date(2024, 6, 3)
+
+
+# ── Cross-filter: day on overview ────────────────────────────────────────────
+
+async def test_overview_day_filter_forwarded(client):
+    """?day=2024-05-10 is forwarded to get_overview."""
+    with patch("finlytics.db.queries.get_overview", new_callable=AsyncMock) as mock:
+        mock.return_value = _OVERVIEW
+        resp = await client.get("/api/summary/overview?day=2024-05-10")
+
+    assert resp.status_code == 200
+    _, kwargs = mock.call_args
+    assert kwargs["day"] == date(2024, 5, 10)
+
+
+async def test_overview_day_none_when_not_provided(client):
+    with patch("finlytics.db.queries.get_overview", new_callable=AsyncMock) as mock:
+        mock.return_value = _OVERVIEW
+        await client.get("/api/summary/overview")
+
+    _, kwargs = mock.call_args
+    assert kwargs["day"] is None
+
+
+async def test_overview_day_narrows_totals(client):
+    """?day= narrows totals to a single day's transactions."""
+    day_filtered = {
+        **_OVERVIEW,
+        "total_expense": 50.0,
+        "total_income": 0.0,
+        "net": -50.0,
+        "num_transactions": 2,
+        "top_category": {"name": "Groceries", "amount": 50.0},
+    }
+    with patch("finlytics.db.queries.get_overview", new_callable=AsyncMock) as mock:
+        mock.return_value = day_filtered
+        resp = await client.get("/api/summary/overview?day=2024-05-10")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total_expense"] == 50.0
+    assert body["num_transactions"] == 2
+    _, kwargs = mock.call_args
+    assert kwargs["day"] == date(2024, 5, 10)
