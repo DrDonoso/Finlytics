@@ -5,7 +5,7 @@ import DateInput from './DateInput'
 import CategorySelect from './CategorySelect'
 import TagTypeahead from './TagTypeahead'
 
-export type EditRow = ImportTransaction & { _key: number }
+export type EditRow = ImportTransaction & { _key: number; isDuplicate?: boolean }
 
 interface Props {
   rows: EditRow[]
@@ -96,8 +96,9 @@ export default function ImportPreviewTable({
             {rows.map(row => {
               const lowConf = row.category_confidence !== null && row.category_confidence < 0.5
               const amountColor = row.amount < 0 ? 'var(--expense)' : row.amount > 0 ? 'var(--income)' : 'inherit'
+              const rowClass = [lowConf ? 'row-low-confidence' : '', row.isDuplicate ? 'row-duplicate' : ''].filter(Boolean).join(' ')
               return (
-                <tr key={row._key} className={lowConf ? 'row-low-confidence' : ''}>
+                <tr key={row._key} className={rowClass || undefined}>
                   <td>
                     <DateInput
                       className="cell-input cell-date"
@@ -113,6 +114,11 @@ export default function ImportPreviewTable({
                       value={row.description}
                       onChange={e => onUpdateRow(row._key, { description: e.target.value })}
                     />
+                    {row.isDuplicate && (
+                      <div className="import-dup-badge-wrap">
+                        <span className="import-dup-badge">{t.importDuplicateBadge}</span>
+                      </div>
+                    )}
                     {row.detail && (
                       <div className="tx-detail-subline tx-detail-subline--input-aligned">{row.detail}</div>
                     )}

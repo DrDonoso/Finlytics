@@ -159,6 +159,19 @@ export async function previewImport(file: File, accountName?: string): Promise<P
   return apiFetch<PreviewResponse>('/api/imports/preview', { method: 'POST', body: form })
 }
 
+/** POST /api/imports/check-duplicates — detects which preview rows already exist in the DB.
+ *  Callers must degrade gracefully on error (no marks, don't block preview). */
+export async function checkDuplicates(
+  accountName: string,
+  transactions: Array<{ transaction_date: string; amount: number; description: string; detail: string | null }>,
+): Promise<{ is_duplicate: boolean[] }> {
+  return apiFetch<{ is_duplicate: boolean[] }>('/api/imports/check-duplicates', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ account_name: accountName, transactions }),
+  })
+}
+
 /** Call POST /api/imports/confirm — does NOT fall back to mock on real errors. */
 export async function confirmImport(payload: ConfirmRequest): Promise<ImportResult> {
   if (USE_MOCK) return mockConfirmImport(payload)

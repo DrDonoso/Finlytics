@@ -131,6 +131,7 @@ export default function RuleFormModal({
   const [previewLoading, setPreviewLoading] = useState(false)
   const [previewErr, setPreviewErr] = useState(false)
   const [applying, setApplying] = useState(false)
+  const [applyOnSave, setApplyOnSave] = useState(false)
   const [applyToast, setApplyToast] = useState<string | null>(null)
 
   function toggleSection(section: 'identity' | 'conditions' | 'actions') {
@@ -208,22 +209,6 @@ export default function RuleFormModal({
     return () => clearTimeout(timer)
   }, [form.description_value, form.description_mode, form.detail_value, form.detail_mode, form.amount_sign, form.amount_min, form.amount_max, form.account_ref, form.currency]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function handleApply() {
-    setApplying(true)
-    setApplyToast(null)
-    try {
-      const result = await applyRule(buildPayload())
-      setApplyToast(t.rulesApplySuccess(result.applied))
-      setPreviewCount(0)
-      setTimeout(() => setApplyToast(null), 5000)
-    } catch (e) {
-      setApplyToast(String(e))
-      setTimeout(() => setApplyToast(null), 5000)
-    } finally {
-      setApplying(false)
-    }
-  }
-
   async function handleSave() {
     const validErr = validate()
     if (validErr) { setFormError(validErr); return }
@@ -236,10 +221,24 @@ export default function RuleFormModal({
       const result = editingRule !== undefined
         ? await updateRule(editingRule.id, payload)
         : await createRule(payload)
-      onSave(result)
+
+      if (applyOnSave && !conditionsEmpty && (previewCount ?? 0) > 0) {
+        setApplying(true)
+        try {
+          const applyResult = await applyRule(payload)
+          setApplyToast(t.rulesSaveAndApplyToast(applyResult.applied))
+        } catch {
+          onSave(result)   // apply failed — rule was saved, close immediately
+          return
+        } finally {
+          setApplying(false)
+        }
+        setTimeout(() => onSave(result), 1500)
+      } else {
+        onSave(result)
+      }
     } catch (e) {
       setFormError(String(e))
-    } finally {
       setSaving(false)
     }
   }
@@ -543,7 +542,7 @@ export default function RuleFormModal({
         </div>
 
         <div className="modal-footer">
-          {/* ── Preview count bar (left side) ─────────────────── */}
+          {/* ── Left: loading / error / none hint ────────────── */}
           <div className="rule-preview-bar">
             {applyToast ? (
               <span className="rule-preview-text rule-preview-text--ok">{applyToast}</span>
@@ -552,37 +551,31 @@ export default function RuleFormModal({
                 <span className="rule-preview-text rule-preview-text--loading">{t.rulesPreviewLoading}</span>
               ) : previewErr ? (
                 <span className="rule-preview-text rule-preview-text--error">{t.rulesPreviewError}</span>
-              ) : previewCount !== null && previewCount > 0 ? (
-                <span className="rule-preview-text">{t.rulesPreviewCount(previewCount)}</span>
               ) : previewCount === 0 ? (
                 <span className="rule-preview-text rule-preview-text--none">{t.rulesPreviewNone}</span>
               ) : null
             ) : null}
           </div>
 
-          {/* ── Apply button (visible when there are matches) ──── */}
-          {!conditionsEmpty && previewCount !== null && previewCount > 0 && (
-            <button
-              type="button"
-              className="btn-apply-rule"
-              onClick={handleApply}
-              disabled={applying || saving}
-              title={t.rulesApplyBtn(previewCount)}
-            >
-              {applying ? <span className="btn-spinner btn-spinner--amber" /> : t.rulesApplyBtn(previewCount)}
-            </button>
-          )}
-          {applying && (previewCount === null || previewCount === 0) && (
-            <button type="button" className="btn-apply-rule" disabled>
-              <span className="btn-spinner btn-spinner--amber" />
-            </button>
+          {/* ── Apply-on-save checkbox ────────────────────────── */}
+          {!conditionsEmpty && !previewLoading && previewCount !== null && previewCount > 0 && (
+            <label className="rules-apply-checkbox-label">
+              <input
+                type="checkbox"
+                className="rules-checkbox"
+                checked={applyOnSave}
+                onChange={e => setApplyOnSave(e.target.checked)}
+                disabled={saving || applying}
+              />
+              {t.rulesApplyCheckbox(previewCount)}
+            </label>
           )}
 
           <button type="button" className="btn-secondary" onClick={onClose} disabled={saving || applying}>
             {t.rulesBtnCancel}
           </button>
           <button type="button" className="btn-primary" onClick={handleSave} disabled={saving || applying}>
-            {saving ? '…' : t.rulesBtnSave}
+            {saving || applying ? '…' : applyOnSave ? t.rulesBtnSaveAndApply : t.rulesBtnSave}
           </button>
         </div>
 

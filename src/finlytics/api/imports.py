@@ -20,10 +20,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from finlytics.api.deps import get_db, get_llm_client
-from finlytics.api.schemas import ConfirmIn, ImportResult, PreviewOut, SuggestedTag, mask_account_number
+from finlytics.api.schemas import CheckDuplicatesIn, CheckDuplicatesOut, ConfirmIn, ImportResult, PreviewOut, SuggestedTag, mask_account_number
 from finlytics.contracts import ExtractedTransaction
-from finlytics.db.models import Account, ImportRun, Tag
-from finlytics.db.repository import list_rules, upsert_transactions
+from finlytics.db.models import Account, ImportRun, Tag, Transaction
+from finlytics.db.repository import compute_dedup_hash, list_rules, upsert_transactions
 from finlytics.extraction.extractor import detect_statement_year, extract_account_number, extract_transactions
 from finlytics.extraction.prematch import pre_match_rules
 from finlytics.extraction.rules import apply_rules
@@ -261,6 +261,50 @@ async def confirm_import(
             tag_colors=body.tag_colors,
         )
     return result
+
+
+# ── Check-duplicates endpoint ─────────────────────────────────────────────────
+
+@router.post("/check-duplicates", response_model=CheckDuplicatesOut)
+async def check_duplicates(
+    body: CheckDuplicatesIn = Body(...),
+    session: AsyncSession = Depends(get_db),
+) -> CheckDuplicatesOut:
+    """Flag which preview transactions would be skipped by confirm.
+
+    For each input transaction, computes ``compute_dedup_hash`` using the
+    same normalization as ``upsert_transactions``, then queries
+    ``transactions.dedup_hash`` in one round-trip.
+
+    Also flags intra-batch repeats (second+ occurrence of the same hash)
+    so the frontend can surface all duplicates in one pass.
+    """
+    if not body.transactions:
+        return CheckDuplicatesOut(is_duplicate=[])
+
+    hashes = [
+        compute_dedup_hash(
+            account_ref=body.account_name,
+            transaction_date=item.transaction_date,
+            amount=item.amount,
+            description=item.description,
+            detail=item.detail,
+        )
+        for item in body.transactions
+    ]
+
+    result = await session.execute(
+        select(Transaction.dedup_hash).where(Transaction.dedup_hash.in_(hashes))
+    )
+    existing: set[str] = set(result.scalars().all())
+
+    is_duplicate: list[bool] = []
+    seen: set[str] = set()
+    for h in hashes:
+        is_duplicate.append(h in existing or h in seen)
+        seen.add(h)
+
+    return CheckDuplicatesOut(is_duplicate=is_duplicate)
 
 
 # ── One-shot endpoint (kept for backwards compatibility) ──────────────────────

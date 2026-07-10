@@ -8,6 +8,7 @@ the DB stores full Numeric(14,2) precision.
 from __future__ import annotations
 
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Literal
 
 from pydantic import BaseModel
@@ -301,6 +302,30 @@ class ConfirmIn(BaseModel):
     transactions: list[ExtractedTransaction]
     tag_colors: dict[str, str] | None = None
     account_number: str | None = None  # full IBAN; when provided, account resolved by number
+
+
+class CheckDuplicatesItem(BaseModel):
+    """Single transaction entry for POST /api/imports/check-duplicates."""
+    transaction_date: date
+    amount: Decimal  # signed; Decimal preserves exact string form for dedup_hash
+    description: str
+    detail: str | None = None
+
+
+class CheckDuplicatesIn(BaseModel):
+    """Request body for POST /api/imports/check-duplicates."""
+    account_name: str
+    transactions: list[CheckDuplicatesItem]
+
+
+class CheckDuplicatesOut(BaseModel):
+    """Response for POST /api/imports/check-duplicates.
+
+    ``is_duplicate[i]`` is True when transaction[i] would be silently skipped
+    by confirm (its dedup_hash already exists in the DB, OR it is a repeat of
+    an earlier entry in this same request batch).
+    """
+    is_duplicate: list[bool]
 
 
 # ── Rules ─────────────────────────────────────────────────────────────────────
