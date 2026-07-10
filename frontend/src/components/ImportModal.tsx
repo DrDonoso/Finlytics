@@ -15,11 +15,12 @@ type Step = 'upload' | 'extracting' | 'account' | 'preview' | 'saving'
 type EditRow = ImportTransaction & { _key: number }
 
 interface Props {
-  accounts:   Account[]
-  categories: Category[]
-  allTags:    Tag[]
-  onClose:    () => void
-  onSuccess:  (result: ImportResult) => void
+  accounts:     Account[]
+  categories:   Category[]
+  allTags:      Tag[]
+  onClose:      () => void
+  onSuccess:    (result: ImportResult) => void
+  initialFile?: File
 }
 
 function friendlyError(e: unknown, t: Dict): string {
@@ -50,16 +51,17 @@ function toImportTxn(row: EditRow): ImportTransaction {
 }
 
 
-export default function ImportModal({ accounts, categories, allTags, onClose, onSuccess }: Props) {
+export default function ImportModal({ accounts, categories, allTags, onClose, onSuccess, initialFile }: Props) {
   const { t, lang, formatCurrency } = useT()
-  const [step,            setStep]            = useState<Step>('upload')
-  const [file,            setFile]            = useState<File | null>(null)
+  const [step,            setStep]            = useState<Step>(() => initialFile ? 'extracting' : 'upload')
+  const [file,            setFile]            = useState<File | null>(initialFile ?? null)
   const [accountName,     setAccountName]     = useState('')
   const [newAccountMode,  setNewAccountMode]  = useState(false)
   const [preview,         setPreview]         = useState<PreviewResponse | null>(null)
   const [rows,            setRows]            = useState<EditRow[]>([])
   const [error,           setError]           = useState<string | null>(null)
   const nextKey = useRef(0)
+  const changeFileRef = useRef<HTMLInputElement>(null)
 
   // Account detection state (populated after preview call)
   const [detectedMasked, setDetectedMasked] = useState<string | null>(null)
@@ -145,13 +147,14 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
 
   // ── Phase 1 → upload file, call preview ──────────────────────────────────────
 
-  async function handleUpload() {
+  async function handleUpload(fileOverride?: File) {
+    const f = fileOverride ?? file
     setSubmitAttempted(true)
-    if (!file) return
+    if (!f) return
     setStep('extracting')
     setError(null)
     try {
-      const p = await previewImport(file)
+      const p = await previewImport(f)
       setPreview(p)
 
       const dm = p.detected_account_masked ?? null
@@ -177,6 +180,11 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
       setStep('upload')
     }
   }
+
+  // Auto-start processing when modal opens with a pre-selected file
+  useEffect(() => {
+    if (initialFile) handleUpload(initialFile)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Phase 2 → account resolution → proceed to preview ────────────────────────
 
@@ -263,17 +271,40 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
         </div>
 
         <div className="modal-body">
-          {/* ── Phase 1: File picker ────────────────────────────────────────── */}
+          {/* ── Phase 1: Styled file picker (shown on error recovery) ──────── */}
           {step === 'upload' && (
             <div className="upload-form">
               <div className="form-group">
-                <label htmlFor="import-file">{t.modalFileLabel} <span className="rules-required">*</span></label>
+                <label htmlFor="import-file-btn">
+                  {t.modalFileLabel} <span className="rules-required">*</span>
+                </label>
+                <div className="file-picker-wrap">
+                  <button
+                    id="import-file-btn"
+                    type="button"
+                    className={`btn-secondary file-picker-btn${showFileError ? ' file-picker-btn--error' : ''}`}
+                    onClick={() => changeFileRef.current?.click()}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                      <polyline points="17 8 12 3 7 8"/>
+                      <line x1="12" y1="3" x2="12" y2="15"/>
+                    </svg>
+                    {t.modalChangeFile}
+                  </button>
+                  {file && <span className="file-picker-chosen">{file.name}</span>}
+                </div>
                 <input
-                  id="import-file"
-                  className={`form-input${showFileError ? ' form-input--error' : ''}`}
+                  ref={changeFileRef}
                   type="file"
-                  accept=".pdf"
-                  onChange={e => setFile(e.target.files?.[0] ?? null)}
+                  accept=".pdf,application/pdf"
+                  hidden
+                  aria-hidden="true"
+                  tabIndex={-1}
+                  onChange={e => {
+                    setFile(e.target.files?.[0] ?? null)
+                    if (changeFileRef.current) changeFileRef.current.value = ''
+                  }}
                 />
                 {showFileError
                   ? <span className="form-field-error">{t.modalFileRequired}</span>
@@ -603,7 +634,7 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
             {step === 'upload' && (
               <button
                 className="btn-primary"
-                onClick={handleUpload}
+                onClick={() => handleUpload()}
                 disabled={!file}
               >
                 {t.modalBtnExtract}

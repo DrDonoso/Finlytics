@@ -39,6 +39,7 @@ const es: Dict = {
   modalClose: 'Cerrar',
   modalFileLabel: 'Archivo de extracto',
   modalFileHint: 'Solo archivos .pdf (xlsx/csv próximamente)',
+  modalChangeFile: 'Cambiar archivo',
   modalAccountLabel: 'Cuenta',
   modalAccountPlaceholder: 'Selecciona o escribe el nombre de la cuenta',
   modalAccountHint: 'Selecciona una cuenta existente o escribe una nueva (p. ej. «BBVA»)',

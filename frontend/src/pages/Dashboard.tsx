@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import type { Account, Category, Tag, GlobalFilters, Overview, CategorySummary, MonthSummary, AccountSummary, ImportResult, CashflowSummary } from '../api/types'
 import {
   getAccounts, getCategories, getTags, getOverview,
@@ -13,6 +13,7 @@ import CashflowSankey from '../components/CashflowSankey'
 import CategoryMovers from '../components/CategoryMovers'
 import TransactionsTable from '../components/TransactionsTable'
 import ImportModal from '../components/ImportModal'
+import ImportLauncher, { type ImportLauncherHandle } from '../components/ImportLauncher'
 import { useT } from '../i18n'
 import { defaultRange } from '../utils'
 import { previousCalendarMonth } from '../utils/comparison'
@@ -46,12 +47,13 @@ export default function Dashboard() {
   const [prevOverview,    setPrevOverview]    = useState<AsyncState<Overview>>(idle())
   const [prevByCategory,  setPrevByCategory]  = useState<AsyncState<CategorySummary[]>>(idle())
 
-  const [showImport, setShowImport] = useState(false)
+  const [importFile, setImportFile] = useState<File | null>(null)
+  const launcherRef = useRef<ImportLauncherHandle>(null)
   const [refreshKey, setRefreshKey] = useState(0)
   const [toast,      setToast]      = useState<string | null>(null)
 
   function handleImportSuccess(result: ImportResult) {
-    setShowImport(false)
+    setImportFile(null)
     setToast(t.toastSuccess(result.num_inserted, result.num_duplicates))
     setTimeout(() => setToast(null), 6000)
     setRefreshKey(k => k + 1)
@@ -149,7 +151,7 @@ export default function Dashboard() {
           />
           <button
             className="btn-primary dashboard-header-import"
-            onClick={() => setShowImport(true)}
+            onClick={() => launcherRef.current?.open()}
           >
             {t.btnImport}
           </button>
@@ -211,12 +213,15 @@ export default function Dashboard() {
         />
       </main>
 
-      {showImport && (
+      <ImportLauncher ref={launcherRef} onFile={f => setImportFile(f)} />
+
+      {importFile && (
         <ImportModal
           accounts={accounts}
           categories={categories}
           allTags={allTags}
-          onClose={() => setShowImport(false)}
+          initialFile={importFile}
+          onClose={() => setImportFile(null)}
           onSuccess={handleImportSuccess}
         />
       )}

@@ -44,6 +44,7 @@ export interface Dict {
   modalClose: string
   modalFileLabel: string
   modalFileHint: string
+  modalChangeFile: string
   modalAccountLabel: string
   modalAccountPlaceholder: string
   modalAccountHint: string

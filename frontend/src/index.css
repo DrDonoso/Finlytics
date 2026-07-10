@@ -3550,3 +3550,37 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
   border: 1px solid rgba(99, 102, 241, 0.3);
   color: var(--text);
 }
+
+/* ─── Styled file picker (ImportModal upload / error-recovery step) ── */
+.file-picker-wrap {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  min-height: 40px;
+}
+
+.file-picker-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.file-picker-btn--error {
+  border-color: var(--expense) !important;
+  color: var(--expense) !important;
+}
+
+.file-picker-chosen {
+  font-size: 13px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+@media (max-width: 600px) {
+  .file-picker-btn { height: 44px; }
+}
