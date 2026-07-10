@@ -4,6 +4,25 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260710.02] - 2026-07-10
+
+- Trim the overloaded home: remove the embedded full transactions table; move the heavy analytical charts (spending over time, by account, cashflow Sankey) to a new "Trends" view at /analytics.
+- Add a Top-merchants donut and a GitHub-style daily spending heatmap with adaptive cell size (large for a single month, small for a year).
+- Click-to-filter across the home: category, merchant and day are pinnable filters shown as removable chips; clicking any chart filters the rest.
+- Constant unfiltered "current net" KPI in the header; a "View transactions" button that carries the active filters to /transactions.
+- Date-picker year navigation; logo/title links to Home; show "clear filters" when the date range changes; reserve chart heights to avoid layout shift.
+- New GET /api/summary/by-merchant (expenses grouped by merchant, excludes null/empty merchant) and GET /api/summary/by-day (daily expense/income/net).
+- Add an exact-date `day` filter to _apply_filters and thread `merchant` + `day` cross-filters through the summary endpoints so clicking a chart filters the rest (each chart never self-filters its own dimension).
+- New tests bring the suite to 832 passed / 2 skipped.
+- Preview rows re-run the duplicate check when an identity field (date, amount, description) is edited, debounced 400ms with stale-response protection; the "Duplicada" badge and count now update live.
+- Replaced the stuck/empty confirm-phase progress bar with the same spinner used during PDF extraction.
+- Import preview now flags DUPLICATE rows (dimmed + "Duplicada" badge + per-group count) via a new POST /api/imports/check-duplicates endpoint that reuses the dedup hash (so flags match what confirm would skip; also flags intra-batch repeats).
+- Rule form: the "apply to N" action is now a checkbox; Save becomes "Guardar y aplicar" when checked (saves the rule then applies it to matching transactions). Count copy fixed to "Aplicar a N transacciones" with singular/plural and the "transacciones" accent typo corrected.
+- Confirm-phase progress bar is now visible and advances (was invisible: undefined --accent -> --primary) with a per-file spinner/counter; import preview tag suggestions are ordered by usage (tx_count desc).
+- fix(import): spinner on the active file and replace the stuck progress bar
+- feat(import): batch-import multiple statement PDFs at once
+
+
 ## [20260710] - 2026-07-10
 
 - feat(import): one-click file selection and a styled, localized file picker
