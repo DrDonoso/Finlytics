@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import type { Account, Category, Tag, Overview, TransactionsViewFilters } from '../api/types'
 import { getAccounts, getCategories, getTags, getOverview } from '../api/client'
 import { useT, categoryLabel, formatDate, DEFAULT_TAG_COLOR, tagTextColor } from '../i18n'
@@ -12,8 +13,32 @@ const DEFAULT_FILTERS: TransactionsViewFilters = {
   tags: [],
 }
 
+/** Parse URLSearchParams (from Dashboard navigation) into TransactionsViewFilters.
+ *  Returns null when no relevant params are present so the caller can fall back to defaults.
+ *  Robust: ignores malformed values, never throws. */
+function filtersFromParams(params: URLSearchParams): TransactionsViewFilters | null {
+  const from       = params.get('from') ?? ''
+  const to         = params.get('to')   ?? ''
+  const rawAcct    = params.get('account_id')
+  const rawCat     = params.get('category_id')
+  const rawFlow    = params.get('flow')
+  const rawMerch   = params.get('merchant') ?? ''
+  const tags       = params.getAll('tag')
+
+  const hasParams = from || to || rawAcct || rawCat || rawFlow || rawMerch || tags.length > 0
+  if (!hasParams) return null
+
+  const account_id  = rawAcct  ? (isNaN(Number(rawAcct))  ? undefined : Number(rawAcct))  : undefined
+  const category_id = rawCat   ? (isNaN(Number(rawCat))   ? undefined : Number(rawCat))   : undefined
+  const flow        = (rawFlow === 'expense' || rawFlow === 'income') ? rawFlow : undefined
+  const merchant    = rawMerch.trim() || undefined
+
+  return { from, to, tags, account_id, category_id, flow, merchant }
+}
+
 export default function TransactionsPage() {
   const { t, lang, formatCurrency } = useT()
+  const [searchParams] = useSearchParams()
 
   const [accounts,   setAccounts]   = useState<Account[]>([])
   const [categories, setCategories] = useState<Category[]>([])
@@ -21,14 +46,18 @@ export default function TransactionsPage() {
 
   const [panelOpen, setPanelOpen] = useState(false)
 
-  // Committed filter state (sent to API)
-  const [filters, setFilters] = useState<TransactionsViewFilters>(DEFAULT_FILTERS)
+  // Committed filter state — seeded from URL on first mount, then local-only
+  const [filters, setFilters] = useState<TransactionsViewFilters>(
+    () => filtersFromParams(searchParams) ?? DEFAULT_FILTERS,
+  )
 
-  // Raw input values for debounced controls
+  // Raw input values for debounced controls — merchant seeded from URL if present
   const [descRaw,      setDescRaw]      = useState('')
   const [amountMinRaw, setAmountMinRaw] = useState('')
   const [amountMaxRaw, setAmountMaxRaw] = useState('')
-  const [merchantRaw,  setMerchantRaw]  = useState('')
+  const [merchantRaw,  setMerchantRaw]  = useState(
+    () => filtersFromParams(searchParams)?.merchant ?? '',
+  )
 
   // Overview / totals
   const [overview,        setOverview]        = useState<Overview | null>(null)

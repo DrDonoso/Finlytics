@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Outlet, NavLink, useLocation } from 'react-router-dom'
+import { Outlet, NavLink, Link, useLocation } from 'react-router-dom'
 import { useT } from '../i18n'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -58,8 +58,10 @@ export default function Layout() {
         >
           <span className="hamburger-icon">☰</span>
         </button>
-        <img src="/logo.png" alt="Finlytics" className="topbar-logo-img" />
-        <span className="topbar-logo">Finlytics</span>
+        <Link to="/" className="topbar-logo-link">
+          <img src="/logo.png" alt="Finlytics" className="topbar-logo-img" />
+          <span className="topbar-logo">Finlytics</span>
+        </Link>
       </header>
 
       {/* ── Mobile overlay ───────────────────────────────────── */}
@@ -89,6 +91,11 @@ export default function Layout() {
           <NavLink to="/transactions" className={navLinkClass}>
             <span className="nav-icon">📋</span>
             <span className="nav-label">{t.navTransactions}</span>
+          </NavLink>
+
+          <NavLink to="/analytics" className={navLinkClass}>
+            <span className="nav-icon">📈</span>
+            <span className="nav-label">{t.navAnalytics}</span>
           </NavLink>
 
           <NavLink to="/statements" className={navLinkClass}>

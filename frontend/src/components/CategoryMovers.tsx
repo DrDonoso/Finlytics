@@ -49,7 +49,7 @@ export default function CategoryMovers({
   const isLoading = loading || prevLoading
 
   return (
-    <div className="card">
+    <div className="card movers-card">
       <div className="card-title">{t.moversTitle}</div>
 
       {error && (

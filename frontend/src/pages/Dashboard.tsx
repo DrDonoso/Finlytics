@@ -1,17 +1,16 @@
 import { useState, useEffect, useRef } from 'react'
-import type { Account, Category, Tag, GlobalFilters, Overview, CategorySummary, MonthSummary, AccountSummary, ImportResult, CashflowSummary } from '../api/types'
+import { useNavigate } from 'react-router-dom'
+import type { Account, Category, Tag, GlobalFilters, Overview, CategorySummary, ImportResult } from '../api/types'
 import {
   getAccounts, getCategories, getTags, getOverview,
-  getByCategory, getByMonth, getByAccount, getCashflow,
+  getByCategory,
 } from '../api/client'
 import GlobalFilterBar from '../components/GlobalFilterBar'
 import KpiCards from '../components/KpiCards'
 import SpendingByCategory from '../components/SpendingByCategory'
-import SpendingOverTime from '../components/SpendingOverTime'
-import SpendingByAccount from '../components/SpendingByAccount'
-import CashflowSankey from '../components/CashflowSankey'
 import CategoryMovers from '../components/CategoryMovers'
-import TransactionsTable from '../components/TransactionsTable'
+import SpendingHeatmap from '../components/SpendingHeatmap'
+import TopMerchants from '../components/TopMerchants'
 import ImportModal from '../components/ImportModal'
 import ImportLauncher, { type ImportLauncherHandle } from '../components/ImportLauncher'
 import { useT } from '../i18n'
@@ -30,8 +29,25 @@ interface AsyncState<T> {
 
 function idle<T>(): AsyncState<T> { return { loading: true, error: null, data: null } }
 
+/** Serialize GlobalFilters to URLSearchParams for the Transactions page.
+ *  Special rule: day → from=<day>&to=<day>; no `day` param sent. */
+function filtersToParams(f: GlobalFilters): string {
+  const p = new URLSearchParams()
+  if (f.from) p.set('from', f.from)
+  if (f.to)   p.set('to',   f.to)
+  // day overrides from/to (Transactions uses date range, not exact day)
+  if (f.day)  { p.set('from', f.day); p.set('to', f.day) }
+  if (f.account_id  !== undefined) p.set('account_id',  String(f.account_id))
+  if (f.category_id !== undefined) p.set('category_id', String(f.category_id))
+  if (f.flow)     p.set('flow',     f.flow)
+  if (f.merchant) p.set('merchant', f.merchant)
+  for (const tag of f.tags) p.append('tag', tag)
+  return p.toString()
+}
+
 export default function Dashboard() {
   const { t } = useT()
+  const navigate = useNavigate()
   const [filters, setFilters] = useState<GlobalFilters>(makeDefaultFilters)
   const [accounts,   setAccounts]   = useState<Account[]>([])
   const [categories, setCategories] = useState<Category[]>([])
@@ -39,9 +55,9 @@ export default function Dashboard() {
 
   const [overview,   setOverview]   = useState<AsyncState<Overview>>(idle())
   const [byCategory, setByCategory] = useState<AsyncState<CategorySummary[]>>(idle())
-  const [byMonth,    setByMonth]    = useState<AsyncState<MonthSummary[]>>(idle())
-  const [byAccount,  setByAccount]  = useState<AsyncState<AccountSummary[]>>(idle())
-  const [cashflow,   setCashflow]   = useState<AsyncState<CashflowSummary>>(idle())
+
+  // Unfiltered net — refreshes only on import, ignores all active filters
+  const [globalOverview, setGlobalOverview] = useState<AsyncState<Overview>>(idle())
 
   // Previous-period data for comparison (Slice 1 + 2 — fetched client-side)
   const [prevOverview,    setPrevOverview]    = useState<AsyncState<Overview>>(idle())
@@ -65,6 +81,14 @@ export default function Dashboard() {
     getTags().then(setAllTags).catch(() => {})
   }, [])
 
+  // Unfiltered overview — only re-runs when data changes (import), not on filter changes
+  useEffect(() => {
+    setGlobalOverview(idle())
+    getOverview()
+      .then(d  => setGlobalOverview({ loading: false, error: null,     data: d }))
+      .catch(e => setGlobalOverview({ loading: false, error: String(e), data: null }))
+  }, [refreshKey])
+
   useEffect(() => {
     const params = {
       from:        filters.from || undefined,
@@ -73,13 +97,12 @@ export default function Dashboard() {
       category_id: filters.category_id,
       tags:        filters.tags.length > 0 ? filters.tags : undefined,
       flow:        filters.flow,
+      merchant:    filters.merchant || undefined,
+      day:         filters.day || undefined,
     }
 
     setOverview(idle())
     setByCategory(idle())
-    setByMonth(idle())
-    setByAccount(idle())
-    setCashflow(idle())
     setPrevOverview(idle())
     setPrevByCategory(idle())
 
@@ -88,47 +111,28 @@ export default function Dashboard() {
       .catch(e => setOverview ({ loading: false, error: String(e), data: null }))
 
     // by-category donut shows ALL categories (no category_id) so the user can switch/clear
-    getByCategory({ from: params.from, to: params.to, account_id: params.account_id, tags: params.tags, flow: params.flow })
+    getByCategory({ from: params.from, to: params.to, account_id: params.account_id, tags: params.tags, flow: params.flow, merchant: params.merchant, day: params.day })
       .then(d  => setByCategory({ loading: false, error: null,     data: d }))
       .catch(e => setByCategory({ loading: false, error: String(e), data: null }))
 
-    getByMonth(params)
-      .then(d  => setByMonth({ loading: false, error: null,     data: d }))
-      .catch(e => setByMonth({ loading: false, error: String(e), data: null }))
-
-    // by-account: no account_id (chart shows all accounts) but apply category + tag + flow
-    getByAccount({ from: params.from, to: params.to, category_id: params.category_id, tags: params.tags, flow: params.flow })
-      .then(d  => setByAccount({ loading: false, error: null,     data: d }))
-      .catch(e => setByAccount({ loading: false, error: String(e), data: null }))
-
-    getCashflow(params)
-      .then(d  => setCashflow({ loading: false, error: null,     data: d }))
-      .catch(e => setCashflow({ loading: false, error: String(e), data: null }))
-
     // ── Previous-period fetches (Slice 1 + 2) ─────────────────────────────
     // Derive previous calendar month from the filter's from-date.
-    // Pass same non-date filters (account, tags, flow) to both calls for consistency.
     const prevRange = previousCalendarMonth(filters.from)
     if (prevRange) {
-      const prevParams = { ...params, from: prevRange.from, to: prevRange.to }
+      // prev period: spread merchant but NOT day (keep month-over-month comparison meaningful)
+      const prevParams = { ...params, from: prevRange.from, to: prevRange.to, day: undefined }
       getOverview(prevParams)
         .then(d  => setPrevOverview({ loading: false, error: null,     data: d }))
         .catch(() => setPrevOverview({ loading: false, error: null,     data: null }))
 
-      // Previous by-category: same as current (no category_id, all categories)
-      getByCategory({ from: prevRange.from, to: prevRange.to, account_id: params.account_id, tags: params.tags, flow: params.flow })
+      getByCategory({ from: prevRange.from, to: prevRange.to, account_id: params.account_id, tags: params.tags, flow: params.flow, merchant: params.merchant })
         .then(d  => setPrevByCategory({ loading: false, error: null,     data: d }))
         .catch(() => setPrevByCategory({ loading: false, error: null,     data: null }))
     } else {
-      // No valid previous range (edge case) — clear comparison data
       setPrevOverview({ loading: false, error: null, data: null })
       setPrevByCategory({ loading: false, error: null, data: null })
     }
   }, [filters, refreshKey])
-
-  function handleFlowClick(flow: 'expense' | 'income' | undefined) {
-    setFilters(f => ({ ...f, flow }))
-  }
 
   return (
     <>
@@ -148,16 +152,28 @@ export default function Dashboard() {
             error={overview.error}
             compact
             previousOverview={prevOverview.data}
+            constantOverview={globalOverview.data}
           />
-          <button
-            className="btn-primary dashboard-header-import"
-            onClick={() => launcherRef.current?.open()}
-          >
-            {t.btnImport}
-          </button>
+          <div className="dashboard-header-actions">
+            <button
+              className="btn-secondary"
+              onClick={() => {
+                const qs = filtersToParams(filters)
+                navigate(`/transactions${qs ? `?${qs}` : ''}`)
+              }}
+            >
+              {t.btnViewTransactions}
+            </button>
+            <button
+              className="btn-primary"
+              onClick={() => launcherRef.current?.open()}
+            >
+              {t.btnImport}
+            </button>
+          </div>
         </div>
 
-        {/* Row B: gastos por categoría | detalle de movimientos */}
+        {/* Row: gastos por categoría | top comercios */}
         <div className="charts-row-category">
           <SpendingByCategory
             data={byCategory.data ?? []}
@@ -167,50 +183,36 @@ export default function Dashboard() {
             selectedCategoryId={filters.category_id}
             onCategoryClick={(id) => setFilters(f => ({ ...f, category_id: id }))}
           />
-          <TransactionsTable
+          <TopMerchants
             globalFilters={filters}
-            categories={categories}
-            allTags={allTags}
+            selectedMerchant={filters.merchant}
+            onMerchantClick={m => setFilters(f => ({ ...f, merchant: f.merchant === m ? undefined : m }))}
+            refreshKey={refreshKey}
+            periodTotalExpense={overview.data?.total_expense ?? null}
+          />
+        </div>
+
+        {/* Full-width: spending heatmap */}
+        <div className="charts-row-full">
+          <SpendingHeatmap
+            globalFilters={filters}
+            selectedDay={filters.day}
+            onDayClick={day => setFilters(f => ({ ...f, day: f.day === day ? undefined : day }))}
             refreshKey={refreshKey}
           />
         </div>
 
-        {/* Top movers: current vs previous calendar month */}
-        <CategoryMovers
-          current={byCategory.data ?? []}
-          previous={prevByCategory.data ?? []}
-          categories={categories}
-          loading={byCategory.loading}
-          prevLoading={prevByCategory.loading}
-          error={byCategory.error}
-        />
-
-        {/* Row A: desglose por cuenta | evolución mensual */}
-        <div className="charts-row">
-          <SpendingByAccount
-            data={byAccount.data ?? []}
-            loading={byAccount.loading}
-            error={byAccount.error}
-            selectedFlow={filters.flow}
-            onFlowClick={handleFlowClick}
-          />
-          <SpendingOverTime
-            data={byMonth.data ?? []}
-            loading={byMonth.loading}
-            error={byMonth.error}
-            selectedFlow={filters.flow}
-            onFlowClick={handleFlowClick}
+        {/* Full-width: category movers */}
+        <div className="charts-row-full">
+          <CategoryMovers
+            current={byCategory.data ?? []}
+            previous={prevByCategory.data ?? []}
+            categories={categories}
+            loading={byCategory.loading}
+            prevLoading={prevByCategory.loading}
+            error={byCategory.error}
           />
         </div>
-
-        <CashflowSankey
-          data={cashflow.data ?? null}
-          loading={cashflow.loading}
-          error={cashflow.error}
-          categories={categories}
-          selectedCategoryId={filters.category_id}
-          onCategoryClick={(id) => setFilters(f => ({ ...f, category_id: id }))}
-        />
       </main>
 
       <ImportLauncher ref={launcherRef} onFiles={files => setImportFiles(files)} />
@@ -235,3 +237,4 @@ export default function Dashboard() {
     </>
   )
 }
+

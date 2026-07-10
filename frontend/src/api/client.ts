@@ -1,12 +1,12 @@
 import type {
   Account, Category, Tag, TransactionPage, Overview,
-  CategorySummary, MonthSummary, AccountSummary, ImportResult,
+  CategorySummary, MonthSummary, DaySummary, AccountSummary, ImportResult,
   ImportTransaction, PreviewResponse, ConfirmRequest,
   TransactionsParams, SummaryParams, MonthSummaryParams,
   Transaction, TransactionPatch, CashflowSummary, CategoryPatch,
   AuthStatus, AuthUser, BackupImportSummary,
   Rule, RuleInput, RulePatch,
-  StatementMonth,
+  StatementMonth, MerchantSummary,
 } from './types'
 import {
   mockGetAccounts, mockGetCategories, mockGetTags, mockGetTransactions,
@@ -16,6 +16,7 @@ import {
   mockCreateTag, mockUpdateTag, mockDeleteTag, mockUpdateCategory,
   mockCreateCategory,
   mockGetAuthStatus, mockSetupUser, mockLogin, mockLogout, mockGetMe,
+  mockGetByMerchant, mockGetByDay,
 } from './mock'
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === '1'
@@ -137,6 +138,18 @@ export async function getByAccount(params?: SummaryParams): Promise<AccountSumma
   if (USE_MOCK) return mockGetByAccount(params)
   try { return await apiFetch<AccountSummary[]>(buildUrl('/api/summary/by-account', params as Record<string, unknown>)) }
   catch { return mockGetByAccount(params) }
+}
+
+export async function getByMerchant(params?: SummaryParams): Promise<MerchantSummary[]> {
+  if (USE_MOCK) return mockGetByMerchant(params)
+  try { return await apiFetch<MerchantSummary[]>(buildUrl('/api/summary/by-merchant', params as Record<string, unknown>)) }
+  catch { return mockGetByMerchant(params) }
+}
+
+export async function getByDay(params?: MonthSummaryParams): Promise<DaySummary[]> {
+  if (USE_MOCK) return mockGetByDay(params)
+  try { return await apiFetch<DaySummary[]>(buildUrl('/api/summary/by-day', params as Record<string, unknown>)) }
+  catch { return mockGetByDay(params) }
 }
 
 export async function postImport(file: File, accountName: string): Promise<ImportResult> {

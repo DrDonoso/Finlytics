@@ -21,7 +21,7 @@ export default function SpendingByAccount({ data, loading, error, selectedFlow, 
   }
 
   return (
-    <div className="card">
+    <div className="card byaccount-card">
       <div className="card-title">{t.chartByAccount}</div>
 
       {error && (

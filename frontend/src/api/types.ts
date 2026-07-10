@@ -78,6 +78,7 @@ export interface SummaryParams {
   amount_min?: number
   amount_max?: number
   merchant?: string
+  day?: string
 }
 
 // MonthSummaryParams is now identical to SummaryParams (category_id merged up)
@@ -108,6 +109,13 @@ export interface CategorySummary {
 
 export interface MonthSummary {
   month: string           // "YYYY-MM"
+  expense: number         // positive magnitude
+  income: number          // positive
+  net: number
+}
+
+export interface DaySummary {
+  day: string             // "YYYY-MM-DD"
   expense: number         // positive magnitude
   income: number          // positive
   net: number
@@ -192,6 +200,10 @@ export interface TransactionPatch {
 export interface CategoryPatch {
   color?: string
 }
+
+// ─── Merchant summary ────────────────────────────────────────────────────────
+
+export interface MerchantSummary { merchant: string; amount: number; count: number }
 
 // ─── Cashflow summary ─────────────────────────────────────────────────────────
 
@@ -314,6 +326,8 @@ export interface GlobalFilters {
   category_id?: number
   tags: string[]
   flow?: 'expense' | 'income'
+  merchant?: string
+  day?: string
 }
 
 /** Superset of GlobalFilters used by the Transactions full-page view. */

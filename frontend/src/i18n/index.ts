@@ -339,6 +339,29 @@ export interface Dict {
   batchRetryFile:         string
   importDuplicateBadge:   string
   importDuplicateCount:   (n: number) => string
+  // ── Spending heatmap ──────────────────────────────────────────────────────
+  heatmapTitle: string
+  heatmapLess: string
+  heatmapMore: string
+  heatmapEmpty: string
+  // ── Top merchants panel ───────────────────────────────────────────────────
+  topMerchantsTitle: string
+  topMerchantsEmpty: string
+  topMerchantsCenterLabel: string
+  merchantCoverage: (pct: number) => string
+  // ── Cross-filter chips ────────────────────────────────────────────────────
+  filterChipMerchant: string
+  filterChipDay: string
+  // ── Analytics / Tendencias page ───────────────────────────────────────────
+  navAnalytics: string
+  analyticsTitle: string
+  // ── Home → Transactions navigation ────────────────────────────────────────
+  btnViewTransactions: string
+  // ── DatePicker year navigation ────────────────────────────────────────────
+  datePickerPrevYear: string
+  datePickerNextYear: string
+  // ── Constant (unfiltered) net KPI ─────────────────────────────────────────
+  kpiCurrentNet: string
 }
 
 const ES_LABELS: Record<string, string> = {

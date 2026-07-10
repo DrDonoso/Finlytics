@@ -8,6 +8,8 @@ interface Props {
   error: string | null
   compact?: boolean
   previousOverview?: Overview | null
+  /** All-time unfiltered net shown as a constant anchor (compact header only). */
+  constantOverview?: Overview | null
 }
 
 interface KpiDef {
@@ -46,7 +48,7 @@ function DeltaBadge({ delta, invert }: { delta?: DeltaResult; invert?: boolean }
   )
 }
 
-export default function KpiCards({ overview, loading, error, compact, previousOverview }: Props) {
+export default function KpiCards({ overview, loading, error, compact, previousOverview, constantOverview }: Props) {
   const { t, lang, formatCurrency } = useT()
 
   function buildKpis(o: Overview, prev: Overview | null | undefined): KpiDef[] {
@@ -99,6 +101,17 @@ export default function KpiCards({ overview, loading, error, compact, previousOv
     if (loading || !overview) {
       return (
         <div className="header-kpis">
+          {constantOverview != null && (
+            <>
+              <div className="header-kpi-item">
+                <div className="header-kpi-label">{t.kpiCurrentNet}</div>
+                <div className={`header-kpi-value ${constantOverview.net >= 0 ? 'net-pos' : 'net-neg'}`}>
+                  {formatCurrency(constantOverview.net)}
+                </div>
+              </div>
+              <div className="header-kpi-divider" aria-hidden="true" />
+            </>
+          )}
           {[0, 1, 2, 3, 4, 5].map(i => (
             <div key={i} className="header-kpi-item">
               <div className="skeleton" style={{ width: 60, height: 11, marginBottom: 3 }} />
@@ -111,6 +124,17 @@ export default function KpiCards({ overview, loading, error, compact, previousOv
     const kpis = buildKpis(overview, previousOverview)
     return (
       <div className="header-kpis">
+        {constantOverview != null && (
+          <>
+            <div className="header-kpi-item">
+              <div className="header-kpi-label">{t.kpiCurrentNet}</div>
+              <div className={`header-kpi-value ${constantOverview.net >= 0 ? 'net-pos' : 'net-neg'}`}>
+                {formatCurrency(constantOverview.net)}
+              </div>
+            </div>
+            <div className="header-kpi-divider" aria-hidden="true" />
+          </>
+        )}
         {kpis.map(k => (
           <div key={k.label} className="header-kpi-item">
             <div className="header-kpi-label">{k.label}</div>

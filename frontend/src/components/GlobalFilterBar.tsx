@@ -1,8 +1,9 @@
 import type { Account, Category, Tag, GlobalFilters } from '../api/types'
-import { useT, categoryLabel, DEFAULT_TAG_COLOR, tagTextColor } from '../i18n'
+import { useT, categoryLabel, DEFAULT_TAG_COLOR, tagTextColor, formatDate } from '../i18n'
 import { useMemo } from 'react'
 import TagFilterSelect from './TagFilterSelect'
 import DatePicker from './DatePicker'
+import { defaultRange } from '../utils'
 
 interface Props {
   filters: GlobalFilters
@@ -30,10 +31,15 @@ export default function GlobalFilterBar({ filters, accounts, categories, tags, o
     : undefined
 
   // Show chips/clear row when any filter is active
+  const def = defaultRange()
+  const dateChanged = filters.from !== def.from || filters.to !== def.to
   const hasClearable = activeCategoryName !== undefined
     || filters.tags.length > 0
     || filters.flow !== undefined
     || filters.account_id !== undefined
+    || filters.merchant !== undefined
+    || filters.day !== undefined
+    || dateChanged
 
   return (
     <div className="filter-bar">
@@ -105,6 +111,28 @@ export default function GlobalFilterBar({ filters, accounts, categories, tags, o
                 type="button"
                 className="filter-chip-remove"
                 onClick={() => set({ category_id: undefined })}
+                aria-label={t.filterClearChip}
+              >✕</button>
+            </span>
+          )}
+          {filters.merchant !== undefined && (
+            <span className="filter-chip">
+              {t.filterChipMerchant}: {filters.merchant}
+              <button
+                type="button"
+                className="filter-chip-remove"
+                onClick={() => set({ merchant: undefined })}
+                aria-label={t.filterClearChip}
+              >✕</button>
+            </span>
+          )}
+          {filters.day !== undefined && (
+            <span className="filter-chip">
+              {t.filterChipDay}: {formatDate(filters.day, lang)}
+              <button
+                type="button"
+                className="filter-chip-remove"
+                onClick={() => set({ day: undefined })}
                 aria-label={t.filterClearChip}
               >✕</button>
             </span>
