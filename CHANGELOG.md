@@ -4,6 +4,14 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260710] - 2026-07-10
+
+- feat(import): one-click file selection and a styled, localized file picker
+- feat(accounts): identify accounts by IBAN detected on import
+- feat(auth): add "remember me" for long-lived persistent sessions
+- fix(auth): pass AUTH_SECRET to the container so sessions survive restarts
+
+
 ## [20260709] - 2026-07-09
 
 - fix(statements): make empty month cells clearly non-interactive
