@@ -327,5 +327,28 @@ const en: Dict = {
   batchRetryFile:         'Retry',
   importDuplicateBadge:   'Duplicate',
   importDuplicateCount:   (n) => `${n} duplicate${n !== 1 ? 's' : ''}`,
+  // ── Spending heatmap ──────────────────────────────────────────────────────
+  heatmapTitle: 'Spending by day',
+  heatmapLess: 'less',
+  heatmapMore: 'more',
+  heatmapEmpty: 'No spending in range',
+  // ── Top merchants panel ───────────────────────────────────────────────────
+  topMerchantsTitle: 'Top merchants',
+  topMerchantsEmpty: 'No merchant data',
+  topMerchantsCenterLabel: 'Merchant spend',
+  merchantCoverage: (pct) => `${pct}% of total`,
+  // ── Cross-filter chips ────────────────────────────────────────────────────
+  filterChipMerchant: 'Merchant',
+  filterChipDay: 'Day',
+  // ── Analytics / Tendencias page ───────────────────────────────────────────
+  navAnalytics: 'Trends',
+  analyticsTitle: 'Analytics',
+  // ── Home → Transactions navigation ────────────────────────────────────────
+  btnViewTransactions: 'View transactions →',
+  // ── DatePicker year navigation ────────────────────────────────────────────
+  datePickerPrevYear: 'Previous year',
+  datePickerNextYear: 'Next year',
+  // ── Constant (unfiltered) net KPI ─────────────────────────────────────────
+  kpiCurrentNet: 'Current net',
 }
 export default en

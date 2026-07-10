@@ -180,6 +180,9 @@ export default function DatePicker({ value, onChange, min, max, ariaLabel, place
     else setViewMonth(m => m + 1)
   }
 
+  function goPrevYear() { setViewYear(y => y - 1) }
+  function goNextYear() { setViewYear(y => y + 1) }
+
   // ── Focus management: steal focus to cell after keyboard nav or open ──────────
 
   useEffect(() => {
@@ -331,6 +334,26 @@ export default function DatePicker({ value, onChange, min, max, ariaLabel, place
     }
   }
 
+  // Year-nav disabled states: disable if the entire target year is beyond min/max
+  let prevYearDis = false
+  if (min) {
+    const mp = parseDate(min)
+    if (mp) {
+      const pY = viewYear - 1
+      // whole prev year is before min if Dec 31 of that year < min
+      if (cmpDate(pY, 12, 31, mp.year, mp.month, mp.day) < 0) prevYearDis = true
+    }
+  }
+  let nextYearDis = false
+  if (max) {
+    const xp = parseDate(max)
+    if (xp) {
+      const nY = viewYear + 1
+      // whole next year is after max if Jan 1 of that year > max
+      if (cmpDate(nY, 1, 1, xp.year, xp.month, xp.day) > 0) nextYearDis = true
+    }
+  }
+
   const triggerAriaLabel = ariaLabel
     ? (formattedVal ? `${ariaLabel}: ${formattedVal}` : ariaLabel)
     : (formattedVal ? t.datePickerTriggerLabel(formattedVal) : (placeholder ?? t.datePickerPlaceholder))
@@ -391,6 +414,13 @@ export default function DatePicker({ value, onChange, min, max, ariaLabel, place
             <button
               type="button"
               className="picker-nav-btn"
+              aria-label={t.datePickerPrevYear}
+              disabled={prevYearDis}
+              onClick={goPrevYear}
+            >«</button>
+            <button
+              type="button"
+              className="picker-nav-btn"
               aria-label={t.datePickerPrevMonth}
               disabled={prevMonthDis}
               onClick={goPrevMonth}
@@ -403,6 +433,13 @@ export default function DatePicker({ value, onChange, min, max, ariaLabel, place
               disabled={nextMonthDis}
               onClick={goNextMonth}
             >›</button>
+            <button
+              type="button"
+              className="picker-nav-btn"
+              aria-label={t.datePickerNextYear}
+              disabled={nextYearDis}
+              onClick={goNextYear}
+            >»</button>
           </div>
 
           {/* Weekday header row (Mon–Sun) */}

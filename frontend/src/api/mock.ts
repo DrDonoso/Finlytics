@@ -4,6 +4,7 @@ import type {
   ImportResult, ImportTransaction, PreviewResponse, ConfirmRequest,
   TransactionsParams, SummaryParams, MonthSummaryParams,
   TransactionPatch, CashflowSummary, AuthStatus, AuthUser,
+  MerchantSummary, DaySummary,
 } from './types'
 
 // ─── Static reference data ────────────────────────────────────────────────────
@@ -369,6 +370,26 @@ export function mockCreateCategory(name: string, color?: string): Promise<Catego
   }
   _mockCategories.push(newCat)
   return delay({ ...newCat }, 800)
+}
+
+export function mockGetByMerchant(_params?: SummaryParams): Promise<MerchantSummary[]> {
+  return delay([])
+}
+
+export function mockGetByDay(params?: MonthSummaryParams): Promise<DaySummary[]> {
+  const dayMap = new Map<string, { expense: number; income: number }>()
+  for (const t of filterTxns(params)) {
+    const day = t.transaction_date
+    const prev = dayMap.get(day) ?? { expense: 0, income: 0 }
+    if (t.amount < 0) prev.expense += Math.abs(t.amount)
+    else prev.income += t.amount
+    dayMap.set(day, prev)
+  }
+  const result: DaySummary[] = []
+  for (const [day, { expense, income }] of dayMap) {
+    result.push({ day, expense: round2(expense), income: round2(income), net: round2(income - expense) })
+  }
+  return delay(result.sort((a, b) => a.day.localeCompare(b.day)))
 }
 
 // ─── Simulate async latency ───────────────────────────────────────────────────

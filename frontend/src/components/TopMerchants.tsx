@@ -1,9 +1,10 @@
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
 } from 'recharts'
-import { useMemo } from 'react'
-import type { CategorySummary, Category } from '../api/types'
-import { useT, categoryLabel } from '../i18n'
+import { useState, useEffect } from 'react'
+import type { MerchantSummary, GlobalFilters } from '../api/types'
+import { getByMerchant } from '../api/client'
+import { useT } from '../i18n'
 
 const FALLBACK_COLORS = [
   '#2563eb', '#ef4444', '#22c55e', '#f59e0b', '#8b5cf6',
@@ -11,43 +12,49 @@ const FALLBACK_COLORS = [
 ]
 
 interface Props {
-  data: CategorySummary[]
-  categories: Category[]
-  loading: boolean
-  error: string | null
-  selectedCategoryId?: number
-  onCategoryClick: (id: number | undefined) => void
+  globalFilters: GlobalFilters
+  selectedMerchant?: string
+  onMerchantClick: (m: string | undefined) => void
+  refreshKey?: number
+  periodTotalExpense?: number | null
 }
 
-export default function SpendingByCategory({ data, categories, loading, error, selectedCategoryId, onCategoryClick }: Props) {
-  const { t, lang, formatCurrency } = useT()
+export default function TopMerchants({ globalFilters, selectedMerchant, onMerchantClick, refreshKey = 0, periodTotalExpense }: Props) {
+  const { t, formatCurrency } = useT()
+  const [loading, setLoading] = useState(true)
+  const [error, setError]     = useState<string | null>(null)
+  const [data, setData]       = useState<MerchantSummary[]>([])
 
-  const dynamicEs = useMemo(
-    () => Object.fromEntries(categories.filter(c => c.name_es).map(c => [c.name, c.name_es!])),
-    [categories],
-  )
+  useEffect(() => {
+    setLoading(true)
+    setError(null)
+    // byMerchant: pass category_id + day (+ from/to/account_id/tags/flow). Do NOT pass merchant.
+    getByMerchant({
+      from:        globalFilters.from  || undefined,
+      to:          globalFilters.to    || undefined,
+      account_id:  globalFilters.account_id,
+      category_id: globalFilters.category_id,
+      tags:        globalFilters.tags.length > 0 ? globalFilters.tags : undefined,
+      flow:        'expense',
+      day:         globalFilters.day,
+    })
+      .then(rows => { setData(rows.slice(0, 8)); setLoading(false) })
+      .catch(e   => { setError(String(e));       setLoading(false) })
+  }, [globalFilters, refreshKey])
 
   const sorted = [...data].sort((a, b) => b.amount - a.amount)
-  const total = sorted.reduce((sum, d) => sum + d.amount, 0)
-  const hasSelection = selectedCategoryId !== undefined
-
-  const catColorMap: Record<number, string> = {}
-  for (const cat of categories) catColorMap[cat.id] = cat.color
-
-  function getColor(categoryId: number, index: number): string {
-    return catColorMap[categoryId] || FALLBACK_COLORS[index % FALLBACK_COLORS.length]
-  }
+  const total  = sorted.reduce((sum, d) => sum + d.amount, 0)
+  const hasSelection = selectedMerchant !== undefined
 
   const chartData = sorted.map((d, i) => ({
-    name: d.category,
+    name:  d.merchant,
     value: d.amount,
-    category_id: d.category_id,
-    color: getColor(d.category_id, i),
+    color: FALLBACK_COLORS[i % FALLBACK_COLORS.length],
   }))
 
   return (
-    <div className="card cat-card">
-      <div className="card-title">{t.chartByCategory}</div>
+    <div className="card merchants-card">
+      <div className="card-title">{t.topMerchantsTitle}</div>
 
       {error && (
         <div className="state-box error">
@@ -65,8 +72,8 @@ export default function SpendingByCategory({ data, categories, loading, error, s
 
       {!error && !loading && sorted.length === 0 && (
         <div className="state-box">
-          <span className="icon">🍩</span>
-          <span>{t.noDataPeriod}</span>
+          <span className="icon">🏪</span>
+          <span>{t.topMerchantsEmpty}</span>
         </div>
       )}
 
@@ -87,12 +94,12 @@ export default function SpendingByCategory({ data, categories, loading, error, s
                   paddingAngle={2}
                   cursor="pointer"
                   onClick={(entry) => {
-                    const clickedId = (entry as any).category_id as number
-                    onCategoryClick(selectedCategoryId === clickedId ? undefined : clickedId)
+                    const clicked = (entry as any).name as string
+                    onMerchantClick(selectedMerchant === clicked ? undefined : clicked)
                   }}
                 >
                   {chartData.map((entry, i) => {
-                    const isSelected = selectedCategoryId === entry.category_id
+                    const isSelected = selectedMerchant === entry.name
                     const dimmed = hasSelection && !isSelected
                     return (
                       <Cell
@@ -109,17 +116,18 @@ export default function SpendingByCategory({ data, categories, loading, error, s
                   contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8 }}
                   labelStyle={{ color: 'var(--text)' }}
                   itemStyle={{ color: 'var(--text)' }}
-                  formatter={(value: number, name: string) => [
-                    formatCurrency(value),
-                    categoryLabel(name, lang, dynamicEs),
-                  ]}
+                  formatter={(value: number) => [formatCurrency(value)]}
                 />
               </PieChart>
             </ResponsiveContainer>
-            {/* Center overlay */}
             <div className="cat-donut-center">
-              <span className="cat-donut-label">{t.catCenterLabel}</span>
+              <span className="cat-donut-label">{t.topMerchantsCenterLabel}</span>
               <span className="cat-donut-total">{formatCurrency(total)}</span>
+              {!selectedMerchant && periodTotalExpense != null && periodTotalExpense > 0 && (
+                <span className="cat-donut-coverage">
+                  {t.merchantCoverage(Math.max(0, Math.min(100, Math.round(total / periodTotalExpense * 100))))}
+                </span>
+              )}
             </div>
           </div>
 
@@ -129,7 +137,7 @@ export default function SpendingByCategory({ data, categories, loading, error, s
               <thead>
                 <tr>
                   <th className="cat-th-name">
-                    {t.catColCategories}&nbsp;·&nbsp;{sorted.length}
+                    {t.topMerchantsTitle}&nbsp;·&nbsp;{sorted.length}
                   </th>
                   <th className="cat-th-num">{t.catColValue}</th>
                   <th className="cat-th-num">{t.catColWeight}</th>
@@ -137,21 +145,21 @@ export default function SpendingByCategory({ data, categories, loading, error, s
               </thead>
               <tbody>
                 {sorted.map((item, i) => {
-                  const color = getColor(item.category_id, i)
+                  const color = FALLBACK_COLORS[i % FALLBACK_COLORS.length]
                   const weight = total > 0 ? (item.amount / total * 100).toFixed(1) : '0.0'
-                  const isSelected = selectedCategoryId === item.category_id
+                  const isSelected = selectedMerchant === item.merchant
                   const isDimmed = hasSelection && !isSelected
                   return (
                     <tr
-                      key={item.category_id}
+                      key={item.merchant}
                       className={`cat-row${isSelected ? ' cat-row-selected' : ''}`}
                       style={{ opacity: isDimmed ? 0.38 : 1 }}
-                      onClick={() => onCategoryClick(isSelected ? undefined : item.category_id)}
+                      onClick={() => onMerchantClick(isSelected ? undefined : item.merchant)}
                     >
                       <td className="cat-td-name">
                         <div className="cat-td-name-inner">
                           <span className="cat-swatch" style={{ background: color }} />
-                          <span className="cat-td-label">{categoryLabel(item.category, lang, dynamicEs)}</span>
+                          <span className="cat-td-label">{item.merchant}</span>
                         </div>
                       </td>
                       <td className="cat-td-num">{formatCurrency(item.amount)}</td>

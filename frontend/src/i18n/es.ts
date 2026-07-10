@@ -327,5 +327,28 @@ const es: Dict = {
   batchRetryFile:         'Reintentar',
   importDuplicateBadge:   'Duplicada',
   importDuplicateCount:   (n) => `${n} duplicada${n !== 1 ? 's' : ''}`,
+  // ── Spending heatmap ──────────────────────────────────────────────────────
+  heatmapTitle: 'Gasto por día',
+  heatmapLess: 'menos',
+  heatmapMore: 'más',
+  heatmapEmpty: 'Sin gastos en el periodo',
+  // ── Top merchants panel ───────────────────────────────────────────────────
+  topMerchantsTitle: 'Top comercios',
+  topMerchantsEmpty: 'Sin datos de comercios',
+  topMerchantsCenterLabel: 'Gasto en comercios',
+  merchantCoverage: (pct) => `${pct}% del total`,
+  // ── Cross-filter chips ────────────────────────────────────────────────────
+  filterChipMerchant: 'Comercio',
+  filterChipDay: 'Día',
+  // ── Analytics / Tendencias page ───────────────────────────────────────────
+  navAnalytics: 'Tendencias',
+  analyticsTitle: 'Tendencias',
+  // ── Home → Transactions navigation ────────────────────────────────────────
+  btnViewTransactions: 'Ver transacciones →',
+  // ── DatePicker year navigation ────────────────────────────────────────────
+  datePickerPrevYear: 'Año anterior',
+  datePickerNextYear: 'Año siguiente',
+  // ── Constant (unfiltered) net KPI ─────────────────────────────────────────
+  kpiCurrentNet: 'Neto actual',
 }
 export default es

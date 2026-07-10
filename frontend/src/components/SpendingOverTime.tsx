@@ -29,7 +29,7 @@ export default function SpendingOverTime({ data, loading, error, selectedFlow, o
   }
 
   return (
-    <div className="card">
+    <div className="card overtime-card">
       <div className="card-title">{t.chartOverTime}</div>
 
       {error && (

@@ -75,6 +75,14 @@ a { color: var(--primary); text-decoration: none; }
   display: block;
   flex-shrink: 0;
 }
+.topbar-logo-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+}
 .hamburger-btn {
   width: 36px;
   height: 36px;
@@ -331,9 +339,12 @@ a { color: var(--primary); text-decoration: none; }
   font-variant-numeric: tabular-nums;
 }
 
-.dashboard-header > .dashboard-header-import {
+/* Actions group (View Transactions + Import) — sits at the right of the header */
+.dashboard-header-actions {
   flex: 0 0 auto;
   align-self: center;
+  display: flex;
+  gap: 8px;
   margin: 16px 20px;
   white-space: nowrap;
 }
@@ -350,7 +361,7 @@ a { color: var(--primary); text-decoration: none; }
     justify-content: flex-start;
     gap: 8px 20px;
   }
-  .dashboard-header > .dashboard-header-import { margin: 12px 16px 12px 0; }
+  .dashboard-header-actions { margin: 12px 16px 12px 0; }
 }
 
 @media (max-width: 600px) {
@@ -425,16 +436,24 @@ a { color: var(--primary); text-decoration: none; }
   min-width: 0;
 }
 
-/* Row B: SpendingByCategory (fixed) | TransactionsTable (grows) */
+/* Row B: SpendingByCategory (donut) | TopMerchants — equal halves, equal height */
 .charts-row-category {
   display: grid;
-  grid-template-columns: minmax(440px, 1fr) minmax(440px, 1.5fr);
+  grid-template-columns: 1fr 1fr;
   gap: 20px;
   align-items: stretch;
   min-width: 0;
 }
 
 .charts-row-category .card { display: flex; flex-direction: column; }
+
+/* Full-width single-card row (heatmap, category movers) */
+.charts-row-full {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+  min-width: 0;
+}
 
 @media (max-width: 900px) {
   .charts-row,
@@ -632,7 +651,7 @@ a { color: var(--primary); text-decoration: none; }
   /* Mobile: full column stack — filters → KPIs → Import */
   .dashboard-header { flex-direction: column; align-items: stretch; }
   .header-kpis { border-left: none; border-top: 1px solid var(--border); justify-content: flex-start; gap: 8px 16px; }
-  .dashboard-header > .dashboard-header-import { align-self: center; margin: 0 12px 12px; }
+  .dashboard-header-actions { align-self: center; margin: 0 12px 12px; }
   /* Single column on mobile — span 1 */
   .tx-filter-panel .date-range-wrap {
     grid-column: span 1;
@@ -754,6 +773,166 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
 }
 .state-box .icon { font-size: 32px; }
 .state-box.error { color: var(--expense); }
+
+/* ─── CLS: reserve height for chart state-boxes to prevent layout shift ─────── */
+.heatmap-card   .state-box  { min-height: 180px; }
+.merchants-card .state-box  { min-height: 300px; }
+.cat-card       .state-box  { min-height: 300px; }
+.movers-card    .state-box  { min-height: 180px; }
+.overtime-card  .state-box,
+.byaccount-card .state-box  { min-height: 260px; }
+.cashflow-card  .state-box  { min-height: 340px; }
+
+/* ─── SpendingHeatmap ─────────────────────────────────────────────────── */
+
+/* Heatmap layout tokens */
+:root {
+  --hm-cell: 14px;
+  --hm-gap:  3px;
+  --hm-radius: 2px;
+  /* Expense intensity — light mode (0 = empty, 4 = heaviest) */
+  --hm-c0: #e2e8f0;
+  --hm-c1: #fecaca;
+  --hm-c2: #f87171;
+  --hm-c3: #ef4444;
+  --hm-c4: #b91c1c;
+}
+[data-theme="dark"] {
+  --hm-c0: #334155;
+  --hm-c1: #7f1d1d;
+  --hm-c2: #991b1b;
+  --hm-c3: #b91c1c;
+  --hm-c4: #ef4444;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --hm-c0: #334155;
+    --hm-c1: #7f1d1d;
+    --hm-c2: #991b1b;
+    --hm-c3: #b91c1c;
+    --hm-c4: #ef4444;
+  }
+}
+
+.heatmap-outer {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 4px;
+}
+.heatmap-wrap {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: min-content;
+  /* Fallback sizing if inline style is absent */
+  --hm-cell: 14px;
+  --hm-radius: 2px;
+}
+.heatmap-months {
+  display: grid;
+  gap: var(--hm-gap);
+  margin-left: 36px; /* align with cell grid, past weekday labels */
+}
+.hm-month-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.heatmap-body {
+  display: flex;
+  gap: 4px;
+  align-items: flex-start;
+}
+.heatmap-weekdays {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hm-gap);
+  width: 32px;
+  flex-shrink: 0;
+  padding-top: 1px;
+}
+.hm-weekday {
+  height: var(--hm-cell);
+  font-size: 9px;
+  color: var(--text-muted);
+  line-height: var(--hm-cell);
+  text-align: right;
+  padding-right: 4px;
+  user-select: none;
+}
+.heatmap-grid {
+  display: grid;
+  grid-template-rows: repeat(7, var(--hm-cell));
+  gap: var(--hm-gap);
+}
+.hm-cell {
+  width: var(--hm-cell);
+  height: var(--hm-cell);
+  border-radius: var(--hm-radius);
+  cursor: default;
+  flex-shrink: 0;
+}
+.hm-cell--0 { background: var(--hm-c0); }
+.hm-cell--1 { background: var(--hm-c1); }
+.hm-cell--2 { background: var(--hm-c2); }
+.hm-cell--3 { background: var(--hm-c3); }
+.hm-cell--4 { background: var(--hm-c4); }
+.hm-cell--out { background: transparent; }
+.hm-cell:not(.hm-cell--out) { cursor: pointer; }
+.hm-cell:not(.hm-cell--out):hover {
+  outline: 1px solid var(--text-muted);
+  outline-offset: 1px;
+}
+.hm-cell--selected {
+  outline: 2px solid var(--primary) !important;
+  outline-offset: 1px;
+}
+.heatmap-legend {
+  display: flex;
+  align-items: center;
+  gap: var(--hm-gap);
+  margin-top: 8px;
+  margin-left: 36px;
+}
+.hm-legend-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin: 0 4px;
+}
+.heatmap-legend .hm-cell:hover { outline: none; }
+
+/* ─── TopMerchants panel ─────────────────────────────────────────────── */
+.merchants-list  { display: flex; flex-direction: column; }
+.merchants-row   {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.merchants-row:last-child { border-bottom: none; }
+.merchants-name  {
+  font-size: 14px;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-right: 12px;
+}
+.merchants-amount {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--expense);
+  white-space: nowrap;
+}
+
+/* ─── Analytics page title ───────────────────────────────────────────── */
+.analytics-page-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
+}
 
 .skeleton {
   background: linear-gradient(90deg, var(--bg) 25%, var(--border) 50%, var(--bg) 75%);
@@ -1745,6 +1924,14 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
   font-weight: 700;
   color: var(--text);
   text-align: center;
+  line-height: 1.2;
+}
+
+.cat-donut-coverage {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-align: center;
+  margin-top: 1px;
   line-height: 1.2;
 }
 
@@ -2942,8 +3129,17 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
 }
 
 /* ─── KPI delta badges (compact header) ─────────────────────────────── */
-.header-kpi-delta {
-  font-size: 10px;
+
+/* Thin vertical rule separating the constant net from the filtered KPIs */
+.header-kpi-divider {
+  align-self: stretch;
+  width: 1px;
+  background: var(--border);
+  margin: 6px 4px;
+  flex-shrink: 0;
+}
+
+.header-kpi-delta {  font-size: 10px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;

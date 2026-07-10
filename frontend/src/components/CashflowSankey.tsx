@@ -227,7 +227,7 @@ export default function CashflowSankey({ data, loading, error, categories, selec
   }, [selectedCategoryId, onCategoryClick, fmtCur])
 
   return (
-    <div className="card">
+    <div className="card cashflow-card">
       <div className="card-title">{t.chartCashflow}</div>
 
       {error && (
