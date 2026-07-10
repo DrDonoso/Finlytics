@@ -81,6 +81,9 @@ function toImportTxn(row: EditRow): ImportTransaction {
 export default function ImportModal({ accounts, categories, allTags, onClose, onSuccess, initialFiles }: Props) {
   const { t } = useT()
   const nextKey = useRef(0)
+  const dupDebounceTimers = useRef<(ReturnType<typeof setTimeout> | null)[]>([])
+  const dupSeqCounters    = useRef<number[]>([])
+  const runDupCheckRef    = useRef<(fileIdx: number) => void>(() => {})
 
   const [phase, setPhase] = useState<BatchPhase>(() =>
     initialFiles.length > HARD_CAP ? 'cap-exceeded' : 'extracting'
@@ -194,31 +197,40 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
     return true
   }, [newIbanEntries, fileItems])
 
+  function runDuplicateCheckForFile(fileIdx: number) {
+    const fi = fileItems[fileIdx]
+    if (!fi || fi.extractStatus !== 'done' || !fi.preview) return
+    if (fi.preview.detected_account_iban && fi.preview.matched_account_id == null) return
+    const { name: accountName } = getResolvedAccount(fi)
+    if (!accountName) return
+
+    const seq = (dupSeqCounters.current[fileIdx] ?? 0) + 1
+    dupSeqCounters.current[fileIdx] = seq
+
+    checkDuplicates(accountName, fi.rows.map(r => ({
+      transaction_date: r.transaction_date,
+      amount:           r.amount,
+      description:      r.description,
+      detail:           r.detail ?? null,
+    }))).then(res => {
+      if (dupSeqCounters.current[fileIdx] !== seq) return
+      setFileItems(prev => prev.map((item, idx) =>
+        idx !== fileIdx ? item : {
+          ...item,
+          rows: item.rows.map((r, ri) => ({ ...r, isDuplicate: res.is_duplicate[ri] ?? false })),
+        }
+      ))
+    }).catch(() => { /* degrade gracefully — leave rows unmarked */ })
+  }
+  runDupCheckRef.current = runDuplicateCheckForFile
+
   function handleResolveContinue() {
     setResolveAttempted(true)
     if (!canProceedResolve) return
 
     // Fire duplicate checks async — preview shows immediately; badges appear as results arrive.
     for (let i = 0; i < fileItems.length; i++) {
-      const fi = fileItems[i]
-      if (fi.extractStatus !== 'done' || !fi.preview) continue
-      // Skip new IBAN accounts — they have no prior transactions to match against
-      if (fi.preview.detected_account_iban && fi.preview.matched_account_id == null) continue
-      const { name: accountName } = getResolvedAccount(fi)
-      if (!accountName) continue
-      checkDuplicates(accountName, fi.rows.map(r => ({
-        transaction_date: r.transaction_date,
-        amount: r.amount,
-        description: r.description,
-        detail: r.detail ?? null,
-      }))).then(res => {
-        setFileItems(prev => prev.map((item, idx) =>
-          idx !== i ? item : {
-            ...item,
-            rows: item.rows.map((r, ri) => ({ ...r, isDuplicate: res.is_duplicate[ri] ?? false })),
-          }
-        ))
-      }).catch(() => { /* degrade gracefully — leave rows unmarked */ })
+      runDuplicateCheckForFile(i)
     }
 
     setPhase('preview')
@@ -243,11 +255,27 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
 
   // ── Row editing ───────────────────────────────────────────────────────────
   function updateRow(fileIdx: number, key: number, patch: Partial<Omit<EditRow, '_key'>>) {
+    const isDedupField = 'transaction_date' in patch || 'amount' in patch || 'description' in patch || 'detail' in patch
     setFileItems(prev => prev.map((fi, i) =>
       i === fileIdx
-        ? { ...fi, rows: fi.rows.map(r => r._key === key ? { ...r, ...patch } : r) }
+        ? {
+            ...fi,
+            rows: fi.rows.map(r =>
+              r._key === key
+                ? { ...r, ...patch, ...(isDedupField && phase === 'preview' ? { isDuplicate: false } : {}) }
+                : r
+            ),
+          }
         : fi
     ))
+    if (isDedupField && phase === 'preview') {
+      const existing = dupDebounceTimers.current[fileIdx]
+      if (existing != null) clearTimeout(existing)
+      dupDebounceTimers.current[fileIdx] = setTimeout(() => {
+        dupDebounceTimers.current[fileIdx] = null
+        runDupCheckRef.current(fileIdx)
+      }, 400)
+    }
   }
 
   function deleteRow(fileIdx: number, key: number) {
@@ -622,7 +650,6 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
   function renderConfirming() {
     const done = fileItems.filter(fi => fi.confirmStatus === 'done' || fi.confirmStatus === 'error').length
     const total = fileItems.filter(fi => fi.extractStatus === 'done').length
-    const pct = total > 0 ? (done / total) * 100 : 0
     return (
       <div className="batch-progress-wrap">
         <div className="batch-extract-header">
@@ -630,11 +657,6 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
           <span className="batch-progress-label" aria-live="polite">
             {t.batchConfirmFileProgress(Math.min(done + 1, total), total)}
           </span>
-        </div>
-        <div className="batch-progress-bar-wrap" role="progressbar" aria-valuenow={done} aria-valuemax={total}>
-          <div className="batch-progress-bar-track">
-            <div className="batch-progress-bar-fill" style={{ width: `${pct}%` }} />
-          </div>
         </div>
         <ul className="batch-file-list">
           {fileItems.map((fi, i) => {
