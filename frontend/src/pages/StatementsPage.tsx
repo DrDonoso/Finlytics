@@ -65,7 +65,7 @@ export default function StatementsPage() {
   // Modal / UX state
   const [showDelete, setShowDelete] = useState(false)
   const [deleting,   setDeleting]   = useState(false)
-  const [importFile, setImportFile] = useState<File | null>(null)
+  const [importFiles, setImportFiles] = useState<File[] | null>(null)
   const launcherRef = useRef<ImportLauncherHandle>(null)
   const [toast,      setToast]      = useState<string | null>(null)
 
@@ -184,7 +184,7 @@ export default function StatementsPage() {
 
   // ── Import handler ──────────────────────────────────────────────────────────
   function handleImportSuccess(result: ImportResult) {
-    setImportFile(null)
+    setImportFiles(null)
     showToast(t.toastSuccess(result.num_inserted, result.num_duplicates))
     setRefreshKey(k => k + 1)
   }
@@ -379,15 +379,15 @@ export default function StatementsPage() {
       )}
 
       {/* ── Import launcher (hidden file input) + modal ───────────────────── */}
-      <ImportLauncher ref={launcherRef} onFile={f => setImportFile(f)} />
+      <ImportLauncher ref={launcherRef} onFiles={files => setImportFiles(files)} />
 
-      {importFile && (
+      {importFiles && (
         <ImportModal
           accounts={accounts}
           categories={categories}
           allTags={allTags}
-          initialFile={importFile}
-          onClose={() => setImportFile(null)}
+          initialFiles={importFiles}
+          onClose={() => setImportFiles(null)}
           onSuccess={handleImportSuccess}
         />
       )}

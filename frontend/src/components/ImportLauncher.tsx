@@ -1,7 +1,7 @@
 import { forwardRef, useImperativeHandle, useRef } from 'react'
 
 interface ImportLauncherProps {
-  onFile: (file: File) => void
+  onFiles: (files: File[]) => void
 }
 
 export interface ImportLauncherHandle {
@@ -9,13 +9,14 @@ export interface ImportLauncherHandle {
 }
 
 /**
- * Renders a hidden <input type="file"> and exposes an open() method via ref.
- * Call launcherRef.current?.open() to trigger the OS file picker directly.
- * When the user selects a file, onFile(file) is called and the input is reset
- * so the same file can be re-selected in subsequent clicks.
+ * Renders a hidden <input type="file" multiple> and exposes an open() method via ref.
+ * Call launcherRef.current?.open() to trigger the OS file picker.
+ * When the user selects files, onFiles(files) is called and the input is reset
+ * so the same files can be re-selected in subsequent clicks.
+ * Cap enforcement (>12 warn, >24 block) is handled in ImportModal.
  */
 const ImportLauncher = forwardRef<ImportLauncherHandle, ImportLauncherProps>(
-  function ImportLauncher({ onFile }, ref) {
+  function ImportLauncher({ onFiles }, ref) {
     const inputRef = useRef<HTMLInputElement>(null)
 
     useImperativeHandle(ref, () => ({
@@ -29,13 +30,14 @@ const ImportLauncher = forwardRef<ImportLauncherHandle, ImportLauncherProps>(
         ref={inputRef}
         type="file"
         accept=".pdf,application/pdf"
+        multiple
         hidden
         aria-hidden="true"
         tabIndex={-1}
         onChange={e => {
-          const f = e.target.files?.[0]
-          if (f) onFile(f)
+          const files = Array.from(e.target.files ?? [])
           if (inputRef.current) inputRef.current.value = ''
+          if (files.length > 0) onFiles(files)
         }}
       />
     )

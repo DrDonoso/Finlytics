@@ -47,13 +47,13 @@ export default function Dashboard() {
   const [prevOverview,    setPrevOverview]    = useState<AsyncState<Overview>>(idle())
   const [prevByCategory,  setPrevByCategory]  = useState<AsyncState<CategorySummary[]>>(idle())
 
-  const [importFile, setImportFile] = useState<File | null>(null)
+  const [importFiles, setImportFiles] = useState<File[] | null>(null)
   const launcherRef = useRef<ImportLauncherHandle>(null)
   const [refreshKey, setRefreshKey] = useState(0)
   const [toast,      setToast]      = useState<string | null>(null)
 
   function handleImportSuccess(result: ImportResult) {
-    setImportFile(null)
+    setImportFiles(null)
     setToast(t.toastSuccess(result.num_inserted, result.num_duplicates))
     setTimeout(() => setToast(null), 6000)
     setRefreshKey(k => k + 1)
@@ -213,15 +213,15 @@ export default function Dashboard() {
         />
       </main>
 
-      <ImportLauncher ref={launcherRef} onFile={f => setImportFile(f)} />
+      <ImportLauncher ref={launcherRef} onFiles={files => setImportFiles(files)} />
 
-      {importFile && (
+      {importFiles && (
         <ImportModal
           accounts={accounts}
           categories={categories}
           allTags={allTags}
-          initialFile={importFile}
-          onClose={() => setImportFile(null)}
+          initialFiles={importFiles}
+          onClose={() => setImportFiles(null)}
           onSuccess={handleImportSuccess}
         />
       )}

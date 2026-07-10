@@ -315,6 +315,27 @@ export interface Dict {
   accountsEditSave: string
   accountsEditToast: (name: string) => string
   accountsEditNameRequired: string
+  // ── Batch import ─────────────────────────────────────────────────────────────
+  batchCapWarning:        (count: number) => string
+  batchCapBlocked:        (count: number) => string
+  batchExtractingTitle:   string
+  batchFileProgress:      (i: number, n: number) => string
+  batchResolveTitle:      string
+  batchResolveNewIbanName: string
+  batchResolveManualFile: (filename: string) => string
+  batchPreviewTitle:      string
+  batchPreviewGroup:      (files: number, txns: number) => string
+  batchPreviewFileSep:    (filename: string) => string
+  batchConfirmAllBtn:     (n: number) => string
+  batchConfirmingTitle:   string
+  batchSummaryTitle:      string
+  batchSummaryStmts:      (n: number) => string
+  batchSummaryNewTx:      (n: number) => string
+  batchSummaryDupes:      (n: number) => string
+  batchSummaryErrors:     (n: number) => string
+  batchSummaryFileDone:   (file: string, inserted: number, dupes: number) => string
+  batchSummaryFileError:  (file: string, reason: string) => string
+  batchRetryFile:         string
 }
 
 const ES_LABELS: Record<string, string> = {
