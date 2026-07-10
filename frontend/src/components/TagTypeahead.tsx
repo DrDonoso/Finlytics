@@ -51,6 +51,12 @@ export default function TagTypeahead({ tags, availableTags, suggestedColors, pre
     return m
   }, [availableTags])
 
+  const txCountMap = useMemo(() => {
+    const m: Record<string, number> = {}
+    for (const t of availableTags) m[t.name] = t.tx_count
+    return m
+  }, [availableTags])
+
   function resolveColor(name: string): string {
     return dbColorMap[name] ?? suggestedColors[name] ?? paletteColor(name)
   }
@@ -97,9 +103,16 @@ export default function TagTypeahead({ tags, availableTags, suggestedColors, pre
 
   const suggestions = useMemo(() => {
     const notAdded = candidates.filter(c => !tags.includes(c.name))
-    if (!query) return notAdded.slice(0, 8)
+    if (!query) {
+      return [...notAdded]
+        .sort((a, b) => {
+          const diff = (txCountMap[b.name] ?? 0) - (txCountMap[a.name] ?? 0)
+          return diff !== 0 ? diff : a.name.localeCompare(b.name)
+        })
+        .slice(0, 8)
+    }
     return notAdded.filter(c => c.name.toLowerCase().includes(query))
-  }, [candidates, tags, query])
+  }, [candidates, tags, query, txCountMap])
 
   return (
     <div

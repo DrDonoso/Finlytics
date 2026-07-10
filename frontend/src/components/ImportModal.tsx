@@ -3,7 +3,7 @@ import type {
   Account, Category, Tag,
   ImportTransaction, PreviewResponse, ConfirmRequest, ImportResult,
 } from '../api/types'
-import { previewImport, confirmImport } from '../api/client'
+import { previewImport, confirmImport, checkDuplicates } from '../api/client'
 import { useT, type Dict, paletteColor } from '../i18n'
 import ImportPreviewTable, { type EditRow } from './ImportPreviewTable'
 import RuleFormModal from './RuleFormModal'
@@ -197,6 +197,30 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
   function handleResolveContinue() {
     setResolveAttempted(true)
     if (!canProceedResolve) return
+
+    // Fire duplicate checks async — preview shows immediately; badges appear as results arrive.
+    for (let i = 0; i < fileItems.length; i++) {
+      const fi = fileItems[i]
+      if (fi.extractStatus !== 'done' || !fi.preview) continue
+      // Skip new IBAN accounts — they have no prior transactions to match against
+      if (fi.preview.detected_account_iban && fi.preview.matched_account_id == null) continue
+      const { name: accountName } = getResolvedAccount(fi)
+      if (!accountName) continue
+      checkDuplicates(accountName, fi.rows.map(r => ({
+        transaction_date: r.transaction_date,
+        amount: r.amount,
+        description: r.description,
+        detail: r.detail ?? null,
+      }))).then(res => {
+        setFileItems(prev => prev.map((item, idx) =>
+          idx !== i ? item : {
+            ...item,
+            rows: item.rows.map((r, ri) => ({ ...r, isDuplicate: res.is_duplicate[ri] ?? false })),
+          }
+        ))
+      }).catch(() => { /* degrade gracefully — leave rows unmarked */ })
+    }
+
     setPhase('preview')
   }
 
@@ -518,6 +542,7 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
           const isOpen = openGroups.has(group.key)
           const groupFiles = group.fileIndices.map(i => fileItems[i])
           const totalTxns = groupFiles.reduce((s, fi) => s + fi.rows.length, 0)
+          const dupCount = groupFiles.reduce((s, fi) => s + fi.rows.filter(r => r.isDuplicate).length, 0)
           const headerId = `group-hdr-${group.key}`
           const bodyId   = `group-body-${group.key}`
           return (
@@ -545,6 +570,9 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
                 </span>
                 <span className="batch-accordion-meta">
                   {t.batchPreviewGroup(group.fileIndices.length, totalTxns)}
+                  {dupCount > 0 && (
+                    <span className="batch-dup-badge">{t.importDuplicateCount(dupCount)}</span>
+                  )}
                 </span>
               </button>
 
@@ -597,8 +625,11 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
     const pct = total > 0 ? (done / total) * 100 : 0
     return (
       <div className="batch-progress-wrap">
-        <div className="batch-progress-label" aria-live="polite">
-          {t.batchFileProgress(Math.min(done + 1, total), total)}
+        <div className="batch-extract-header">
+          <div className="spinner spinner--sm" />
+          <span className="batch-progress-label" aria-live="polite">
+            {t.batchConfirmFileProgress(Math.min(done + 1, total), total)}
+          </span>
         </div>
         <div className="batch-progress-bar-wrap" role="progressbar" aria-valuenow={done} aria-valuemax={total}>
           <div className="batch-progress-bar-track">
@@ -611,10 +642,10 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
             return (
               <li key={i} className="batch-file-row">
                 <span className="batch-file-icon">
-                  {fi.confirmStatus === 'running' && <span className="btn-spinner" style={{ display: 'inline-block' }} />}
-                  {fi.confirmStatus === 'done'    && '✔'}
-                  {fi.confirmStatus === 'error'   && '✗'}
-                  {fi.confirmStatus === 'pending' && '○'}
+                  {fi.confirmStatus === 'running' && <div className="spinner spinner--sm" />}
+                  {fi.confirmStatus === 'done'    && <span className="batch-file-icon--done">✔</span>}
+                  {fi.confirmStatus === 'error'   && <span className="batch-file-icon--error">✗</span>}
+                  {fi.confirmStatus === 'pending' && <span className="batch-file-icon--pending">○</span>}
                 </span>
                 <span className="batch-file-name">{fi.file.name}</span>
                 {fi.confirmStatus === 'error' && fi.confirmError && (

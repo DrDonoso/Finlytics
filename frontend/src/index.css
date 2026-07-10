@@ -1036,6 +1036,19 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
 .preview-table tbody tr:last-child { border-bottom: none; }
 .preview-table tbody td { padding: 5px 8px; vertical-align: middle; }
 .row-low-confidence { background: rgba(251, 191, 36, 0.12) !important; }
+.row-duplicate { opacity: 0.55; }
+.import-dup-badge-wrap { margin-top: 2px; }
+.import-dup-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 5px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
 
 /* Confidence badge */
 .conf-badge {
@@ -2502,6 +2515,16 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
   gap: 8px;
   min-height: 40px;
 }
+.rules-apply-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.rules-apply-checkbox-label input[type="checkbox"] { cursor: pointer; }
 .rules-toggle-label {
   font-size: 14px;
   color: var(--text);
@@ -3626,7 +3649,7 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
 .batch-progress-bar-track { width: 100%; height: 100%; }
 .batch-progress-bar-fill {
   height: 100%;
-  background: var(--accent);
+  background: var(--primary);
   border-radius: 4px;
   transition: width 0.3s ease;
 }
@@ -3707,7 +3730,17 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
 }
 .batch-accordion-chevron.--open { transform: rotate(180deg); }
 .batch-accordion-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.batch-accordion-meta { font-size: 12px; font-weight: 400; color: var(--text-muted); flex-shrink: 0; }
+.batch-accordion-meta { font-size: 12px; font-weight: 400; color: var(--text-muted); flex-shrink: 0; display: flex; align-items: center; gap: 6px; }
+.batch-dup-badge {
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-weight: 500;
+  white-space: nowrap;
+}
 .batch-accordion-body { padding: 0 0 8px; border-top: 1px solid var(--border); }
 .batch-file-sep {
   text-align: center;

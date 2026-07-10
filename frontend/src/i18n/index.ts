@@ -280,11 +280,11 @@ export interface Dict {
   monthPickerNextYear: string
   // ── Rule preview / apply ──────────────────────────────────────────────────────
   rulesPreviewLoading: string
-  rulesPreviewCount: (n: number) => string
   rulesPreviewNone: string
   rulesPreviewError: string
-  rulesApplyBtn: (n: number) => string
-  rulesApplySuccess: (n: number) => string
+  rulesApplyCheckbox: (n: number) => string
+  rulesBtnSaveAndApply: string
+  rulesSaveAndApplyToast: (n: number) => string
   // ── Accounts settings page ────────────────────────────────────────────────────
   settingsSubAccounts: string
   accountsPageTitle: string
@@ -328,6 +328,7 @@ export interface Dict {
   batchPreviewFileSep:    (filename: string) => string
   batchConfirmAllBtn:     (n: number) => string
   batchConfirmingTitle:   string
+  batchConfirmFileProgress: (i: number, n: number) => string
   batchSummaryTitle:      string
   batchSummaryStmts:      (n: number) => string
   batchSummaryNewTx:      (n: number) => string
@@ -336,6 +337,8 @@ export interface Dict {
   batchSummaryFileDone:   (file: string, inserted: number, dupes: number) => string
   batchSummaryFileError:  (file: string, reason: string) => string
   batchRetryFile:         string
+  importDuplicateBadge:   string
+  importDuplicateCount:   (n: number) => string
 }
 
 const ES_LABELS: Record<string, string> = {

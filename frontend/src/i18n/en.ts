@@ -268,11 +268,11 @@ const en: Dict = {
   monthPickerNextYear: 'Next year',
   // ── Rule preview / apply ──────────────────────────────────────────────────────
   rulesPreviewLoading: 'Checking matches…',
-  rulesPreviewCount: (n) => `Applies to ${n} current transaction${n !== 1 ? 's' : ''}`,
   rulesPreviewNone: 'No matching transactions',
   rulesPreviewError: 'Could not check matches',
-  rulesApplyBtn: (n) => `Apply to ${n}`,
-  rulesApplySuccess: (n) => `✓ ${n} transaction${n !== 1 ? 's' : ''} updated`,
+  rulesApplyCheckbox: (n) => n !== 1 ? `Apply to ${n} transactions` : 'Apply to 1 transaction',
+  rulesBtnSaveAndApply: 'Save and apply',
+  rulesSaveAndApplyToast: (n) => `✓ Saved · ${n} transaction${n !== 1 ? 's' : ''} updated`,
   // ── Accounts settings page ────────────────────────────────────────────────────
   settingsSubAccounts: 'Accounts',
   accountsPageTitle: 'Accounts',
@@ -316,6 +316,7 @@ const en: Dict = {
   batchPreviewFileSep:    (filename) => `— ${filename} —`,
   batchConfirmAllBtn:     (n) => `Confirm & import all (${n} transaction${n !== 1 ? 's' : ''})`,
   batchConfirmingTitle:   'Importing…',
+  batchConfirmFileProgress: (i, n) => `Importing statement ${i} of ${n}`,
   batchSummaryTitle:      'Import completed',
   batchSummaryStmts:      (n) => `${n} statement${n !== 1 ? 's' : ''} imported`,
   batchSummaryNewTx:      (n) => `${n} new transaction${n !== 1 ? 's' : ''}`,
@@ -324,5 +325,7 @@ const en: Dict = {
   batchSummaryFileDone:   (file, ins, dup) => `✔ ${file} — ${ins} new, ${dup} dup${dup !== 1 ? 's' : ''}`,
   batchSummaryFileError:  (file, reason) => `✗ ${file} — ${reason}`,
   batchRetryFile:         'Retry',
+  importDuplicateBadge:   'Duplicate',
+  importDuplicateCount:   (n) => `${n} duplicate${n !== 1 ? 's' : ''}`,
 }
 export default en
