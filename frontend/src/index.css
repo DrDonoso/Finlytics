@@ -970,6 +970,7 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 .spinner-label { color: var(--text-muted); font-size: 14px; text-align: center; max-width: 360px; }
+.spinner--sm { width: 14px; height: 14px; border-width: 2px; display: inline-block; }
 
 /* ─── Import error inline ────────────────────────────────────────────── */
 .import-error {
@@ -3642,7 +3643,11 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
   background: var(--surface);
   font-size: 13px;
 }
-.batch-file-icon { width: 18px; text-align: center; flex-shrink: 0; }
+.batch-file-icon { width: 18px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.batch-file-icon--done    { color: var(--income); }
+.batch-file-icon--error   { color: var(--expense); }
+.batch-file-icon--pending { color: var(--text-muted); opacity: 0.45; }
+.batch-extract-header { display: flex; align-items: center; gap: 10px; }
 .batch-file-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .batch-file-error { color: var(--expense); font-size: 12px; flex-shrink: 0; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 

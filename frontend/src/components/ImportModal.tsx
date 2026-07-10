@@ -351,7 +351,6 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
   function renderExtracting() {
     const done = fileItems.filter(fi => fi.extractStatus === 'done' || fi.extractStatus === 'error').length
     const total = fileItems.length
-    const pct = total > 0 ? (done / total) * 100 : 0
     return (
       <div className="batch-progress-wrap">
         {initialFiles.length > SOFT_CAP && (
@@ -359,22 +358,20 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
             ⚠ {t.batchCapWarning(initialFiles.length)}
           </div>
         )}
-        <div className="batch-progress-label" aria-live="polite">
-          {t.batchFileProgress(Math.min(done + 1, total), total)}
-        </div>
-        <div className="batch-progress-bar-wrap" role="progressbar" aria-valuenow={done} aria-valuemax={total}>
-          <div className="batch-progress-bar-track">
-            <div className="batch-progress-bar-fill" style={{ width: `${pct}%` }} />
-          </div>
+        <div className="batch-extract-header">
+          <div className="spinner spinner--sm" />
+          <span className="batch-progress-label" aria-live="polite">
+            {t.batchFileProgress(Math.min(done + 1, total), total)}
+          </span>
         </div>
         <ul className="batch-file-list">
           {fileItems.map((fi, i) => (
             <li key={i} className="batch-file-row">
               <span className="batch-file-icon">
-                {fi.extractStatus === 'running' && <span className="btn-spinner" style={{ display: 'inline-block' }} />}
-                {fi.extractStatus === 'done'    && '✔'}
-                {fi.extractStatus === 'error'   && '✗'}
-                {fi.extractStatus === 'pending' && '○'}
+                {fi.extractStatus === 'running' && <div className="spinner spinner--sm" />}
+                {fi.extractStatus === 'done'    && <span className="batch-file-icon--done">✔</span>}
+                {fi.extractStatus === 'error'   && <span className="batch-file-icon--error">✗</span>}
+                {fi.extractStatus === 'pending' && <span className="batch-file-icon--pending">○</span>}
               </span>
               <span className="batch-file-name">{fi.file.name}</span>
               {fi.extractStatus === 'error' && fi.extractError && (
