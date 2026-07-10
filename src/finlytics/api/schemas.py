@@ -162,8 +162,21 @@ class ByCategoryRow(BaseModel):
     count: int
 
 
+class ByMerchantRow(BaseModel):
+    merchant: str
+    amount: float          # expense magnitude (positive)
+    count: int
+
+
 class ByMonthRow(BaseModel):
     month: str             # "YYYY-MM"
+    expense: float
+    income: float
+    net: float
+
+
+class ByDayRow(BaseModel):
+    day: str               # "YYYY-MM-DD"
     expense: float
     income: float
     net: float

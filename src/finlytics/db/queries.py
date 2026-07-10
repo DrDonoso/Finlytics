@@ -76,6 +76,7 @@ def _apply_filters(
     *,
     from_date: date | None = None,
     to_date: date | None = None,
+    day: date | None = None,
     account_id: int | None = None,
     category_id: int | None = None,
     tags: list[str] | None = None,
@@ -104,11 +105,18 @@ def _apply_filters(
 
     ``merchant`` performs a case-insensitive substring match (ILIKE) on the
     merchant column.  Same wildcard-escaping as ``description``.
+
+    ``day`` filters to an exact calendar date (exact match on
+    ``transaction_date``).  Intended for cross-filter drill-down from a
+    heatmap click; takes precedence over any overlapping ``from_date`` /
+    ``to_date`` range when combined.
     """
     if from_date is not None:
         stmt = stmt.where(Transaction.transaction_date >= from_date)
     if to_date is not None:
         stmt = stmt.where(Transaction.transaction_date <= to_date)
+    if day is not None:
+        stmt = stmt.where(Transaction.transaction_date == day)
     if account_id is not None:
         stmt = stmt.where(Transaction.account_id == account_id)
     if category_id is not None:
@@ -566,6 +574,7 @@ async def get_overview(
     amount_min: float | None = None,
     amount_max: float | None = None,
     merchant: str | None = None,
+    day: date | None = None,
 ) -> dict[str, Any]:
     stmt = _apply_filters(
         select(
@@ -583,6 +592,7 @@ async def get_overview(
         amount_min=amount_min,
         amount_max=amount_max,
         merchant=merchant,
+        day=day,
     )
     row = (await session.execute(stmt)).one()
     total_expense = float(row.total_expense)
@@ -610,6 +620,7 @@ async def get_overview(
         amount_min=amount_min,
         amount_max=amount_max,
         merchant=merchant,
+        day=day,
     )
     top_row = (await session.execute(top_stmt)).one_or_none()
 
@@ -645,6 +656,8 @@ async def get_by_category(
     account_id: int | None = None,
     tags: list[str] | None = None,
     flow: Literal["expense", "income"] | None = None,
+    merchant: str | None = None,
+    day: date | None = None,
 ) -> list[dict[str, Any]]:
     """Expenses by category, sorted descending by magnitude."""
     stmt = _apply_filters(
@@ -664,10 +677,51 @@ async def get_by_category(
         account_id=account_id,
         tags=tags,
         flow=flow,
+        merchant=merchant,
+        day=day,
     )
     rows = (await session.execute(stmt)).all()
     return [
         {"category_id": r.category_id, "category": r.category, "amount": float(r.amount), "count": r.count}
+        for r in rows
+    ]
+
+
+async def get_by_merchant(
+    session: AsyncSession,
+    *,
+    from_date: date | None = None,
+    to_date: date | None = None,
+    account_id: int | None = None,
+    tags: list[str] | None = None,
+    flow: Literal["expense", "income"] | None = None,
+    category_id: int | None = None,
+    day: date | None = None,
+) -> list[dict[str, Any]]:
+    """Expenses by merchant, sorted descending by magnitude."""
+    stmt = _apply_filters(
+        select(
+            Transaction.merchant.label("merchant"),
+            func.sum(-Transaction.amount).label("amount"),
+            func.count(Transaction.id).label("count"),
+        )
+        .select_from(Transaction)
+        .where(Transaction.amount < 0)
+        .where(Transaction.merchant.is_not(None))
+        .where(func.trim(Transaction.merchant) != "")
+        .group_by(Transaction.merchant)
+        .order_by(func.sum(-Transaction.amount).desc()),
+        from_date=from_date,
+        to_date=to_date,
+        account_id=account_id,
+        tags=tags,
+        flow=flow,
+        category_id=category_id,
+        day=day,
+    )
+    rows = (await session.execute(stmt)).all()
+    return [
+        {"merchant": r.merchant, "amount": float(r.amount), "count": r.count}
         for r in rows
     ]
 
@@ -704,6 +758,48 @@ async def get_by_month(
     return [
         {
             "month": r.month,
+            "expense": float(r.expense),
+            "income": float(r.income),
+            "net": float(r.income) - float(r.expense),
+        }
+        for r in rows
+    ]
+
+
+async def get_by_day(
+    session: AsyncSession,
+    *,
+    from_date: date | None = None,
+    to_date: date | None = None,
+    account_id: int | None = None,
+    category_id: int | None = None,
+    tags: list[str] | None = None,
+    flow: Literal["expense", "income"] | None = None,
+    merchant: str | None = None,
+) -> list[dict[str, Any]]:
+    """Expense / income / net grouped by calendar day (chronological)."""
+    day_expr = func.to_char(Transaction.transaction_date, "YYYY-MM-DD")
+    stmt = _apply_filters(
+        select(
+            day_expr.label("day"),
+            _expense_expr().label("expense"),
+            _income_expr().label("income"),
+        )
+        .select_from(Transaction)
+        .group_by(day_expr)
+        .order_by(day_expr),
+        from_date=from_date,
+        to_date=to_date,
+        account_id=account_id,
+        category_id=category_id,
+        tags=tags,
+        flow=flow,
+        merchant=merchant,
+    )
+    rows = (await session.execute(stmt)).all()
+    return [
+        {
+            "day": r.day,
             "expense": float(r.expense),
             "income": float(r.income),
             "net": float(r.income) - float(r.expense),
