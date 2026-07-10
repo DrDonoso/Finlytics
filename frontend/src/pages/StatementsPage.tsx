@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import type { Overview, Account, Category, Tag, GlobalFilters, ImportResult } from '../api/types'
 import type { StatementMonth } from '../api/types'
 import {
@@ -10,6 +10,7 @@ import type { Lang } from '../i18n'
 import TransactionsTable from '../components/TransactionsTable'
 import StatementsDeleteModal from '../components/StatementsDeleteModal'
 import ImportModal from '../components/ImportModal'
+import ImportLauncher, { type ImportLauncherHandle } from '../components/ImportLauncher'
 import MonthPicker from '../components/MonthPicker'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -64,7 +65,8 @@ export default function StatementsPage() {
   // Modal / UX state
   const [showDelete, setShowDelete] = useState(false)
   const [deleting,   setDeleting]   = useState(false)
-  const [showImport, setShowImport] = useState(false)
+  const [importFile, setImportFile] = useState<File | null>(null)
+  const launcherRef = useRef<ImportLauncherHandle>(null)
   const [toast,      setToast]      = useState<string | null>(null)
 
   // refreshKey triggers re-fetch of both the months list and the transactions table
@@ -182,7 +184,7 @@ export default function StatementsPage() {
 
   // ── Import handler ──────────────────────────────────────────────────────────
   function handleImportSuccess(result: ImportResult) {
-    setShowImport(false)
+    setImportFile(null)
     showToast(t.toastSuccess(result.num_inserted, result.num_duplicates))
     setRefreshKey(k => k + 1)
   }
@@ -242,7 +244,7 @@ export default function StatementsPage() {
         <button
           type="button"
           className="btn-primary stmts-header-import"
-          onClick={() => setShowImport(true)}
+          onClick={() => launcherRef.current?.open()}
         >
           {t.stmtsImportBtn}
         </button>
@@ -329,7 +331,7 @@ export default function StatementsPage() {
           <button
             type="button"
             className="btn-primary"
-            onClick={() => setShowImport(true)}
+            onClick={() => launcherRef.current?.open()}
           >
             {t.stmtsImportBtn}
           </button>
@@ -376,13 +378,16 @@ export default function StatementsPage() {
         />
       )}
 
-      {/* ── Import modal ──────────────────────────────────────── */}
-      {showImport && (
+      {/* ── Import launcher (hidden file input) + modal ───────────────────── */}
+      <ImportLauncher ref={launcherRef} onFile={f => setImportFile(f)} />
+
+      {importFile && (
         <ImportModal
           accounts={accounts}
           categories={categories}
           allTags={allTags}
-          onClose={() => setShowImport(false)}
+          initialFile={importFile}
+          onClose={() => setImportFile(null)}
           onSuccess={handleImportSuccess}
         />
       )}

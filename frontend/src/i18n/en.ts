@@ -39,6 +39,7 @@ const en: Dict = {
   modalClose: 'Close',
   modalFileLabel: 'Statement file',
   modalFileHint: 'PDF files only (xlsx/csv coming soon)',
+  modalChangeFile: 'Change file',
   modalAccountLabel: 'Account',
   modalAccountPlaceholder: 'Select or type the account name',
   modalAccountHint: "Select an existing account or type a new one (e.g. 'BBVA')",
