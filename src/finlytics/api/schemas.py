@@ -218,6 +218,14 @@ class DeleteMonthResult(BaseModel):
     deleted: int
 
 
+class StatementOriginal(BaseModel):
+    """One ImportRun that has an associated PDF on disk."""
+    import_run_id: int
+    source_filename: str
+    account_name: str
+    imported_at: datetime
+
+
 # ── Backup ────────────────────────────────────────────────────────────────────
 
 class BackupAccountIn(BaseModel):
@@ -315,6 +323,7 @@ class ConfirmIn(BaseModel):
     transactions: list[ExtractedTransaction]
     tag_colors: dict[str, str] | None = None
     account_number: str | None = None  # full IBAN; when provided, account resolved by number
+    source_pdf_base64: str | None = None  # raw base64 of the uploaded PDF (no data-URL prefix)
 
 
 class CheckDuplicatesItem(BaseModel):

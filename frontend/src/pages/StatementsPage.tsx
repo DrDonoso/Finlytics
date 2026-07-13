@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import type { Overview, Account, Category, Tag, GlobalFilters, ImportResult } from '../api/types'
-import type { StatementMonth } from '../api/types'
+import type { StatementMonth, StatementOriginal } from '../api/types'
 import {
   getStatementMonths, deleteStatementMonth, getOverview,
   getAccounts, getCategories, getTags,
+  getStatementOriginals, downloadStatementOriginal,
 } from '../api/client'
 import { useT } from '../i18n'
 import type { Lang } from '../i18n'
@@ -72,6 +73,11 @@ export default function StatementsPage() {
   // refreshKey triggers re-fetch of both the months list and the transactions table
   const [refreshKey, setRefreshKey] = useState(0)
 
+  // Original PDFs available for the selected month
+  const [originals,             setOriginals]             = useState<StatementOriginal[]>([])
+  const [originalsDropdownOpen, setOriginalsDropdownOpen] = useState(false)
+  const originalsDropdownRef = useRef<HTMLDivElement>(null)
+
   // ── Load reference data once ────────────────────────────────────────────────
   useEffect(() => {
     getAccounts().then(setAccounts).catch(() => {})
@@ -132,6 +138,30 @@ export default function StatementsPage() {
       .catch(() => { if (!cancelled) { setOverviewLoading(false) } })
     return () => { cancelled = true }
   }, [from, to, currentMonthHasData, refreshKey, overviewRefKey, selAccountId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Fetch available original PDFs for the selected month ────────────────────
+  useEffect(() => {
+    let cancelled = false
+    setOriginals([])
+    setOriginalsDropdownOpen(false)
+    if (!selY || !selM) return
+    getStatementOriginals(selY, selM, selAccountId)
+      .then(data => { if (!cancelled) setOriginals(data) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [selY, selM, selAccountId, refreshKey]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Close originals dropdown on outside click ────────────────────────────────
+  useEffect(() => {
+    if (!originalsDropdownOpen) return
+    function handleClickOutside(e: MouseEvent) {
+      if (originalsDropdownRef.current && !originalsDropdownRef.current.contains(e.target as Node)) {
+        setOriginalsDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [originalsDropdownOpen])
 
   // ── Navigation helpers ──────────────────────────────────────────────────────
   // months[] is DESC-sorted (newest first). "prev" = earlier in time = higher idx; "next" = later = lower idx.
@@ -319,6 +349,43 @@ export default function StatementsPage() {
             <span className="tx-total-value">{formatCurrency(overview.net)}</span>
           </div>
         </div>
+        {originals.length > 0 && (
+          <div className="stmts-download-wrap" ref={originalsDropdownRef}>
+            <button
+              type="button"
+              className="btn-download-original"
+              title={t.stmtsDownloadOriginal}
+              onClick={() => {
+                if (originals.length === 1) {
+                  downloadStatementOriginal(originals[0].import_run_id, originals[0].source_filename).catch(() => {})
+                } else {
+                  setOriginalsDropdownOpen(v => !v)
+                }
+              }}
+            >
+              ⬇ {t.stmtsDownloadOriginal}
+            </button>
+            {originals.length > 1 && originalsDropdownOpen && (
+              <div className="originals-dropdown" role="menu" aria-label={t.stmtsDownloadOriginalDropdown}>
+                {originals.map(o => (
+                  <button
+                    key={o.import_run_id}
+                    type="button"
+                    className="originals-dropdown-item"
+                    role="menuitem"
+                    onClick={() => {
+                      setOriginalsDropdownOpen(false)
+                      downloadStatementOriginal(o.import_run_id, o.source_filename).catch(() => {})
+                    }}
+                  >
+                    <span className="originals-dropdown-item-filename">📄 {o.source_filename}</span>
+                    <span className="originals-dropdown-item-account">{o.account_name}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         </div>
       )}
 

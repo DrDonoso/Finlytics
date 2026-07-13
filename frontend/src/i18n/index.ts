@@ -272,6 +272,8 @@ export interface Dict {
   stmtsEmptyTitle: (monthLabel: string) => string
   stmtsEmptyHint: string
   stmtsImportBtn: string
+  stmtsDownloadOriginal: string
+  stmtsDownloadOriginalDropdown: string
   // ── MonthPicker ───────────────────────────────────────────────────────────────
   monthPickerTriggerLabel: (formatted: string) => string
   monthPickerDialogLabel: string

@@ -63,7 +63,7 @@ class Settings(BaseSettings):
     # ── App config ────────────────────────────────────────────────────────────
     timezone: str = "Europe/Madrid"
     port: int = 7777
-    upload_dir: str = "/app/uploads"
+    upload_dir: str = "/app/data/uploads"
 
     # ── Auth ──────────────────────────────────────────────────────────────────
     # Sign JWT session tokens. If unset, an ephemeral key is generated at startup

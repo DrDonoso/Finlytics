@@ -6,7 +6,7 @@ import type {
   Transaction, TransactionPatch, CashflowSummary, CategoryPatch,
   AuthStatus, AuthUser, BackupImportSummary,
   Rule, RuleInput, RulePatch,
-  StatementMonth, MerchantSummary,
+  StatementMonth, MerchantSummary, StatementOriginal,
 } from './types'
 import {
   mockGetAccounts, mockGetCategories, mockGetTags, mockGetTransactions,
@@ -334,6 +334,32 @@ export async function importBackup(data: unknown): Promise<BackupImportSummary> 
 /** GET /api/statements/months?account_id={id?} → months with transactions, sorted DESC by (year, month). */
 export async function getStatementMonths(account_id?: number): Promise<StatementMonth[]> {
   return apiFetch<StatementMonth[]>(buildUrl('/api/statements/months', account_id !== undefined ? { account_id } : undefined))
+}
+
+/** GET /api/statements/originals?year={y}&month={m}&account_id={id?}
+ *  Returns only statements with a stored original PDF. Degrades to [] on any error. */
+export async function getStatementOriginals(year: number, month: number, accountId?: number): Promise<StatementOriginal[]> {
+  try {
+    return await apiFetch<StatementOriginal[]>(buildUrl('/api/statements/originals', { year, month, ...(accountId !== undefined ? { account_id: accountId } : {}) }))
+  } catch {
+    return []
+  }
+}
+
+/** GET /api/statements/original/{importRunId} → PDF as attachment.
+ *  Uses authenticated fetch+blob+objectURL to trigger a browser download. */
+export async function downloadStatementOriginal(importRunId: number, filename: string): Promise<void> {
+  const res = await fetch(`/api/statements/original/${importRunId}`, { credentials: 'same-origin' })
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
 }
 
 /** DELETE /api/statements/month?year={y}&month={m}&account_id={id?} → { deleted: number }. */
