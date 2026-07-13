@@ -4,6 +4,15 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260713] - 2026-07-13
+
+- Replace the Docker-managed `uploads` volume with a bind mount of ${FINLYTICS_DATA_DIR:-./data} to /app/data, and set UPLOAD_DIR to /app/data/uploads, so original statement PDFs live on the host.
+- Dockerfile creates /app/data/uploads (owned by uid 1000); .env.example documents FINLYTICS_DATA_DIR (plus the Linux uid-1000 host-perms note); gitignore the local ./data dir.
+- Store each imported statement's original PDF on disk under UPLOAD_DIR (/app/data/uploads) as {Account}_{YYYYMM}.pdf (sanitized, latest wins); the relative path is recorded on ImportRun.source_path (migration 0012).
+- The PDF is captured at import-confirm time; a failed file write never aborts the import.
+- New GET /api/statements/originals and GET /api/statements/original/{id} back a "Download original" button on the /statements month header.
+
+
 ## [20260710.02] - 2026-07-10
 
 - Trim the overloaded home: remove the embedded full transactions table; move the heavy analytical charts (spending over time, by account, cashflow Sankey) to a new "Trends" view at /analytics.
