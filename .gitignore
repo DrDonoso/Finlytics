@@ -34,6 +34,9 @@ Thumbs.db
 # Golden-set fixtures: owner's private real PDFs (never commit real statements)
 tests/fixtures/statements/local/
 
+# Local host data dir (bind-mounted to /app/data) — uploaded statement PDFs, never commit
+/data/
+
 # Squad / AI-team tooling — kept out of main (lives on the local dev branch + master backup)
 .squad/
 .copilot/

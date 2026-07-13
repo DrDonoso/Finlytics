@@ -17,7 +17,7 @@ services:
 
       # --- App config ---
       TIMEZONE: "${TIMEZONE:-Europe/Madrid}"
-      UPLOAD_DIR: /app/uploads
+      UPLOAD_DIR: /app/data/uploads
 
       # --- Auth ---
       AUTH_SECRET: "${AUTH_SECRET:-}"
@@ -25,7 +25,7 @@ services:
       AUTH_TOKEN_EXPIRE_DAYS: "${AUTH_TOKEN_EXPIRE_DAYS:-7}"
 
     volumes:
-      - uploads:/app/uploads
+      - "${FINLYTICS_DATA_DIR:-./data}:/app/data"
 
     depends_on:
       db:
@@ -51,4 +51,3 @@ services:
 
 volumes:
   pgdata:
-  uploads:
