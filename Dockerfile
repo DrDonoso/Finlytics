@@ -29,7 +29,7 @@ RUN mkdir -p src/finlytics && touch src/finlytics/__init__.py && \
 
 # Create writable dir for uploads BEFORE copying source,
 # so this layer stays cached when only the app code changes.
-RUN mkdir -p /app/uploads && chown -R app:app /app/uploads
+RUN mkdir -p /app/data/uploads && chown -R app:app /app/data
 
 # Copy full source and reinstall package (deps already cached).
 # These are the only layers that change on a normal code update.
