@@ -77,6 +77,18 @@ function toImportTxn(row: EditRow): ImportTransaction {
   }
 }
 
+function readFileAsBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const result = reader.result as string
+      resolve(result.split(',')[1] ?? '')
+    }
+    reader.onerror = () => reject(reader.error)
+    reader.readAsDataURL(file)
+  })
+}
+
 
 export default function ImportModal({ accounts, categories, allTags, onClose, onSuccess, initialFiles }: Props) {
   const { t } = useT()
@@ -337,12 +349,16 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
           }
         }
 
+        let source_pdf_base64: string | undefined
+        try { source_pdf_base64 = await readFileAsBase64(fi.file) } catch { /* degrade gracefully */ }
+
         const payload: ConfirmRequest = {
           account_name: accountName,
           source_filename: fi.file.name,
           transactions: fi.rows.map(toImportTxn),
           ...(Object.keys(tag_colors).length > 0 ? { tag_colors } : {}),
           ...(accountNumber ? { account_number: accountNumber } : {}),
+          ...(source_pdf_base64 ? { source_pdf_base64 } : {}),
         }
 
         const result = await confirmImport(payload)

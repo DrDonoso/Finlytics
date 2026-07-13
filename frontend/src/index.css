@@ -3656,6 +3656,75 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
 }
 .stmts-empty .btn-primary { margin-top: 4px; }
 
+/* ── Download-original button & dropdown ─────────────────────────────── */
+.stmts-download-wrap {
+  position: relative;
+  flex-shrink: 0;
+  align-self: flex-start;
+}
+.btn-download-original {
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  font-family: inherit;
+  transition: border-color 0.15s, background 0.15s;
+}
+.btn-download-original:hover {
+  border-color: var(--primary);
+  background: var(--surface-hover);
+}
+.originals-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 220px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  z-index: 200;
+  padding: 4px;
+}
+.originals-dropdown-item {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  text-align: left;
+  width: 100%;
+  font-family: inherit;
+  gap: 2px;
+  transition: background 0.12s;
+}
+.originals-dropdown-item:hover { background: var(--surface-hover); }
+.originals-dropdown-item-filename {
+  font-size: 13px;
+  color: var(--text);
+  font-weight: 500;
+  word-break: break-all;
+}
+.originals-dropdown-item-account {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+@media (max-width: 600px) {
+  .btn-download-original { height: 44px; }
+  .originals-dropdown { min-width: 180px; }
+}
+
 /* ── Statements account selector bar ────────────────────────────────── */
 .stmts-account-bar {
   display: flex;

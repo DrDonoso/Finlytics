@@ -1109,3 +1109,55 @@ async def delete_statement_month(
     async with session.begin():
         result = await session.execute(stmt)
         return result.rowcount
+
+
+async def get_statement_originals(
+    session: AsyncSession,
+    *,
+    year: int,
+    month: int,
+    account_id: int | None = None,
+) -> list[dict[str, Any]]:
+    """Return ImportRuns that have an original PDF on disk for the given month.
+
+    Filters by ``period == "YYYY-MM"`` and ``source_path IS NOT NULL``.
+    Optionally restricts to a single account when *account_id* is provided.
+    Returns DISTINCT by source_path — when multiple runs share a filename
+    (overwrite semantics) the one with the highest id (latest) is returned.
+    """
+    period = f"{year}-{month:02d}"
+    # Use a subquery to pick the latest import_run_id per source_path.
+    inner = (
+        select(
+            func.max(ImportRun.id).label("run_id"),
+        )
+        .where(ImportRun.period == period)
+        .where(ImportRun.source_path.is_not(None))
+        .group_by(ImportRun.source_path)
+    )
+    if account_id is not None:
+        inner = inner.where(ImportRun.account_id == account_id)
+    inner = inner.subquery()
+
+    stmt = (
+        select(
+            ImportRun.id.label("import_run_id"),
+            ImportRun.source_path.label("source_filename"),
+            Account.name.label("account_name"),
+            ImportRun.imported_at,
+        )
+        .select_from(ImportRun)
+        .join(Account, ImportRun.account_id == Account.id)
+        .join(inner, ImportRun.id == inner.c.run_id)
+        .order_by(ImportRun.imported_at.desc())
+    )
+    rows = (await session.execute(stmt)).all()
+    return [
+        {
+            "import_run_id": r.import_run_id,
+            "source_filename": r.source_filename,
+            "account_name": r.account_name,
+            "imported_at": r.imported_at,
+        }
+        for r in rows
+    ]

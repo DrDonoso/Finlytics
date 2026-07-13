@@ -183,6 +183,8 @@ export interface ConfirmRequest {
   tag_colors?: Record<string, string>
   /** Full IBAN — only sent when creating a brand-new detected account. */
   account_number?: string | null
+  /** Original PDF as base64 (data URL prefix stripped) — stored server-side for re-download. */
+  source_pdf_base64?: string
 }
 
 // ─── Transaction update ───────────────────────────────────────────────────────
@@ -226,6 +228,13 @@ export interface StatementMonth {
   year: number
   month: number
   count: number
+}
+
+export interface StatementOriginal {
+  import_run_id: number
+  source_filename: string
+  account_name: string
+  imported_at: string
 }
 
 // ─── Backup ───────────────────────────────────────────────────────────────────

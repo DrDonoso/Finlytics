@@ -183,6 +183,8 @@ class ImportRun(Base):
     num_parsed: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     num_inserted: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     num_duplicates: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    # Relative filename under settings.upload_dir; None when no PDF was captured.
+    source_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     account: Mapped["Account"] = relationship(back_populates="import_runs")
     transactions: Mapped[list["Transaction"]] = relationship(back_populates="import_run")

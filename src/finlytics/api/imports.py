@@ -13,7 +13,11 @@ LLMClient, _resolve_account, _persist_import_run) are all patchable for unit tes
 
 from __future__ import annotations
 
+import base64
 import logging
+import os
+import re
+import unicodedata
 
 from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,6 +25,7 @@ from sqlalchemy import select
 
 from finlytics.api.deps import get_db, get_llm_client
 from finlytics.api.schemas import CheckDuplicatesIn, CheckDuplicatesOut, ConfirmIn, ImportResult, PreviewOut, SuggestedTag, mask_account_number
+from finlytics.config import settings
 from finlytics.contracts import ExtractedTransaction
 from finlytics.db.models import Account, ImportRun, Tag, Transaction
 from finlytics.db.repository import compute_dedup_hash, list_rules, upsert_transactions
@@ -34,6 +39,25 @@ from finlytics.extraction.tag_colors import suggest_tag_colors
 log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/imports", tags=["imports"])
+
+
+# ── Slug helper ───────────────────────────────────────────────────────────────
+
+def _slugify(name: str) -> str:
+    """Return a filesystem-safe slug from *name*.
+
+    NFKD-normalizes, strips accents, replaces runs of non-alphanumeric
+    characters with ``_``, strips leading/trailing ``_``.
+    Falls back to ``"account"`` when the result would be empty.
+
+    Examples:
+      "Cuenta Nómina" → "Cuenta_Nomina"
+      "  BBVA / ES "  → "BBVA_ES"
+    """
+    nfkd = unicodedata.normalize("NFKD", name)
+    ascii_only = nfkd.encode("ascii", "ignore").decode("ascii")
+    slug = re.sub(r"[^a-zA-Z0-9]+", "_", ascii_only).strip("_")
+    return slug or "account"
 
 
 # ── Shared helpers (patchable in tests) ──────────────────────────────────────
@@ -73,6 +97,8 @@ async def _persist_import_run(
     transactions: list[ExtractedTransaction],
     *,
     tag_colors: dict[str, str] | None = None,
+    account_name: str | None = None,
+    source_pdf: bytes | None = None,
 ) -> ImportResult:
     """Create an ImportRun and upsert transactions. Must be called inside session.begin()."""
     period: str | None = (
@@ -86,6 +112,17 @@ async def _persist_import_run(
     )
     session.add(import_run)
     await session.flush()  # materialise import_run.id
+
+    # Save the original PDF to disk when provided.
+    if source_pdf is not None and period is not None:
+        filename = f"{_slugify(account_name or 'account')}_{period.replace('-', '')}.pdf"
+        try:
+            os.makedirs(settings.upload_dir, exist_ok=True)
+            with open(os.path.join(settings.upload_dir, filename), "wb") as fh:
+                fh.write(source_pdf)
+            import_run.source_path = filename
+        except Exception as exc:
+            log.warning("PDF save failed (import continues without source_path): %s", exc)
 
     num_inserted, num_duplicates = await upsert_transactions(
         session, import_run, transactions, tag_colors=tag_colors
@@ -113,6 +150,17 @@ def _parse_file(file_bytes: bytes, ext: str, error_status: int = 400) -> str:
         raise HTTPException(
             status_code=error_status, detail=f"File parsing failed: {exc}"
         ) from exc
+
+
+def _decode_pdf_base64(b64: str | None) -> bytes | None:
+    """Decode a raw base64 string to bytes; return None when *b64* is None or malformed."""
+    if b64 is None:
+        return None
+    try:
+        return base64.b64decode(b64)
+    except Exception:
+        log.warning("source_pdf_base64 is malformed — PDF will not be saved")
+        return None
 
 
 # ── Preview endpoint ──────────────────────────────────────────────────────────
@@ -259,6 +307,8 @@ async def confirm_import(
         result = await _persist_import_run(
             session, account.id, body.source_filename, body.transactions,
             tag_colors=body.tag_colors,
+            account_name=account.name,
+            source_pdf=_decode_pdf_base64(body.source_pdf_base64),
         )
     return result
 
@@ -359,6 +409,10 @@ async def create_import(
         extracted = apply_rules(extracted, rules)
         all_txs = sorted(matched_txs + extracted, key=lambda t: t.transaction_date)
 
-        result = await _persist_import_run(session, account.id, filename, all_txs)
+        result = await _persist_import_run(
+            session, account.id, filename, all_txs,
+            account_name=account.name,
+            source_pdf=file_bytes,
+        )
 
     return result
