@@ -274,6 +274,43 @@ class Transaction(Base):
         )
 
 
+class InvestmentConnection(Base):
+    """An encrypted connection to an external investment provider.
+
+    One row per discovered provider account.  Multiple accounts from the
+    same token share the same ``token_enc`` ciphertext.  Token is NEVER
+    stored in plaintext (Romanoff §1).
+    """
+
+    __tablename__ = "investment_connections"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    plugin_id: Mapped[str] = mapped_column(String(50), nullable=False)
+    # active | error | disconnected
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, server_default="active"
+    )
+    # Masked account label: first3•••last2 (e.g. "PBK•••Z5")
+    account_label_masked: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    # Fernet ciphertext of the provider API token — NEVER the plaintext
+    token_enc: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    last_synced_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return (
+            f"<InvestmentConnection id={self.id} plugin={self.plugin_id!r} "
+            f"mask={self.account_label_masked!r} status={self.status!r}>"
+        )
+
+
 class Rule(Base):
     """User-defined rule for deterministic transaction categorisation.
 

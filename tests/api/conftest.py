@@ -40,6 +40,7 @@ def mock_session() -> MagicMock:
     session.commit = AsyncMock()
     session.close = AsyncMock()
     session.add = MagicMock()
+    session.scalar = AsyncMock(return_value=0)   # needed by GET /investments/plugins
 
     # session.begin() must be usable as `async with session.begin():`
     # AsyncMock() supports the async context manager protocol out of the box.

@@ -23,6 +23,7 @@ services:
       AUTH_SECRET: "${AUTH_SECRET:-}"
       AUTH_COOKIE_SECURE: "${AUTH_COOKIE_SECURE:-false}"
       AUTH_TOKEN_EXPIRE_DAYS: "${AUTH_TOKEN_EXPIRE_DAYS:-7}"
+      FINLYTICS_ENCRYPTION_KEY: "${FINLYTICS_ENCRYPTION_KEY:-}"
 
     volumes:
       - "${FINLYTICS_DATA_DIR:-./data}:/app/data"
