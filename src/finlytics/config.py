@@ -74,6 +74,13 @@ class Settings(BaseSettings):
     # Set False for localhost (http). Set True when behind an https reverse proxy.
     auth_cookie_secure: bool = False
 
+    # ── Investments / connector encryption ───────────────────────────────────
+    # App-wide Fernet key for encrypting all connector tokens at rest.
+    # Scoped fail: app starts normally when absent; only encrypt/decrypt
+    # operations fail (HTTP 503) if the key is missing or invalid.
+    # Generate: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    finlytics_encryption_key: str | None = None
+
     @model_validator(mode="after")
     def _ensure_auth_secret(self) -> "Settings":
         """Auto-generate an ephemeral secret when AUTH_SECRET is not configured."""

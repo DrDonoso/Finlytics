@@ -7,6 +7,7 @@ import type {
   AuthStatus, AuthUser, BackupImportSummary,
   Rule, RuleInput, RulePatch,
   StatementMonth, MerchantSummary, StatementOriginal, InvestmentPlugin,
+  InvestmentPortfolio, InvestmentConnection, ValidateAccountsResponse,
 } from './types'
 import {
   mockGetAccounts, mockGetCategories, mockGetTags, mockGetTransactions,
@@ -17,6 +18,8 @@ import {
   mockCreateCategory,
   mockGetAuthStatus, mockSetupUser, mockLogin, mockLogout, mockGetMe,
   mockGetByMerchant, mockGetByDay, mockGetInvestmentPlugins,
+  mockValidateIndexaToken, mockConnectPlugin, mockGetConnections,
+  mockDisconnectConnection, mockGetInvestmentPortfolio,
 } from './mock'
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === '1'
@@ -428,4 +431,52 @@ export async function getMe(): Promise<AuthUser> {
 export async function getInvestmentPlugins(): Promise<InvestmentPlugin[]> {
   if (USE_MOCK) return mockGetInvestmentPlugins()
   return apiFetch<InvestmentPlugin[]>(buildUrl('/api/investments/plugins'))
+}
+
+/** POST /api/investments/connections/validate — verifies token and returns discovered accounts.
+ *  400 = invalid token; 503 = network/config error. */
+export async function validateIndexaToken(token: string): Promise<ValidateAccountsResponse> {
+  if (USE_MOCK) return mockValidateIndexaToken(token)
+  const res = await fetch('/api/investments/connections/validate', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token }),
+  })
+  if (res.status === 401) { _on401?.(); throw new Error('HTTP 401 Unauthorized') }
+  if (!res.ok) {
+    const data: { detail?: string } = await res.json().catch(() => ({}))
+    throw Object.assign(new Error(data.detail ?? `HTTP ${res.status}`), { status: res.status })
+  }
+  return res.json() as Promise<ValidateAccountsResponse>
+}
+
+/** POST /api/investments/connections — stores selected accounts; returns ConnectionOut[]. */
+export async function connectPlugin(token: string, accountNumbers: string[]): Promise<InvestmentConnection[]> {
+  if (USE_MOCK) return mockConnectPlugin(token, accountNumbers)
+  return apiFetch<InvestmentConnection[]>('/api/investments/connections', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, account_numbers: accountNumbers }),
+  })
+}
+
+/** GET /api/investments/connections — all active connections for the current user. */
+export async function getConnections(): Promise<InvestmentConnection[]> {
+  if (USE_MOCK) return mockGetConnections()
+  return apiFetch<InvestmentConnection[]>(buildUrl('/api/investments/connections'))
+}
+
+/** DELETE /api/investments/connections/{id} — hard-deletes connection + encrypted token. */
+export async function disconnectConnection(id: number): Promise<void> {
+  if (USE_MOCK) return mockDisconnectConnection(id)
+  const res = await fetch(`/api/investments/connections/${id}`, { method: 'DELETE', credentials: 'same-origin' })
+  if (res.status === 401) { _on401?.(); throw new Error('HTTP 401 Unauthorized') }
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+}
+
+/** GET /api/investments/portfolio — aggregated portfolio for all active connections. */
+export async function getInvestmentPortfolio(): Promise<InvestmentPortfolio> {
+  if (USE_MOCK) return mockGetInvestmentPortfolio()
+  return apiFetch<InvestmentPortfolio>(buildUrl('/api/investments/portfolio'))
 }

@@ -358,3 +358,70 @@ export interface InvestmentPlugin {
   auth_type: 'api_key' | 'oauth' | 'token' | 'none'
   supported_features: string[]
 }
+
+export interface InvestmentReturns {
+  twr_annual: number | null
+  xirr: number | null
+  pl: number | null
+  invested: number | null
+}
+
+export interface ValuePoint {
+  date: string    // "YYYYMMDD"
+  value: number
+}
+
+export interface CashInvestedSplit {
+  cash_amount: number
+  instruments_amount: number
+  instruments_cost: number
+  total_amount: number
+}
+
+export interface InvestmentHolding {
+  plugin_id: string
+  name: string
+  ticker: string
+  asset_class: string
+  units: number
+  current_value: number
+  cost_basis: number
+  currency: string
+  gain_loss: number
+  gain_loss_pct: number    // decimal: 0.1093 = 10.93%
+  last_updated: string
+}
+
+export interface InvestmentPortfolio {
+  total_value: number
+  total_invested: number | null
+  total_gain_loss: number | null
+  total_gain_loss_pct: number | null   // decimal
+  currency: string
+  plugins_connected: number
+  last_updated: string | null
+  returns: InvestmentReturns | null
+  value_series: ValuePoint[]
+  cash_invested: CashInvestedSplit | null
+  holdings: InvestmentHolding[]
+}
+
+export interface InvestmentConnection {
+  id: number
+  plugin_id: string
+  status: 'active' | 'error' | 'disconnected'
+  account_label_masked: string | null
+  created_at: string
+  last_synced_at: string | null
+}
+
+export interface ValidatedAccount {
+  account_number: string
+  account_number_masked: string
+  type: string
+  status: string
+}
+
+export interface ValidateAccountsResponse {
+  accounts: ValidatedAccount[]
+}

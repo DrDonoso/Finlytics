@@ -5,6 +5,7 @@ import type {
   TransactionsParams, SummaryParams, MonthSummaryParams,
   TransactionPatch, CashflowSummary, AuthStatus, AuthUser,
   MerchantSummary, DaySummary, InvestmentPlugin,
+  InvestmentPortfolio, InvestmentConnection, ValidateAccountsResponse,
 } from './types'
 
 // ─── Static reference data ────────────────────────────────────────────────────
@@ -439,7 +440,7 @@ export function mockGetInvestmentPlugins(): Promise<InvestmentPlugin[]> {
       name: 'Indexa Capital',
       description: 'Automated index-fund portfolio management',
       icon: '🏦',
-      status: 'coming_soon',
+      status: _mockConnected ? 'connected' : 'available',
       auth_type: 'token',
       supported_features: ['holdings', 'transactions', 'performance'],
     },
@@ -462,4 +463,151 @@ export function mockGetInvestmentPlugins(): Promise<InvestmentPlugin[]> {
       supported_features: ['holdings'],
     },
   ])
+}
+
+// ─── Investments Phase 2 ─────────────────────────────────────────────────────
+
+let _mockConnected = false
+
+export function mockValidateIndexaToken(token: string): Promise<ValidateAccountsResponse> {
+  if (!token || token.trim().length < 8) {
+    return Promise.reject(
+      Object.assign(new Error('Token inválido — verifícalo en Indexa Capital.'), { status: 400 }),
+    )
+  }
+  return delay({
+    accounts: [
+      { account_number: 'PBK12345Z5', account_number_masked: 'PBK•••Z5', type: 'fondos', status: 'active' },
+    ],
+  })
+}
+
+export function mockConnectPlugin(_token: string, _accountNumbers: string[]): Promise<InvestmentConnection[]> {
+  _mockConnected = true
+  return delay([
+    {
+      id: 1,
+      plugin_id: 'indexa-capital',
+      status: 'active',
+      account_label_masked: 'PBK•••Z5',
+      created_at: '2026-07-14T11:10:33+02:00',
+      last_synced_at: '2026-07-14T11:12:00+02:00',
+    },
+  ])
+}
+
+export function mockGetConnections(): Promise<InvestmentConnection[]> {
+  if (!_mockConnected) return delay([])
+  return delay([
+    {
+      id: 1,
+      plugin_id: 'indexa-capital',
+      status: 'active',
+      account_label_masked: 'PBK•••Z5',
+      created_at: '2026-07-14T11:10:33+02:00',
+      last_synced_at: '2026-07-14T11:12:00+02:00',
+    },
+  ])
+}
+
+export function mockDisconnectConnection(_id: number): Promise<void> {
+  _mockConnected = false
+  return delay(undefined as void)
+}
+
+export function mockGetInvestmentPortfolio(): Promise<InvestmentPortfolio> {
+  if (!_mockConnected) {
+    return delay({
+      total_value: 0,
+      total_invested: null,
+      total_gain_loss: null,
+      total_gain_loss_pct: null,
+      currency: 'EUR',
+      plugins_connected: 0,
+      last_updated: null,
+      returns: null,
+      value_series: [],
+      cash_invested: null,
+      holdings: [],
+    })
+  }
+  return delay({
+    total_value: 12345.67,
+    total_invested: 11000.00,
+    total_gain_loss: 1345.67,
+    total_gain_loss_pct: 0.1223,
+    currency: 'EUR',
+    plugins_connected: 1,
+    last_updated: '2026-07-14T11:12:00.123456+00:00',
+    returns: {
+      twr_annual: 0.0851,
+      xirr: 0.0912,
+      pl: 1345.67,
+      invested: 11000.00,
+    },
+    value_series: [
+      { date: '20230101', value: 9800.00 },
+      { date: '20230201', value: 10050.00 },
+      { date: '20230301', value: 9950.00 },
+      { date: '20230401', value: 10200.00 },
+      { date: '20230501', value: 10450.00 },
+      { date: '20230601', value: 10600.00 },
+      { date: '20230701', value: 10800.00 },
+      { date: '20230801', value: 10700.00 },
+      { date: '20230901', value: 11050.00 },
+      { date: '20231001', value: 11200.00 },
+      { date: '20231101', value: 11400.00 },
+      { date: '20231201', value: 11600.00 },
+      { date: '20240101', value: 11850.00 },
+      { date: '20240201', value: 12100.00 },
+      { date: '20240301', value: 12345.67 },
+    ],
+    cash_invested: {
+      cash_amount: 250.00,
+      instruments_amount: 12095.67,
+      instruments_cost: 10750.00,
+      total_amount: 12345.67,
+    },
+    holdings: [
+      {
+        plugin_id: 'indexa-capital',
+        name: 'Vanguard Global Stock Index Fund',
+        ticker: 'IE00B03HCZ61',
+        asset_class: 'equity',
+        units: 42.5,
+        current_value: 8320.00,
+        cost_basis: 7500.00,
+        currency: 'EUR',
+        gain_loss: 820.00,
+        gain_loss_pct: 0.1093,
+        last_updated: '2026-07-14T11:12:00.123456+00:00',
+      },
+      {
+        plugin_id: 'indexa-capital',
+        name: 'iShares Core Euro Corporate Bond',
+        ticker: 'IE00B3F81R35',
+        asset_class: 'fixed_income',
+        units: 28.0,
+        current_value: 3525.67,
+        cost_basis: 3000.00,
+        currency: 'EUR',
+        gain_loss: 525.67,
+        gain_loss_pct: 0.1752,
+        last_updated: '2026-07-14T11:12:00.123456+00:00',
+      },
+      {
+        plugin_id: 'indexa-capital',
+        name: 'Cash / Money Market',
+        ticker: 'CASH',
+        asset_class: 'cash',
+        units: 250.00,
+        current_value: 250.00,
+        cost_basis: 250.00,
+        currency: 'EUR',
+        gain_loss: 0.00,
+        gain_loss_pct: 0.00,
+        last_updated: '2026-07-14T11:12:00.123456+00:00',
+      },
+    ],
+  })
 }

@@ -378,6 +378,57 @@ export interface Dict {
   // ── Connectors settings page ──────────────────────────────────────────────
   settingsSubConnectors: string
   investmentsManageConnectors: string
+  // ── Indexa Wizard ─────────────────────────────────────────────────────────
+  wizardTitle: string
+  wizardProgressLabel: string
+  wizardStep1Title: string
+  wizardStep1Desc: string
+  wizardStep1Link: string
+  wizardSecurityNote: string
+  wizardNext: string
+  wizardStep2Title: string
+  wizardTokenLabel: string
+  wizardTokenPlaceholder: string
+  wizardValidate: string
+  wizardStep3Validating: string
+  wizardStep3Title: string
+  wizardStep3Desc: string
+  wizardConnect: string
+  wizardStep4Title: string
+  wizardStep4Desc: string
+  wizardViewInvestments: string
+  wizardErrorInvalidToken: string
+  wizardErrorNetwork: string
+  wizardBack: string
+  wizardRetry: string
+  wizardClose: string
+  wizardOpen: string
+  // ── Investments populated page ────────────────────────────────────────────
+  invKpiTwr: string
+  invKpiXirr: string
+  invChartValueTitle: string
+  invChartAllocationTitle: string
+  invHoldingsEmpty: string
+  invHoldingsCount: string
+  invAccountUpdated: (relTime: string) => string
+  invColName: string
+  invColISIN: string
+  invColClass: string
+  invColValue: string
+  invColWeight: string
+  invColCost: string
+  invColPnL: string
+  invColPnLPct: string
+  invAssetEquity: string
+  invAssetFixed_income: string
+  invAssetCash: string
+  invAssetOther: string
+  invErrorLoading: string
+  // ── Connectors card states ────────────────────────────────────────────────
+  connectorConnected: string
+  connectorError: string
+  connectorDisconnect: string
+  connectorErrorRetry: string
 }
 
 const ES_LABELS: Record<string, string> = {

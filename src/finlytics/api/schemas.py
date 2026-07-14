@@ -352,6 +352,28 @@ class CheckDuplicatesOut(BaseModel):
 
 # ── Investments ───────────────────────────────────────────────────────────────
 
+class InvestmentReturns(BaseModel):
+    """Performance metrics from the provider's performance endpoint."""
+    twr_annual: float | None = None    # time-weighted return, annualised
+    xirr: float | None = None          # money-weighted annualised return
+    pl: float | None = None            # absolute P&L (EUR)
+    invested: float | None = None      # net capital invested
+
+
+class ValuePoint(BaseModel):
+    """One (date, value) data-point in a portfolio value series."""
+    date: str    # "YYYYMMDD" from Indexa total_amounts keys
+    value: float
+
+
+class CashInvestedSplit(BaseModel):
+    """Breakdown of the latest portfolio snapshot (from Indexa portfolios[-1])."""
+    cash_amount: float
+    instruments_amount: float
+    instruments_cost: float
+    total_amount: float
+
+
 class InvestmentPluginOut(BaseModel):
     """Response schema for a single investment plugin descriptor."""
     id: str
@@ -388,6 +410,51 @@ class InvestmentPortfolioOut(BaseModel):
     holdings: list[InvestmentHoldingOut]
     plugins_connected: int
     last_updated: str | None = None
+    # Phase 2 — full visualisation fields
+    returns: InvestmentReturns | None = None
+    value_series: list[ValuePoint] = []
+    cash_invested: CashInvestedSplit | None = None
+
+
+class ValidateTokenRequest(BaseModel):
+    """Request body for POST /api/investments/connections/validate."""
+    token: str
+
+
+class DiscoveredAccountOut(BaseModel):
+    """One account discovered during token validation.
+
+    Returned transiently to the wizard — raw ``account_number`` is only used
+    by the next connect step and is NEVER stored (Romanoff §2).
+    """
+    account_number: str          # raw (sent back to client for the connect call)
+    account_number_masked: str   # PBK•••Z5 — for display in the wizard
+    type: str
+    status: str
+
+
+class ValidateTokenResponse(BaseModel):
+    """Response for POST /api/investments/connections/validate."""
+    accounts: list[DiscoveredAccountOut]
+
+
+class ConnectCreate(BaseModel):
+    """Request body for POST /api/investments/connections."""
+    token: str
+    account_numbers: list[str]   # subset from validate step; server re-validates ownership
+
+
+class ConnectionOut(BaseModel):
+    """Connection record returned to the frontend.
+
+    Token is NEVER included — only metadata and the masked account label.
+    """
+    id: int
+    plugin_id: str
+    status: str                         # active | error | disconnected
+    account_label_masked: str | None = None
+    created_at: datetime
+    last_synced_at: datetime | None = None
 
 
 # ── Rules ─────────────────────────────────────────────────────────────────────
