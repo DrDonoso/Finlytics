@@ -2,6 +2,40 @@
 
 ---
 
+## 2026-07-14 — Recommendations: Connectors → Settings, Cartera Phase 2 Plan
+
+**Authors:** Wanda (UX/UI), Vision (Frontend)  
+**Status:** Approved / Planned
+
+### Wanda: Connector Catalog Placement (IA Recommendation)
+
+**Decision:** Move the full connector catalog from `InvestmentsPage` to a new Settings sub-page (`/settings/connectors`). Replace the catalog on Investments with a single "Gestionar conectores →" CTA.
+
+**Rationale:**
+- Connecting a plugin = config (credentials, tokens) → belongs in Settings, not portfolio view
+- Even Phase 1 benefits: eliminates visual weight of disabled "coming soon" cards
+- Mobile-first: clean Investments page + one tap to Settings
+- Phase 2 readiness: connect flows built in Settings from the start (no migration needed)
+
+**Result:** Wanda's recommendation was approved by DrDonoso and implemented by Vision (see "Connectors Moved to Settings" section below).
+
+### Vision: Cartera / Holdings Visualization Plan (Phase 2)
+
+**Current state (Phase 1):** Holdings area shows empty-state placeholder.  
+**Phase 2 plan:**
+
+| Feature | Details |
+|---------|---------|
+| KPI row | 4 cards: Total value, Total invested, Gain/Loss, Plugins connected |
+| Asset allocation | Donut chart grouped by asset class (equity, fixed_income, crypto, cash, mixed, other) — reuse SpendingByCategory pattern |
+| Holdings table | Name, ticker, asset class, current value, cost basis, P&L (€ + %), currency — sortable by name/value/P&L% |
+| Multi-currency | Holdings display native currency; KPI totals in portfolio currency (EUR assumed) |
+| All states | No plugins (current), loading, data available, error, empty holdings |
+
+This page layout and component structure are pre-planned so real data in Phase 2 slots in cleanly without rework.
+
+---
+
 ## 2026-07-14 — Investments Plugin Skeleton (Phase 1)
 
 **Author:** Fury (Lead/Architect)  
@@ -228,6 +262,30 @@ The `InvestmentsPage` follows the same layout as Dashboard/Analytics:
 
 ---
 
+## 2026-07-14 — Frontend Implementation: Connectors Moved to Settings
+
+**Author:** Vision (Frontend Engineer)  
+**Status:** Shipped
+
+### Placement
+
+- **InvestmentsPage (`/investments`):** KPI row + holdings empty state + "Gestionar conectores →" NavLink to `/settings/connectors`
+- **ConnectorsPage (`/settings/connectors`):** Full plugin catalog grid (3 cards: Indexa Capital, Broker, Crypto Exchange — all "Coming soon", all disabled)
+
+### Implementation
+
+| File | Change |
+|------|--------|
+| `frontend/src/pages/ConnectorsPage.tsx` | **Created** — plugin catalog under settings layout |
+| `frontend/src/pages/InvestmentsPage.tsx` | Removed catalog; added NavLink CTA |
+| `frontend/src/App.tsx` | Added `settings/connectors` route |
+| `frontend/src/components/Layout.tsx` | Added "Conectores" sub-link in Ajustes accordion |
+| `frontend/src/i18n/index.ts`, `es.ts`, `en.ts` | Added `settingsSubConnectors`, `investmentsManageConnectors` keys |
+
+**Result:** 0 TypeScript errors. Build succeeded. Connector catalog cleanly moved; Investments page refocused as pure view + CTA. In Phase 2, disabled Connect buttons become real auth flows — page already the right home.
+
+---
+
 ## 2026-07-14 — Design: InvestmentsPage Skeleton (Phase 1)
 
 **Author:** Wanda (UX/UI Designer)  
@@ -431,5 +489,43 @@ The endpoint is a static in-memory registry with no DB access. Authenticated tes
 **Result: NO.** `frontend/package.json` has no `test` script and no vitest/jest devDependency. There is no `@testing-library/react`, `vitest`, or `jest` in `devDependencies`.
 
 **Recommendation:** Scaffolding frontend test infra (vitest + @testing-library/react) is a non-trivial one-time setup task. Since Vision's Investments page exists now, defer frontend test implementation until the coordinator decides whether frontend unit tests are in scope for this project. When that decision is made, Barton can write the nav-link and coming-soon render test in a single session.
+
+---
+
+## 2026-07-14 — DevOps: Local Commit & Rebuild
+
+**Author:** Rocket (DevOps/Platform)  
+**Status:** Done — local only, not pushed
+
+### Commit
+
+Committed complete Investments Phase 1 skeleton locally:
+
+```
+afbcd89  feat(investments): add plugin-based investments section skeleton
+```
+
+15 files changed (11 modified, 4 new): all under `frontend/`, `src/`, and `tests/`. `.squad/` files deliberately excluded.
+
+### Rebuild
+
+```powershell
+docker compose -f docker-compose.local.yml up -d --build
+```
+
+**Result:** ✅  
+- `finlytics-db-1` healthy (postgres:16-alpine)  
+- `finlytics-api-1` up, port 7777  
+- `GET http://localhost:7777/` → **200**  
+- `GET http://localhost:7777/api/investments/plugins` → **401** (auth guard active = new route live)
+
+### What Owner Sees
+
+- 💰 **Inversiones** sidebar → `/investments` with 3 KPI (—) + holdings empty state + "Gestionar conectores →" CTA
+- **Ajustes → Conectores** → plugin catalog (Indexa, Broker, Crypto — all "Próximamente")
+
+### Local Run Pattern (Established)
+
+For uncommitted feature code: **Always use `docker-compose.local.yml` with `--build`** (includes `build: .` from current working tree). Default `docker-compose.yml` pulls published Hub image (stale). 401 smoke check confirms new route is live.
 
 ---
