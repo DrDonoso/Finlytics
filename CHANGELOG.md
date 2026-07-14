@@ -4,6 +4,39 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260714] - 2026-07-14
+
+- Show real Indexa portfolio value, contributions, time-weighted (TWR) and money-weighted (XIRR) returns and annualized volatility
+- Add an account evolution chart (portfolio vs contributions) with period selector (1M/3M/6M/1Y/years/all) and EUR/% toggle
+- Add a monthly returns matrix (month x year) with a benchmark column and a max-drawdown note
+- Add asset-class and per-instrument allocation donuts
+- Make the holdings table sortable by every column, add a units (participaciones) column, and add info tooltips on gain/loss columns
+- Compact "total value" summary box: value, return, contributions and tax withholdings, with TWR/MWR/volatility metrics
+- Fix total value showing 0, de-duplicate holdings by ISIN, and fix a 500 error on the portfolio endpoint (benchmark dict handling)
+- Merge 7 inbox files into decisions.md (fury plan/review, romanoff security, shuri backend, wanda design, vision frontend, barton findings)
+- Resolve inbox (7 files deleted)
+- Create orchestration logs for all agents (fury, romanoff, shuri, wanda, vision, barton, rocket) with ISO 8601 UTC timestamps
+- Create session log summarizing Phase 2 completion
+- decisions.md now 111,277 bytes (Phase 2 architecture + implementation details + security verification + test results)
+- Connect an Indexa Capital account via a read-only token through a 4-step wizard (Ajustes -> Conectores)
+- Encrypted token storage (Fernet via FINLYTICS_ENCRYPTION_KEY), one connection per account, scoped fail-closed
+- Investments page shows live data: value/invested/P&L KPIs, TWR & XIRR, value-over-time chart, asset-allocation donut, holdings table
+- New endpoints: validate/connect/list/disconnect connections + aggregated portfolio; dynamic plugin status
+- Wire FINLYTICS_ENCRYPTION_KEY through docker-compose; center the manage-connectors CTA label
+- Investments nav item + /investments page: KPI placeholders and a holdings empty state with a "manage connectors" CTA
+- Plugin catalog under Settings -> Conectores (/settings/connectors) listing coming-soon connectors (Indexa Capital, broker, crypto)
+- Backend GET /api/investments/plugins static registry plus normalized InvestmentHolding/InvestmentPortfolio schemas for future phases
+- Bilingual ES/EN, dark mode, responsive; API tests included
+- Merge 5 inbox decision files into decisions.md (fury, shuri, wanda, vision, barton)
+- Delete merged inbox files (no duplicates)
+- Create orchestration logs for each agent (2026-07-14T07-52-49Z)
+- Create session log: Investments skeleton Phase 1 shipped
+- Decision archive gate: 0 bytes → 19369 bytes (under 20480 threshold)
+- Inbox processed: 6 files merged & deleted
+- No history files summarized (all < 15360 bytes)
+- Test results: 43 smoke suite + 6 new investments tests passing
+
+
 ## [20260713] - 2026-07-13
 
 - Replace the Docker-managed `uploads` volume with a bind mount of ${FINLYTICS_DATA_DIR:-./data} to /app/data, and set UPLOAD_DIR to /app/data/uploads, so original statement PDFs live on the host.
