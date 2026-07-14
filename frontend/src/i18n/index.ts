@@ -417,18 +417,76 @@ export interface Dict {
   invColValue: string
   invColWeight: string
   invColCost: string
+  invColUnits: string
   invColPnL: string
   invColPnLPct: string
+  invColPnLInfo: string
+  invColPnLPctInfo: string
   invAssetEquity: string
   invAssetFixed_income: string
   invAssetCash: string
   invAssetOther: string
   invErrorLoading: string
+  // ── Returns table ─────────────────────────────────────────────────────────
+  invReturnsTitle: string
+  invReturnsWeek: string
+  invReturnsMonth: string
+  invReturnsYear: string
+  invReturnsTotal: string
+  invReturnsAnnual: string
+  invReturnsXirr: string
+  invReturnsVolatility: string
   // ── Connectors card states ────────────────────────────────────────────────
   connectorConnected: string
   connectorError: string
   connectorDisconnect: string
   connectorErrorRetry: string
+  // ── Investments redesign — Block 1: Summary ───────────────────────────────
+  invSummaryValorTotal: string
+  invSummaryRentabilidad: string
+  invSummaryAportaciones: string
+  invSummaryRetenciones: string
+  // ── Investments redesign — Block 2: Evolution chart ───────────────────────
+  invEvolutionTitle: string
+  invPeriod1M: string
+  invPeriod3M: string
+  invPeriod6M: string
+  invPeriod1A: string
+  invPeriodTodo: string
+  invToggleEur: string
+  invTogglePct: string
+  invLegendPortfolio: string
+  invLegendContributions: string
+  // ── Investments redesign — Block 3: Returns matrix ────────────────────────
+  invMatrixTitle: string
+  invMonthENE: string
+  invMonthFEB: string
+  invMonthMAR: string
+  invMonthABR: string
+  invMonthMAY: string
+  invMonthJUN: string
+  invMonthJUL: string
+  invMonthAGO: string
+  invMonthSEP: string
+  invMonthOCT: string
+  invMonthNOV: string
+  invMonthDIC: string
+  invMatrixTotal: string
+  invMatrixBenchmark: string
+  invDrawdownNote: (pct: string, eur: string, start: string, end: string) => string
+  // ── Investments polish — Metrics strip ───────────────────────────────────
+  invMetricTwr: string
+  invMetricMwr: string
+  invMetricVolatility: string
+  invMetricSubAnnual: string
+  invMetricSubXirr: string
+  // ── Investments polish — Donuts ───────────────────────────────────────────
+  invDonutAssetTitle: string
+  invDonutInstrumentTitle: string
+  // ── Investments polish 2 — Metric info tooltips ───────────────────────────
+  invMetricTwrInfo: string
+  invMetricMwrInfo: string
+  invMetricVolInfo: string
 }
 
 const ES_LABELS: Record<string, string> = {
