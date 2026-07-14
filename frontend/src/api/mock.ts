@@ -4,7 +4,7 @@ import type {
   ImportResult, ImportTransaction, PreviewResponse, ConfirmRequest,
   TransactionsParams, SummaryParams, MonthSummaryParams,
   TransactionPatch, CashflowSummary, AuthStatus, AuthUser,
-  MerchantSummary, DaySummary,
+  MerchantSummary, DaySummary, InvestmentPlugin,
 } from './types'
 
 // ─── Static reference data ────────────────────────────────────────────────────
@@ -428,4 +428,38 @@ export function mockLogout(): Promise<void> {
 
 export function mockGetMe(): Promise<AuthUser> {
   return delay({ username: _mockUsername })
+}
+
+// ─── Investments ──────────────────────────────────────────────────────────────
+
+export function mockGetInvestmentPlugins(): Promise<InvestmentPlugin[]> {
+  return delay([
+    {
+      id: 'indexa-capital',
+      name: 'Indexa Capital',
+      description: 'Automated index-fund portfolio management',
+      icon: '🏦',
+      status: 'coming_soon',
+      auth_type: 'token',
+      supported_features: ['holdings', 'transactions', 'performance'],
+    },
+    {
+      id: 'generic-broker',
+      name: 'Broker (Stocks & ETFs)',
+      description: 'Connect a stock/ETF broker account',
+      icon: '📈',
+      status: 'coming_soon',
+      auth_type: 'api_key',
+      supported_features: ['holdings', 'transactions'],
+    },
+    {
+      id: 'crypto-exchange',
+      name: 'Crypto Exchange',
+      description: 'Track crypto holdings from an exchange',
+      icon: '🪙',
+      status: 'coming_soon',
+      auth_type: 'api_key',
+      supported_features: ['holdings'],
+    },
+  ])
 }

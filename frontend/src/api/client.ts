@@ -6,7 +6,7 @@ import type {
   Transaction, TransactionPatch, CashflowSummary, CategoryPatch,
   AuthStatus, AuthUser, BackupImportSummary,
   Rule, RuleInput, RulePatch,
-  StatementMonth, MerchantSummary, StatementOriginal,
+  StatementMonth, MerchantSummary, StatementOriginal, InvestmentPlugin,
 } from './types'
 import {
   mockGetAccounts, mockGetCategories, mockGetTags, mockGetTransactions,
@@ -16,7 +16,7 @@ import {
   mockCreateTag, mockUpdateTag, mockDeleteTag, mockUpdateCategory,
   mockCreateCategory,
   mockGetAuthStatus, mockSetupUser, mockLogin, mockLogout, mockGetMe,
-  mockGetByMerchant, mockGetByDay,
+  mockGetByMerchant, mockGetByDay, mockGetInvestmentPlugins,
 } from './mock'
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === '1'
@@ -421,4 +421,11 @@ export async function logout(): Promise<void> {
 export async function getMe(): Promise<AuthUser> {
   if (USE_MOCK) return mockGetMe()
   return apiFetch<AuthUser>(buildUrl('/api/auth/me'))
+}
+
+// ─── Investments ──────────────────────────────────────────────────────────────
+
+export async function getInvestmentPlugins(): Promise<InvestmentPlugin[]> {
+  if (USE_MOCK) return mockGetInvestmentPlugins()
+  return apiFetch<InvestmentPlugin[]>(buildUrl('/api/investments/plugins'))
 }

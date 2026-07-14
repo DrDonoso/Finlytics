@@ -352,5 +352,19 @@ const en: Dict = {
   datePickerNextYear: 'Next year',
   // ── Constant (unfiltered) net KPI ─────────────────────────────────────────
   kpiCurrentNet: 'Current net',
+  // ── Investments page ──────────────────────────────────────────────────────
+  investmentsTitle: 'Investments',
+  investmentsKpiTotalValue: 'Total value',
+  investmentsKpiTotalInvested: 'Total invested',
+  investmentsKpiPnL: 'Gain / Loss',
+  investmentsHoldingsTitle: 'Holdings',
+  investmentsEmptyHoldings: 'Connect a plugin to see your investments',
+  investmentsCatalogTitle: 'Available connectors',
+  investmentsComingSoon: 'Coming soon',
+  investmentsConnect: 'Connect',
+  navInvestments: 'Investments',
+  // ── Connectors settings page ──────────────────────────────────────────────
+  settingsSubConnectors: 'Connectors',
+  investmentsManageConnectors: 'Manage connectors →',
 }
 export default en

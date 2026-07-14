@@ -42,6 +42,7 @@ from finlytics.api.backup import router as backup_router
 from finlytics.api.categories import router as categories_router
 from finlytics.api.deps import get_current_user
 from finlytics.api.imports import router as imports_router
+from finlytics.api.investments import router as investments_router
 from finlytics.api.rules import router as rules_router
 from finlytics.api.statements import router as statements_router
 from finlytics.api.summary import router as summary_router
@@ -73,6 +74,7 @@ app.include_router(tags_router,         prefix="/api", dependencies=_auth)
 app.include_router(transactions_router, prefix="/api", dependencies=_auth)
 app.include_router(summary_router,      prefix="/api", dependencies=_auth)
 app.include_router(imports_router,      prefix="/api", dependencies=_auth)
+app.include_router(investments_router,  prefix="/api", dependencies=_auth)
 
 
 @app.get("/health", tags=["health"])
