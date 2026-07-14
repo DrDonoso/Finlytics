@@ -364,6 +364,20 @@ export interface Dict {
   datePickerNextYear: string
   // ── Constant (unfiltered) net KPI ─────────────────────────────────────────
   kpiCurrentNet: string
+  // ── Investments page ──────────────────────────────────────────────────────
+  investmentsTitle: string
+  investmentsKpiTotalValue: string
+  investmentsKpiTotalInvested: string
+  investmentsKpiPnL: string
+  investmentsHoldingsTitle: string
+  investmentsEmptyHoldings: string
+  investmentsCatalogTitle: string
+  investmentsComingSoon: string
+  investmentsConnect: string
+  navInvestments: string
+  // ── Connectors settings page ──────────────────────────────────────────────
+  settingsSubConnectors: string
+  investmentsManageConnectors: string
 }
 
 const ES_LABELS: Record<string, string> = {

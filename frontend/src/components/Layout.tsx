@@ -98,6 +98,11 @@ export default function Layout() {
             <span className="nav-label">{t.navAnalytics}</span>
           </NavLink>
 
+          <NavLink to="/investments" className={navLinkClass}>
+            <span className="nav-icon">💰</span>
+            <span className="nav-label">{t.navInvestments}</span>
+          </NavLink>
+
           <NavLink to="/statements" className={navLinkClass}>
             <span className="nav-icon">📄</span>
             <span className="nav-label">{t.navStatements}</span>
@@ -135,6 +140,9 @@ export default function Layout() {
                 </NavLink>
                 <NavLink to="/settings/backup" className={navLinkClass}>
                   <span className="nav-label">{t.settingsSubBackup}</span>
+                </NavLink>
+                <NavLink to="/settings/connectors" className={navLinkClass}>
+                  <span className="nav-label">{t.settingsSubConnectors}</span>
                 </NavLink>
               </div>
             )}

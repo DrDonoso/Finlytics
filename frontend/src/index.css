@@ -4015,3 +4015,125 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
 .batch-detail-row { font-size: 13px; padding: 4px 0; }
 .batch-detail-row.--done { color: var(--income, #10b981); }
 .batch-detail-row.--error { color: var(--expense); }
+
+/* ─── Investments Page ────────────────────────────────────────────────── */
+
+/* Page header row (title + future action slot on the right) */
+.investments-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* Page title — matches .tx-page-title scale (22px / 700) */
+.investments-page-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0;
+  letter-spacing: -0.3px;
+}
+
+/* Holdings card — min-height reserves space so layout does not shift during load */
+.investments-holdings-card {
+  min-height: 200px;
+}
+
+/* Holdings / connected-plugins empty state */
+.investments-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px;
+  gap: 10px;
+  color: var(--text-muted);
+  font-size: 14px;
+  text-align: center;
+  min-height: 140px;
+}
+.investments-empty__icon {
+  font-size: 36px;
+  line-height: 1;
+  opacity: 0.8;
+}
+.investments-empty__text {
+  max-width: 280px;
+  line-height: 1.5;
+}
+
+/* Plugin catalog — responsive auto-fill grid, equal-height cards */
+.plugin-catalog {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+/* Individual plugin card — uses --bg for inset contrast inside the parent .card */
+.plugin-card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+.plugin-card__icon {
+  font-size: 32px;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+.plugin-card__name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+/* flex: 1 pushes the badge + button to the card bottom for visual alignment */
+.plugin-card__description {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.45;
+  flex: 1 1 auto;
+}
+
+/* "Coming soon" pill badge — muted, non-interactive, bilingual text injected via i18n */
+.coming-soon-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  background: rgba(100, 116, 139, 0.10);
+  color: var(--text-muted);
+  border: 1px solid rgba(100, 116, 139, 0.20);
+  white-space: nowrap;
+  user-select: none;
+}
+[data-theme="dark"] .coming-soon-badge {
+  background: rgba(148, 163, 184, 0.12);
+  border-color: rgba(148, 163, 184, 0.22);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .coming-soon-badge {
+    background: rgba(148, 163, 184, 0.12);
+    border-color: rgba(148, 163, 184, 0.22);
+  }
+}
+
+/* Responsive breakpoints */
+@media (max-width: 900px) {
+  .plugin-catalog {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  }
+}
+@media (max-width: 600px) {
+  .investments-page-title { font-size: 18px; }
+  .plugin-catalog { grid-template-columns: 1fr; }
+  .investments-empty { padding: 28px 16px; }
+}

@@ -350,6 +350,46 @@ class CheckDuplicatesOut(BaseModel):
     is_duplicate: list[bool]
 
 
+# ── Investments ───────────────────────────────────────────────────────────────
+
+class InvestmentPluginOut(BaseModel):
+    """Response schema for a single investment plugin descriptor."""
+    id: str
+    name: str
+    description: str
+    icon: str
+    status: str             # coming_soon | available | connected | error
+    auth_type: str          # api_key | oauth | token | none
+    supported_features: list[str]
+
+
+class InvestmentHoldingOut(BaseModel):
+    """Normalised holding returned by any investment plugin."""
+    plugin_id: str
+    name: str
+    ticker: str | None = None
+    asset_class: str        # equity | fixed_income | mixed | crypto | cash | other
+    units: float | None = None
+    current_value: float
+    cost_basis: float | None = None
+    currency: str
+    gain_loss: float | None = None
+    gain_loss_pct: float | None = None
+    last_updated: str       # ISO datetime string
+
+
+class InvestmentPortfolioOut(BaseModel):
+    """Aggregated portfolio summary across all connected plugins."""
+    total_value: float
+    total_invested: float | None = None
+    total_gain_loss: float | None = None
+    total_gain_loss_pct: float | None = None
+    currency: str
+    holdings: list[InvestmentHoldingOut]
+    plugins_connected: int
+    last_updated: str | None = None
+
+
 # ── Rules ─────────────────────────────────────────────────────────────────────
 
 class RulePreviewResult(BaseModel):

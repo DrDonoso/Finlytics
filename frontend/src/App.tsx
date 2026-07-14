@@ -13,6 +13,8 @@ import RulesPage from './pages/RulesPage'
 import AccountsPage from './pages/AccountsPage'
 import LoginPage from './pages/LoginPage'
 import SetupPage from './pages/SetupPage'
+import InvestmentsPage from './pages/InvestmentsPage'
+import ConnectorsPage from './pages/ConnectorsPage'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { useT } from './i18n'
 
@@ -38,6 +40,7 @@ function AppContent() {
           <Route index element={<Dashboard />} />
           <Route path="transactions" element={<TransactionsPage />} />
           <Route path="analytics" element={<AnalyticsPage />} />
+          <Route path="investments" element={<InvestmentsPage />} />
           <Route path="statements" element={<StatementsPage />} />
           <Route path="rules" element={<RulesPage />} />
           <Route path="settings" element={<SettingsLayout />}>
@@ -47,6 +50,7 @@ function AppContent() {
             <Route path="categories" element={<CategoriesPage />} />
             <Route path="appearance" element={<AppearancePage />} />
             <Route path="backup" element={<BackupPage />} />
+            <Route path="connectors" element={<ConnectorsPage />} />
           </Route>
         </Route>
       </Routes>

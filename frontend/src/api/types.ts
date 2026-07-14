@@ -346,3 +346,15 @@ export interface TransactionsViewFilters extends GlobalFilters {
   amount_max?: number
   merchant?: string
 }
+
+// ─── Investments ──────────────────────────────────────────────────────────────
+
+export interface InvestmentPlugin {
+  id: string
+  name: string
+  description: string
+  icon: string
+  status: 'coming_soon' | 'available' | 'connected' | 'error'
+  auth_type: 'api_key' | 'oauth' | 'token' | 'none'
+  supported_features: string[]
+}
