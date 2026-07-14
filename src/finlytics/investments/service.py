@@ -18,9 +18,11 @@ from finlytics.api.schemas import (
     CashInvestedSplit,
     ConnectionOut,
     DiscoveredAccountOut,
+    DrawdownOut,
     InvestmentHoldingOut,
     InvestmentPortfolioOut,
     InvestmentReturns,
+    MonthlyReturnRow,
     ValuePoint,
 )
 from finlytics.db.models import InvestmentConnection
@@ -356,11 +358,18 @@ def _aggregate(
 
     agg_pl = 0.0
     agg_invested_ret = 0.0
+    agg_money_return = 0.0
+    agg_aportaciones: float | None = None
+    agg_retenciones: float | None = None
+    agg_rentabilidad_eur: float | None = None
     has_returns = False
     first_perf_returns = None
+    first_perf = None
 
     series_by_date: dict[str, float] = {}
+    contrib_by_date: dict[str, float] = {}
     has_series = False
+    has_contrib = False
 
     ci_cash = ci_instr_amt = ci_instr_cost = ci_total = 0.0
     has_ci = False
@@ -396,14 +405,31 @@ def _aggregate(
             perf = portfolio.performance
             if idx == 0:
                 first_perf_returns = perf.returns
+                first_perf = perf
             if perf.returns.pl is not None:
                 agg_pl += perf.returns.pl
                 has_returns = True
             if perf.returns.invested is not None:
                 agg_invested_ret += perf.returns.invested
+            if perf.returns.money_return is not None:
+                agg_money_return += perf.returns.money_return
+                has_returns = True
+            # Summable box numbers
+            if perf.returns.aportaciones is not None:
+                agg_aportaciones = (agg_aportaciones or 0.0) + perf.returns.aportaciones
+                has_returns = True
+            if perf.returns.retenciones is not None:
+                agg_retenciones = (agg_retenciones or 0.0) + perf.returns.retenciones
+                has_returns = True
+            if perf.returns.rentabilidad_eur is not None:
+                agg_rentabilidad_eur = (agg_rentabilidad_eur or 0.0) + perf.returns.rentabilidad_eur
+                has_returns = True
             for vp in perf.value_series:
                 series_by_date[vp.date] = series_by_date.get(vp.date, 0.0) + vp.value
                 has_series = True
+            for vp in perf.contributions_series:
+                contrib_by_date[vp.date] = contrib_by_date.get(vp.date, 0.0) + vp.value
+                has_contrib = True
             if perf.cash_invested:
                 ci = perf.cash_invested
                 ci_cash += ci.cash_amount
@@ -416,9 +442,21 @@ def _aggregate(
     if has_returns:
         returns = InvestmentReturns(
             twr_annual=first_perf_returns.twr_annual if single_account and first_perf_returns else None,
+            twr_total=first_perf_returns.twr_total if single_account and first_perf_returns else None,
+            twr_last_week=first_perf_returns.twr_last_week if single_account and first_perf_returns else None,
+            twr_last_month=first_perf_returns.twr_last_month if single_account and first_perf_returns else None,
+            twr_last_year=first_perf_returns.twr_last_year if single_account and first_perf_returns else None,
+            volatility=first_perf_returns.volatility if single_account and first_perf_returns else None,
+            money_return=agg_money_return or None,
+            money_return_annual=first_perf_returns.money_return_annual if single_account and first_perf_returns else None,
             xirr=first_perf_returns.xirr if single_account and first_perf_returns else None,
             pl=agg_pl,
             invested=agg_invested_ret or None,
+            aportaciones=agg_aportaciones,
+            retenciones=agg_retenciones,
+            rentabilidad_eur=agg_rentabilidad_eur,
+            rentabilidad_pct=first_perf_returns.rentabilidad_pct if single_account and first_perf_returns else None,
+            sharpe_ratio=first_perf_returns.sharpe_ratio if single_account and first_perf_returns else None,
         )
 
     value_series = (
@@ -426,6 +464,37 @@ def _aggregate(
         if has_series
         else []
     )
+
+    contributions_series = (
+        [ValuePoint(date=d, value=v) for d, v in sorted(contrib_by_date.items())]
+        if has_contrib
+        else []
+    )
+
+    # Monthly returns + drawdown: single-account only (non-aggregatable)
+    monthly_returns: list[MonthlyReturnRow] | None = None
+    if single_account and first_perf and first_perf.monthly_returns:
+        monthly_returns = [
+            MonthlyReturnRow(
+                year=r.year,
+                months_pct=r.months_pct,
+                months_eur=r.months_eur,
+                total_pct=r.total_pct,
+                total_eur=r.total_eur,
+                benchmark_pct=r.benchmark_pct,
+            )
+            for r in first_perf.monthly_returns
+        ]
+
+    drawdown_out: DrawdownOut | None = None
+    if single_account and first_perf and first_perf.drawdown:
+        d = first_perf.drawdown
+        drawdown_out = DrawdownOut(
+            max_drawdown=d.max_drawdown,
+            max_drawdown_eur=d.max_drawdown_eur,
+            start_date=d.start_date,
+            end_date=d.end_date,
+        )
 
     cash_invested = (
         CashInvestedSplit(
@@ -457,5 +526,8 @@ def _aggregate(
         last_updated=now_str,
         returns=returns,
         value_series=value_series,
+        contributions_series=contributions_series,
+        monthly_returns=monthly_returns,
+        drawdown=drawdown_out,
         cash_invested=cash_invested,
     )

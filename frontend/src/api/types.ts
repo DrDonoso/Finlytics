@@ -364,11 +364,40 @@ export interface InvestmentReturns {
   xirr: number | null
   pl: number | null
   invested: number | null
+  twr_total?: number | null
+  twr_last_week?: number | null
+  twr_last_month?: number | null
+  twr_last_year?: number | null
+  money_return?: number | null
+  volatility?: number | null
+  // Indexa redesign fields
+  aportaciones?: number | null
+  retenciones?: number | null
+  rentabilidad_eur?: number | null
+  rentabilidad_pct?: number | null
+  sharpe_ratio?: number | null
+  money_return_annual?: number | null
 }
 
 export interface ValuePoint {
-  date: string    // "YYYYMMDD"
+  date: string    // "YYYY-MM-DD"
   value: number
+}
+
+export interface MonthlyReturnRow {
+  year: number
+  months_pct: Record<string, number | null | undefined>
+  months_eur: Record<string, number | null | undefined>
+  total_pct: number | null
+  total_eur: number | null
+  benchmark_pct: number | null
+}
+
+export interface DrawdownOut {
+  max_drawdown: number
+  max_drawdown_eur: number
+  start_date: string    // "YYYY-MM-DD"
+  end_date: string      // "YYYY-MM-DD"
 }
 
 export interface CashInvestedSplit {
@@ -402,6 +431,9 @@ export interface InvestmentPortfolio {
   last_updated: string | null
   returns: InvestmentReturns | null
   value_series: ValuePoint[]
+  contributions_series: ValuePoint[]
+  monthly_returns: MonthlyReturnRow[] | null
+  drawdown: DrawdownOut | null
   cash_invested: CashInvestedSplit | null
   holdings: InvestmentHolding[]
 }

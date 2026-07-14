@@ -355,19 +355,50 @@ class CheckDuplicatesOut(BaseModel):
 class InvestmentReturns(BaseModel):
     """Performance metrics from the provider's performance endpoint."""
     twr_annual: float | None = None    # time-weighted return, annualised
-    xirr: float | None = None          # money-weighted annualised return
-    pl: float | None = None            # absolute P&L (EUR)
-    invested: float | None = None      # net capital invested
+    twr_total: float | None = None     # cumulative TWR (time_return)
+    twr_last_week: float | None = None
+    twr_last_month: float | None = None
+    twr_last_year: float | None = None
+    money_return: float | None = None          # money-weighted total return
+    money_return_annual: float | None = None   # annualised money-weighted return
+    volatility: float | None = None            # portfolio volatility
+    xirr: float | None = None                  # money-weighted annualised return (IRR)
+    pl: float | None = None                    # absolute P&L (EUR)
+    invested: float | None = None              # net capital invested
+    # "Valor total" box numbers (mirror Indexa UI)
+    aportaciones: float | None = None          # gross inflows
+    retenciones: float | None = None           # tax outflows (negative)
+    rentabilidad_eur: float | None = None      # P&L in EUR
+    rentabilidad_pct: float | None = None      # money-weighted return %
+    sharpe_ratio: float | None = None          # Sharpe ratio
 
 
 class ValuePoint(BaseModel):
-    """One (date, value) data-point in a portfolio value series."""
-    date: str    # "YYYYMMDD" from Indexa total_amounts keys
+    """One (date, value) data-point in a portfolio value or contributions series."""
+    date: str    # "YYYY-MM-DD" ISO format
     value: float
 
 
+class DrawdownOut(BaseModel):
+    """Max drawdown info from the provider."""
+    max_drawdown: float       # fraction, negative (e.g. -0.1005)
+    max_drawdown_eur: float   # EUR amount, negative (e.g. -1356.93)
+    start_date: str           # YYYY-MM-DD
+    end_date: str             # YYYY-MM-DD
+
+
+class MonthlyReturnRow(BaseModel):
+    """One calendar year row in the monthly returns matrix."""
+    year: int
+    months_pct: dict[int, float | None]   # {month: TWR return, or None if absent}
+    months_eur: dict[int, float | None]   # {month: EUR P&L, or None if absent}
+    total_pct: float | None = None        # compounded annual TWR return
+    total_eur: float | None = None        # sum of monthly EUR P&L
+    benchmark_pct: float | None = None    # compounded annual benchmark return
+
+
 class CashInvestedSplit(BaseModel):
-    """Breakdown of the latest portfolio snapshot (from Indexa portfolios[-1])."""
+    """Breakdown of the latest portfolio snapshot (from Indexa portfolios[0], newest-first)."""
     cash_amount: float
     instruments_amount: float
     instruments_cost: float
@@ -413,6 +444,9 @@ class InvestmentPortfolioOut(BaseModel):
     # Phase 2 — full visualisation fields
     returns: InvestmentReturns | None = None
     value_series: list[ValuePoint] = []
+    contributions_series: list[ValuePoint] = []
+    monthly_returns: list[MonthlyReturnRow] | None = None
+    drawdown: DrawdownOut | None = None
     cash_invested: CashInvestedSplit | None = None
 
 

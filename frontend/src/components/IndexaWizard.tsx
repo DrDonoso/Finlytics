@@ -113,7 +113,7 @@ export default function IndexaWizard({ onClose, onConnected }: Props) {
               <p className="inv-wizard__desc">{t.wizardStep1Desc}</p>
               <a
                 className="inv-wizard__link"
-                href="https://app.indexacapital.com/user/settings"
+                href="https://indexacapital.com/u/user#settings-apps"
                 target="_blank"
                 rel="noopener noreferrer"
               >
