@@ -2463,3 +2463,1896 @@ For uncommitted feature code: **Always use `docker-compose.local.yml` with `--bu
 
 ---
 
+
+
+---
+
+# Shuri — Evolución de la Cuenta: Live Probe Findings
+**Date:** 2026-07-14  
+**Requested by:** DrDonoso (owner)  
+**Status:** FRONTEND BUG — backend returns full data  
+**Account probed:** mask `96E•••BH` (read-only, owner's real account)
+
+---
+
+## Verdict
+
+**The backend is NOT the culprit.** `value_series` is populated with 709 data points covering 2024-08-04 → 2026-07-13. The "Evolución de la cuenta" chart loading issue is a **frontend bug**.
+
+---
+
+## Probe Results (Live, Real Account)
+
+### `value_series` — 709 points ✅
+
+| Position | Date | Value (EUR) |
+|---|---|---|
+| first | 2024-08-04 | 0.00 |
+| 2nd | 2024-08-05 | 2,600.00 |
+| 2nd-to-last | 2026-07-12 | 20,528.36 |
+| last | 2026-07-13 | 20,559.52 |
+
+Source in code: `data["return"]["total_amounts"]` (YYYYMMDD keys → reformatted to YYYY-MM-DD).  
+**Top-level `data["total_amounts"]` = `None`** — correct, the fix is working.
+
+### `contributions_series` — 716 points ✅
+
+| Position | Date | Value (EUR) |
+|---|---|---|
+| first | 2024-07-28 | 0.00 |
+| 2nd | 2024-07-29 | 0.00 |
+| 2nd-to-last | 2026-07-12 | 17,999.99 |
+| last | 2026-07-13 | 17,999.99 |
+
+Source: `data["net_amounts"]` (YYYYMMDD keys → YYYY-MM-DD). Step-function shape — values stay flat between deposits.
+
+### `data["return"]["total_amounts"]` ✅
+
+- Present at correct nested path: **709 keys**
+- Key format: `YYYYMMDD` (e.g. `"20240804"` → `"20260713"`)
+- Correctly reformatted to `YYYY-MM-DD` by `_fmt_date()`
+- Top-level `total_amounts` field: **absent** (`None`) — confirms the path fix is correct
+
+### `monthly_returns` — 3 rows ✅
+
+3 annual rows (2024, 2025, 2026), each with monthly sub-entries. Populated correctly.
+
+### `drawdown` — populated ✅
+
+- `max_drawdown` = -10.05%  
+- `max_drawdown_eur` = -€1,356.93  
+- Period: 2025-02-20 → 2025-04-08
+
+### Box Numbers — all non-null ✅
+
+| Field | Value |
+|---|---|
+| `total_value` | €20,559.52 |
+| `aportaciones` | €18,000.00 |
+| `retenciones` | €0.01 *(positive — UI should negate for display)* |
+| `rentabilidad_eur` | €2,559.53 |
+| `rentabilidad_pct` | 0.2133 (21.33%) |
+| `sharpe_ratio` | 1.325 |
+
+Reconciliation: 18,000.00 − 0.01 + 2,559.53 = **20,559.52** ✓
+
+---
+
+## API Response Shape Confirmed
+
+```
+data = {
+  "return": {
+    "total_amounts": { "20240804": 0.0, "20240805": 2600.0, ..., "20260713": 20559.52 }
+    # 709 YYYYMMDD keys
+  },
+  "net_amounts": { "20240728": 0.0, ..., "20260713": 17999.99 }
+  # 716 YYYYMMDD keys — top-level (NOT under return)
+  # ...
+}
+```
+
+---
+
+## For Vision: Reproducing the Chart
+
+The `/api/investments/portfolio` response (field `value_series`) looks like:
+
+```json
+[
+  { "date": "2024-08-04", "value": 0.00 },
+  { "date": "2024-08-05", "value": 2600.00 },
+  ...
+  { "date": "2026-07-12", "value": 20528.36 },
+  { "date": "2026-07-13", "value": 20559.52 }
+]
+```
+
+`contributions_series`:
+
+```json
+[
+  { "date": "2024-07-28", "value": 0.00 },
+  { "date": "2024-07-29", "value": 0.00 },
+  ...
+  { "date": "2026-07-12", "value": 17999.99 },
+  { "date": "2026-07-13", "value": 17999.99 }
+]
+```
+
+Both arrays are sorted ascending by date. The chart should receive these from the API and render them. If the chart shows no data, check:
+
+1. Whether the frontend is correctly reading `portfolio.value_series` (not `portfolio.performance.value_series` or a different nesting)
+2. Whether the chart library is parsing `"2024-08-04"` date strings vs expecting numeric timestamps
+3. Whether an empty-array guard (`if (!valueSeries.length) return`) fires incorrectly
+4. Whether the first point `value=0.00` on `2024-08-04` confuses the chart's zero-filtering logic
+5. Network: confirm the API response actually includes `value_series` (not stripped by a serialiser)
+
+---
+
+## No Backend Changes Made
+
+All backend paths confirmed correct. Tests remain at **921 passed, 2 skipped** (unchanged).
+
+
+---
+
+# Shuri — Indexa API Data Probe Findings
+**Date:** 2026-07-14  
+**Status:** Findings only — no production code changed  
+**Source:** Live READ-ONLY probe of owner's real Indexa account (1 account, type=mutual, status=active)
+
+---
+
+## Root-Cause: `value_series` Always Empty
+
+**Bug:** `indexa.py` line `total_amounts: dict = data.get("total_amounts", {})` looks at the **top level** of the performance response. The field does not exist there.
+
+**Reality:** `total_amounts` is nested inside `data["return"]["total_amounts"]`.
+
+```python
+# BROKEN (current code)
+total_amounts = data.get("total_amounts", {})          # → always {}
+
+# FIX — correct path
+total_amounts = data.get("return", {}).get("total_amounts", {})
+```
+
+**Additional gotcha — wrong date format:** `return.total_amounts` keys are **YYYYMMDD** (8 chars, no dashes), e.g. `"20240804"`. `NormalizedValuePoint.date` is YYYY-MM-DD. Keys must be reformatted:
+```python
+from datetime import datetime
+date_str = datetime.strptime(k, "%Y%m%d").strftime("%Y-%m-%d")
+```
+
+**Secondary bug (same function):** `portfolios` are sorted **newest-first** (index 0 = today, index -1 = account open date with `total_amount=0.0`). Current code does `latest = portfolios[-1]` → oldest entry → all zeros → `total_value=0.0` for `cash_invested` and value fallback.  
+Fix: `latest = portfolios[0]`.
+
+---
+
+## Feature Availability Matrix
+
+### 1 — Portfolio Value Daily Series
+
+| Item | Status |
+|---|---|
+| Available? | ✅ YES — two sources |
+| **Preferred source** | `portfolios[]` — 716 daily entries, keys at `date` (YYYY-MM-DD), value at `total_amount` (float). Sorted **newest-first**; reverse before building series. |
+| **Alternative source** | `data["return"]["total_amounts"]` — 709 entries, YYYYMMDD keys (reformat needed), same values. |
+| Date range | 2024-08-04 → 2026-07-13 (approx 23.5 months) |
+| Sample | `2026-07-13 = 20559.52`, `2025-07-20 = 13382.93`, `2024-08-04 = 0.00` |
+| Gotchas | YYYYMMDD vs YYYY-MM-DD; `portfolios[-1]` = oldest (all zeros), NOT latest |
+
+Also available: `data["return"]["index"]` — 709 entries, YYYYMMDD keys, daily TWR index normalized to 1.0 at account open (last = 1.2373). Useful for computing per-day returns and max drawdown from scratch.
+
+---
+
+### 2 — Aportaciones (Cumulative Contributions) Daily/Stepwise Series
+
+| Item | Status |
+|---|---|
+| Available? | ✅ YES — multiple sources |
+| **Preferred: `net_amounts` (top-level)** | Dict, **716 daily entries**, YYYYMMDD keys, latest = `17999.99`. Cumulative net invested (inflows − taxes), already a step-series ready for the chart. Reformat keys YYYYMMDD → YYYY-MM-DD. |
+| **Alternative: `portfolios[].inflows`** | Each portfolio entry has a daily `inflows` float (0.0 on non-deposit days). Cumulatively sum over sorted entries. |
+| **Alternative: cash-transactions** | Filter `operation_type = "TRANSFERENCIA SEPA"` (9 entries) for actual user wire transfers. Fields: `date` (YYYY-MM-DD), `amount` (float, positive for deposits). Cumsum gives deposit step-line. |
+| Gotchas | `net_amounts` values = `inflows - tax_outflows` (not raw inflows). Use `return.inflows` for gross; use `net_amounts` for net-of-retenciones. TRANSFERENCIA SEPA are user deposits; the 38 SUSCRIPCIÓN entries are fund purchases (not user cash). |
+
+---
+
+### 3 — Monthly Returns Matrix (month × year)
+
+| Item | Status |
+|---|---|
+| Available? | ✅ YES |
+| Source | `data["history"]` — dict, **23 end-of-month entries** (2024-08-31 → 2026-06-30), keys are **YYYY-MM-DD**, values are **cumulative TWR multipliers** from inception (1.0 = start). |
+| Derive monthly return | `history[month] / history[prev_month] − 1.0`. For the first month: `history[first] − 1.0`. |
+| Sample | `2024-08-31 = 1.034754` (+3.47%), `2024-09-30 = 1.049695`, `2024-12-31 = 1.072171`, `2026-06-30 = 1.236281` |
+| Gotchas | Values are NOT monthly returns directly — they're cumulative multipliers. Division between consecutive months is required. Current month (July 2026) not present in `history` yet (incomplete month). |
+
+---
+
+### 4 — Benchmark Comparison
+
+| Item | Status |
+|---|---|
+| Available? | ✅ YES |
+| Source | `data["benchmark"]` — dict, **23 entries** (2024-08-31 → 2026-06-30), same date keys as `history` |
+| Per-entry shape | `{"date": "YYYY-MM-DD", "benchmark_id": "2", "benchmark": <float>, "benchmark_percentage_return": <string or 0 int>}` |
+| Cumulative value | `benchmark` field — starts at 100.0 (not 1.0 like `history`). E.g. `2024-08-31 = 100.0`, `2024-09-30 = 100.9512`. |
+| Monthly return | `benchmark_percentage_return` — **string** (except first month = integer `0`). Must `float(v.get("benchmark_percentage_return", 0))` to parse. |
+| Samples | `2024-08-31: 0.0`, `2024-09-30: "0.009511..."`, `2024-10-31: "-0.007513..."` |
+| Gotchas | First-month value is integer `0`, not string. Parse defensively: `float(val)` handles both. Align on same month keys as `history`; both have identical date ranges. |
+
+---
+
+### 5 — Max Drawdown
+
+| Item | Status |
+|---|---|
+| Available? | ✅ YES — directly provided |
+| Source | `data["drawdowns"]` — top-level object |
+| Fields | `max_drawdown` (float, e.g. `-0.10050`), `max_drawdown_EUR` (float, e.g. `-1356.93`), `start_date_max_drawdown` (YYYYMMDD int, `20250220`), `end_date_max_drawdown` (YYYYMMDD int, `20250408`) |
+| Real values | −10.05%, −€1,356.93, from 2025-02-20 to 2025-04-08 |
+| Gotchas | Dates are **integers** in YYYYMMDD format. Parse with `str(int)` → `datetime.strptime(str(v), "%Y%m%d")`. No computation needed — use directly. |
+
+Also available: `data["sharpe_ratio"]` = 1.325 (float, top-level).
+
+---
+
+### 6 — The Four "Valor Total" Box Numbers
+
+| UI Label | Value | API Field | Notes |
+|---|---|---|---|
+| **Valor total** | €20,559.52 | `portfolios[0].total_amount` | `portfolios[0]` = most recent day (newest-first!). Current code uses `[-1]` which is oldest (=0). |
+| **Aportaciones** | €18,000.00 | `data["return"]["inflows"]` | Gross cash transferred in by user |
+| **Retenciones** | −€0.01 | `data["return"]["tax_outflows"]` | Store/display as negative. `return.pl_net_tax` = pl after tax. |
+| **Rentabilidad €** | +€2,559.53 | `data["return"]["pl"]` | Profit/loss in EUR |
+| **Rentabilidad %** | +14.2% | `data["return"]["money_return"]` = 0.2133 | Money-weighted return (not TWR). TWR = `time_return` = 0.2373. |
+
+Reconciliation: `18000.00 − 0.01 + 2559.53 = 20,559.52` ✓
+
+Additional return fields confirmed present:
+- `return.time_return` = 0.2373 (TWR total)
+- `return.time_return_annual` = 0.1162 (annualised TWR)  
+- `return.XIRR` = 0.1050 (money-weighted annualised, IRR)
+- `return.time_return_last_week/month/year` present ✓
+- `return.volatility` = 0.0707  
+- `return.money_return_annual` — present (not yet surfaced in our schema)
+
+---
+
+## Cash-Transactions Structure
+
+- **Response:** JSON array, 69 entries
+- **Keys:** `account_number`, `amount`, `comments`, `currency`, `date` (YYYY-MM-DD), `fees`, `instrument_transaction`, `operation_code`, `operation_type`, `reference`, `status`
+- **No `type` field** — our probe was checking wrong key; use `operation_type`
+
+| `operation_type` | Count | Meaning |
+|---|---|---|
+| `SUSCRIPCIÓN FONDOS INVERSIÓN SF` | 38 | Fund purchases |
+| `CARGO COMISION GESTION` | 8 | Management fees |
+| `CUSTODIA INVERSIS` | 8 | Custody fees |
+| `TRANSFERENCIA SEPA` | 9 | **User cash deposits** ← aportaciones |
+| `DIF.REDONDEO FONDOS` | 3 | Rounding diffs |
+| `REEMBOLSO FONDO INVERSIÓN SF` | 1 | Fund redemption |
+| `ABONO INCENTIVO IICS SF` | 1 | Incentive/bonus |
+| `RETENCION DE IMPUESTOS` | 1 | Tax withholding |
+
+For the aportaciones step-line from cash-transactions: filter `TRANSFERENCIA SEPA` with `status="closed"`, sort by `date` ASC, cumsum `amount`.
+
+---
+
+## Summary for Implementation (Next Steps)
+
+1. **Fix `value_series`**: change `data.get("total_amounts", {})` → `data.get("return", {}).get("total_amounts", {})` in `_fetch_performance`. Convert YYYYMMDD keys to YYYY-MM-DD.
+2. **Fix `portfolios[-1]` → `portfolios[0]`**: portfolios are newest-first; fix all three uses (cash_invested, total_value fallback, cash_invested merge).
+3. **Add `history` + `benchmark` to `NormalizedPerformance`**: for the monthly returns matrix.
+4. **Add `drawdowns` to `NormalizedPerformance`**: `max_drawdown`, `max_drawdown_EUR`, dates.
+5. **Add `net_amounts` series**: for the contributions step-line (or derive from TRANSFERENCIA SEPA cash-transactions).
+6. **Add `sharpe_ratio`** and `money_return_annual` to `NormalizedReturns`.
+
+
+---
+
+# Shuri — Indexa Connector Bug Fixes & Enhancement
+
+**Date:** 2026-07-14  
+**Author:** Shuri (Backend)  
+**Status:** SHIPPED  
+**Audience:** Vision (Frontend), Barton (QA)
+
+---
+
+## 1. BUG A — `total_value` now uses a reliable fallback chain
+
+**Problem:** `_fetch_performance` was reading `total_value` from the top-level `data["total_amount"]`. For some real accounts this field is 0 or absent, causing the KPI to show €0.
+
+**Fix — fallback chain (in order):**
+1. `portfolios[-1].total_amount` — the most-recent daily snapshot (= `cash_amount + instruments_amount`). This is authoritative.
+2. Last entry in the `total_amounts` daily series (`max(total_amounts.keys())`).
+3. Top-level `data["total_amount"]`.
+4. Sum of holdings `current_value` — applied in `get_portfolio` if `_fetch_performance` still returns 0.
+
+A `DEBUG`-level log fires when the top-level field is absent (never logs the token).
+
+**Real-account example:** cash (67.16 €) + funds (20,492.36 €) = **20,559.52 €** — now correctly derived from `portfolios[-1].total_amount`.
+
+---
+
+## 2. BUG B — Holdings now deduplicated by ISIN
+
+**Problem:** Indexa's `/fiscal-results` returns one entry per subscription lot, so a fund bought at different times appeared multiple rows in the holdings list.
+
+**Fix:** `get_portfolio` now groups `fiscal_results` by `instrument.identifier` (ISIN), falling back to `instrument.name`. Per group:
+
+| Field | Aggregation |
+|---|---|
+| `amount` → `current_value` | SUM |
+| `cost_amount` → `cost_basis` | SUM |
+| `titles` → `units` | SUM |
+| `profit_loss` → `gain_loss` | SUM |
+| `gain_loss_pct` | Recomputed: `sum(profit_loss) / sum(cost_amount)` |
+
+Holdings are sorted by `current_value` descending. Result: **one holding per fund**, matching Indexa's own fiscal view.
+
+---
+
+## 3. Enhancement — Extended return fields in `InvestmentReturns`
+
+Both `NormalizedReturns` (internal) and `InvestmentReturns` (API schema `schemas.py`) now expose:
+
+| API field | Indexa source | Aggregatable (multi-account)? |
+|---|---|---|
+| `twr_annual` | `return.time_return_annual` | ❌ None for multi-account |
+| `twr_total` | `return.time_return` | ❌ None for multi-account |
+| `twr_last_week` | `return.time_return_last_week` | ❌ None for multi-account |
+| `twr_last_month` | `return.time_return_last_month` | ❌ None for multi-account |
+| `twr_last_year` | `return.time_return_last_year` | ❌ None for multi-account |
+| `money_return` | `return.money_return` | ✅ SUM across accounts |
+| `volatility` | top-level `data.volatility` | ❌ None for multi-account |
+| `xirr` | `return.XIRR` | ❌ None for multi-account |
+| `pl` | `return.pl` | ✅ SUM across accounts |
+| `invested` | `return.investment` | ✅ SUM across accounts |
+
+All new fields are `float | None = None` — safe to render as `null` in JSON.
+
+**Frontend contract:** multiply decimals × 100 to display as percentages (existing convention). `money_return`, `pl`, `invested` are already in EUR.
+
+---
+
+## Files changed
+
+| File | Change |
+|---|---|
+| `src/finlytics/investments/base.py` | `NormalizedReturns` — 6 new fields |
+| `src/finlytics/investments/indexa.py` | `_fetch_performance` fallback chain + new fields; `get_portfolio` ISIN aggregation |
+| `src/finlytics/api/schemas.py` | `InvestmentReturns` — 6 new fields |
+| `src/finlytics/investments/service.py` | `_aggregate` — propagate + sum new fields; null non-aggregatable for multi-account |
+| `tests/api/test_investments.py` | 9 new tests for BUG A, BUG B, and new fields |
+
+
+---
+
+# Shuri — Indexa Redesign Backend: Extended Response Shape
+
+**Date:** 2026-07-14  
+**Status:** SHIPPED — all 916 tests passing (2 skipped, unrelated)  
+**Branch:** main  
+**For:** Vision (frontend charts), Wanda (tests/E2E), Barton (integration)
+
+---
+
+## What Changed
+
+`GET /api/investments/portfolio` → `InvestmentPortfolioOut` extended with:
+1. **Value series bug fixed** — dates now YYYY-MM-DD (was always empty, YYYYMMDD bug)
+2. **Total value fixed** — from `portfolios[0]` (newest-first), not `portfolios[-1]` (was all-zeros)
+3. **"Valor total" box numbers** on `returns` object
+4. **`contributions_series`** — daily cumulative net contributions step-line
+5. **`monthly_returns`** — month × year matrix for the returns calendar
+6. **`drawdown`** — max drawdown object
+7. **Multi-account**: contributions_series summed by date; matrix/drawdown/twr/sharpe = null
+
+---
+
+## Full Response Shape
+
+### `InvestmentPortfolioOut` (top-level)
+
+```json
+{
+  "total_value": 20559.52,
+  "total_invested": 18000.0,
+  "total_gain_loss": 2559.53,
+  "total_gain_loss_pct": 0.1422,
+  "currency": "EUR",
+  "holdings": [...],
+  "plugins_connected": 1,
+  "last_updated": "2026-07-14T12:00:00+00:00",
+
+  "returns": { ... },               // InvestmentReturns — see below
+  "value_series": [ ... ],          // list[ValuePoint]
+  "contributions_series": [ ... ],  // list[ValuePoint]
+  "monthly_returns": [ ... ],       // list[MonthlyReturnRow] | null
+  "drawdown": { ... },              // DrawdownOut | null
+  "cash_invested": { ... }          // CashInvestedSplit | null
+}
+```
+
+---
+
+### `InvestmentReturns` (on `returns` key)
+
+All fields `float | null`. New fields marked ★.
+
+| Field | Type | Source | Description |
+|---|---|---|---|
+| `twr_annual` | float\|null | `return.time_return_annual` | Annualised TWR |
+| `twr_total` | float\|null | `return.time_return` | Cumulative TWR from inception (0.2373 = +23.73%) |
+| `twr_last_week` | float\|null | `return.time_return_last_week` | |
+| `twr_last_month` | float\|null | `return.time_return_last_month` | |
+| `twr_last_year` | float\|null | `return.time_return_last_year` | |
+| `money_return` | float\|null | `return.money_return` | Money-weighted total return |
+| ★ `money_return_annual` | float\|null | `return.money_return_annual` | Annualised money-weighted return |
+| `volatility` | float\|null | top-level `data.volatility` | Portfolio volatility |
+| `xirr` | float\|null | `return.XIRR` | Money-weighted annualised IRR |
+| `pl` | float\|null | `return.pl` | Absolute P&L EUR |
+| `invested` | float\|null | `return.investment` | Net invested EUR |
+| ★ `aportaciones` | float\|null | `return.inflows` | Gross inflows (18000.00) |
+| ★ `retenciones` | float\|null | `return.tax_outflows` | Tax outflows, negative (−0.01) |
+| ★ `rentabilidad_eur` | float\|null | `return.pl` | Same as `pl` — for "Valor total" box |
+| ★ `rentabilidad_pct` | float\|null | `return.money_return` | Same as `money_return` — for box |
+| ★ `sharpe_ratio` | float\|null | top-level `data.sharpe_ratio` | Sharpe ratio (1.325) |
+
+**Reconciliation:** `aportaciones + retenciones + rentabilidad_eur = total_value`  
+(`18000.00 + (−0.01) + 2559.53 = 20559.52` ✓)
+
+**Multi-account rule:** `aportaciones`, `retenciones`, `rentabilidad_eur`, `pl`, `money_return` are **summed**. `twr_*`, `xirr`, `volatility`, `sharpe_ratio`, `money_return_annual`, `rentabilidad_pct` are **null** for multi-account.
+
+---
+
+### `ValuePoint` (used in `value_series` and `contributions_series`)
+
+```json
+{ "date": "YYYY-MM-DD", "value": 20559.52 }
+```
+
+- **`value_series`**: daily portfolio total value (≈ 700 points, 2024-08-04 → today)
+- **`contributions_series`**: daily cumulative net contributions (`net_amounts`). Step-line aligned by date with `value_series`. Last value ≈ 17999.99 (net of tax). Use this to draw the "Aportaciones" comparison line.
+
+---
+
+### `MonthlyReturnRow` (elements of `monthly_returns` list)
+
+One object per calendar year. `months_pct` / `months_eur` only contain keys for months that have data (absent months → render as blank in table).
+
+```json
+{
+  "year": 2024,
+  "months_pct": {
+    "8": 0.034754,
+    "9": 0.014446,
+    "10": -0.007513,
+    "11": 0.02,
+    "12": 0.021
+  },
+  "months_eur": {
+    "8": 350.0,
+    "9": 142.0,
+    "10": -76.0,
+    "11": 210.0,
+    "12": 230.0
+  },
+  "total_pct": 0.072171,
+  "total_eur": 856.0,
+  "benchmark_pct": 0.019
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `year` | int | Calendar year |
+| `months_pct` | dict[int, float\|null] | TWR return per month (key = month 1–12) |
+| `months_eur` | dict[int, float\|null] | EUR P&L per month (null if series data missing) |
+| `total_pct` | float\|null | Compounded annual TWR: `product(1+monthly)−1` |
+| `total_eur` | float\|null | Sum of monthly EUR P&L |
+| `benchmark_pct` | float\|null | Compounded annual benchmark return |
+
+**Note:** `monthly_returns` is `null` for multi-account (non-aggregatable). Current incomplete month (July 2026) is absent (not in history yet).
+
+---
+
+### `DrawdownOut` (on `drawdown` key)
+
+```json
+{
+  "max_drawdown": -0.1005,
+  "max_drawdown_eur": -1356.93,
+  "start_date": "2025-02-20",
+  "end_date": "2025-04-08"
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `max_drawdown` | float | Fraction, negative (e.g. −0.1005 = −10.05%) |
+| `max_drawdown_eur` | float | EUR amount, negative |
+| `start_date` | str | YYYY-MM-DD — start of max drawdown period |
+| `end_date` | str | YYYY-MM-DD — end (trough) of max drawdown period |
+
+`drawdown` is `null` for multi-account and when `drawdowns` key is absent in the Indexa response.
+
+---
+
+### `CashInvestedSplit` (on `cash_invested` key)
+
+```json
+{
+  "cash_amount": 67.16,
+  "instruments_amount": 20492.36,
+  "instruments_cost": 18000.0,
+  "total_amount": 20559.52
+}
+```
+
+Reflects `portfolios[0]` (newest daily snapshot — Indexa returns newest-first).
+
+---
+
+## Live Values (owner account, 2026-07-13)
+
+| Field | Value |
+|---|---|
+| `total_value` | 20,559.52 € |
+| `aportaciones` | 18,000.00 € |
+| `retenciones` | −0.01 € |
+| `rentabilidad_eur` | +2,559.53 € |
+| `rentabilidad_pct` | 0.2133 (money-weighted, ~21.33%) |
+| `twr_total` | 0.2373 (+23.73%) |
+| `twr_annual` | 0.1162 (annualised TWR) |
+| `xirr` | 0.1050 |
+| `sharpe_ratio` | 1.325 |
+| `value_series` length | ≈ 709 points |
+| `contributions_series` length | ≈ 716 points |
+| `monthly_returns` length | 3 years (2024, 2025, 2026) |
+| `drawdown.max_drawdown` | −10.05% |
+| `drawdown` period | 2025-02-20 → 2025-04-08 |
+
+---
+
+## Date Format
+
+All dates in all series and drawdown: **`YYYY-MM-DD`** (ISO 8601).  
+`ValuePoint.date` and `DrawdownOut.start_date`/`end_date` are all 10-character ISO strings.
+
+---
+
+## API Source Paths (Indexa `/accounts/{n}/performance`)
+
+| Our field | Indexa path |
+|---|---|
+| `value_series` | `data["return"]["total_amounts"]` (YYYYMMDD keys, reformatted) |
+| `contributions_series` | `data["net_amounts"]` (YYYYMMDD keys, reformatted) |
+| `total_value` | `data["portfolios"][0]["total_amount"]` (newest-first) |
+| `cash_invested` | `data["portfolios"][0]` fields |
+| `monthly_returns` | `data["history"]` (cumulative TWR multipliers) + `data["benchmark"]` |
+| `drawdown` | `data["drawdowns"]` (integer YYYYMMDD dates) |
+| `sharpe_ratio` | `data["sharpe_ratio"]` (top-level) |
+| `aportaciones` | `data["return"]["inflows"]` |
+| `retenciones` | `data["return"]["tax_outflows"]` (already negative) |
+| `rentabilidad_eur` | `data["return"]["pl"]` |
+| `rentabilidad_pct` | `data["return"]["money_return"]` |
+| `money_return_annual` | `data["return"]["money_return_annual"]` |
+
+
+---
+
+# Vision Build Contract — Investments Page Polish (3 Changes)
+**Author:** Wanda (UX/UI) · **Date:** 2026-07-14  
+**CSS:** `frontend/src/index.css` (already appended) · **For:** Vision (Frontend Engineer)  
+**Builds on:** `wanda-investments-redesign.md` (prior contract — read that first)
+
+---
+
+## 0. Summary
+
+| # | Change | CSS added | JSX impact |
+|---|--------|-----------|------------|
+| 1 | Compact summary card (no stretch) | `.inv-top-row` `align-items: start` | None — layout fix only |
+| 2 | Metrics strip: TWR / MWR / Volatility | `.inv-metrics-strip`, `.inv-metric*` | Add strip inside `.inv-summary-card` |
+| 3 | Second donut: by instrument | `.inv-donuts-row`, `.inv-donut-compact-legend`, `.inv-donut-legend-*`, `--inv-p0…p11` | Replace single donut slot with two-card grid |
+
+---
+
+## 1. Change 1 — Summary Card Height Fix
+
+**What changed in CSS:** `.inv-top-row` now has `align-items: start` (was `stretch`).  
+**JSX change needed:** None. Cards are no longer forced to equal heights, so the summary card shrinks to fit its content + the metrics strip.
+
+---
+
+## 2. Change 2 — Metrics Strip JSX
+
+Place this **inside** `.inv-summary-card`, **after** the last `.inv-summary-row` (after Retenciones):
+
+```tsx
+{/* Metrics strip: TWR / MWR / Volatility */}
+<div className="inv-metrics-strip">
+
+  {/* TWR — Time-Weighted Return (annualised) */}
+  <div className="inv-metric">
+    <span className="inv-metric-label">{t.invMetricTwr}</span>
+    <span className="inv-metric-sublabel">{t.invMetricSubAnnual}</span>
+    <span className={`inv-metric-value ${
+      (portfolio.returns?.twr_annual ?? 0) >= 0
+        ? 'inv-metric-value--pos'
+        : 'inv-metric-value--neg'
+    }`}>
+      {portfolio.returns?.twr_annual != null
+        ? `${portfolio.returns.twr_annual >= 0 ? '+' : ''}${(portfolio.returns.twr_annual * 100).toFixed(1)} %`
+        : '—'}
+    </span>
+  </div>
+
+  {/* MWR — Money-Weighted Return (XIRR / annualised) */}
+  <div className="inv-metric">
+    <span className="inv-metric-label">{t.invMetricMwr}</span>
+    <span className="inv-metric-sublabel">{t.invMetricSubXirr}</span>
+    <span className={`inv-metric-value ${
+      (portfolio.returns?.xirr ?? 0) >= 0
+        ? 'inv-metric-value--pos'
+        : 'inv-metric-value--neg'
+    }`}>
+      {portfolio.returns?.xirr != null
+        ? `${portfolio.returns.xirr >= 0 ? '+' : ''}${(portfolio.returns.xirr * 100).toFixed(1)} %`
+        : '—'}
+    </span>
+  </div>
+
+  {/* Volatility — annualised, direction-neutral */}
+  <div className="inv-metric">
+    <span className="inv-metric-label">{t.invMetricVolatility}</span>
+    <span className="inv-metric-sublabel">{t.invMetricSubAnnual}</span>
+    <span className="inv-metric-value inv-metric-value--neutral">
+      {portfolio.returns?.volatility != null
+        ? `${(portfolio.returns.volatility * 100).toFixed(1)} %`
+        : '—'}
+    </span>
+  </div>
+
+</div>
+```
+
+**Data fields used:**
+| Field | Source | Notes |
+|-------|--------|-------|
+| `portfolio.returns.twr_annual` | `returns.twr_annual` | float, e.g. 0.083 → 8.3 % |
+| `portfolio.returns.xirr` | `returns.xirr` | float; same scale |
+| `portfolio.returns.volatility` | `returns.volatility` | float; neutral (no pos/neg coloring) |
+
+**New i18n keys (add to ES + EN + Dict interface):**
+
+| Key | ES | EN |
+|-----|----|----|
+| `invMetricTwr` | `TWR` | `TWR` |
+| `invMetricMwr` | `MWR` | `MWR` |
+| `invMetricVolatility` | `Volatilidad` | `Volatility` |
+| `invMetricSubAnnual` | `anualizada` | `annualised` |
+| `invMetricSubXirr` | `TIR anualizada` | `annualised IRR` |
+
+---
+
+## 3. Change 3 — Two-Donut Layout JSX
+
+### 3a. DOM structure
+
+In `inv-top-row`, **replace** the single `<div className="card inv-chart-card inv-chart-card--allocation">` with:
+
+```tsx
+{/* Two donuts: asset class + instrument */}
+<div className="inv-donuts-row">
+
+  {/* Donut 1 — Allocation by asset class (existing logic, moved here) */}
+  <div className="card">
+    <h3 className="card-title">{t.invDonutAssetTitle}</h3>
+    <div className="cat-chart-layout">
+      <div className="cat-donut-wrap">
+        {/* existing PieChart / ResponsiveContainer — unchanged */}
+        <div className="cat-donut-center">
+          <span className="cat-donut-label">{t.invDonutAssetTitle}</span>
+          <span className="cat-donut-total">{formatCurrency(portfolio.total_value)}</span>
+        </div>
+      </div>
+      <div className="cat-table-wrap">
+        {/* existing .cat-table for asset classes — unchanged */}
+      </div>
+    </div>
+  </div>
+
+  {/* Donut 2 — Allocation by instrument (new) */}
+  <div className="card">
+    <h3 className="card-title">{t.invDonutInstrumentTitle}</h3>
+    <div className="cat-chart-layout">
+      <div className="cat-donut-wrap">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie
+              data={instrumentSlices}
+              cx="50%"
+              cy="50%"
+              innerRadius="58%"
+              outerRadius="80%"
+              dataKey="value"
+              strokeWidth={1}
+              stroke="var(--surface)"
+            >
+              {instrumentSlices.map((_, i) => (
+                <Cell key={i} fill={INSTRUMENT_PALETTE[i % INSTRUMENT_PALETTE.length]} />
+              ))}
+            </Pie>
+          </PieChart>
+        </ResponsiveContainer>
+        <div className="cat-donut-center">
+          <span className="cat-donut-label">{t.invDonutInstrumentTitle}</span>
+          <span className="cat-donut-total">{formatCurrency(portfolio.total_value)}</span>
+        </div>
+      </div>
+      {/* Compact legend — replaces full cat-table for instruments */}
+      <div className="inv-donut-compact-legend">
+        {instrumentSlices.map((item, i) => (
+          <div key={item.name} className="inv-donut-legend-item">
+            <span
+              className="inv-donut-legend-swatch"
+              style={{ backgroundColor: INSTRUMENT_PALETTE[i % INSTRUMENT_PALETTE.length] }}
+            />
+            <span className="inv-donut-legend-name" title={item.name}>{item.name}</span>
+            <span className="inv-donut-legend-pct">
+              {((item.value / portfolio.total_value) * 100).toFixed(1)} %
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+
+</div>
+```
+
+### 3b. Data: `instrumentSlices`
+
+Derive from `portfolio.holdings` (array already fetched):
+
+```ts
+const instrumentSlices = (portfolio.holdings ?? [])
+  .filter(h => h.current_value > 0)
+  .map(h => ({ name: h.fund_name ?? h.isin, value: h.current_value }))
+  .sort((a, b) => b.value - a.value);   // largest slice first
+```
+
+### 3c. Instrument colour palette constant
+
+Add near the top of `InvestmentsPage.tsx` (or a shared `investmentColors.ts`):
+
+```ts
+export const INSTRUMENT_PALETTE = [
+  '#3b82f6',  // 0  blue
+  '#22c55e',  // 1  green
+  '#f59e0b',  // 2  amber
+  '#ec4899',  // 3  pink
+  '#8b5cf6',  // 4  violet
+  '#06b6d4',  // 5  cyan
+  '#f97316',  // 6  orange
+  '#64748b',  // 7  slate
+  '#84cc16',  // 8  lime
+  '#e11d48',  // 9  rose
+  '#0ea5e9',  // 10 sky
+  '#d946ef',  // 11 fuchsia
+] as const;
+```
+
+CSS also exposes them as `--inv-p0` … `--inv-p11` for swatch `backgroundColor: var(--inv-p0)` fallback, but the JS array is the primary source for Recharts `Cell` fills.
+
+### 3d. New i18n keys
+
+| Key | ES | EN |
+|-----|----|----|
+| `invDonutAssetTitle` | `Por clase de activo` | `By asset class` |
+| `invDonutInstrumentTitle` | `Por instrumento` | `By instrument` |
+
+---
+
+## 4. Class Reference Table (all new classes)
+
+| Class | File | Description |
+|-------|------|-------------|
+| `.inv-metrics-strip` | `index.css` | Flex row of 3 metric cells; `border-top` separator; lives at bottom of `.inv-summary-card` |
+| `.inv-metric` | `index.css` | Single metric cell: flex-col, centered, `border-right` divider |
+| `.inv-metric-label` | `index.css` | 10px uppercase label (e.g. "TWR") |
+| `.inv-metric-sublabel` | `index.css` | 9px caption (e.g. "anualizada") |
+| `.inv-metric-value` | `index.css` | 15px/700 numeric figure |
+| `.inv-metric-value--pos` | `index.css` | `var(--income)` — positive return |
+| `.inv-metric-value--neg` | `index.css` | `var(--expense)` — negative return |
+| `.inv-metric-value--neutral` | `index.css` | `var(--text-muted)` — risk metric (volatility) |
+| `.inv-donuts-row` | `index.css` | 1fr/1fr grid wrapper for the two donut cards; stacks ≤900px |
+| `.inv-donut-compact-legend` | `index.css` | Flex-col list, max-height 200px scrollable, for instrument donut |
+| `.inv-donut-legend-item` | `index.css` | One legend row: swatch + name + pct |
+| `.inv-donut-legend-swatch` | `index.css` | 8×8px coloured square |
+| `.inv-donut-legend-name` | `index.css` | Fund name, truncated with ellipsis |
+| `.inv-donut-legend-pct` | `index.css` | Right-aligned percentage |
+| `--inv-p0` … `--inv-p11` | `index.css` `:root` | 12 palette CSS custom properties for swatch fallback |
+
+---
+
+## 5. Full Updated Page Layout (after all 3 changes)
+
+```tsx
+<main className="dashboard">
+
+  <div className="inv-account-header"> … </div>
+
+  {/* Block 1 + both donuts — top row, cards at natural height */}
+  <div className="inv-top-row">                         {/* align-items: start */}
+    <div className="card inv-summary-card">
+      {/* 4 summary rows */}
+      <div className="inv-summary-row inv-summary-row--total"> … </div>
+      <div className="inv-summary-row"> … </div>       {/* Rentabilidad */}
+      <div className="inv-summary-row"> … </div>       {/* Aportaciones */}
+      <div className="inv-summary-row"> … </div>       {/* Retenciones */}
+      {/* Metrics strip */}
+      <div className="inv-metrics-strip">
+        <div className="inv-metric"> … </div>           {/* TWR */}
+        <div className="inv-metric"> … </div>           {/* MWR */}
+        <div className="inv-metric"> … </div>           {/* Volatilidad */}
+      </div>
+    </div>
+
+    <div className="inv-donuts-row">
+      <div className="card"> … </div>                   {/* Donut 1: asset class */}
+      <div className="card"> … </div>                   {/* Donut 2: instrument */}
+    </div>
+  </div>
+
+  <div className="card inv-evolution-card"> … </div>
+
+  <div className="card returns-matrix-card"> … </div>
+
+  <div className="card inv-holdings-card"> … </div>
+
+</main>
+```
+
+---
+
+## 6. Responsive Behaviour Summary
+
+| Breakpoint | `inv-top-row` | `inv-donuts-row` | `inv-metrics-strip` |
+|-----------|--------------|-----------------|---------------------|
+| ≥ 901px | 1fr 1fr (side-by-side) | 1fr 1fr (two donuts) | 1 row, 3 equal cells |
+| ≤ 900px | 1fr (stacked) | 1fr (stacked) | 1 row, 3 equal cells |
+| ≤ 600px | 1fr | 1fr | 1 row, smaller type |
+
+Mobile order (stacked): summary card → metrics strip → donut1 → donut2 → evolution → matrix → holdings.
+
+
+---
+
+# Vision Build Contract — Investments Polish 2 (3 Changes)
+**Author:** Wanda (UX/UI) · **Date:** 2026-07-14  
+**CSS:** `frontend/src/index.css` (already appended) · **For:** Vision (Frontend Engineer)  
+**Builds on:** `wanda-investments-polish.md` (polish 1 — read first)
+
+---
+
+## 0. Summary
+
+| # | Change | CSS added | JSX impact |
+|---|--------|-----------|------------|
+| 1 | Move returns matrix into left column gap | `.inv-left-col` | Wrap summary card + matrix in `.inv-left-col`; remove standalone matrix from below evolution card |
+| 2 | Fix donut center label alignment | `.inv-donuts-row .cat-donut-wrap { height: 220px }` | **None** — CSS-only fix |
+| 3 | Info-tip tooltips for TWR/MWR/Volatilidad | `.inv-metric-header`, `.inv-info-tip`, `.inv-info-bubble` | Add `inv-metric-header` div + tip button inside each `.inv-metric` |
+
+---
+
+## 1. Change 1 — Returns Matrix in Left Column
+
+### Why
+On wide screens the `.inv-summary-card` (left cell of `.inv-top-row`) is shorter than the right-column `.inv-donuts-row`, leaving an empty gap below the summary. Moving the returns matrix there fills that gap naturally.
+
+### Implementation choice
+The matrix has ≥15 columns (`min-width: 720px` on the `<table>`). In a half-viewport left column (~490–560px) it is narrower than 720px, so it scrolls horizontally inside its existing `.returns-matrix-wrap` container (`overflow-x: auto`). This is the cleanest option — all data stays accessible, and on mobile everything stacks to full-width anyway.
+
+### New class
+```css
+/* Already in index.css */
+.inv-left-col {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+```
+
+### JSX structure — updated `InvestmentsPage.tsx`
+
+```tsx
+<main className="dashboard">
+
+  <div className="inv-account-header"> … </div>
+
+  {/* ── Top row ── */}
+  <div className="inv-top-row">
+
+    {/* LEFT column: summary card + returns matrix (NEW wrapper) */}
+    <div className="inv-left-col">
+      <div className="card inv-summary-card">
+        {/* summary rows unchanged */}
+        <div className="inv-metrics-strip">
+          {/* TWR / MWR / Volatilidad — see Change 3 below */}
+        </div>
+      </div>
+
+      {/* returns-matrix-card MOVED HERE from its former standalone position */}
+      <div className="card returns-matrix-card">
+        <div className="returns-matrix-header"> … </div>
+        <div className="returns-matrix-wrap">
+          <table className="returns-matrix"> … </table>
+        </div>
+        <p className="inv-drawdown-note"> … </p>
+      </div>
+    </div>
+
+    {/* RIGHT column: two donuts (unchanged) */}
+    <div className="inv-donuts-row">
+      <div className="card"> … </div>   {/* asset-class donut */}
+      <div className="card"> … </div>   {/* instrument donut */}
+    </div>
+
+  </div>
+
+  {/* Evolution chart — full width, unchanged */}
+  <div className="card inv-evolution-card"> … </div>
+
+  {/* returns-matrix-card REMOVED from here — it is now in .inv-left-col above */}
+
+  {/* Holdings table — unchanged */}
+  <div className="card inv-holdings-card"> … </div>
+
+</main>
+```
+
+### Responsive behaviour
+| Breakpoint | `inv-top-row` | `inv-left-col` |
+|-----------|--------------|---------------|
+| ≥ 901px | 1fr 1fr | flex-col: summary → matrix (matrix scrolls H if needed) |
+| ≤ 900px | 1fr (stacked) | full-width; summary → matrix → donuts → evolution → holdings |
+
+---
+
+## 2. Change 2 — Donut Center Label Fix (CSS-only)
+
+**Problem:** `InvestmentsPage.tsx` passes `height={220}` to each `<ResponsiveContainer>` inside `.cat-donut-wrap`, but the shared CSS had `.cat-donut-wrap { height: 280px }`. The 60px mismatch pushed `.cat-donut-center` (which uses `position: absolute; inset: 0` on the 280px wrap) ~30px below the visual centre of the 220px ring.
+
+**Fix already in CSS:**
+```css
+.inv-donuts-row .cat-donut-wrap {
+  height: 220px;
+  max-width: 220px;
+}
+```
+
+**JSX change needed: None.** The existing `cat-donut-wrap` / `cat-donut-center` markup is correct. The scoped rule now makes the wrapper exactly match the RC height so `inset: 0` lands on centre.
+
+---
+
+## 3. Change 3 — Info-tip Tooltips for TWR / MWR / Volatilidad
+
+### New classes (all in `index.css`)
+
+| Class | Description |
+|-------|-------------|
+| `.inv-metric-header` | Flex row — holds `.inv-metric-label` + `.inv-info-tip` side-by-side |
+| `.inv-info-tip` | Circular 14px "?" button; `position: relative` (bubble anchors here) |
+| `.inv-info-bubble` | Absolute tooltip bubble; shown on `:hover` / `:focus-visible` of `.inv-info-tip` |
+
+### Markup pattern (inside each `.inv-metric`)
+
+```tsx
+<div className="inv-metric">
+  {/* label row: uppercase name + info icon */}
+  <div className="inv-metric-header">
+    <span className="inv-metric-label">{t.invMetricTwr}</span>
+    <button
+      className="inv-info-tip"
+      type="button"
+      aria-label={t.invMetricTwrInfo}
+    >
+      ?
+      <span className="inv-info-bubble">{t.invMetricTwrInfo}</span>
+    </button>
+  </div>
+  <span className="inv-metric-sublabel">{t.invMetricSubAnnual}</span>
+  <span className={`inv-metric-value ${
+    (portfolio.returns?.twr_annual ?? 0) >= 0
+      ? 'inv-metric-value--pos'
+      : 'inv-metric-value--neg'
+  }`}>
+    {portfolio.returns?.twr_annual != null
+      ? `${portfolio.returns.twr_annual >= 0 ? '+' : ''}${(portfolio.returns.twr_annual * 100).toFixed(1)} %`
+      : '—'}
+  </span>
+</div>
+```
+
+Repeat the same pattern for MWR and Volatilidad (use the `aria-label` + bubble text from the i18n keys below).
+
+### Behaviour
+- **Desktop hover:** bubble appears above the "?" icon
+- **Keyboard:** Tab to the button → `:focus-visible` shows bubble
+- **Mobile tap:** tap sets focus → bubble appears; tap elsewhere → focus leaves → bubble hides
+- `pointer-events: none` on the bubble prevents accidental mouse-leave flicker
+
+### i18n keys — add to ES + EN + Dict interface
+
+| Key | ES | EN |
+|-----|----|----|
+| `invMetricTwrInfo` | `Rentabilidad ponderada por tiempo (TWR). Mide el rendimiento de la cartera eliminando el efecto de aportaciones y reintegros; compara gestores en igualdad de condiciones.` | `Time-Weighted Return (TWR). Measures portfolio performance independently of the timing and size of contributions or withdrawals; useful for comparing managers on equal terms.` |
+| `invMetricMwrInfo` | `Rentabilidad ponderada por dinero (MWR / TIR). Tu rentabilidad real teniendo en cuenta cuándo y cuánto aportaste; refleja el impacto de tus decisiones de inversión.` | `Money-Weighted Return (MWR / IRR). Your actual return accounting for when and how much you contributed; reflects the impact of your own investment timing decisions.` |
+| `invMetricVolInfo` | `Volatilidad anualizada. Variabilidad histórica de los rendimientos diarios. A mayor volatilidad, mayor incertidumbre a corto plazo y mayor riesgo percibido.` | `Annualised volatility. Historical variability of daily returns. Higher volatility means greater short-term uncertainty and perceived risk.` |
+
+**Use `invMetricVolInfo` for Volatilidad** (the existing `invMetricVolatility` / `invMetricSubAnnual` keys remain; only add the `…Info` keys).
+
+---
+
+## 4. Full Class Reference (all new in this contract)
+
+| Class | File | Description |
+|-------|------|-------------|
+| `.inv-left-col` | `index.css` | Flex-col wrapper for left cell of `.inv-top-row` |
+| `.inv-metric-header` | `index.css` | Flex row — label + tip button |
+| `.inv-info-tip` | `index.css` | 14px circular "?" button with relative positioning |
+| `.inv-info-bubble` | `index.css` | Absolute tooltip bubble; hidden/shown by tip hover/focus |
+
+---
+
+## 5. Final Page Layout (after all Polish 1 + Polish 2 changes)
+
+```
+<main className="dashboard">
+  .inv-account-header
+  .inv-top-row (1fr 1fr → 1fr ≤900px)
+    .inv-left-col (flex-col)                          ← NEW
+      .card.inv-summary-card
+        .inv-summary-row × 4
+        .inv-metrics-strip
+          .inv-metric (.inv-metric-header + sublabel + value) × 3   ← UPDATED
+      .card.returns-matrix-card                       ← MOVED from below
+    .inv-donuts-row (1fr 1fr → 1fr ≤900px)
+      .card (asset-class donut)
+      .card (instrument donut)
+  .card.inv-evolution-card
+  .card.inv-holdings-card
+</main>
+```
+
+
+---
+
+# Vision Build Contract — Investments Page Redesign (Indexa Layout)
+**Author:** Wanda (UX/UI) · **Date:** 2026-07-14  
+**CSS:** `frontend/src/index.css` (already appended) · **For:** Vision (Frontend Engineer)
+
+---
+
+## 0. Summary of Changes
+
+| What changes | Old element | New element |
+|---|---|---|
+| Summary box | `kpi-grid` (5 `kpi-card`s) | `inv-summary-card` — 4 compact rows |
+| Top-row layout | `inv-charts-row` (3fr/2fr) | `inv-top-row` (1fr/1fr) |
+| Evolution chart | `inv-chart-card--value` inside `inv-charts-row` | `inv-evolution-card` — full-width, with period + toggle |
+| Donut | Right cell of `inv-charts-row` | Right cell of `inv-top-row` (JSX unchanged; just move into new grid) |
+| Returns | `inv-returns-card` (simple list) | `returns-matrix-card` — month × year matrix |
+
+**New state variables needed:** `evPeriod`, `evMode`, `matrixMode`  
+**New Recharts import:** `LineChart`, `Line` (replace `AreaChart`/`Area` or add)
+
+---
+
+## 1. New Page Layout (populated state)
+
+```tsx
+<main className="dashboard">
+
+  {/* Account header — unchanged */}
+  <div className="inv-account-header"> … </div>
+
+  {/* Block 1 + allocation donut — new top row */}
+  <div className="inv-top-row">
+    <div className="card inv-summary-card"> … </div>                     {/* Block 1 */}
+    <div className="card inv-chart-card inv-chart-card--allocation"> … </div> {/* donut — JSX unchanged */}
+  </div>
+
+  {/* Block 2 — Evolution chart, full-width */}
+  <div className="card inv-evolution-card"> … </div>
+
+  {/* Block 3 — Monthly returns matrix, full-width */}
+  <div className="card returns-matrix-card"> … </div>
+
+  {/* Holdings table — unchanged */}
+  <div className="card inv-holdings-card"> … </div>
+
+</main>
+```
+
+**Remove:** `kpi-grid` block (5 kpi-cards), `inv-charts-row` wrapper (and its `inv-chart-card--value` child).
+
+---
+
+## 2. Block 1 — Summary Card JSX
+
+```tsx
+<div className="card inv-summary-card">
+
+  {/* Valor total — hero number */}
+  <div className="inv-summary-row inv-summary-row--total">
+    <span className="inv-summary-label">{t.invSummaryValorTotal}</span>
+    <span className="inv-summary-value inv-summary-value--big">
+      {formatCurrency(portfolio.total_value)}
+    </span>
+  </div>
+
+  {/* Rentabilidad — € amount + % in one cell */}
+  <div className="inv-summary-row">
+    <span className="inv-summary-label">{t.invSummaryRentabilidad}</span>
+    <span className={`inv-summary-value ${
+      (portfolio.returns?.pl ?? 0) >= 0 ? 'inv-summary-value--pos' : 'inv-summary-value--neg'
+    }`}>
+      {portfolio.returns?.pl != null
+        ? `${portfolio.returns.pl >= 0 ? '+' : ''}${formatCurrency(portfolio.returns.pl)}` +
+          (portfolio.returns.money_return != null
+            ? ` (${portfolio.returns.money_return >= 0 ? '+' : ''}${(portfolio.returns.money_return * 100).toFixed(1)} %)`
+            : '')
+        : '—'}
+    </span>
+  </div>
+
+  {/* Aportaciones */}
+  <div className="inv-summary-row">
+    <span className="inv-summary-label">{t.invSummaryAportaciones}</span>
+    <span className="inv-summary-value">
+      {portfolio.returns?.inflows != null
+        ? `+${formatCurrency(portfolio.returns.inflows)}`
+        : '—'}
+    </span>
+  </div>
+
+  {/* Retenciones — tax_outflows is a positive number; display as negative */}
+  <div className="inv-summary-row">
+    <span className="inv-summary-label">{t.invSummaryRetenciones}</span>
+    <span className={`inv-summary-value ${
+      (portfolio.returns?.tax_outflows ?? 0) > 0 ? 'inv-summary-value--neg' : ''
+    }`}>
+      {portfolio.returns?.tax_outflows != null
+        ? portfolio.returns.tax_outflows > 0
+          ? `−${formatCurrency(portfolio.returns.tax_outflows)}`
+          : formatCurrency(0)
+        : '—'}
+    </span>
+  </div>
+
+</div>
+```
+
+**Data fields (from `InvestmentPortfolio.returns`):**
+| UI label | Field | Notes |
+|---|---|---|
+| Valor total | `portfolio.total_value` | Top-level; fixed by Shuri (`portfolios[0]`) |
+| Rentabilidad € | `returns.pl` | P&L in EUR |
+| Rentabilidad % | `returns.money_return` | Decimal → × 100 for %. Display: `money_return`, not `twr_total` (Indexa's "Rentabilidad" = money-weighted) |
+| Aportaciones | `returns.inflows` | Gross deposits |
+| Retenciones | `returns.tax_outflows` | Positive float; display as `−value` |
+
+---
+
+## 3. Block 2 — Evolution Card JSX
+
+### 3a. State variables (add to component):
+
+```tsx
+type EvolutionPeriod = '1M' | '3M' | '6M' | '1A' | string | 'Todo';
+type EvolutionMode   = 'eur' | 'pct';
+
+const [evPeriod, setEvPeriod] = useState<EvolutionPeriod>('Todo');
+const [evMode,   setEvMode]   = useState<EvolutionMode>('eur');
+```
+
+### 3b. Dynamic year list (useMemo):
+
+```tsx
+const evolutionYears = useMemo((): string[] => {
+  if (!portfolio?.value_series?.length) return [];
+  // value_series dates are YYYY-MM-DD after Shuri's fix
+  const firstYear = parseInt(portfolio.value_series[0].date.slice(0, 4), 10);
+  const lastYear  = new Date().getFullYear();
+  return Array.from({ length: lastYear - firstYear + 1 }, (_, i) => String(firstYear + i));
+}, [portfolio]);
+```
+
+### 3c. Fixed period labels:
+
+```tsx
+const FIXED_PERIODS: Array<{ id: EvolutionPeriod; label: string }> = [
+  { id: '1M',  label: t.invPeriod1M },
+  { id: '3M',  label: t.invPeriod3M },
+  { id: '6M',  label: t.invPeriod6M },
+  { id: '1A',  label: t.invPeriod1A },
+];
+```
+
+### 3d. Chart data (useMemo):
+
+```tsx
+const evolutionData = useMemo(() => {
+  if (!portfolio?.value_series?.length) return [];
+
+  // Build contributions lookup from net_amounts_series
+  // net_amounts_series: array of { date: string /* YYYY-MM-DD */, value: number }
+  const contribMap = new Map(
+    (portfolio.net_amounts_series ?? []).map(pt => [pt.date, pt.value])
+  );
+
+  const now = new Date();
+  const cutoff: Date | null = (() => {
+    if (evPeriod === '1M') return new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+    if (evPeriod === '3M') return new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
+    if (evPeriod === '6M') return new Date(now.getFullYear(), now.getMonth() - 6, now.getDate());
+    if (evPeriod === '1A') return new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+    return null; // 'Todo' or year string
+  })();
+
+  const filtered = portfolio.value_series.filter(pt => {
+    if (evPeriod !== 'Todo' && evPeriod.length === 4) return pt.date.startsWith(evPeriod);
+    if (cutoff) return new Date(pt.date) >= cutoff;
+    return true;
+  });
+
+  if (evMode === 'pct') {
+    // Normalize: (value / value[0] - 1) × 100
+    const base = filtered[0]?.value ?? 1;
+    const baseC = contribMap.get(filtered[0]?.date) ?? 1;
+    return filtered.map(pt => ({
+      date:          new Date(pt.date).toLocaleDateString(locale, { month: 'short', year: '2-digit' }),
+      value:         base > 0 ? +((pt.value / base - 1) * 100).toFixed(2) : 0,
+      contributions: (() => {
+        const c = contribMap.get(pt.date);
+        return c != null && baseC > 0 ? +((c / baseC - 1) * 100).toFixed(2) : null;
+      })(),
+    }));
+  }
+
+  return filtered.map(pt => ({
+    date:          new Date(pt.date).toLocaleDateString(locale, { month: 'short', year: '2-digit' }),
+    value:         pt.value,
+    contributions: contribMap.get(pt.date) ?? null,
+  }));
+}, [portfolio, evPeriod, evMode, locale]);
+```
+
+### 3e. JSX tree:
+
+```tsx
+<div className="card inv-evolution-card">
+
+  <div className="inv-evolution-header">
+    <h3 className="card-title">{t.invEvolutionTitle}</h3>
+    <div className="inv-evolution-controls">
+
+      {/* Period selector */}
+      <div className="inv-period-selector">
+        {FIXED_PERIODS.map(p => (
+          <button
+            key={p.id}
+            className={`inv-period-btn${evPeriod === p.id ? ' inv-period-btn--active' : ''}`}
+            onClick={() => setEvPeriod(p.id)}
+          >{p.label}</button>
+        ))}
+        {evolutionYears.map(y => (
+          <button
+            key={y}
+            className={`inv-period-btn${evPeriod === y ? ' inv-period-btn--active' : ''}`}
+            onClick={() => setEvPeriod(y)}
+          >{y}</button>
+        ))}
+        <button
+          className={`inv-period-btn${evPeriod === 'Todo' ? ' inv-period-btn--active' : ''}`}
+          onClick={() => setEvPeriod('Todo')}
+        >{t.invPeriodTodo}</button>
+      </div>
+
+      {/* €/% toggle */}
+      <div className="inv-toggle">
+        <button
+          className={`inv-toggle-btn${evMode === 'eur' ? ' inv-toggle-btn--active' : ''}`}
+          onClick={() => setEvMode('eur')}
+        >{t.invToggleEur}</button>
+        <button
+          className={`inv-toggle-btn${evMode === 'pct' ? ' inv-toggle-btn--active' : ''}`}
+          onClick={() => setEvMode('pct')}
+        >{t.invTogglePct}</button>
+      </div>
+
+    </div>
+  </div>
+
+  {evolutionData.length === 0 ? (
+    <div className="state-box">
+      <span className="icon">📈</span>
+      <span>{t.noDataPeriod}</span>
+    </div>
+  ) : (
+    <>
+      <div className="inv-evolution-chart-wrap">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={evolutionData} margin={{ top: 4, right: 16, left: 8, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+            <XAxis
+              dataKey="date"
+              tick={{ fontSize: 11, fill: 'var(--text-muted)' }}
+              tickLine={false}
+              axisLine={false}
+              interval="preserveStartEnd"
+            />
+            <YAxis
+              tickFormatter={evMode === 'eur'
+                ? (v: number) => `${(v / 1000).toFixed(0)}k€`
+                : (v: number) => `${v.toFixed(1)}%`}
+              tick={{ fontSize: 11, fill: 'var(--text-muted)' }}
+              axisLine={false}
+              tickLine={false}
+              width={52}
+            />
+            <Tooltip
+              contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8 }}
+              labelStyle={{ color: 'var(--text)' }}
+              itemStyle={{ color: 'var(--text)' }}
+              formatter={(value: number, name: string) => [
+                evMode === 'eur' ? formatCurrency(value) : `${value.toFixed(2)}%`,
+                name === 'value' ? t.invLegendPortfolio : t.invLegendContributions,
+              ]}
+            />
+            {/* Tu cartera — primary colour, solid */}
+            <Line
+              type="monotone"
+              dataKey="value"
+              stroke="var(--primary)"
+              strokeWidth={2}
+              dot={false}
+              activeDot={{ r: 4, fill: 'var(--primary)' }}
+              connectNulls
+            />
+            {/* Aportaciones — muted, dashed step-line */}
+            <Line
+              type="stepAfter"
+              dataKey="contributions"
+              stroke="var(--text-muted)"
+              strokeWidth={1.5}
+              strokeDasharray="5 3"
+              dot={false}
+              activeDot={false}
+              connectNulls
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Legend */}
+      <div className="inv-chart-legend">
+        <span className="inv-chart-legend-item">
+          <span className="inv-chart-legend-swatch" style={{ background: 'var(--primary)' }} />
+          <span>{t.invLegendPortfolio}</span>
+        </span>
+        <span className="inv-chart-legend-item">
+          <span className="inv-chart-legend-swatch"
+            style={{ background: 'var(--text-muted)', backgroundImage: 'repeating-linear-gradient(90deg, var(--text-muted) 0 5px, transparent 5px 8px)' }} />
+          <span>{t.invLegendContributions}</span>
+        </span>
+      </div>
+    </>
+  )}
+
+</div>
+```
+
+**Recharts note:** Import `LineChart` and `Line` from `recharts`. You may keep `AreaChart`/`Area` imports if still needed elsewhere; otherwise swap them.
+
+---
+
+## 4. Block 3 — Monthly Returns Matrix JSX
+
+### 4a. State variable:
+
+```tsx
+type MatrixMode = 'pct' | 'eur';
+const [matrixMode, setMatrixMode] = useState<MatrixMode>('pct');
+```
+
+### 4b. Data shape expected from Shuri (`portfolio.monthly_returns`):
+
+```ts
+type MonthlyReturn = {
+  year:           number;        // e.g. 2024
+  month:          number;        // 1 = Jan … 12 = Dec
+  portfolio_pct:  number | null; // monthly TWR return, decimal (0.0347 = +3.47%)
+  portfolio_eur:  number | null; // monthly P&L in EUR
+  benchmark_pct:  number | null; // same structure
+  benchmark_eur:  number | null;
+};
+```
+
+Shuri derives this from `data["history"]` (cumulative TWR multipliers, monthly) and `data["benchmark"]`.
+
+### 4c. Drawdown data shape (`portfolio.drawdown`):
+
+```ts
+type DrawdownInfo = {
+  max_drawdown:     number; // e.g. -0.10050  (already negative)
+  max_drawdown_eur: number; // e.g. -1356.93  (already negative)
+  start_date:       string; // YYYY-MM-DD
+  end_date:         string; // YYYY-MM-DD
+};
+```
+
+### 4d. JSX tree:
+
+```tsx
+{portfolio.monthly_returns && portfolio.monthly_returns.length > 0 && (() => {
+  const MONTHS = [
+    t.invMonthENE, t.invMonthFEB, t.invMonthMAR, t.invMonthABR,
+    t.invMonthMAY, t.invMonthJUN, t.invMonthJUL, t.invMonthAGO,
+    t.invMonthSEP, t.invMonthOCT, t.invMonthNOV, t.invMonthDIC,
+  ];
+
+  // Group rows by year
+  const yearMap = new Map<number, MonthlyReturn[]>();
+  for (const r of portfolio.monthly_returns) {
+    if (!yearMap.has(r.year)) yearMap.set(r.year, []);
+    yearMap.get(r.year)!.push(r);
+  }
+  const years = Array.from(yearMap.keys()).sort();
+
+  // Format a single cell value
+  const fmtCell = (v: number | null, mode: MatrixMode): string => {
+    if (v == null) return '';
+    if (mode === 'pct') {
+      const s = (v * 100).toFixed(2);
+      return v >= 0 ? `+${s}%` : `${s}%`;
+    }
+    return v >= 0 ? `+${formatCurrency(v)}` : formatCurrency(v);
+  };
+
+  // CSS class for a cell value
+  const cellCls = (v: number | null, extra = ''): string => {
+    const base = `returns-matrix-cell${extra ? ` ${extra}` : ''}`;
+    if (v == null) return `${base} returns-matrix-cell--empty`;
+    if (v > 0)    return `${base} returns-matrix-cell--pos`;
+    if (v < 0)    return `${base} returns-matrix-cell--neg`;
+    return base;
+  };
+
+  // Annual totals (geometric product for % ; simple sum for €)
+  const annualPct = (rows: MonthlyReturn[]): number | null => {
+    const valid = rows.filter(r => r.portfolio_pct != null);
+    if (!valid.length) return null;
+    return valid.reduce((acc, r) => acc * (1 + r.portfolio_pct!), 1) - 1;
+  };
+  const annualEur = (rows: MonthlyReturn[]): number | null => {
+    const valid = rows.filter(r => r.portfolio_eur != null);
+    if (!valid.length) return null;
+    return valid.reduce((acc, r) => acc + r.portfolio_eur!, 0);
+  };
+  const benchPct = (rows: MonthlyReturn[]): number | null => {
+    const valid = rows.filter(r => r.benchmark_pct != null);
+    if (!valid.length) return null;
+    return valid.reduce((acc, r) => acc * (1 + r.benchmark_pct!), 1) - 1;
+  };
+
+  return (
+    <div className="card returns-matrix-card">
+
+      <div className="returns-matrix-header">
+        <h3 className="card-title">{t.invMatrixTitle}</h3>
+        <div className="inv-toggle">
+          <button
+            className={`inv-toggle-btn${matrixMode === 'pct' ? ' inv-toggle-btn--active' : ''}`}
+            onClick={() => setMatrixMode('pct')}
+          >{t.invTogglePct}</button>
+          <button
+            className={`inv-toggle-btn${matrixMode === 'eur' ? ' inv-toggle-btn--active' : ''}`}
+            onClick={() => setMatrixMode('eur')}
+          >{t.invToggleEur}</button>
+        </div>
+      </div>
+
+      <div className="returns-matrix-wrap">
+        <table className="returns-matrix">
+          <thead>
+            <tr>
+              <th></th>
+              {MONTHS.map((m, i) => <th key={i}>{m}</th>)}
+              <th className="returns-matrix-cell--total">{t.invMatrixTotal}</th>
+              <th className="returns-matrix-cell--bench">{t.invMatrixBenchmark}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {years.map(year => {
+              const rows  = yearMap.get(year)!;
+              const byMon = new Map(rows.map(r => [r.month, r]));
+              const tot   = matrixMode === 'pct' ? annualPct(rows) : annualEur(rows);
+              const bench = benchPct(rows); // benchmark: % only
+              return (
+                <tr key={year}>
+                  <td className="returns-matrix-year">{year}</td>
+                  {Array.from({ length: 12 }, (_, i) => {
+                    const row = byMon.get(i + 1);
+                    const v = row
+                      ? matrixMode === 'pct' ? row.portfolio_pct : row.portfolio_eur
+                      : null;
+                    return <td key={i} className={cellCls(v)}>{fmtCell(v, matrixMode)}</td>;
+                  })}
+                  <td className={cellCls(tot, 'returns-matrix-cell--total')}>
+                    {fmtCell(tot, matrixMode)}
+                  </td>
+                  <td className={cellCls(bench, 'returns-matrix-cell--bench')}>
+                    {bench != null ? fmtCell(bench, 'pct') : '—'}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Max-drawdown note */}
+      {portfolio.drawdown && (
+        <p className="inv-drawdown-note">
+          {t.invDrawdownNote(
+            `${(Math.abs(portfolio.drawdown.max_drawdown) * 100).toFixed(1)}%`,
+            formatCurrency(Math.abs(portfolio.drawdown.max_drawdown_eur)),
+            new Date(portfolio.drawdown.start_date).toLocaleDateString(locale, { day: '2-digit', month: '2-digit', year: 'numeric' }),
+            new Date(portfolio.drawdown.end_date).toLocaleDateString(locale, { day: '2-digit', month: '2-digit', year: 'numeric' }),
+          )}
+        </p>
+      )}
+
+    </div>
+  );
+})()}
+```
+
+---
+
+## 5. CSS Class Reference
+
+All classes are in `frontend/src/index.css`. Read the Indexa Redesign block appended at the end.
+
+### Layout
+
+| Class | Purpose |
+|---|---|
+| `.inv-top-row` | `1fr 1fr` grid for summary + donut; stacks at ≤900px |
+| `.inv-summary-card` | Block 1 card shell; flex-column |
+| `.inv-evolution-card` | Block 2 card shell; flex-column, full-width |
+| `.returns-matrix-card` | Block 3 card shell; **`max-width: 1100px`** ultrawide fix |
+
+### Block 1 — Summary
+
+| Class | Purpose |
+|---|---|
+| `.inv-summary-row` | flex row: label left, value right; `border-bottom` |
+| `.inv-summary-row--total` | extra padding for the total row (hero separator) |
+| `.inv-summary-label` | 13px muted left cell |
+| `.inv-summary-value` | 15px/600 tabular-nums right cell |
+| `.inv-summary-value--big` | 26px/800 — hero Valor total number |
+| `.inv-summary-value--pos` | `var(--income)` green |
+| `.inv-summary-value--neg` | `var(--expense)` red |
+
+### Block 2 — Evolution
+
+| Class | Purpose |
+|---|---|
+| `.inv-evolution-header` | flex row: title + controls; wraps on mobile |
+| `.inv-evolution-controls` | groups period selector + toggle |
+| `.inv-period-selector` | sunken track container; `flex-wrap: wrap` for mobile |
+| `.inv-period-btn` | individual period button |
+| `.inv-period-btn--active` | primary bg + white text |
+| `.inv-toggle` | 2-option toggle container (same style as period selector) |
+| `.inv-toggle-btn` / `--active` | same as period buttons |
+| `.inv-evolution-chart-wrap` | 360px height → `ResponsiveContainer height="100%"` |
+| `.inv-chart-legend` | centered flex legend row below chart |
+| `.inv-chart-legend-item` | swatch + label pair |
+| `.inv-chart-legend-swatch` | 24×3px line-style swatch |
+
+### Block 3 — Matrix
+
+| Class | Purpose |
+|---|---|
+| `.returns-matrix-header` | title + toggle row |
+| `.returns-matrix-wrap` | `overflow-x: auto` scroll wrapper |
+| `.returns-matrix` | `<table>` — `min-width: 720px`, `border-collapse: collapse` |
+| `.returns-matrix-year` | year column cell — left-aligned, bold |
+| `.returns-matrix-cell` | base cell (no extra rules) |
+| `.returns-matrix-cell--pos` | green tint + bold |
+| `.returns-matrix-cell--neg` | red tint + bold |
+| `.returns-matrix-cell--empty` | `var(--text-muted)` |
+| `.returns-matrix-cell--total` | bold + left border |
+| `.returns-matrix-cell--bench` | muted text |
+| `.inv-drawdown-note` | 12px muted text, border-top |
+
+---
+
+## 6. i18n Keys (add to `es.ts`, `en.ts`, `index.ts` Dict)
+
+### Block 1 — Summary
+
+| Key | TypeScript type | ES | EN |
+|---|---|---|---|
+| `invSummaryValorTotal` | `string` | `'Valor total'` | `'Total value'` |
+| `invSummaryRentabilidad` | `string` | `'Rentabilidad'` | `'Return'` |
+| `invSummaryAportaciones` | `string` | `'Aportaciones'` | `'Contributions'` |
+| `invSummaryRetenciones` | `string` | `'Retenciones'` | `'Withholdings'` |
+
+### Block 2 — Evolution + period/toggle (shared with Block 3)
+
+| Key | TypeScript type | ES | EN |
+|---|---|---|---|
+| `invEvolutionTitle` | `string` | `'Evolución de la cuenta'` | `'Account evolution'` |
+| `invPeriod1M` | `string` | `'1M'` | `'1M'` |
+| `invPeriod3M` | `string` | `'3M'` | `'3M'` |
+| `invPeriod6M` | `string` | `'6M'` | `'6M'` |
+| `invPeriod1A` | `string` | `'1A'` | `'1Y'` |
+| `invPeriodTodo` | `string` | `'Todo'` | `'All'` |
+| `invToggleEur` | `string` | `'€'` | `'€'` |
+| `invTogglePct` | `string` | `'%'` | `'%'` |
+| `invLegendPortfolio` | `string` | `'Tu cartera'` | `'Your portfolio'` |
+| `invLegendContributions` | `string` | `'Aportaciones'` | `'Contributions'` |
+
+### Block 3 — Matrix
+
+| Key | TypeScript type | ES | EN |
+|---|---|---|---|
+| `invMatrixTitle` | `string` | `'Tabla de rentabilidades'` | `'Returns table'` |
+| `invMonthENE` | `string` | `'ENE'` | `'JAN'` |
+| `invMonthFEB` | `string` | `'FEB'` | `'FEB'` |
+| `invMonthMAR` | `string` | `'MAR'` | `'MAR'` |
+| `invMonthABR` | `string` | `'ABR'` | `'APR'` |
+| `invMonthMAY` | `string` | `'MAY'` | `'MAY'` |
+| `invMonthJUN` | `string` | `'JUN'` | `'JUN'` |
+| `invMonthJUL` | `string` | `'JUL'` | `'JUL'` |
+| `invMonthAGO` | `string` | `'AGO'` | `'AUG'` |
+| `invMonthSEP` | `string` | `'SEP'` | `'SEP'` |
+| `invMonthOCT` | `string` | `'OCT'` | `'OCT'` |
+| `invMonthNOV` | `string` | `'NOV'` | `'NOV'` |
+| `invMonthDIC` | `string` | `'DIC'` | `'DEC'` |
+| `invMatrixTotal` | `string` | `'TOTAL'` | `'TOTAL'` |
+| `invMatrixBenchmark` | `string` | `'BENCHMARK'` | `'BENCHMARK'` |
+| `invDrawdownNote` | `(pct: string, eur: string, start: string, end: string) => string` | `` (pct, eur, start, end) => `Pérdida máxima soportada: −${pct} (−${eur}), entre ${start} y ${end}.` `` | `` (pct, eur, start, end) => `Max drawdown: −${pct} (−${eur}), from ${start} to ${end}.` `` |
+
+Note: `invDrawdownNote` receives pre-formatted strings (absolute values). The `−` sign is part of the template.
+
+---
+
+## 7. Backend Types Needed (coordinate with Shuri)
+
+Add to `InvestmentPortfolio` (or `NormalizedPerformance`):
+
+```ts
+// Existing — extend returns object:
+returns?: {
+  // … existing fields …
+  pl: number;              // P&L in EUR  (data["return"]["pl"])
+  money_return: number;    // Money-weighted return decimal  (data["return"]["money_return"])
+  inflows: number;         // Gross deposits  (data["return"]["inflows"])
+  tax_outflows: number;    // Withheld taxes, positive  (data["return"]["tax_outflows"])
+};
+
+// New top-level fields:
+net_amounts_series?: Array<{ date: string; value: number }>;  // cumulative contributions step-series
+monthly_returns?: MonthlyReturn[];  // from data["history"] + data["benchmark"]
+drawdown?: {
+  max_drawdown: number;      // e.g. -0.10050 (negative)
+  max_drawdown_eur: number;  // e.g. -1356.93 (negative)
+  start_date: string;        // YYYY-MM-DD
+  end_date: string;          // YYYY-MM-DD
+};
+```
+
+---
+
+## 8. What to Keep / Remove in InvestmentsPage.tsx
+
+**Remove:**
+- `kpi-grid` div and its 5 `kpi-card` children
+- `inv-charts-row` wrapper div
+- `inv-chart-card--value` div (and its `AreaChart` content)
+- `inv-returns-card` div (and its `returns-table` content)
+
+**Keep unchanged:**
+- `inv-account-header` strip
+- `inv-chart-card--allocation` div (donut chart) — just moves into `.inv-top-row`
+- `inv-holdings-card` div
+
+**AreaChart vs LineChart:** The evolution chart now uses `LineChart + Line` instead of `AreaChart + Area`. Remove `AreaChart`, `Area` from imports if no longer used elsewhere. Add `LineChart`, `Line`.
+
+---
+
+## 9. Null / Loading Behaviour
+
+- `portfolio.monthly_returns == null || length === 0` → skip Block 3 entirely (or show `.state-box` inside `.returns-matrix-card`)
+- `portfolio.drawdown == null` → omit `.inv-drawdown-note`
+- `portfolio.net_amounts_series == null` → `contribMap` is empty → `contributions: null` for all points → contributions line simply absent from chart (Recharts `connectNulls` won't draw anything, which is correct)
+- While loading: use the existing `.state-box` pattern inside each card
+
+---
+
+*End of contract. CSS is live in `index.css`. Build and verify with `cd frontend && npm run build`.*
+
+
+---
+
+# Vision Build Contract — Returns Table (Tabla de Rentabilidades)
+**Author:** Wanda (UX/UI) · **Date:** 2026-07-14 · **For:** Vision (Frontend Engineer)
+
+---
+
+## 1. Placement on the Page
+
+Add the returns card **between `inv-charts-row` and the holdings card** (`inv-holdings-card`). Full-width — no side-by-side with another element.
+
+```
+[inv-account-header]
+[kpi-grid  ·  5 cards]
+[inv-charts-row]          ← evolution chart (3fr) + allocation donut (2fr)
+[.card.inv-returns-card]  ← NEW — full-width returns table  ◀
+[.card.inv-holdings-card] ← holdings table (unchanged)
+```
+
+---
+
+## 2. JSX Tree (exact class names)
+
+```tsx
+<div className="card inv-returns-card">
+  <h3 className="card-title">{t('invReturnsTitle')}</h3>
+  <div className="returns-table">
+
+    {/* Última semana */}
+    <div className="returns-row">
+      <span className="returns-label">{t('invReturnsWeek')}</span>
+      <span className={`returns-value ${pct(returns.twr_last_week)}`}>
+        {fmt(returns.twr_last_week)}
+      </span>
+    </div>
+
+    {/* Último mes */}
+    <div className="returns-row">
+      <span className="returns-label">{t('invReturnsMonth')}</span>
+      <span className={`returns-value ${pct(returns.twr_last_month)}`}>
+        {fmt(returns.twr_last_month)}
+      </span>
+    </div>
+
+    {/* Último año */}
+    <div className="returns-row">
+      <span className="returns-label">{t('invReturnsYear')}</span>
+      <span className={`returns-value ${pct(returns.twr_last_year)}`}>
+        {fmt(returns.twr_last_year)}
+      </span>
+    </div>
+
+    {/* Rentabilidad acumulada (TWR total) */}
+    <div className="returns-row">
+      <span className="returns-label">{t('invReturnsTotal')}</span>
+      <span className={`returns-value ${pct(returns.twr_total)}`}>
+        {fmt(returns.twr_total)}
+      </span>
+    </div>
+
+    {/* Rentabilidad anualizada (TWR) */}
+    <div className="returns-row">
+      <span className="returns-label">{t('invReturnsAnnual')}</span>
+      <span className={`returns-value ${pct(returns.twr_annual)}`}>
+        {fmt(returns.twr_annual)}
+      </span>
+    </div>
+
+    {/* TIR / XIRR */}
+    <div className="returns-row">
+      <span className="returns-label">{t('invReturnsXirr')}</span>
+      <span className={`returns-value ${pct(returns.xirr)}`}>
+        {fmt(returns.xirr)}
+      </span>
+    </div>
+
+    {/* Volatilidad — always neutral color (risk metric, not gain/loss) */}
+    <div className="returns-row">
+      <span className="returns-label">{t('invReturnsVolatility')}</span>
+      <span className="returns-value returns-value--neutral">
+        {returns.volatility != null ? `${(returns.volatility * 100).toFixed(2)}%` : '—'}
+      </span>
+    </div>
+
+  </div>
+</div>
+```
+
+---
+
+## 3. Helper functions (suggested)
+
+```ts
+// fmt: decimal → "+1.23%" string, or "—" for null
+function fmt(v: number | null | undefined): string {
+  if (v == null) return '—';
+  const pct = (v * 100).toFixed(2);
+  return v >= 0 ? `+${pct}%` : `${pct}%`;
+}
+
+// pct: decimal → CSS modifier class
+function pct(v: number | null | undefined): string {
+  if (v == null) return '';
+  if (v > 0) return 'returns-value--pos';
+  if (v < 0) return 'returns-value--neg';
+  return ''; // exactly zero: default text color
+}
+```
+
+---
+
+## 4. i18n Keys (add to ES + EN)
+
+| Key | ES | EN |
+|-----|----|----|
+| `invReturnsTitle` | Rentabilidades | Returns |
+| `invReturnsWeek` | Última semana | Last week |
+| `invReturnsMonth` | Último mes | Last month |
+| `invReturnsYear` | Último año | Last year |
+| `invReturnsTotal` | Rentabilidad acumulada | Total return (TWR) |
+| `invReturnsAnnual` | Rentabilidad anualizada | Annualised return |
+| `invReturnsXirr` | TIR / XIRR | IRR / XIRR |
+| `invReturnsVolatility` | Volatilidad | Volatility |
+
+---
+
+## 5. CSS Classes Defined (all in `frontend/src/index.css`)
+
+| Class | Purpose |
+|-------|---------|
+| `.inv-returns-card` | Hook on the `.card` shell — no extra rules, scope for future tweaks |
+| `.returns-table` | `flex-direction: column` container of rows |
+| `.returns-row` | `flex; space-between` — label + value pair; `border-bottom: 1px solid var(--border)`; last-child: no border |
+| `.returns-label` | 13px muted left cell |
+| `.returns-value` | 14px/700 tabular-nums right cell — default `var(--text)` |
+| `.returns-value--pos` | `var(--income)` green — positive return |
+| `.returns-value--neg` | `var(--expense)` red — negative return |
+| `.returns-value--neutral` | `var(--text-muted)` — volatility (risk metric, not directional) |
+
+---
+
+## 6. Evolution Chart Emphasis
+
+`inv-value-chart-wrap` height bumped **260px → 300px** (already applied in `index.css`). No JSX change needed — `ResponsiveContainer height="100%"` fills the wrapper automatically.
+
+---
+
+## 7. Null / loading behavior
+
+- Backend returns `null` for a metric that can't be computed → render `—` (en-dash).  
+- While portfolio data is loading, show the `.state-box` spinner over the entire card (reuse existing `state-box` pattern inside `.inv-returns-card`).
+- No skeleton rows needed — the card itself shows the spinner.
+
+---
+
+## 8. Data source
+
+All values come from `portfolio.returns` object:  
+`twr_total`, `twr_last_week`, `twr_last_month`, `twr_last_year`, `twr_annual`, `xirr`, `volatility` — all **decimals** (e.g. `0.0423` = 4.23%). Multiply × 100 before display.
+
