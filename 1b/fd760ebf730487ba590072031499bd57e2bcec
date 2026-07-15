@@ -1,0 +1,29 @@
+.squad/decisions.md
+  s_2cc77fe3c1969c::t_5398300d851f32 32-109
+.squad/agents/vision/history.md
+  s_8cf4831cf56a5c::t_c337a571f25180 624-704
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "1bfd760ebf730487ba590072031499bd57e2bcec",
+  "prompts": {},
+  "sessions": {
+    "s_2cc77fe3c1969c": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01Pd49wVLxjQZ9RVZB3Le7MX",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_8cf4831cf56a5c": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01SX54einTCV23zTxM6dBXUy",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    }
+  }
+}
