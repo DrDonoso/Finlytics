@@ -1,0 +1,48 @@
+.squad/agents/wanda/history.md
+  s_cc6f3398183b7d::t_86bfafb892f68e 58-68
+.squad/agents/vision/history.md
+  s_bc016fd38d5705::t_1b64b2788bee15 577-608
+  s_a10dd2c333192e::t_152b4ecc77a2c4 538-576
+.squad/decisions.md
+  s_1d525b18eeeb27::t_2a1a0fc24f2c98 15-892,7152
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "96486b0193e4068e7202aba9f450ce856a5e5c5b",
+  "prompts": {},
+  "sessions": {
+    "s_1d525b18eeeb27": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01N8EBqKJHNVKKRPMdHXmy6e",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_a10dd2c333192e": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_018dftxL7Nez9qjkbzgyN333",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_bc016fd38d5705": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01Bxo1p2RQkzHhWkRgBSwK76",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_cc6f3398183b7d": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01DyycYnu7wfjD7Mj5JfxBZF",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    }
+  }
+}
