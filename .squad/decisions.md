@@ -1,15 +1,161 @@
 # Decisions Log
 
-## INTEGRATION STATUS: Fidelity ESPP Connector — Full Implementation Complete
+## INTEGRATION STATUS: Fidelity ESPP Connector — Full Implementation + Refinements Complete (2026-07-15)
 
-Fidelity ESPP connector implemented (all phases: foundation + parser + endpoints), Fury APPROVED, running in Docker at http://localhost:7777; repo code uncommitted pending owner test; Dockerfile npm-in-Docker workaround flagged for CI deploy follow-up.
+**Fidelity ESPP:**  
+Connector implemented (all phases: foundation + parser + endpoints), Fury APPROVED, running in Docker at http://localhost:7777; repo code uncommitted pending owner test; Dockerfile npm-in-Docker workaround flagged for CI deploy follow-up.
+
+**Fidelity Refinements (Daily Evolution + Price Top-Up):**  
+Shuri delivered two post-integration refinements:
+1. **Daily market-day chart resolution** — evolution series now emits one point per MSFT trading day (vs weekly) for ranges up to ~6 years. 1089 tests passed.
+2. **Incremental price top-up** — `topup_recent_prices()` fetches Yahoo history and UPSERTs to settle intraday snapshots to official closes daily. Last stored day is corrected on next read. 1104 tests passed.
+
+**Overall status:** Fidelity ESPP fully integrated. Daily chart + sortable/paginated lots table with tooltips. Price refresh on-demand (≤1 fetch/business day, settled-daily model).
 
 ---
 
+## Decision: Fidelity Evolution Chart — Daily Market-Day Resolution
+
+**Date:** 2026-07-15  
+**Agent:** Shuri (Backend Engineer)  
+**Status:** Implemented ✅
 
 ---
 
-## Fidelity Post-Test Fixes Summary (2026-07-15T13:04:37+02:00)
+### Context
+
+The Fidelity ESPP evolution chart plots portfolio value over time.  
+Previous implementation applied `use_weekly = total_days > 365`, which for the owner's ~4.5-year history produced **weekly buckets (~75 points)**. That hid the day-to-day price movement the chart is intended to show.
+
+---
+
+### Decision
+
+Change `compute_evolution_series` to emit **one value point per actual MSFT trading day** (market-day resolution) for ranges up to ~6 years, with a weekly fallback only for extreme ranges.
+
+#### Before
+
+```
+use_weekly = total_days > 365
+if use_weekly:
+    # iterate over Mondays
+else:
+    # iterate over all calendar days (forward-filled weekends included)
+```
+
+#### After
+
+```
+use_weekly = total_days > 2200          # ~6-year guardrail
+if use_weekly:
+    # weekly Mondays with forward-fill (extreme ranges only)
+else:
+    # iterate over price_map keys in [min_date, max_date]
+    series_dates = sorted(d for d in price_map if min_date <= d <= max_date)
+```
+
+---
+
+### Rationale
+
+| Concern | Resolution |
+|---|---|
+| Day-to-day MSFT movement hidden | Now every trading day (close price) is a point |
+| Weekend/holiday redundancy | Eliminated — only real market days in series |
+| Payload size (~4.5y) | ~1100–1150 points (Recharts handles fine; was ~75) |
+| Extreme-range safety | >2200 days → weekly (~300-365 points max) |
+| Both series on same x-axis | Contributions also emitted at market-day dates |
+| KPIs/lots endpoints | Not touched — no change to current-value logic |
+| Price source/backfill | Not touched |
+
+---
+
+### Files Changed
+
+| File | Change |
+|---|---|
+| `src/finlytics/api/fidelity.py` | `use_weekly` threshold 365→2200; daily path iterates `price_map` keys; renamed `filled`→`price_lookup`; updated docstring |
+| `tests/investments/test_market_data.py` | 4 granularity tests updated; weekend-fill test renamed to market-day test; new extreme-range guardrail test |
+| `tests/investments/test_fidelity_provider.py` | 2 boundary tests renamed/updated (366d, 365d now daily) |
+
+---
+
+### Test Result
+
+```
+1089 passed, 2 skipped, 0 failed
+```
+
+---
+
+## Decision: Fidelity Price Top-Up — Incremental UPSERT for Daily Closes
+
+**Author:** Shuri  
+**Date:** 2026-07-15  
+**Status:** Implemented ✅  
+**Affects:** `src/finlytics/investments/market_data.py`, `src/finlytics/api/fidelity.py`
+
+---
+
+### Problem
+
+`get_latest_price` stored today's price with `ON CONFLICT DO NOTHING`. Once an intraday value was written (e.g. 384 at 14:00), it was never corrected to the official close (e.g. 350 at 22:00). The bug persisted across days: tomorrow's KPIs still showed the stale intraday value for yesterday.
+
+Historical backfill only ran when `price_history` was completely empty — it never touched the recent tail.
+
+---
+
+### Decision
+
+#### 1. `topup_recent_prices(db: AsyncSession) → None`
+
+A new public helper that runs an **incremental top-up** on each read:
+
+- **Window:** `[max(price_date), today]` — always includes the last stored day.
+- **Fetch:** Yahoo Chart daily history (`interval=1d`, `period1=max_stored_date`, `period2=today`) for both MSFT and EURUSD=X.
+- **UPSERT:** `pg_insert(...).on_conflict_do_update(...)` — overwrites `close_usd`, `fx_eur_usd`, `close_eur` for every day in the window.
+  - **Why DO UPDATE instead of DO NOTHING:** The last stored day may hold an intraday provisional value. Yahoo's daily history endpoint returns the settled official close once the market has closed. DO UPDATE ensures that provisional value is corrected when the top-up runs the following session.
+- **Graceful degradation:** Any network failure is logged and silently swallowed. Existing data is never touched on failure.
+- **Empty history:** Returns immediately without fetching — the full backfill (triggered at `import_confirm`) handles first-time population.
+- **FX direction preserved:** `fx_eur_usd = 1 / eurusd_quote` (EUR per USD); `close_eur = close_usd × fx_eur_usd`. Same convention as existing code.
+
+#### 2. `get_latest_price` simplified
+
+Removed: intraday snapshot fetch, `on_conflict_do_nothing` write, fallback chain for snapshot.  
+Replaced with:
+1. `await topup_recent_prices(db)` (with try/except).
+2. Read latest row from `price_history`.
+3. `price_stale = price_date < _last_business_day()` — stale only if genuinely no recent close.
+
+#### 3. Endpoint wiring
+
+- **`fidelity_kpis` / `fidelity_lots`:** Top-up happens inside `get_latest_price`, called first before any other SQL. No change needed in the endpoint code.
+- **`fidelity_evolution`:** Calls `topup_recent_prices(db)` explicitly after `await db.commit()` to break the autobegin read transaction before topup opens its own `db.begin()` blocks. The existing full-backfill lazy path is preserved for when `price_history` is empty.
+
+#### 4. Full backfill unchanged
+
+`backfill_price_history` (called at `import_confirm` and lazy in `fidelity_evolution`) is unchanged. It handles the initial full population of `price_history` from the earliest lot date. The top-up handles the recent tail from that point forward.
+
+---
+
+### Alternatives Considered
+
+| Option | Rejected because |
+|---|---|
+| Keep snapshot + DO NOTHING, invalidate daily on close | Complex cache invalidation; race conditions at market close |
+| Cron job / background task for daily settlement | Adds infrastructure complexity; top-up on read is simpler and keeps the DB always fresh |
+| Always re-fetch entire history on read | Too expensive for a frequently called endpoint |
+
+---
+
+### Impact
+
+- **KPIs `valor actual`:** Uses settled daily close after market close; provisional during session.
+- **Evolution chart:** Same — the price_map is now built from settled closes.
+- **Lots endpoint:** Same.
+- **Test suite:** 1104 passed, 2 skipped, 0 failed. New test classes: `TestTopupRecentPrices`, `TestGetLatestPrice`.
+
+---
 
 **Coordinators:** Shuri (Backend), Vision (Frontend), Rocket (DevOps)  
 **Status:** COMPLETE & VERIFIED IN DOCKER  
