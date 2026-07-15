@@ -224,6 +224,59 @@ Los tres primeros se llaman en `Promise.all` al montar. En caso de error cualqui
 
 **Build:** `npm run build` → 0 errores TS, 0 warnings CSS. Exit code 0.
 
+### 2026-07-15 — Three frontend owner-feedback fixes
+
+**Fecha:** 2026-07-15T17:27:48+02:00  
+**Tarea:** FIX 1 (connector descriptions i18n), FIX 2 (Inicio KPIs last-month-with-data + label/nav), FIX 3 (Finanzas ver-transacciones button).
+
+---
+
+#### FIX 1 — Connector plugin descriptions localized
+
+**Problema:** `InvestmentPlugin.description` viene del backend en inglés; se renderizaba cruda en ConnectorsPage.tsx.
+
+**Solución:** Se añaden claves i18n `invPluginDescIndexa` y `invPluginDescFidelity` en `index.ts`, `es.ts` y `en.ts`. En `ConnectorsPage.tsx` se define un mapa estático `PLUGIN_DESC_KEYS: Partial<Record<string, keyof Dict>>` y la función `pluginDesc(plugin)` que retorna la clave localizada o hace fallback a `plugin.description` para plugins sin clave local. Se aplica a las 6 instancias donde se renderizaba la descripción (tarjeta conectada, error, no conectada de Indexa; conectada y no conectada de Fidelity; card genérico coming-soon).
+
+**Patrón:** `PLUGIN_DESC_KEYS[plugin.id] ? (t[key] as string) : plugin.description` — el cast es seguro porque todas las claves de descripción son `string`.
+
+**Archivos:** `i18n/index.ts`, `i18n/es.ts`, `i18n/en.ts`, `pages/ConnectorsPage.tsx`
+
+---
+
+#### FIX 2 — Inicio KPIs: último mes con datos + etiqueta + navegación
+
+**Problema:** Dashboard.tsx mostraba el mes actual en curso (sin datos completos). El owner trabaja con finanzas del mes cerrado.
+
+**Solución:**
+- Se añade `getOverviewMonths(): Promise<string[]>` en `client.ts` → `GET /api/overview/months` → `["YYYY-MM", ...]` sorted ascending. Degradación suave a `[]` en cualquier error.
+- Dashboard monta → llama `getOverviewMonths()` → defaultea a `months[months.length - 1]` (último mes con datos). Si la API falla o devuelve lista vacía, fallback al mes anterior al actual (via `defaultRange()`).
+- Helper `monthRange(ym)`: "YYYY-MM" → `{ from, to }` para el primer/último día del mes.
+- Helper `formatMonthLabel(ym, locale)`: "YYYY-MM" → "Junio 2026" via `Intl.DateTimeFormat` con capitalización del primer carácter.
+- Navegación ‹/› constrained al array `availableMonths`; botones deshabilitados en los extremos.
+- El mes seleccionado fuerza un nuevo fetch de `getOverview({ from, to })`.
+- Los botones de navegación reutilizan las CSS classes `.month-nav-arrow` (ya existentes para StatementsPage) con dimensiones 32×32 inline para el contexto compacto.
+- Se reutilizan las claves i18n `datePickerPrevMonth` / `datePickerNextMonth` como `aria-label`.
+
+**⚠️ ASUNCIÓN:** Endpoint `GET /api/overview/months` documentado en la tarea como "likely" pero no encontrado en `shuri/history.md` ni en `decisions/inbox`. Se asumió shape `string[]` (YYYY-MM sorted ascending). Shuri debe implementar este endpoint para que FIX 2 funcione con datos reales; mientras tanto, el fallback al mes anterior garantiza UX operativa.
+
+**Archivos:** `api/client.ts`, `pages/Dashboard.tsx`
+
+---
+
+#### FIX 3 — "Ver transacciones" en FinancesOverviewPage
+
+**Problema:** Inicio tenía un botón "Ver transacciones →" que navegaba a `/transactions`, pero Finanzas no lo tenía.
+
+**Solución:** Añadido `useNavigate` (react-router-dom) a `FinancesOverviewPage.tsx`. Se inserta un `<button className="btn-secondary">` con `{t.btnViewTransactions}` antes del botón de importación en `dashboard-header-actions`, mismo patrón exacto que Inicio.
+
+**Archivos:** `pages/FinancesOverviewPage.tsx`
+
+---
+
+#### Build
+
+`npm run build` → `tsc --noEmit && vite build` → **0 errores TypeScript, 0 warnings CSS**. Chunk-size warning pre-existente. Exit code 0.
+
 ## Learnings
 
 ### 2026-07-15 — Fidelity ESPP Visualization Plan — Reuse Audit + KPI + Evolution Chart (design only, no code)
