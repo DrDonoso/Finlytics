@@ -1,0 +1,50 @@
+.squad/agents/romanoff/history.md
+  s_5307fd4601c9ac::t_6163791be453e2 16
+  s_5307fd4601c9ac::t_c502044301b794 13-15
+  s_5307fd4601c9ac::t_5315dcb14e85cb 17-19
+  s_17c3103c0badea::t_fa939527879c97 1-12,20-55
+.squad/orchestration-log/2026-07-15-06-51-14Z-banner.md
+  s_5307fd4601c9ac::t_5925bd2565371b 1-27
+.squad/decisions.md
+  s_5307fd4601c9ac::t_8459b33d864a66 4356-4655
+.squad/orchestration-log/2026-07-15-06-51-14Z-fury.md
+  s_5307fd4601c9ac::t_93fa2b6c38e031 1-24
+.squad/log/2026-07-15-06-51-14Z-fidelity-espp-feasibility.md
+  s_5307fd4601c9ac::t_8a359bf1cab71f 1-30
+.squad/agents/wanda/history.md
+  s_5307fd4601c9ac::t_b8822de020a351 31
+  s_5307fd4601c9ac::t_589c5a6074eb4b 28-30
+  s_5307fd4601c9ac::t_6f2ba05d6447ab 32-34
+  s_17c3103c0badea::t_4a89338d8ddcfe 1-27,35-368
+.squad/agents/vision/history.md
+  s_5307fd4601c9ac::t_fa110603f74268 30
+  s_5307fd4601c9ac::t_520dc279cfc7f8 27-29
+  s_5307fd4601c9ac::t_e3c57308ec60c2 31-33
+  s_17c3103c0badea::t_08646b6e615a98 1-26,34-406
+.squad/orchestration-log/2026-07-15-06-51-14Z-shuri.md
+  s_5307fd4601c9ac::t_593c0e1ceb343b 1-31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "e72626853bca9a1a051d5961b4ae0b16739f0c52",
+  "prompts": {},
+  "sessions": {
+    "s_17c3103c0badea": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "27e18a48-231d-47af-82f7-4fc7e08d03bb",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_5307fd4601c9ac": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01VTQjRUwEogenap6uK1St2T",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    }
+  }
+}
