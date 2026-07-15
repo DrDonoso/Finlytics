@@ -55,3 +55,14 @@ See `history-archive.md` for detailed CSS learnings from 2026-07-06 to 2026-07-1
 3. **Revaluation frequency:** On-demand (fetch live price when user navigates to page), hourly refresh, or daily?
 
 **No production UI work until owner sign-off.** Design phase ready; await decision gate.
+
+## 2026-07-15 — Nav Restructure + Overview Pages Design Spec
+
+### Learnings
+
+- **Nav restructure:** Grouped Transacciones + Tendencias + Extractos under new "Finanzas" (💳) expandable parent at `/finances`. Inversiones converted from expandable accordion to direct NavLink (no more "Resumen" sub-item). Sub-plugin links removed from sidebar — navigation to Indexa/Fidelity via provider cards on `/investments`.
+- **Finances overview page (`/finances`):** Proposed 4 components: GlobalFilterBar + KpiCards + SpendingByCategory + TopMerchants. Omitted SpendingHeatmap (low info density for daily operational view) and CategoryMovers (redundant with KPI deltas). Reuses `.dashboard` + `.charts-row-category` CSS — zero new CSS needed.
+- **Investments combined overview (`/investments`):** Designed consolidated view with KPI strip (total value, invested, gain/loss), two donuts (by provider + by asset class using existing `.inv-donuts-row` pattern), and provider cards with mini-metrics + link to detail. Defined `GET /api/investments/combined-overview` response shape for Shuri.
+- **Settings 4-group mapping re-applied:** Datos (Categorías, Etiquetas, Cuentas) → Reglas (Reglas) → Sistema (Conectores, Backup) → Aplicación (Apariencia). Three i18n keys missing (`settingsGroupRules`, `settingsGroupSystem`, `settingsGroupApp`) — spec'd for Vision to add.
+- **Tendencias title fix:** `.analytics-page-title` uses 18px/600 vs standard `tx-page-title` 22px/700. Fix: change `<h1>` class to `tx-page-title`. Orphan CSS rule can be removed.
+- **Spec delivered to:** `.squad/decisions/inbox/wanda-nav-restructure-overviews.md` — contract for Vision to implement.

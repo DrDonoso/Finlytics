@@ -536,3 +536,73 @@ Ventaja: `position: fixed` en un portal escapa el `overflow: hidden` de la tabla
 
 **Build:** `npm run build` (tsc --noEmit + vite build) → 0 errores TypeScript ✅
 
+---
+
+### 2026-07-15 — Nav restructure + Finanzas overview + Investments combined + Settings 4-group + Tendencias title fix
+
+**Fecha:** 2026-07-15T14:10:06+02:00
+**Tarea:** Reestructuración completa de la navegación per spec de Wanda (`wanda-nav-restructure-overviews.md`).
+**Spec implementada al 100%:** nav tree, 2 páginas overview, settings grouping, title fix.
+**Paso 7 (Indexa cache):** omitido — `shuri-indexa-portfolio-cache.md` no existe aún.
+
+#### Archivos modificados
+
+| Archivo | Cambio |
+|---|---|
+| `frontend/src/components/Layout.tsx` | Nav restructurado: Finanzas expandible (💳 + acordeón), Inversiones directo (NavLink), Ajustes con 4 grupos. Eliminados imports de `getConnections`, `InvestmentConnection`, `PLUGIN_VIEW_REGISTRY` (ya no necesarios). |
+| `frontend/src/App.tsx` | Añadida ruta `finances` → `FinancesOverviewPage`, import de `FinancesOverviewPage`. |
+| `frontend/src/pages/FinancesOverviewPage.tsx` | **NUEVO** — página overview de Finanzas: GlobalFilterBar + KpiCards + SpendingByCategory + TopMerchants. Patrón de data-fetching idéntico a Dashboard pero sin heatmap/movers/globalOverview/importModal/toast. |
+| `frontend/src/pages/InvestmentsLandingPage.tsx` | **RECONSTRUIDO** — combined overview: KPI strip (3 cards) + 2 donuts (Recharts, patrón cat-chart-layout) + provider cards. Consume `GET /api/investments/combined-overview`. |
+| `frontend/src/pages/AnalyticsPage.tsx` | Title fix: `analytics-page-title` → `tx-page-title` (22px/700 = estándar). |
+| `frontend/src/api/types.ts` | Añadidas 4 interfaces: `CombinedOverviewProviderSlice`, `CombinedOverviewAssetClassSlice`, `CombinedOverviewProvider`, `CombinedOverview`. |
+| `frontend/src/api/client.ts` | Añadida `getCombinedOverview(): Promise<CombinedOverview>` + import del tipo. |
+| `frontend/src/i18n/index.ts` | +10 claves: `navFinances`, `financesOverviewTitle`, `settingsGroupRules`, `settingsGroupSystem`, `settingsGroupApp`, `invCombinedTitle`, `invCombinedTotalValue`, `invCombinedTotalGain`, `invCombinedByProvider`, `invCombinedByAssetClass`. |
+| `frontend/src/i18n/es.ts` | +10 traducciones ES. |
+| `frontend/src/i18n/en.ts` | +10 traducciones EN. |
+| `frontend/src/index.css` | +CSS nuevo: `.inv-kpi-strip`, `.inv-kpi-card` + subclases, `.inv-provider-cards`, `.inv-provider-card` + subclases. |
+
+#### Decisiones técnicas
+
+1. **`isOnFinances` multi-path check:** `['/finances', '/transactions', '/analytics', '/statements'].some(p => location.pathname.startsWith(p))` — abre el acordeón en cualquier sub-ruta del grupo.
+2. **Layout.tsx simplificado:** Se eliminó el `useEffect` de `getConnections()` y toda la lógica de `connectedPlugins`. La nav de Inversiones ya no muestra sub-links de plugins — la navegación a detalle se hace desde InvestmentsLandingPage.
+3. **FinancesOverviewPage:** Usa `previousCalendarMonth` para comparativa; pasa `refreshKey={0}` a TopMerchants (sin importación en esta página, el refreshKey es constante).
+4. **InvestmentsLandingPage:** Error de endpoint = empty state (CTA a Conectores), igual que `providers.length === 0`. El endpoint no existe aún (Shuri lo construye), así que la página mostrará el empty state hasta que esté disponible.
+5. **CSS `inv-kpi-card`:** No existía en index.css (Wanda lo referenció como "existente" pero no estaba). Creado con mismo patrón que `.kpi-card`.
+
+#### Dependencia backend pendiente
+
+- `GET /api/investments/combined-overview` — Shuri lo construye en paralelo con el shape definido en `wanda-nav-restructure-overviews.md §B`. Hasta entonces, `/investments` mostrará el empty state.
+
+**Build:** `npm run build` → 0 errores TypeScript ✅ · Chunk-size warning pre-existente.
+
+### 2026-07-15 — Combined overview nullability: crash en caso precio-no-disponible
+
+**Fecha:** 2026-07-15T14:10:06+02:00  
+**Tarea:** Bugfix nullability contract mismatch en `InvestmentsLandingPage` + `types.ts`.
+
+#### Problema
+
+`CombinedOverviewOut` (backend) devuelve `total_invested_eur`, `total_gain_loss_eur`, `total_gain_loss_pct` como `float | None` (null cuando el precio no está disponible / stale). `ProviderCardOut` devuelve `value_eur`, `gain_loss_eur`, `gain_loss_pct` como `float | None`. Los tipos de frontend los declaraban como `number` (no-null), y el componente llamaba directamente `.toFixed()` o `>= 0` sobre ellos → `TypeError: null.toFixed()` en producción cuando un proveedor no tiene precio disponible.
+
+#### Fix
+
+**`frontend/src/api/types.ts`:**
+- `CombinedOverview.total_invested_eur`, `.total_gain_loss_eur`, `.total_gain_loss_pct` → `number | null`
+- `CombinedOverviewProvider.value_eur`, `.gain_loss_eur`, `.gain_loss_pct` → `number | null`
+- `total_value_eur`, los slices `value_eur`/`pct` de `CombinedOverviewProviderSlice`/`AssetClassSlice` → siguen siendo `number` (el backend los garantiza siempre).
+
+**`frontend/src/pages/InvestmentsLandingPage.tsx` — 6 guards añadidos:**
+
+| Uso | Guard |
+|---|---|
+| `gainLossCls` (línea ~85) | `total_gain_loss_eur == null` → clase `''` (neutral) |
+| KPI `total_invested_eur` (línea ~117) | `== null` → `'—'` |
+| KPI `total_gain_loss_eur` (línea ~122) | `== null` → `'—'` |
+| KPI `total_gain_loss_pct` + `.toFixed()` (línea ~125) | `== null` → `'—'` |
+| Provider card `value_eur` (línea ~289) | `== null` → `'—'` |
+| Provider card `gain_loss_eur` / `gain_loss_pct` + `.toFixed()` (líneas ~291-293) | any null → `'—'` en bloque |
+| Provider card `gainCls` (línea ~276) | `gain_loss_eur == null` → clase `''` (neutral) |
+
+Los donuts y tablas de allocación usan `by_provider[].value_eur` y `by_asset_class[].value_eur` (siempre presentes) → **no afectados**.
+
+**Build:** `npm run build` → `tsc --noEmit && vite build` → **0 errores TypeScript ✅** · Chunk-size warning pre-existente.

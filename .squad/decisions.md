@@ -14,6 +14,884 @@ Shuri delivered two post-integration refinements:
 
 ---
 
+
+## INTEGRATION STATUS: Finlytics UX Batch — Nav Restructure + Investment Overview + Indexa Cache (2026-07-15)
+
+**UX Batch Scope:** Navigation restructure with new "Finanzas" 💳 group consolidating Transacciones/Tendencias/Extractos + FinancesOverviewPage; Inversiones converted to direct NavLink with combined-overview landing page; Indexa 24h portfolio cache with async refresh; Fidelity combined-overview endpoint; Settings 4-group mapping (Datos/Reglas/Sistema/Aplicación); Tendencias title fix.
+
+**Status:** All 5 owner points implemented + verified in Docker. Repo feature code UNCOMMITTED pending owner sign-off. All agent deliverables merged into this log.
+
+**Key Artifacts:**
+- Nav restructure spec + FinancesOverviewPage proposal (Wanda)
+- Indexa portfolio cache migration (Shuri) — 1112 tests passed
+- Combined-overview endpoint (Shuri) — 8 tests, 1120 total
+- Frontend implementation (Vision) — nav restructure, 2 overview pages, i18n, CSS — build 0 errors
+- Nullability contract fix (Coordinator) — combined-overview fields typed number|null, guarded usages
+
+---
+# DESIGN SPEC + PROPOSAL: Reestructuración de navegación y páginas overview
+
+**Autora:** Wanda (UX/UI Designer)  
+**Fecha:** 2026-07-15  
+**Implementador:** Vision (Frontend Engineer)  
+**Estado:** Spec lista para implementación
+
+---
+
+## A) Reestructuración del nav
+
+### Nombre del nuevo grupo: **"Finanzas"** 💳
+
+**Justificación:** "Finanzas" es el término paraguas que engloba naturalmente Transacciones, Tendencias y Extractos — son tres vistas sobre la misma realidad financiera (gastos/ingresos). "Movimientos" suena demasiado operacional; "Cuentas" se confunde con el sub-ajuste de cuentas bancarias. "Finanzas" es breve, claro, y no colisiona con ningún concepto existente.
+
+**Icono:** 💳 (tarjeta de crédito — representa dinero en movimiento, distinto de 💰 Inversiones y 🏠 Inicio).
+
+### Árbol de nav resultante
+
+```
+🏠 Inicio                    /                    NavLink directo
+💳 Finanzas (expandible)      /finances            sidebar-section-btn → overview
+   ├── 📋 Transacciones       /transactions        NavLink sub-item
+   ├── 📈 Tendencias          /analytics           NavLink sub-item
+   └── 📄 Extractos           /statements          NavLink sub-item
+💰 Inversiones (directo)      /investments         NavLink directo (NO expandible)
+⚙️ Ajustes (expandible)       (sin ruta propia)    sidebar-section-btn → toggle
+   ├── DATOS
+   │   ├── Categorías         /settings/categories
+   │   ├── Etiquetas          /settings/tags
+   │   └── Cuentas            /settings/accounts
+   ├── REGLAS
+   │   └── Reglas             /settings/rules
+   ├── SISTEMA
+   │   ├── Conectores         /settings/connectors
+   │   └── Copia de seguridad /settings/backup
+   └── APLICACIÓN
+       └── Apariencia         /settings/appearance
+```
+
+### Comportamiento expandir/colapsar — Finanzas
+
+Patrón **idéntico** al acordeón de Ajustes, con una diferencia clave: **al hacer clic en el botón `sidebar-section-btn`, ADEMÁS de toggle expand/collapse, navega a `/finances`** (como hace Inversiones actualmente).
+
+```tsx
+// Layout.tsx — nuevo estado
+const isOnFinances = ['/finances', '/transactions', '/analytics', '/statements']
+  .some(p => location.pathname.startsWith(p))
+const [financesExpanded, setFinancesExpanded] = useState(isOnFinances)
+
+useEffect(() => {
+  if (isOnFinances && !financesExpanded) setFinancesExpanded(true)
+}, [isOnFinances])
+```
+
+**Click del botón:**
+```tsx
+onClick={() => {
+  setFinancesExpanded(v => !v)
+  navigate('/finances')
+}}
+```
+
+### Inversiones: de expandible a directo
+
+**Eliminar:** el bloque `sidebar-section` + accordion + `navInvestmentsOverview` sub-link.  
+**Reemplazar con:** un `NavLink` directo, igual que Inicio o el antiguo Transacciones:
+
+```tsx
+<NavLink to="/investments" className={navLinkClass}>
+  <span className="nav-icon">💰</span>
+  <span className="nav-label">{t.navInvestments}</span>
+</NavLink>
+```
+
+Los sub-links de plugins conectados (Indexa, Fidelity) **se eliminan de la nav**. La navegación a cada plugin se hace desde la propia página `/investments` (cards clicables). Esto simplifica el sidebar y reduce carga cognitiva en mobile.
+
+### Comportamiento mobile
+
+- El sidebar overlay funciona exactamente igual (hamburger → overlay → cierre al navegar).
+- El acordeón de Finanzas en mobile: al tocar "Finanzas" → navega a `/finances` + expande sub-items. Si ya está expandido y toca de nuevo → colapsa (pero NO navega, ya estás ahí).
+- Inversiones: tap directo → `/investments` → cierra sidebar.
+
+### Claves i18n nuevas necesarias
+
+| Clave | ES | EN | Tipo |
+|---|---|---|---|
+| `navFinances` | `'Finanzas'` | `'Finances'` | `string` |
+| `financesOverviewTitle` | `'Finanzas'` | `'Finances'` | `string` |
+| `settingsGroupRules` | `'Reglas'` | `'Rules'` | `string` |
+| `settingsGroupSystem` | `'Sistema'` | `'System'` | `string` |
+| `settingsGroupApp` | `'Aplicación'` | `'App'` | `string` |
+| `invCombinedTitle` | `'Inversiones'` | `'Investments'` | `string` |
+| `invCombinedTotalValue` | `'Valor total'` | `'Total value'` | `string` |
+| `invCombinedTotalGain` | `'Ganancia total'` | `'Total gain'` | `string` |
+| `invCombinedByProvider` | `'Por proveedor'` | `'By provider'` | `string` |
+| `invCombinedByAssetClass` | `'Por tipo de activo'` | `'By asset class'` | `string` |
+
+**Clave eliminable:** `navInvestmentsOverview` (ya no hay sub-link "Resumen").
+
+### Archivos que Vision debe modificar
+
+| Archivo | Cambio |
+|---|---|
+| `frontend/src/components/Layout.tsx` | Reestructurar nav: añadir Finanzas expandible, convertir Inversiones a directo, reagrupar Ajustes |
+| `frontend/src/App.tsx` | Añadir ruta `/finances` → `FinancesOverviewPage` |
+| `frontend/src/pages/FinancesOverviewPage.tsx` | **CREAR** — nueva página overview (ver sección C) |
+| `frontend/src/i18n/index.ts` | Añadir tipos para claves nuevas |
+| `frontend/src/i18n/es.ts` | Añadir valores ES |
+| `frontend/src/i18n/en.ts` | Añadir valores EN |
+
+---
+
+## B) Overview combinado de Inversiones (`/investments`)
+
+### Concepto
+
+La página `/investments` deja de ser un catálogo de plugins conectados y se convierte en un **overview consolidado** que muestra el patrimonio total across proveedores (actualmente Indexa Capital + Fidelity ESPP).
+
+### Layout
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  h1: "Inversiones"                                       │
+├──────────────────────────────────────────────────────────┤
+│  KPI strip (3 cards, estilo .inv-kpi-card existente)     │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐               │
+│  │ Valor    │  │ Invertido│  │ Ganancia  │               │
+│  │ total    │  │ total    │  │ / Pérdida │               │
+│  │ €XX,XXX  │  │ €XX,XXX  │  │ +€X,XXX  │               │
+│  │          │  │          │  │ (+X.X%)   │               │
+│  └──────────┘  └──────────┘  └──────────┘               │
+├──────────────────────────────────────────────────────────┤
+│  Donuts row (2-col grid, reutiliza .inv-donuts-row)      │
+│  ┌─────────────────────┐  ┌─────────────────────────┐   │
+│  │  🍩 Por proveedor    │  │  🍩 Por tipo de activo   │   │
+│  │  (Indexa / Fidelity)│  │  (RV / RF / Cash / ESPP)│   │
+│  │  + leyenda compacta │  │  + leyenda compacta     │   │
+│  └─────────────────────┘  └─────────────────────────┘   │
+├──────────────────────────────────────────────────────────┤
+│  Provider cards (links a detalle)                        │
+│  ┌────────────────────────────┐  ┌──────────────────┐   │
+│  │ 🏦 Indexa Capital          │  │ 📊 Fidelity ESPP │   │
+│  │ €XX,XXX · +X.X%           │  │ €XX,XXX · +X.X%  │   │
+│  │ → Ver detalle              │  │ → Ver detalle     │   │
+│  └────────────────────────────┘  └──────────────────┘   │
+└──────────────────────────────────────────────────────────┘
+```
+
+### Mobile stacking (≤900px)
+
+- KPI strip: se mantiene en row (flex-wrap si es necesario; 3 cards caben en 360px con el sizing existente de `.inv-kpi-card`).
+- Donuts row: `.inv-donuts-row` ya tiene `grid-template-columns: 1fr` a ≤900px → stacks automáticamente.
+- Provider cards: 1 columna, full-width.
+
+### API: shape de respuesta que Shuri debe construir
+
+**Endpoint:** `GET /api/investments/combined-overview`
+
+```json
+{
+  "total_value_eur": 45230.50,
+  "total_invested_eur": 38000.00,
+  "total_gain_loss_eur": 7230.50,
+  "total_gain_loss_pct": 19.03,
+  "by_provider": [
+    { "provider": "indexa", "label": "Indexa Capital", "value_eur": 32000.00, "pct": 70.7 },
+    { "provider": "fidelity", "label": "Fidelity ESPP", "value_eur": 13230.50, "pct": 29.3 }
+  ],
+  "by_asset_class": [
+    { "asset_class": "equity", "label": "Renta Variable", "value_eur": 28000.00, "pct": 61.9 },
+    { "asset_class": "fixed_income", "label": "Renta Fija", "value_eur": 4000.00, "pct": 8.8 },
+    { "asset_class": "espp_stock", "label": "ESPP Stock", "value_eur": 13230.50, "pct": 29.3 }
+  ],
+  "providers": [
+    {
+      "id": "indexa",
+      "name": "Indexa Capital",
+      "icon": "🏦",
+      "value_eur": 32000.00,
+      "gain_loss_eur": 5200.00,
+      "gain_loss_pct": 19.4,
+      "route": "/investments/indexa"
+    },
+    {
+      "id": "fidelity",
+      "name": "Fidelity ESPP",
+      "icon": "📊",
+      "value_eur": 13230.50,
+      "gain_loss_eur": 2030.50,
+      "gain_loss_pct": 18.1,
+      "route": "/investments/fidelity"
+    }
+  ]
+}
+```
+
+**Notas para Shuri:**
+- `by_asset_class`: Indexa ya tiene `asset_type` por instrumento (equity, fixed_income, cash); Fidelity ESPP es todo equity (MSFT stock), asignar `espp_stock` como clase propia para visibilidad.
+- Valores en EUR (Fidelity hace conversión USD→EUR con el rate almacenado).
+- Si un provider no tiene conexión activa, omitirlo del response (no incluir con valor 0).
+- Los `label` son para el donut; i18n los localiza en frontend.
+
+### CSS guidance (para que Vision aplique)
+
+- Reutilizar `.inv-kpi-card` existente para los 3 KPIs.
+- Reutilizar `.inv-donuts-row` (grid 1fr 1fr, gap 12px) para los donuts.
+- Reutilizar `.cat-chart-layout` + `.cat-donut-wrap` + `.cat-donut-center` para cada donut (patrón Recharts PieChart).
+- Los provider cards: usar clase `.inv-provider-card` nueva, estilo similar a `.plugin-card.connector-card--connected` pero con métricas inline. CSS sugerido:
+
+```css
+.inv-provider-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+.inv-provider-card {
+  /* hereda .card base */
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  cursor: pointer;
+  transition: box-shadow 0.15s;
+}
+.inv-provider-card:hover {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+.inv-provider-card__value {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+}
+.inv-provider-card__gain {
+  font-size: 13px;
+  font-weight: 500;
+}
+.inv-provider-card__gain--positive { color: var(--income); }
+.inv-provider-card__gain--negative { color: var(--expense); }
+```
+
+### Fallback: sin providers conectados
+
+Mantener el estado vacío actual (`investments-empty` con CTA → Conectores). Mostrar solo si `providers.length === 0` (o 404 del endpoint).
+
+---
+
+## C) PROPUESTA: Página overview de grupo Finanzas — `/finances`
+
+> **⚠️ Esta sección es una PROPUESTA para el owner. Wanda recomienda; David decide.**
+
+### Principio rector
+
+La página de Finanzas NO es un duplicado de Inicio. Es un **panel de control operativo del gasto**: responde "¿cómo está mi dinero este mes?" sin ruido. Inicio es el dashboard de bienvenida (más completo, con acciones rápidas de importación). Finanzas es la vista de análisis a la que vuelves a diario.
+
+### Selección de componentes y justificación
+
+| # | Componente | ¿Incluir? | Justificación |
+|---|---|---|---|
+| 1 | **GlobalFilterBar** | ✅ SÍ | **Imprescindible.** Es la herramienta de segmentación (rango, cuenta, categoría, tags). Sin ella, la página sería estática. Va arriba, primer elemento — es el "control" de todo lo que hay debajo. |
+| 2 | **KpiCards** | ✅ SÍ | **Core.** Los 4 KPIs (ingresos, gastos, neto, saldo) son el resumen ejecutivo. Es lo primero que el ojo debe ver después de los filtros. Incluir con variantes `previousOverview` para comparativa mes anterior — el delta % es la métrica más valiosa de una vista financiera. |
+| 3 | **SpendingByCategory** | ✅ SÍ | **Core.** El donut de categorías + tabla responde "¿en qué gasto?" — la pregunta más frecuente. Es el componente más interactivo (clic en categoría filtra todo lo demás). Va justo después de KPIs: jerarquía natural. |
+| 4 | **TopMerchants** | ✅ SÍ | **Valioso.** Complementa SpendingByCategory: la categoría dice el "qué", el merchant dice el "dónde". Útil para detectar suscripciones olvidadas o gastos recurrentes. Va en row compartida con SpendingByCategory (patrón `.charts-row-category` existente). |
+| 5 | **SpendingHeatmap** | ❌ NO | **Omitir.** El heatmap es valioso en Inicio como curiosidad ("¿qué día gasto más?") pero en un panel operativo es ruido visual. Es el componente más grande (365 celdas), con menor densidad informativa por pixel. No responde preguntas accionables del día a día. **Dejar exclusivo de Inicio** — es su diferenciador visual. |
+| 6 | **CategoryMovers** | ❌ NO | **Omitir.** Los "movers" (categorías que más subieron/bajaron vs mes anterior) son interesantes pero redundantes cuando ya tienes KpiCards con delta % y SpendingByCategory. Aporta insight comparativo que es más apropiado para Tendencias (`/analytics`), donde ya convive con SpendingOverTime. **Dejar exclusivo de Inicio.** |
+
+### Rationale condensado (para el owner)
+
+> **David:** La página de Finanzas es tu "vista rápida de gasto". Propongo 4 componentes: filtros + KPIs + donut de categorías + top merchants. Son los que respondes las 3 preguntas clave: "¿cuánto?" (KPIs), "¿en qué?" (categorías), "¿dónde?" (merchants). Omito el heatmap y los movers porque son más "exploratorios" que "operativos" — se quedan en Inicio donde tienen más contexto. Si quieres, puedo añadir cualquiera de los dos, pero mi recomendación es mantener Finanzas enfocada y sin scroll innecesario en mobile.
+
+### Layout propuesto
+
+**Desktop (>900px):**
+```
+┌──────────────────────────────────────────────────────────┐
+│  GlobalFilterBar (full-width)                            │
+│  ┌──────────────────────────────────────────────────────┐│
+│  │ KpiCards (row de 4 cards)                            ││
+│  └──────────────────────────────────────────────────────┘│
+├──────────────────────────────────────────────────────────┤
+│  .charts-row-category (grid 1fr 1fr)                     │
+│  ┌────────────────────┐  ┌──────────────────────────┐   │
+│  │ SpendingByCategory │  │ TopMerchants             │   │
+│  │ (donut + tabla)    │  │ (donut + lista)          │   │
+│  └────────────────────┘  └──────────────────────────┘   │
+└──────────────────────────────────────────────────────────┘
+```
+
+**Mobile (≤600px):**
+```
+┌──────────────────────┐
+│ GlobalFilterBar      │
+│ (stacked/scrollable) │
+├──────────────────────┤
+│ KpiCards (2x2 grid)  │
+├──────────────────────┤
+│ SpendingByCategory   │
+│ (full-width, donut   │
+│  encima de tabla)    │
+├──────────────────────┤
+│ TopMerchants         │
+│ (full-width)         │
+└──────────────────────┘
+```
+
+Todo el CSS de layout ya existe (`.dashboard`, `.dashboard-header`, `.charts-row-category`). Vision solo necesita montar el JSX — **cero CSS nuevo** para esta página.
+
+### Implementación para Vision
+
+- **Archivo:** `frontend/src/pages/FinancesOverviewPage.tsx`
+- **Estructura:** Clonar la lógica de data-fetching de `Dashboard.tsx` (filtros, overview, byCategory) pero **sin**: ImportModal, ImportLauncher, heatmap data, categoryMovers data, globalOverview (unfiltered), toast.
+- **Ruta:** `/finances` en `App.tsx`.
+- **Título de página:** usar `<h1 className="tx-page-title">{t.financesOverviewTitle}</h1>` (misma clase que Transacciones, consistencia visual).
+
+---
+
+## D) Reagrupación de Ajustes — 4 grupos
+
+### Decisión original (de decisions.md, línea ~735)
+
+La estructura acordada usa 4 etiquetas de grupo con i18n keys `settingsGroupData` / `settingsGroupRules` / `settingsGroupSystem` / `settingsGroupApp`.
+
+### Estado actual (Layout.tsx)
+
+Solo existe UN grupo label (`settingsGroupData`) y los 7 sub-links están TODOS bajo él, sin separación.
+
+### Mapping correcto a aplicar
+
+```
+⚙️ Ajustes
+ ├── settingsGroupData ("Datos" / "Data")
+ │   ├── Categorías     /settings/categories   settingsSubCategories
+ │   ├── Etiquetas      /settings/tags         settingsSubTags
+ │   └── Cuentas        /settings/accounts     settingsSubAccounts
+ ├── settingsGroupRules ("Reglas" / "Rules")
+ │   └── Reglas         /settings/rules        navRules
+ ├── settingsGroupSystem ("Sistema" / "System")
+ │   ├── Conectores     /settings/connectors   settingsSubConnectors
+ │   └── Copia de seg.  /settings/backup       settingsSubBackup
+ └── settingsGroupApp ("Aplicación" / "App")
+     └── Apariencia     /settings/appearance   settingsSubAppearance
+```
+
+**Este mapping es 100% fiel a la decisión original** (decisions.md §Structure, líneas 736-749). No hay ambigüedad.
+
+### Implementación para Vision
+
+Reemplazar el bloque `{settingsExpanded && (...)}` en Layout.tsx con:
+
+```tsx
+{settingsExpanded && (
+  <div className="sidebar-subnav">
+    {/* DATOS */}
+    <span className="sidebar-group-label">{t.settingsGroupData}</span>
+    <NavLink to="/settings/categories" className={navLinkClass}>
+      <span className="nav-label">{t.settingsSubCategories}</span>
+    </NavLink>
+    <NavLink to="/settings/tags" className={navLinkClass}>
+      <span className="nav-label">{t.settingsSubTags}</span>
+    </NavLink>
+    <NavLink to="/settings/accounts" className={navLinkClass}>
+      <span className="nav-label">{t.settingsSubAccounts}</span>
+    </NavLink>
+
+    {/* REGLAS */}
+    <span className="sidebar-group-label">{t.settingsGroupRules}</span>
+    <NavLink to="/settings/rules" className={navLinkClass}>
+      <span className="nav-label">{t.navRules}</span>
+    </NavLink>
+
+    {/* SISTEMA */}
+    <span className="sidebar-group-label">{t.settingsGroupSystem}</span>
+    <NavLink to="/settings/connectors" className={navLinkClass}>
+      <span className="nav-label">{t.settingsSubConnectors}</span>
+    </NavLink>
+    <NavLink to="/settings/backup" className={navLinkClass}>
+      <span className="nav-label">{t.settingsSubBackup}</span>
+    </NavLink>
+
+    {/* APLICACIÓN */}
+    <span className="sidebar-group-label">{t.settingsGroupApp}</span>
+    <NavLink to="/settings/appearance" className={navLinkClass}>
+      <span className="nav-label">{t.settingsSubAppearance}</span>
+    </NavLink>
+  </div>
+)}
+```
+
+### i18n keys a añadir (3 faltan)
+
+Las keys `settingsGroupRules`, `settingsGroupSystem`, `settingsGroupApp` **no existen** en el código actual (solo `settingsGroupData` fue creada). Vision debe añadir en `index.ts`, `es.ts`, `en.ts`:
+
+```ts
+// index.ts — añadir al tipo
+settingsGroupRules: string
+settingsGroupSystem: string
+settingsGroupApp: string
+
+// es.ts
+settingsGroupRules: 'Reglas',
+settingsGroupSystem: 'Sistema',
+settingsGroupApp: 'Aplicación',
+
+// en.ts
+settingsGroupRules: 'Rules',
+settingsGroupSystem: 'System',
+settingsGroupApp: 'App',
+```
+
+---
+
+## E) Fix del título de Tendencias (AnalyticsPage)
+
+### Problema
+
+`AnalyticsPage.tsx` usa:
+```tsx
+<h1 className="analytics-page-title">{t.analyticsTitle}</h1>
+```
+
+CSS de `.analytics-page-title` (index.css:942):
+```css
+.analytics-page-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
+}
+```
+
+Mientras que `TransactionsPage.tsx` usa:
+```tsx
+<h1 className="tx-page-title">{t.txTitle}</h1>
+```
+
+CSS de `.tx-page-title` (index.css:2330):
+```css
+.tx-page-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0;
+}
+```
+
+**Diferencia:** `analytics-page-title` es `18px / 600` vs `tx-page-title` es `22px / 700`. El estándar es `22px / 700` (también usado por `.investments-page-title`).
+
+### Fix exacto
+
+**Opción recomendada:** Cambiar AnalyticsPage.tsx para usar la misma clase `tx-page-title`:
+
+```tsx
+// AnalyticsPage.tsx, línea 89 — CAMBIAR:
+<h1 className="analytics-page-title">{t.analyticsTitle}</h1>
+// POR:
+<h1 className="tx-page-title">{t.analyticsTitle}</h1>
+```
+
+Adicionalmente, el `<h1>` en AnalyticsPage está **dentro** de `.dashboard-header` (después del GlobalFilterBar), mientras que en TransactionsPage está en su propio `.tx-page-header`. Para consistencia estructural:
+
+```tsx
+// AnalyticsPage.tsx — CAMBIAR de:
+<div className="dashboard-header">
+  <GlobalFilterBar ... />
+  <h1 className="analytics-page-title">{t.analyticsTitle}</h1>
+</div>
+
+// A:
+<div className="tx-page-header">
+  <h1 className="tx-page-title">{t.analyticsTitle}</h1>
+</div>
+<GlobalFilterBar ... />
+```
+
+Esto pone el título arriba (igual que Transacciones) y el FilterBar debajo. **Nota:** GlobalFilterBar usa `.dashboard-header` para padding, así que envolver en `<div className="dashboard-header">` si se necesita el spacing.
+
+**Fix mínimo (si no se quiere reestructurar):** Solo cambiar la clase CSS en el `<h1>`:
+
+```tsx
+<h1 className="tx-page-title">{t.analyticsTitle}</h1>
+```
+
+Esto iguala tamaño y peso visual. **Recomiendo el fix mínimo** para evitar riesgo de romper el layout del GlobalFilterBar.
+
+### CSS cleanup (opcional)
+
+Después del fix, la regla `.analytics-page-title` en index.css (línea 942-947) queda huérfana y puede eliminarse.
+
+---
+
+## Resumen de trabajo para Vision
+
+| Prioridad | Tarea | Archivos |
+|---|---|---|
+| 1 | Settings 4-group en Layout.tsx | Layout.tsx, i18n/* |
+| 2 | Tendencias title fix | AnalyticsPage.tsx, (opcional: index.css cleanup) |
+| 3 | Nav restructure: Finanzas expandible + Inversiones directo | Layout.tsx, App.tsx, i18n/* |
+| 4 | FinancesOverviewPage | FinancesOverviewPage.tsx (nuevo), App.tsx |
+| 5 | InvestmentsLandingPage → combined overview | InvestmentsLandingPage.tsx, i18n/* |
+
+**Dependencia backend (punto B):** El overview combinado de inversiones necesita que Shuri construya `GET /api/investments/combined-overview` con el shape definido arriba. Vision puede maquetar con datos mock mientras tanto.
+
+
+---
+
+# Decision: Indexa Portfolio Cache — DB Cache + Async Background Refresh
+
+**Date:** 2026-07-15  
+**Author:** Shuri (Backend Engineer)  
+**Status:** Implemented  
+**Requested by:** DrDonoso (David)
+
+---
+
+## Problema
+
+La vista Indexa Capital era lenta al abrirse porque el endpoint `GET /api/investments/portfolio` hacía llamadas en vivo a la API de Indexa en cada page load (~2-3 s de espera mínima, más con múltiples cuentas).
+
+Owner spec: *"cachear en BD, congelar 1 día está bien, y que la búsqueda se haga en async en background."*
+
+---
+
+## Decisión
+
+Implementar un caché de BD por conexión (`investment_portfolio_cache`) con ventana de frescura de **24 horas** y refresh asíncrono vía FastAPI `BackgroundTasks`.
+
+---
+
+## Diseño
+
+### Nueva tabla: `investment_portfolio_cache`
+
+| Columna | Tipo | Notas |
+|---|---|---|
+| `id` | Integer PK | autoincrement |
+| `connection_id` | Integer UNIQUE FK → `investment_connections.id` | ON DELETE CASCADE |
+| `payload` | JSON | `NormalizedPortfolio` serializado con `dataclasses.asdict()` |
+| `fetched_at` | DateTime (timezone) | UTC del último fetch |
+
+Una fila por conexión. ON DELETE CASCADE limpia la fila cuando se elimina la conexión.
+
+### Comportamiento del endpoint
+
+```
+GET /api/investments/portfolio
+→ para cada InvestmentConnection activa con token_enc:
+
+  FRESH  (ahora − fetched_at < 24h)
+    → retorna payload del caché. No toca Indexa.
+
+  STALE  (ahora − fetched_at >= 24h)
+    → retorna payload stale inmediatamente.
+    → programa BackgroundTask(_bg_refresh_connection)
+       que re-fetcha de Indexa y actualiza la fila DESPUÉS de enviar respuesta.
+    → cache_stale=True en la respuesta.
+
+  MISSING (sin fila de caché)
+    → fetch en vivo de Indexa (primera carga, más lenta).
+    → INSERT fila de caché.
+    → retorna datos frescos.
+```
+
+### Campos opcionales añadidos a `InvestmentPortfolioOut`
+
+```python
+cached_at: str | None = None   # ISO datetime del fetch más antiguo (o None si vino en vivo)
+cache_stale: bool = False      # True cuando se devuelven datos stale + background en curso
+```
+
+Son **aditivos y opcionales** — el frontend existente los ignora. Vision puede usarlos para un indicador de "últimos datos de hace X horas" si se desea.
+
+### Guard `_refresh_in_flight: set[int]`
+
+Módulo-nivel. Evita programar tareas duplicadas cuando múltiples requests llegan durante el ventana stale. Asyncio es single-threaded, el check-then-add es atómico sin Lock.
+
+### `_bg_refresh_connection`
+
+```python
+async def _bg_refresh_connection(
+    connection_id: int, token_enc: str,
+    account_label_masked: str | None, plugin_id: str
+) -> None
+```
+
+- Crea su propia sesión DB via `async_session_factory()`.
+- Descifra token, valida con Indexa, fetcha portfolio.
+- UPSERT de la fila de caché + `last_synced_at` en una sola transacción `async with bg_db.begin()`.
+- `try/except Exception` con log warning — nunca crashea silenciosamente sin dejar rastro.
+- `finally: _refresh_in_flight.discard(connection_id)`.
+
+### Serialización
+
+`_serialize_portfolio(p)` → `dataclasses.asdict(p)` (recursivo, JSON-safe).  
+`_deserialize_portfolio(data)` → reconstruye jerarquía de dataclasses. Las claves de `months_pct`/`months_eur` se convierten de `str` (JSON) a `int` (Python): `{int(k): v for k, v in d.items()}`.
+
+---
+
+## Alternativas descartadas
+
+| Alternativa | Por qué no |
+|---|---|
+| Redis / TTL cache externo | Dependencia extra de infraestructura; innecesaria para el caso de uso single-user |
+| In-memory cache (lo existente, 5 min) | No persiste entre reinicios; no cumple el req de 24h; no hace refresh async |
+| Caché a nivel de `InvestmentPortfolioOut` (ya agregado) | Perdería granularidad por conexión; dificulta invalidación parcial |
+
+---
+
+## Impacto en tests
+
+- **8 tests nuevos** en `tests/investments/test_portfolio_cache.py`: serialización (round-trip, claves int, None performance, drawdown), cache hit/miss/stale, in-flight guard.
+- **2 tests existentes actualizados** (`test_portfolio_service_maps_holdings_gain_loss_and_returns`, `test_aggregate_single_account_passes_through_monthly_and_drawdown`): eliminado `_portfolio_cache.clear()`; añadido `execute_result.scalar_one_or_none.return_value = None` para simular cache miss.
+- **Suite completa:** 1112 passed, 2 skipped, 0 failed.
+
+---
+
+## Nota para Vision
+
+El campo `cache_stale: bool` está disponible en la respuesta de `GET /api/investments/portfolio`. Si se quiere mostrar un indicador tipo *"Datos de hace X horas — actualizando..."* en la IndexaView, Vision puede leer `cache_stale` y `cached_at` para construirlo. No es obligatorio; el comportamiento actual es correcto sin cambios de frontend.
+
+
+---
+
+# Decision: Combined Investments Overview Endpoint
+
+**Autora:** Shuri (Backend Engineer)  
+**Fecha:** 2026-07-15  
+**Estado:** Implementado ✅
+
+---
+
+## Endpoint
+
+`GET /api/investments/combined-overview`  
+→ Autenticado (session cookie, igual que todos los endpoints de inversiones)
+
+---
+
+## Response Shape (implementada — coincide exactamente con spec de Wanda)
+
+```json
+{
+  "total_value_eur": 48518.52,
+  "total_invested_eur": 27500.00,
+  "total_gain_loss_eur": 21018.52,
+  "total_gain_loss_pct": 76.4310,
+  "by_provider": [
+    { "provider": "indexa", "label": "Indexa Capital", "value_eur": 30000.00, "pct": 61.83 },
+    { "provider": "fidelity", "label": "Fidelity ESPP",  "value_eur": 18518.52, "pct": 38.17 }
+  ],
+  "by_asset_class": [
+    { "asset_class": "equity",       "label": "Renta Variable", "value_eur": 20000.00, "pct": 41.22 },
+    { "asset_class": "espp_stock",   "label": "ESPP Stock",     "value_eur": 18518.52, "pct": 38.17 },
+    { "asset_class": "fixed_income", "label": "Renta Fija",     "value_eur": 8000.00,  "pct": 16.49 },
+    { "asset_class": "cash",         "label": "Efectivo",       "value_eur": 2000.00,  "pct": 4.12  }
+  ],
+  "providers": [
+    {
+      "id": "indexa",
+      "name": "Indexa Capital",
+      "icon": "🏦",
+      "value_eur": 30000.00,
+      "gain_loss_eur": 5000.00,
+      "gain_loss_pct": 20.0,
+      "route": "/investments/indexa"
+    },
+    {
+      "id": "fidelity",
+      "name": "Fidelity ESPP",
+      "icon": "📊",
+      "value_eur": 18518.52,
+      "gain_loss_eur": 16018.52,
+      "gain_loss_pct": 640.74,
+      "route": "/investments/fidelity"
+    }
+  ]
+}
+```
+
+### Campos siempre presentes
+- `total_value_eur` — siempre float (0.0 si sin conexiones)
+- `by_provider`, `by_asset_class`, `providers` — siempre arrays (vacíos si sin conexiones)
+
+### Campos opcionales (null posible)
+- `total_invested_eur`, `total_gain_loss_eur`, `total_gain_loss_pct` — null si no hay datos de coste o si la suma es inconsistente
+- `providers[].value_eur`, `providers[].gain_loss_eur`, `providers[].gain_loss_pct` — null cuando precio MSFT no disponible
+
+---
+
+## Fuentes de datos
+
+| Campo | Fuente |
+|---|---|
+| Indexa `value_eur`, holdings, asset classes | `inv_service.get_portfolio()` — caché 24h DB |
+| Fidelity `value_eur` | `Σ(lot.shares) × MSFT_close_usd × fx_eur_usd` via `get_latest_price()` |
+| Fidelity `invested_eur` | `Σ(lot.cost_basis)` — siempre conocido cuando hay lots |
+| `espp_stock` label | Clase fija para Fidelity ESPP (visibilidad en donut separada de `equity` Indexa) |
+
+---
+
+## Labels de asset class (por defecto)
+
+| `asset_class` | `label` |
+|---|---|
+| `equity` | Renta Variable |
+| `fixed_income` | Renta Fija |
+| `cash` | Efectivo |
+| `espp_stock` | ESPP Stock |
+| `other` | Otros |
+| `mixed` | Mixto |
+
+> Los labels son defaults; i18n los localiza en el frontend.
+
+---
+
+## Comportamiento por estado
+
+| Estado | Respuesta |
+|---|---|
+| Sin conexiones activas | 200 · `total_value_eur: 0.0` · todos los arrays vacíos |
+| Solo Indexa | Solo Indexa en `by_provider` / `providers`; no `espp_stock` |
+| Solo Fidelity | Solo Fidelity en `by_provider` / `providers`; solo `espp_stock` en `by_asset_class` |
+| Precio MSFT no disponible | Fidelity en `providers[]` con `value_eur: null`; omitido de `by_provider` y `by_asset_class` |
+| Encryption key ausente | HTTP 503 (Romanoff fail-closed) |
+
+---
+
+## Archivos implementados
+
+| Archivo | Cambio |
+|---|---|
+| `src/finlytics/api/schemas.py` | `ProviderAllocationItem`, `AssetClassAllocationItem`, `ProviderCardOut`, `CombinedOverviewOut` |
+| `src/finlytics/api/investments.py` | `combined_overview` endpoint + `_PROVIDER_LABELS`, `_ASSET_CLASS_LABELS`, `_empty_overview()` |
+| `tests/api/test_investments.py` | 8 tests: no connections, both providers (totals + pcts ~100 + shape), indexa-only, fidelity-only, degraded price (null), 401 |
+
+
+---
+
+# IMPL MEMO: Nav restructure + Finanzas overview + Investments combined
+
+**Autor:** Vision (Frontend Engineer)
+**Fecha:** 2026-07-15T14:10:06+02:00
+**Spec origen:** `.squad/decisions/inbox/wanda-nav-restructure-overviews.md`
+**Estado:** Implementado · build limpio · pendiente endpoint Shuri
+
+---
+
+## Resumen ejecutivo
+
+Se implementa la reestructuración de navegación completa de Wanda + las 2 páginas overview + la corrección del título de Tendencias + el reagrupamiento de Ajustes en 4 grupos. Build: 0 errores TypeScript.
+
+---
+
+## Cambios entregados
+
+### 1) Nav restructure (Layout.tsx)
+
+**Antes:**
+```
+Inicio → Transacciones → Tendencias → Inversiones (acordeón) → Extractos → Ajustes (acordeón, 1 grupo)
+```
+
+**Después:**
+```
+Inicio
+💳 Finanzas (expandible) → /finances
+   ├── Transacciones → /transactions
+   ├── Tendencias → /analytics
+   └── Extractos → /statements
+💰 Inversiones (NavLink directo) → /investments
+⚙️ Ajustes (expandible)
+   ├── DATOS: Categorías, Etiquetas, Cuentas
+   ├── REGLAS: Reglas
+   ├── SISTEMA: Conectores, Copia de seguridad
+   └── APLICACIÓN: Apariencia
+```
+
+**Notas técnicas:**
+- Inversiones ya no tiene acordeón ni sub-links de plugins en la nav. La navegación al detalle de cada plugin se hace desde la landing page de `/investments` (provider cards).
+- Se eliminaron los imports de `getConnections`, `InvestmentConnection`, `PLUGIN_VIEW_REGISTRY` de Layout.tsx — ya no son necesarios en la nav.
+- El estado `isOnFinances` incluye `/finances`, `/transactions`, `/analytics`, `/statements` para que el acordeón se auto-expanda en cualquiera de esas rutas.
+
+### 2) FinancesOverviewPage.tsx (NUEVO)
+
+- Ruta: `/finances`
+- Componentes: GlobalFilterBar + KpiCards (con comparativa mes anterior) + SpendingByCategory + TopMerchants
+- Patrón de data-fetching copiado de Dashboard.tsx — sin heatmap, sin movers, sin ImportModal, sin globalOverview, sin toast
+- Título: `<h1 className="tx-page-title">` (consistencia visual)
+
+### 3) InvestmentsLandingPage.tsx (RECONSTRUIDO)
+
+- Endpoint: `GET /api/investments/combined-overview` (Shuri construye, shape en spec §B)
+- Layout: KPI strip (3 cards: valor total / aportaciones / ganancia) + 2 donuts (Recharts PieChart, patrón `cat-chart-layout`) + provider cards (`inv-provider-card`)
+- Fallback: si el endpoint falla o `providers.length === 0` → empty state con CTA a Conectores
+- **Estado actual:** muestra empty state hasta que Shuri entregue el endpoint
+
+### 4) Settings 4-group (Layout.tsx Ajustes accordion)
+
+- Añadidos 3 separadores de grupo: `settingsGroupRules`, `settingsGroupSystem`, `settingsGroupApp`
+- Mapping aplicado: Datos (Categorías/Etiquetas/Cuentas) → Reglas (Reglas) → Sistema (Conectores/Backup) → Aplicación (Apariencia)
+
+### 5) Tendencias title fix (AnalyticsPage.tsx)
+
+- `analytics-page-title` → `tx-page-title` (22px / 700, igual que Transacciones e Inversiones)
+
+### 6) i18n
+
+Añadidas 10 nuevas claves a `index.ts`, `es.ts`, `en.ts`:
+- `navFinances`, `financesOverviewTitle`
+- `settingsGroupRules`, `settingsGroupSystem`, `settingsGroupApp`
+- `invCombinedTitle`, `invCombinedTotalValue`, `invCombinedTotalGain`, `invCombinedByProvider`, `invCombinedByAssetClass`
+
+### 7) API (tipos + cliente)
+
+- `api/types.ts`: 4 nuevas interfaces para `CombinedOverview`
+- `api/client.ts`: `getCombinedOverview(): Promise<CombinedOverview>`
+
+### 8) CSS (index.css)
+
+Nuevas clases añadidas al final:
+- `.inv-kpi-strip` — grid 3 columnas responsive
+- `.inv-kpi-card` + subclases (`__label`, `__value`, `__sub`, `--pos`, `--neg`)
+- `.inv-provider-cards` — grid `auto-fill minmax(260px, 1fr)`
+- `.inv-provider-card` + subclases (`__header`, `__icon`, `__name`, `__value`, `__gain`, `__gain--positive/--negative`, `__cta`)
+
+---
+
+## Dependencia Shuri pendiente
+
+`GET /api/investments/combined-overview` con el shape exacto definido en `wanda-nav-restructure-overviews.md §B`:
+```json
+{
+  "total_value_eur": number,
+  "total_invested_eur": number,
+  "total_gain_loss_eur": number,
+  "total_gain_loss_pct": number,
+  "by_provider": [...],
+  "by_asset_class": [...],
+  "providers": [...]
+}
+```
+
+Hasta que Shuri entregue el endpoint, `/investments` mostrará el empty state (no rompe nada).
+
+---
+
+## Paso 7 (Indexa cache indicator)
+
+Omitido. El archivo `.squad/decisions/inbox/shuri-indexa-portfolio-cache.md` no existe. Si Shuri añade campo `stale`/`cached_at` en el futuro, Vision añadirá el indicador "actualizando…" en IndexaView en ese momento.
+
+---
+
+## Build result
+
+```
+tsc --noEmit && vite build
+✓ 893 modules transformed.
+✓ built in 4.90s
+```
+
+**0 errores TypeScript. 0 nuevos warnings.** Pre-existing chunk-size warning presente (conocido, no es regresión).
+
+
+---
+
 ## Decision: Fidelity Evolution Chart — Daily Market-Day Resolution
 
 **Date:** 2026-07-15  
@@ -6269,5 +7147,6 @@ um_lots_skipped
 **No real financial values or identity PII in decisions.md.**  
 Currency-of-record FINAL = EUR (Fury).  
 Endpoint contract kpis/evolution/lots agreed (Shuri ↔ Vision).
+
 
 
