@@ -7148,5 +7148,99 @@ um_lots_skipped
 Currency-of-record FINAL = EUR (Fury).  
 Endpoint contract kpis/evolution/lots agreed (Shuri ↔ Vision).
 
+---
 
+## FEEDBACK BATCH 2 — 2026-07-15 (COMPLETED)
+
+**Status:** Completed in Docker; repo code uncommitted pending owner sign-off.
+
+**Agents:** Vision (frontend), Shuri (backend/combined-overview), Rocket (Docker rebuild), Wanda (UX recommendation).
+
+**Deliverables:**
+
+1. **AnalyticsPage Tendencias title** — moved OUT of filter bar into page header (tx-page-header/tx-page-title). ✅ Vision implemented.
+2. **Layout.tsx Investments nav** — restored as EXPANDABLE with Indexa/Fidelity sub-items. Routes: `/investments/indexa-capital`, `/investments/fidelity-espp`. Parent still → combined overview. ✅ Vision implemented.
+3. **4 Settings groups** — now individually COLLAPSIBLE (buttons + aria-expanded + carets). ✅ Vision implemented; build 0 errors.
+4. **Combined-overview provider-card** — id/route now use REAL plugin_ids (indexa-capital/fidelity-espp) so cards link correctly. ✅ Shuri implemented; tests 1120 passed.
+5. **Generic-broker + crypto-exchange removed** — from _PLUGIN_REGISTRY. Connectors no longer shows "coming soon". ✅ Shuri implemented; tests updated.
+6. **Wanda recommendation: Inicio-vs-Finanzas content split** — PROPOSAL only, awaiting owner decision (see section below).
+
+**Docker:** rebuilt (docker-compose.local.yml), no new migration (head 0015), endpoints verified, new frontend chunks served, running :7777.
+
+---
+
+## 🎨 PROPOSAL: Recomendación: Inicio vs Finanzas — Diferenciación de Pantallas
+
+**Autora:** Wanda (UX/UI Designer)  
+**Fecha:** 2026-07-15  
+**Estado:** Propuesta — pendiente decisión del owner
+
+### 1. ¿Para qué sirve cada pantalla?
+
+| Pantalla | Propósito | Analogía |
+|----------|-----------|----------|
+| **Inicio** (`/`) | **Cuadro de mando personal** — snapshot cross-domain (gastos + inversiones) del estado financiero actual. Responde a: *"¿cómo estoy?"* en 3 segundos. | La pantalla de bloqueo del iPhone: lo justo para saber si algo requiere atención. |
+| **Finanzas** (`/finances`) | **Centro de operaciones de gasto** — análisis enfocado de ingresos/gastos con filtros completos. Responde a: *"¿en qué me he gastado el dinero este mes?"* con capacidad de drill-down. | La app del banco abierta en la sección de movimientos. |
+
+**Principio clave:** Inicio NO es un dashboard de finanzas reducido. Inicio es el *hub* que abarca TODO (gastos + inversiones). Finanzas es la herramienta de análisis de cash-flow.
+
+### 2. Recomendación: **MOVER + REEMPLAZAR** (ni duplicar, ni simplemente quitar)
+
+**Dirección concreta:**
+
+1. **MOVER a Finanzas:** SpendingByCategory, TopMerchants, CategoryMovers, SpendingHeatmap, y GlobalFilterBar. Finanzas se convierte en el dashboard de análisis de gasto *completo*.
+
+2. **REEMPLAZAR en Inicio:** Sustituir los widgets movidos por contenido cross-domain:
+   - KPIs simplificados del mes actual (sin filtros) — gasto del mes, ingreso del mes, neto
+   - Nuevo widget de patrimonio/inversiones (valor total de cartera + variación)
+   - Accesos rápidos a secciones
+
+3. **NO DUPLICAR:** Cada widget debe tener UN hogar.
+
+**Justificación:** Con la app creciendo a gastos + inversiones, Inicio necesita ser el punto de encuentro de ambos mundos. Hacerlo cross-domain le da un propósito único e insustituible.
+
+### 3. Propuesta de layout — Inicio ideal
+
+```
+KPIs del mes (julio 2026) — Gastos, Ingresos, Neto, Ahorro
+Patrimonio inversiones — Valor total, ganancia/pérdida, desglose por proveedor
+Accesos rápidos — Finanzas, Inversiones, Tendencias, Ajustes
+```
+
+### 4. Finanzas ideal propuesto
+
+Con los widgets movidos:
+- GlobalFilterBar — filtros
+- KpiCards — con filtros aplicados
+- SpendingByCategory (donut) + TopMerchants (side by side)
+- SpendingHeatmap — full width
+- CategoryMovers — full width
+
+### 5. Necesidades de datos / endpoints nuevos
+
+| Necesidad | Endpoint | Estado |
+|-----------|----------|--------|
+| KPIs mes actual en Inicio | `getOverview({ from, to })` | ✅ Ya existe |
+| Patrimonio inversiones en Inicio | `GET /api/investments/combined-overview` | ✅ Ya existe |
+| CategoryMovers en Finanzas | `getByCategory()` | ✅ Ya existe |
+| SpendingHeatmap en Finanzas | `getHeatmap()` | ✅ Ya existe |
+
+**🎉 No se necesita NINGÚN endpoint nuevo.** Solo:
+1. Nuevo componente React `InvestmentSnapshotCard` (compact) para Inicio
+2. Reorganizar qué componentes renderiza cada página
+
+### 6. Riesgos y consideraciones
+
+- **Inicio queda "ligero":** Intencionado. Mobile-first = menos scroll, más foco.
+- **Pérdida de interactividad en Inicio:** Sin filtros, Inicio es solo lectura. Esto es una feature (reduce carga cognitiva). Para interactuar → Finanzas.
+- **Accesos rápidos pueden parecer innecesarios con el sidebar:** En desktop sí. En mobile, donde el sidebar está colapsado, son muy útiles como primer punto de contacto.
+
+### 7. Resumen ejecutivo
+
+> **Inicio = Vistazo rápido cross-domain (gastos del mes + inversiones + shortcuts)**
+> **Finanzas = Análisis completo de cash-flow con filtros**
+> **Dirección: MOVER widgets de análisis a Finanzas, REEMPLAZAR en Inicio con contenido cross-domain. No duplicar.**
+> **Backend: 0 endpoints nuevos necesarios.**
+
+---
 

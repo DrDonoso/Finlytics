@@ -606,3 +606,18 @@ Ventaja: `position: fixed` en un portal escapa el `overflow: hidden` de la tabla
 Los donuts y tablas de allocación usan `by_provider[].value_eur` y `by_asset_class[].value_eur` (siempre presentes) → **no afectados**.
 
 **Build:** `npm run build` → `tsc --noEmit && vite build` → **0 errores TypeScript ✅** · Chunk-size warning pre-existente.
+
+## Learnings
+
+### 2026-07-15 — Owner feedback: tres fixes (Tendencias header, Inversiones sub-items, Settings colapsable)
+
+**Fecha:** 2026-07-15T15:54:01+02:00
+
+#### Tendencias page-header structure
+El título de AnalyticsPage estaba dentro del dashboard-header wrapper junto con GlobalFilterBar, causando que apareciera renderizado DENTRO de la barra de filtros. Fix: eliminar el div dashboard-header, añadir <div className="tx-page-header"><h1 className="tx-page-title"> ANTES del GlobalFilterBar — patrón idéntico a TransactionsPage. Regla: el título siempre va en su propio header div, separado del toolbar/filter-bar.
+
+#### Investments nav restaurado con sub-items
+Inversiones volvió de NavLink directo a sección expandible (sidebar-section). El botón padre navega a /investments Y alterna expansión. Sub-items generados dinámicamente desde getConnections() filtrado por status==='active', cruzado con PLUGIN_VIEW_REGISTRY para icon+name. Ruta de sub-item: /investments/${conn.plugin_id}. Caret solo visible si hay plugins conectados. Imports: getConnections (api/client), PLUGIN_VIEW_REGISTRY (investments/registry), InvestmentConnection (api/types).
+
+#### Grupos colapsables en Settings accordion
+Convertidos los 4 grupos (Datos/Reglas/Sistema/App) de <span className="sidebar-group-label"> a <button className="sidebar-group-label sidebar-group-toggle"> con aria-expanded y sidebar-arrow. Estados: sgData/sgRules/sgSystem/sgApp (useState(true) — expandidos por defecto). CSS nuevo: .sidebar-group-toggle con display:flex, justify-content:space-between, width:100%, background:none, border:none, cursor:pointer. Build: 0 TS errors.
