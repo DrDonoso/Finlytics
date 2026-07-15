@@ -6,6 +6,155 @@ Fidelity ESPP connector implemented (all phases: foundation + parser + endpoints
 
 ---
 
+
+---
+
+## Fidelity Post-Test Fixes Summary (2026-07-15T13:04:37+02:00)
+
+**Coordinators:** Shuri (Backend), Vision (Frontend), Rocket (DevOps)  
+**Status:** COMPLETE & VERIFIED IN DOCKER  
+
+**Summary:**
+- ✅ Plugin discovery: Fidelity ESPP registered in _PLUGIN_REGISTRY + dynamic status in list_plugins (1070 → 1088 tests)
+- ✅ Price source: Yahoo Chart API primary (browser User-Agent required; query1→query2 fallback) with lazy backfill
+- ✅ Upload UI: Styled file picker + SP/DO tooltips (i18n ES/EN) 
+- ✅ Verified in Docker: MSFT €337.04, EUR/USD 0.87558, evolution chart functional
+- 🔄 Repo code: Uncommitted; owner testing/iterating
+# ADR: Yahoo Chart API como fuente de precio primaria para Fidelity ESPP
+
+**Fecha:** 2026-07-15  
+**Autor:** Shuri (Backend Engineer)  
+**Estado:** Implementado  
+**Contexto:** Bugfix — precio MSFT nulo en Docker, gráfico de evolución sin datos
+
+---
+
+## Problema
+
+El feed de precios Fidelity devolvía `null` en producción (Docker):
+
+- **Stooq** sirve un JS anti-bot challenge / soft-404 → inutilizable.
+- **yfinance** llama a `fc.yahoo.com` — inaccesible desde el container.
+- Resultado: `current_value` / `gain` nulos, "price stale" visible, gráfico de evolución vacío.
+
+---
+
+## Decisión
+
+**Yahoo Chart JSON API** como fuente primaria, con fallback a Stooq → yfinance.
+
+### Endpoint
+
+```
+GET https://query1.finance.yahoo.com/v8/finance/chart/{symbol}
+```
+
+Con query params para histórico: `?interval=1d&period1={unix}&period2={unix}`
+
+### User-Agent requerido
+
+Sin browser UA → HTTP 429. Con el siguiente UA → 200 (verificado en el container):
+
+```
+Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36
+```
+
+Almacenado como constante `_YAHOO_UA` en `market_data.py`.
+
+### Fallback query1 → query2
+
+Si `query1.finance.yahoo.com` devuelve 429 o falla por conexión, se reintenta automáticamente en `query2.finance.yahoo.com`. Implementado en `_yahoo_get()`.
+
+### Estructura de respuesta
+
+```json
+{
+  "chart": {
+    "result": [{
+      "meta": {
+        "regularMarketPrice": 445.0,
+        "regularMarketTime": 1752019200,
+        "currency": "USD"
+      },
+      "timestamp": [1751932800, 1752019200],
+      "indicators": {
+        "quote": [{ "close": [441.5, 445.0] }]
+      }
+    }]
+  }
+}
+```
+
+- `close` puede contener `null` (festivos) → se omiten al parsear.
+- Timestamps son Unix seconds en UTC → `datetime.fromtimestamp(ts, tz=timezone.utc).date()`.
+
+---
+
+## FX Direction (EURUSD=X)
+
+`EURUSD=X regularMarketPrice` = **USD por 1 EUR** (e.g. 1.0823).  
+Misma dirección que Stooq/yfinance (convención no cambia):
+
+```python
+fx_eur_usd = 1.0 / regularMarketPrice   # EUR por USD ≈ 0.9239
+close_eur  = close_usd * fx_eur_usd     # = close_usd / eurusd_quote
+```
+
+Ejemplo: MSFT $450, EURUSD=1.08 → €416.67 ✓ (no €486 que daría sin invertir).
+
+---
+
+## Lazy Backfill
+
+**Problema:** El owner ya había importado los lots antes del fix. `price_history` estaba vacía porque el backfill inicial falló (Stooq/yfinance rotos). El endpoint `/evolution` devolvía "no data" aunque los lots existían.
+
+**Solución:** En `fidelity_evolution`, si `prices == []` tras la query inicial:
+
+```python
+if not prices:
+    await db.commit()          # cierra la autobegin transaction (read-only, safe)
+    await backfill_price_history(min_date, db)  # abre su propio begin()
+    prices = await db.execute(price_query).scalars().all()  # re-query
+```
+
+**Por qué `await db.commit()` antes de backfill:**  
+`backfill_price_history` usa `async with db.begin()`, que falla con `InvalidRequestError` si ya hay una transacción activa (autobegin). El commit cierra la transacción de lectura antes de que backfill inicie la suya.
+
+**Idempotencia:** `ON CONFLICT (ticker, price_date) DO NOTHING`. Si backfill ya se ejecutó (re-deploy, retry), no duplica datos.
+
+---
+
+## Alternativas descartadas
+
+| Opción | Razón de rechazo |
+|---|---|
+| Alpha Vantage / Finnhub | Requieren API key; complicación operacional innecesaria |
+| Polygon.io | Misma razón |
+| Webscraping Yahoo Finance HTML | Frágil; estructura HTML cambia con frecuencia |
+| Reconstruir desde yfinance sin `fc.yahoo.com` | yfinance v0.2+ depende de ese endpoint; no parcheable sin fork |
+
+---
+
+## Impacto en tests
+
+- `TestParseYahooHistory`: parseo de JSON, null skipping, sort.
+- `TestParseYahooSnapshot`: parseo de meta.
+- `TestYahooUserAgent`: mock httpx → verifica UA header, 429→query2 fallback, ambos hosts fallan → None.
+- Stooq CSV tests mantenidos (parser aún existe como fallback).
+- **Sin red real en tests** — todo mockeado con `unittest.mock`.
+
+---
+
+## Archivos modificados
+
+| Archivo | Cambio |
+|---|---|
+| `src/finlytics/investments/market_data.py` | Reescrito: Yahoo primario, Stooq/yfinance fallback |
+| `src/finlytics/api/fidelity.py` | Lazy backfill en `fidelity_evolution` |
+| `tests/investments/test_market_data.py` | +18 tests Yahoo (total: 47) |
+
+---
+
 ## 2026-07-15T10:08:20+02:00 — Fidelity ESPP Connector — Implementation Wave 1–2 Decision Record
 
 **Coordinators:** Shuri (Backend), Banner (Parser), Vision (Frontend), Rocket (DevOps)  
@@ -5974,4 +6123,5 @@ um_lots_skipped
 **No real financial values or identity PII in decisions.md.**  
 Currency-of-record FINAL = EUR (Fury).  
 Endpoint contract kpis/evolution/lots agreed (Shuri ↔ Vision).
+
 
