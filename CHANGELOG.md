@@ -4,6 +4,88 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260715] - 2026-07-15
+
+- Fidelity ESPP CSV connector: import wizard, ESPP lots, daily Yahoo Finance pricing + FX conversion, evolution chart, KPIs (unrealized gain, ESPP discount, current value)
+- ESPP purchase reminder: tracks upcoming ESPP purchase dates and surfaces alerts in dashboard
+- Indexa Capital portfolio cache (migration 0015): reduces API calls, stores snapshot with TTL
+- Combined investments overview: unified landing page with per-provider donuts and aggregate KPIs
+- Nav restructure: Finanzas group (gastos/analytics), Inversiones standalone section, Inicio hub
+- Inicio hub + InvestmentSnapshotCard: at-a-glance portfolio value widget on dashboard
+- Data-driven import source picker (ImportSourcePicker.tsx): registry-driven connector selection UI
+- Adaptive drill-down spending heatmap (SpendingHeatmap.tsx): click-through from month to category
+- Settings reorganised into 4 groups; i18n strings updated (en + es)
+- Migrations 0014 (fidelity_espp tables) and 0015 (portfolio_cache table)
+- CI fix: docker-deploy.yml now pre-builds the React frontend on the runner (setup-node + npm ci + npm run build) before docker build, so frontend/dist exists without committing it
+- Feature: SpendingHeatmap clickable drill-down with global date filter integration
+- Props: onDayClick/selectedDay → onSelectPeriod(from,to) + onResetPeriod
+- Zoom affordance: "‹ Ampliar rango" reset button (visible during drill)
+- A11y: role=button, tabIndex, Enter/Space keyboard support
+- CSS: cursor:pointer + :focus-visible on all clickable cells + .hm-reset-btn
+- i18n: Added heatmapZoomOut key (es/en)
+- Build: 0 TypeScript errors
+- decisions.md: prepended batch 5 entry (heatmap redesign 3-mode fix + ESPP reminder endpoint + banner + cadence analysis)
+- orchestration-log: 4 agent logs (2026-07-15T160800Z)
+- log: session summary
+- agents/*/history.md: updated with recent work
+- Add batch 4 status to decisions.md (Shuri months endpoint, Vision i18n & month selection, Rocket rebuild)
+- Update vision/history.md with three frontend owner-feedback fixes (FIX 1: i18n, FIX 2: month selection, FIX 3: Finanzas link)
+- Clean up barton history (remove pre-7-day entries, duplicate sections)
+- Add orchestration logs for shuri, vision, rocket (gitignored, disk only)
+- Add session log for feedback batch 4 (gitignored, disk only)
+- Merge Vision feedback (Inicio/Finanzas split, ImportSourcePicker, InvestmentSnapshotCard) into decisions.md
+- Clean up decision inbox (vision-inicio-finanzas-import-picker.md moved to decisions.md)
+- Archive check: all dated entries recent (2026-07-14 to 2026-07-15), within 7-day window — skip archival
+- History summarization: large files (banner, barton, rocket, shuri, vision) have recent 2026-07-15 entries with existing archives — no action needed
+- Orchestration logs written (shuri, vision, rocket) — disk-only, gitignored
+- Session log: feedback batch 3 summary — disk-only, gitignored
+- Decisions: merged wanda-inicio-vs-finanzas-recommendation.md from inbox
+- Decisions: added FEEDBACK BATCH 2 status (vision, shuri, rocket, wanda deliverables)
+- Histories: vision, wanda updated with recent work logs
+- AnalyticsPage Tendencias title moved to page header
+- Investments nav made expandable with sub-items (indexa-capital, fidelity-espp)
+- Settings 4-group collapsible toggles implemented
+- Combined-overview cards now use real plugin_ids
+- Generic-broker + crypto-exchange stubs removed
+- Wanda recommendation: Inicio-vs-Finanzas content differentiation (PROPOSAL)
+- Merged 4 inbox files into decisions.md: wanda nav-restructure spec, shuri indexa-cache, shuri combined-overview endpoint, vision nav+overview implementation
+- Added UX batch integration status line (nav Finanzas group, combined investments overview, indexa 24h cache, settings 4-group)
+- Deleted inbox files (gitignored, disk-only)
+- Created 6 orchestration logs (wanda, shuri×2, vision×2, rocket) — ISO 8601 UTC
+- Created session log for UX batch
+- Checked history files for archiving (banner/barton/vision contain entries 2026-07-09 to 2026-07-14; older content already archived)
+- Updated decisions.md, agents/vision/history.md, agents/wanda/history.md
+- Merged ADR: Yahoo Chart API (browser UA, query1→query2 fallback)
+- Status: 1088 tests passing; repo code uncommitted (owner testing)
+- Orchestration logs: agents (shuri, vision, rocket) round A & B
+- Decisions: 265341 bytes (no archiving needed; all entries recent)
+- Inbox: 1 file processed; deleted
+- Shuri Wave 1–A (foundation), Wave 2 (endpoints)
+- Banner Wave 1–B (parser), contract fix
+- Vision Wave 3 (frontend)
+- Fury architecture + 2 reviews (REJECT → APPROVE)
+- Romanoff privacy review (PASS)
+- Barton QA + integration tests (69 new tests, 1069 total)
+- Rocket DevOps (Docker compose, npm-in-Docker workaround)
+- Future planning (nav reorganization, settings refactor)
+- Romanoff: Fidelity ESPP CSV import privacy review (PASS)
+- Vision: Full Fidelity frontend implementation learnings
+- Merged three agent design decisions (Fury, Shuri, Vision) into decisions.md
+- Currency-of-record finalized as EUR; endpoint contracts agreed
+- Archived older entries from vision/history.md and wanda/history.md (>15KB gate)
+- Preserved recent entries (2026-07-15) in main history files
+- Merged fury-fidelity-espp-refinement.md, romanoff-espp-pdf-storage-privacy.md, banner-fidelity-openlots-csv.md into decisions.md
+- Added reconciliation note: critical correction to currency assumption (CSV values in EUR, not USD; FX only for Phase 2 live prices)
+- Updated idempotency strategy for duplicate DO lots (ordinal-within-group in dedup hash)
+- Deleted 3 processed inbox files (fury-fidelity-espp-refinement.md, romanoff-espp-pdf-storage-privacy.md, banner-fidelity-openlots-csv.md)
+- Updated shuri/history.md, vision/history.md, wanda/history.md with CSV refinement findings and UI preference heads-up
+- Added archive pointers to history files for readability
+- decisions.md: merged architecture, extraction probe, and backend design (§2026-07-15T06:51:14Z) - New provider type (statement_import) coexists with live_api (Indexa) - PDF fully parseable; hybrid parse+LLM recommended (~2.75 days effort) - Stooq primary + yfinance fallback for pricing; on-request fetch + DB cache - New tables: espp_lots, price_cache; token_enc NULLABLE migration 0014 - Three-phase plan: import → price → evolution - Open questions for owner: accumulativity, currency, price timeliness, ESPP discount, disposal logic
+- orchestration-log/: per-agent logs (Fury, Banner, Shuri) documenting contributions
+- log/: session summary for Fidelity ESPP feasibility probe
+- agents/{romanoff,vision,wanda}/history.md: cross-agent heads-up notes - Romanoff: PII redaction for participant number pattern (I + 8 digits) - Vision: frontend components for upload wizard - Wanda: CSS design for file picker, holdings review, buttons
+
+
 ## [20260714] - 2026-07-14
 
 - Show real Indexa portfolio value, contributions, time-weighted (TWR) and money-weighted (XIRR) returns and annualized volatility
