@@ -45,6 +45,13 @@
 - **[2026-07-14 DISCONNECT]** Disconnect = hard-delete of `token_enc` row + clear of any cached holdings data. User notified to also revoke in Indexa UI.
 - **[2026-07-14 BLOCKERS]** 7 build blockers defined (see threat model table in design doc). Key: no plaintext storage, no token in logs/API response, TLS verify=True, no POST auth path, fail-closed on missing key, hard-delete on disconnect.
 
+## Learnings (2026-07-15 ESPP PDF Storage Privacy Review)
+
+- **[2026-07-15 UPLOAD BEHAVIOR — CONFIRMED]** Bank statement PDFs **are already persisted** to disk. The one-shot endpoint (`create_import`) calls `_persist_import_run(session, ..., source_pdf=file_bytes)`, which writes the PDF to `settings.upload_dir` (`/app/data/uploads/`) on the mounted volume. The preview/confirm two-step flow discards the PDF in memory (no persistence). `parser.py` is purely in-memory. `/data/` is covered by `.gitignore` (explicit comment).
+- **[2026-07-15 ESPP PDF STORAGE — VERDICT]** Storing the ESPP PDF on the mounted volume is **parity with existing bank statement behavior** — not a new risk surface. For a self-hosted single-user deployment, the incremental risk vs. bank statements is moderate (adds employer/HR-linked data: address, employee ID). Recommendation: (a) store as-is on volume, consistent with bank statements. Gitignore covers `/data/`. Docker image does not include it.
+- **[2026-07-15 PRE-LLM REDACTION — NON-NEGOTIABLE]** Regardless of storage decision, `redact_pii()` must be extended before any ESPP LLM call to cover: (1) participant/employee number (`\b[A-Z]\d{6,9}\b`), (2) full name (header lines page 1), (3) postal address (header lines page 1). Current `redact_pii()` only covers IBANs/PANs/account numbers. This is separable from and independent of the storage decision.
+- **[2026-07-15 CSV ALTERNATIVE]** A shares-only CSV carries far less PII than the full PDF (no name, address, or employee ID). It sidesteps almost the entire privacy debate. Limitation: CSV lacks individual lot detail (purchase date, price per lot, cost basis per lot) needed for gain/loss calculations. For a "current position + value in EUR" MVP, CSV is the cleanest option.
+
 ## Learnings (2026-07-14 Indexa Phase 2 Implementation Review)
 
 - **[2026-07-14 REVIEW VERDICT]** ✅ PASS — all 8 security invariants verified against shipped Phase 2 code. See full table in `.squad/decisions/inbox/romanoff-indexa-token-security.md §10`.

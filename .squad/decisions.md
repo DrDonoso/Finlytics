@@ -4654,3 +4654,624 @@ Same pattern as transactions: SHA-256 of natural key `(connection_id, purchase_d
 | **Effort (design)** | ~2.75d Banner + ~3–4d Shuri + UX/tests in Phase 1 |
 | **Owner blockers?** | Scope decisions: Phase 1 depth, sell logic, currency display |
 
+
+---
+
+## 2026-07-15T09:39:34+02:00 — RECONCILIATION: Fidelity ESPP CSV Refinement Wave
+
+**Purpose:** Consolidate findings from Fury (architecture), Romanoff (security), and Banner (CSV probe). CRITICAL CORRECTION applied.
+
+**CRITICAL CORRECTION — CSV currency:**
+Earlier entries (Shuri/first-wave Fury) assumed CSV inputs would be in USD. Banner's empirical probe of the REAL "View open lots.csv" file reveals the footer states EUR. **All values are already in EUR** — cost basis, per-share prices, value fields. Therefore:
+- NormalizedLot.currency = "EUR" (hardcoded for MSFT ESPP, not USD)
+- Phase 1 (CSV parse + display) requires NO FX conversion; cost basis is final.
+- FX conversion is needed ONLY in Phase 2 (live USD market price → EUR valuation). Use USD_EUR lookup only for Phase-2 daily revaluation, not for cost basis.
+- This simplifies Phase 1 considerably — no multi-currency math until live prices enter.
+
+**Idempotency refinement — duplicate DO lots:**
+Banner identified that multiple dividend-reinvestment (DO) lots can have identical (date, quantity, cost_basis_per_share) tuples. Dedup strategy requires:
+- File-level: sha256(file_bytes) for gross dedup (skip re-processing identical CSV)
+- Lot-level: sha256(ticker|date|quantity|cost_per_share|share_source|ordinal_within_group) to handle duplicate tuples stably
+
+The ordinal index (0-based within identical groups in CSV order) ensures stable dedup across re-exports.
+
+**Outcome:** CSV-first MVP confirmed. PDF importer deprioritized. Awaiting owner sign-off on Phase 1 UI preference (KPI cards vs table vs both) and revaluation frequency (on-demand vs hourly).
+
+---
+
+# Refinamiento Arquitectónico: Fidelity ESPP — CSV-First + Input Adapters
+
+**Autor:** Fury (Lead/Architect)  
+**Fecha:** 2026-07-15T08:51:14+02:00  
+**Status:** PROPUESTA — pendiente aprobación del owner  
+**Contexto:** El owner respondió a las preguntas de scoping de la arquitectura inicial. Nuevas decisiones: accumulate-only, prev-close pricing, sin descuento ESPP, generic-ready, y MUY IMPORTANTE: puede entregar un CSV de current shares en lugar del PDF.
+
+---
+
+## A. Decisión MVP: CSV es el smallest-thing-that-works
+
+### Veredicto: CSV-first. PDF como Phase posterior (si se necesita).
+
+**Justificación:**
+
+| Criterio | CSV | PDF + LLM |
+|----------|-----|-----------|
+| Complejidad de parse | Determinista (stdlib Python) | LLM structured output + review |
+| PII | Ninguna (sólo datos financieros) | Nombre, dirección, participant number |
+| Dependencias nuevas | Ninguna | LLM prompts, redaction, pdfplumber |
+| Tiempo de implementación | ~1 día parser + tests | ~2.75 días (Banner) + redaction |
+| Riesgo de error | Casi nulo | Layout drift, hallucination |
+| Costo operativo | €0 | ~€0.01-0.05 por PDF (despreciable, pero no cero) |
+
+**La pregunta del lead: ¿Cuál es la cosa más pequeña que funciona?**
+
+Si el owner puede exportar un CSV con sus shares actuales, obtenemos la misma información financiera core (ticker, shares, opcionalmente cost basis) sin LLM, sin PII, sin parseo frágil. El PDF es un camino más rico (per-lot purchase dates, offering periods) pero NO es necesario para el objetivo primario: "saber cuánto vale mi ESPP hoy en EUR."
+
+**Decisión:** Phase 1 = CSV adapter. Phase futura = PDF adapter (sólo si el CSV no cubre el detalle que quiere per-lot).
+
+---
+
+## B. Diseño Multi-Input-Source: Input Adapters → Modelo Normalizado
+
+### Pipeline conceptual
+
+```
+┌─────────────────────┐     ┌──────────────────────┐     ┌───────────────────┐
+│  INPUT ADAPTERS     │     │  NORMALIZED MODEL    │     │  VALUATION        │
+│                     │     │                      │     │                   │
+│  ┌───────────────┐  │     │  holding_lots table  │     │  shares × price   │
+│  │ CSV Adapter   │──┼────▶│  - ticker            │────▶│  × FX rate        │
+│  └───────────────┘  │     │  - shares            │     │  = value_eur      │
+│                     │     │  - purchase_date     │     │                   │
+│  ┌───────────────┐  │     │  - purchase_price    │     │  NormalizedPortfolio
+│  │ PDF/LLM       │──┼────▶│  - cost_basis        │     │  (misma salida que│
+│  │ Adapter       │  │     │  - currency          │     │   Indexa)         │
+│  └───────────────┘  │     │  - source_type       │     │                   │
+│                     │     │  - dedup_hash        │     │                   │
+│  ┌───────────────┐  │     │                      │     │                   │
+│  │ Manual Entry  │──┼────▶│                      │     │                   │
+│  │ (futuro)      │  │     │                      │     │                   │
+│  └───────────────┘  │     └──────────────────────┘     └───────────────────┘
+└─────────────────────┘
+```
+
+### Contrato del Input Adapter
+
+Cada adapter debe producir una lista de `NormalizedLot`:
+
+```
+NormalizedLot:
+  ticker: str           # "MSFT"
+  shares: Decimal       # fractional OK
+  purchase_date: date | None   # si lo tiene
+  purchase_price: Decimal | None  # price per share (moneda original)
+  cost_basis: Decimal | None      # total cost
+  currency: str         # "USD"
+  source_type: str      # "csv" | "pdf" | "manual"
+```
+
+El modelo NO es específico de ESPP ni de MSFT — cualquier holding cotizado encaja.
+
+### Ventajas de esta abstracción
+
+1. **Swappable:** Si el CSV cubre todo, nunca necesitamos el PDF adapter.
+2. **Extensible:** Un futuro broker (e.g., Interactive Brokers CSV export) → nuevo adapter, misma tabla.
+3. **Testable:** Cada adapter se testea en aislamiento contra su formato; valuation se testea contra lots mockeados.
+
+---
+
+## C. Generic-Ready: Qué hacemos genérico AHORA vs diferir
+
+### Genérico AHORA (barato, son campos):
+
+| Aspecto | Implementación |
+|---------|---------------|
+| Ticker como campo (no hardcode "MSFT") | `holding_lots.ticker VARCHAR(20)` |
+| Currency como campo | `holding_lots.currency VARCHAR(3)` |
+| price_cache keyed by ticker | `UNIQUE(ticker, price_date)` ya diseñado |
+| FX par derivado de currency del lot vs EUR | lookup `{currency}_EUR` |
+| source_type en cada lot | Para saber de dónde vino |
+| Provider plugin_id genérico | Ya existe en investment_connections |
+
+**Costo: ~0 extra.** Son literalmente campos VARCHAR en vez de hardcodear.
+
+### Diferir (YAGNI hasta que haya 2º caso real):
+
+| Aspecto | Razón para diferir |
+|---------|-------------------|
+| Multi-broker plumbing (broker-specific parsers registry) | MSFT es el único caso; un `if` es suficiente ahora |
+| Disposals / sell logic (FIFO/LIFO) | Owner confirma: nunca vende MSFT |
+| Dividend reinvestment tracking | No pedido |
+| Tax lot matching / wash sale rules | No aplica en España igual |
+| Multi-user multi-broker routing | Single-user app |
+| Background scheduler para price refresh | On-request + cache es suficiente |
+
+### Sobre el sketch `espp_lots` de Shuri
+
+La tabla `espp_lots` del diseño original ya es genérica en su estructura — sólo necesita:
+1. **Renombrar** `espp_lots` → `holding_lots` (o mantener `espp_lots` como alias semántico si preferimos).
+2. **Agregar `currency VARCHAR(3) DEFAULT 'USD'`** (ya implícito en el `_usd` suffix de las columnas, pero hacerlo explícito permite GBP/JPY futuros).
+3. **Agregar `source_type VARCHAR(20) DEFAULT 'pdf'`** → para distinguir CSV vs PDF origin.
+
+El campo `ticker` NO necesita cambio — ya es VARCHAR genérico.  
+La `price_cache` ya es genérica (keyed by ticker).
+
+**Cambio mínimo:** Renaming + 2 columnas. Schema esencialmente válido.
+
+---
+
+## D. Reutilización del flujo de imports.py existente
+
+### Lo que existe (bank statement flow):
+
+```
+POST /api/imports/preview  → parse + LLM extract → PreviewOut (user reviews)
+POST /api/imports/confirm  → persist transactions
+```
+
+Patrón: upload → parse → preview → user confirms → persist. Idempotencia via dedup_hash.
+
+### Cómo reutilizar para Fidelity:
+
+| Patrón existente | Adaptación para Fidelity |
+|-----------------|--------------------------|
+| Two-step flow (preview → confirm) | ✅ Mismo concepto: upload CSV → preview lots → confirm save |
+| SHA-256 dedup_hash | ✅ Reusar para lots: hash(connection_id, ticker, purchase_date, shares, price) |
+| `ImportRun` tracking | ✅ Adaptar: crear `investment_import_runs` (o reusar ImportRun con type field) |
+| `_parse_file(bytes, ext)` | ⚠️ Parcialmente: CSV/PDF parsing sí. Pero output es lots, no transactions |
+| UPLOAD_DIR (mounted volume) | ⚠️ PDF: decisión de Romanoff (en paralelo). CSV: no necesita almacenarse |
+| LLM extraction | ❌ No aplica a CSV. Aplica sólo si se hace PDF adapter en fase posterior |
+
+### Decisión de reutilización:
+
+**Reusar el PATRÓN (preview → confirm + dedup), pero NO las funciones exactas.**
+
+Razón: el output type es diferente (`ExtractedTransaction` vs `NormalizedLot`). Crear endpoints propios en el router de investments:
+- `POST /api/investments/fidelity/import/preview` → parse CSV → return lots for review
+- `POST /api/investments/fidelity/import/confirm` → persist lots + create import run
+
+Pero seguir la misma disciplina:
+1. File upload → parse in memory
+2. Return structured preview (user can edit/delete rows)
+3. User confirms → persist
+4. Dedup hash prevents re-import of same lots
+5. Track import run for auditability
+
+### Consistencia con el plugin model:
+
+- Frontend: nueva entrada en `PLUGIN_VIEW_REGISTRY` → `'fidelity-espp': { icon: '📊', name: 'Fidelity ESPP', component: lazy(() => import('./views/FidelityView')) }`
+- Backend: `FidelityProvider` implementa `InvestmentProvider` con `provider_type = "statement_import"`
+- Connection: row en `investment_connections` con `plugin_id = "fidelity-espp"`, `token_enc = NULL` (no hay API token)
+- Routing en service.py: branch por `provider_type` para computar portfolio desde lots + market price
+
+---
+
+## E. Plan por Fases Actualizado
+
+### Phase 1: CSV Import → Lots en DB → Portfolio básico (sin precio live)
+
+**Objetivo:** "Subir CSV → ver mis shares de MSFT con cost basis."
+
+| Tarea | Agente |
+|-------|--------|
+| CSV adapter (parse → NormalizedLot[]) | Shuri |
+| Tabla `holding_lots` + `investment_import_runs` (migration 0014) | Shuri |
+| Endpoints preview/confirm (`/investments/fidelity/import/*`) | Shuri |
+| `FidelityProvider` (statement_import type) | Shuri |
+| Registrar plugin en registry backend + frontend | Shuri + Vision |
+| Upload wizard (file picker → preview lots → confirm) | Vision + Wanda |
+| Unit tests parser + idempotencia | Barton |
+
+**Demo:** "Subo un CSV → veo 'MSFT: X shares, cost basis $Y'."  
+**Sin LLM, sin PII, sin price fetching.** Puro parse + DB + display estático.
+
+### Phase 2: Precio diario → Valor actual en EUR + Gain/Loss
+
+**Objetivo:** "Ver cuánto valen mis acciones HOY en EUR."
+
+| Tarea | Agente |
+|-------|--------|
+| Market data service (Stooq + yfinance fallback) | Shuri |
+| Tabla `price_cache` + on-request fetch | Shuri |
+| Cálculo: lots × prev-close × FX → value_eur | Shuri |
+| KPIs en FidelityView (valor actual, gain/loss, %) | Vision |
+| Tests de valuation + FX | Barton |
+
+**Demo:** "Mis MSFT ESPP valen €X hoy (+Y% ganancia total)."
+
+### Phase 3: Serie histórica + gráfico de evolución
+
+**Objetivo:** "Ver cómo ha crecido mi inversión desde la primera compra."
+
+| Tarea | Agente |
+|-------|--------|
+| Backfill precio MSFT desde first lot date | Shuri |
+| Value series: lots × historical price → time series | Shuri |
+| Gráfico de evolución (reusar componente de Indexa) | Vision |
+| Tests de series | Barton |
+
+**Demo:** "Gráfico mostrando mi inversión creciendo desde 2019."
+
+### Phase 4 (OPCIONAL): PDF Adapter para detalle por lote
+
+**Sólo si el CSV no da suficiente detalle per-lot.**
+
+| Tarea | Agente |
+|-------|--------|
+| PDF parser + LLM extraction | Banner |
+| PII redaction expandida | Banner + Romanoff |
+| PDF adapter que produce NormalizedLot[] | Banner + Shuri |
+| Tests contra PDF de ejemplo | Barton |
+
+**Demo:** "Subo el PDF del quarterly statement → veo cada lote con su fecha de compra."
+
+---
+
+## F. Preguntas abiertas para el owner (antes de construir)
+
+### Sobre el CSV (CRÍTICAS para Phase 1):
+
+1. **¿Qué columnas tiene el CSV que exportas?** — Ej: ¿tiene `date, shares, price, total_cost`? ¿O sólo `ticker, total_shares`? Esto define si Phase 1 tiene per-lot detail o sólo posición agregada.
+
+2. **¿El CSV tiene cost basis per lot o sólo total shares?** — Si sólo tiene "500 shares de MSFT", no podemos calcular gain/loss hasta Phase 2 con precio actual. Si tiene cost basis, podemos mostrar gain/loss desde Phase 1.
+
+3. **¿Podrías pegar un ejemplo anonimizado del CSV (2-3 filas)?** — Para diseñar el parser exacto.
+
+### Sobre el display (para Vision/Wanda):
+
+4. **¿Cómo quieres ver el "valor actual"?** — Opciones:
+   - KPI cards estilo Indexa (valor, gain/loss, %)
+   - Tabla simple de holdings
+   - ¿Ambos?
+
+5. **¿EUR only o EUR + USD side-by-side?** — Indexa es EUR-native. MSFT es USD-native. ¿Mostrar sólo la conversión EUR, o también el valor USD?
+
+### Sobre scope futuro:
+
+6. **¿El PDF importer lo necesitas realmente, o el CSV cubre todo?** — Si puedes exportar CSV cada quarter con detalle por lote, el PDF adapter puede que nunca se necesite. Simplifica mucho el proyecto.
+
+7. **¿Tienes otros tickers en mente para "prepared for more things"?** — No para implementar ahora, pero saber si serían otros ESPPs, RSUs, acciones compradas por tu cuenta, ETFs... influye en cómo nombramos las cosas.
+
+---
+
+## Nota: Privacidad (PDF path)
+
+Romanoff está evaluando en paralelo si podemos almacenar el PDF y bajo qué condiciones. El path CSV tiene **cero concern de PII** — no contiene nombres, direcciones ni identificadores personales. Esta es otra razón fuerte para CSV-first.
+
+---
+
+## Resumen de cambios vs arquitectura anterior
+
+| Antes (PDF-first) | Ahora (CSV-first) |
+|---|---|
+| Phase 1 = PDF + LLM + redaction | Phase 1 = CSV deterministic parse |
+| Banner (AI) necesario Phase 1 | Banner NO necesario hasta Phase 4 |
+| PII handling en Phase 1 | Zero PII en Phase 1 |
+| ~2.75d extractor + tests | ~1d parser + tests |
+| `espp_lots` hardcoded | `holding_lots` genérico (ticker, currency como campos) |
+| Sell logic TBD | Confirmed: accumulate-only (simplifica) |
+| Price: intraday? | Confirmed: prev-day close (simplicísimo) |
+| Discount tracking? | Confirmed: NO (defer indefinitely) |
+
+---
+
+# ESPP PDF Storage & Privacy Review — Fidelity Statement
+
+**Fecha:** 2026-07-15T08:51:14+02:00  
+**Autor:** Romanoff (Security/Privacy Engineer)  
+**Estado:** RECOMENDACIÓN — pendiente de decisión del owner
+
+---
+
+## 1. Comportamiento actual — Evidencia del código
+
+### One-shot endpoint (`POST /api/imports`, `create_import`)
+- `file_bytes = await file.read()` — bytes en memoria
+- Se llama a `_persist_import_run(session, ..., source_pdf=file_bytes)`
+- Dentro de `_persist_import_run` (líneas 116–125 de `api/imports.py`): el PDF **SE ESCRIBE A DISCO** en `settings.upload_dir` = `/app/data/uploads/{account_slug}_{YYYYMM}.pdf`
+- **Los extractos bancarios SÍ se persisten al volumen montado hoy mismo.**
+
+### Preview/confirm (`POST /api/imports/preview` + `/confirm`)
+- Preview: `file_bytes` se usa solo para parsear; `_persist_import_run` **no se llama** → PDF descartado en memoria
+- Confirm: recibe JSON (sin fichero); el PDF ya no existe en ningún lado
+
+### Configuración y volumenes
+- `config.py` línea 66: `upload_dir: str = "/app/data/uploads"` — configuración activa, no vestigial
+- `docker-compose.yml` línea 28: `${FINLYTICS_DATA_DIR:-./data}:/app/data` — los PDFs aterrizan en `./data/uploads/` en el host
+- `.gitignore` línea 38: `/data/` cubierto ✅ — los PDFs nunca entran en git, confirmado con comentario explícito en el gitignore
+
+### `parser.py` y `redaction.py`
+- `parse_statement(source: bytes)` — completamente en memoria, sin escrituras a disco propias
+- `redact_pii()` cubre hoy: IBANs, PANs, números de cuenta largos
+- `redact_pii()` **NO cubre** (aún): nombre completo, dirección postal, número de participante (`I` + 8 dígitos)
+- La redacción se aplica solo en el boundary del LLM (`extractor.py`), no en storage
+
+---
+
+## 2. Respuesta a la pregunta del owner
+
+### 2.1 Paridad con extractos bancarios
+El owner tiene razón en cuestionar la regla dogmática. **Los extractos bancarios ya se persisten.** Vía el one-shot endpoint, el PDF original se escribe a `./data/uploads/`. Guardar el ESPP PDF en el mismo directorio es **paridad exacta** con el comportamiento actual — no es una nueva superficie de riesgo.
+
+### 2.2 Threat model real — Self-hosted, monousuario
+
+| Amenaza | Extracto bancario (hoy) | ESPP PDF | Diferencial real |
+|---------|------------------------|----------|-----------------|
+| Host comprometido | Acceso completo a `./data/` | Ídem | Ninguno: quien tiene la máquina tiene todo |
+| Backups que incluyan `./data/` | Sí incluido | Ídem | Responsabilidad del usuario |
+| Commit accidental a git | `/data/` en `.gitignore` ✅ | Ídem | Ninguno — cubierto |
+| Incluido en imagen Docker | No (bind-mount, no `COPY`) | Ídem | Ninguno |
+| PII adicional vs. extracto bancario | Nombre + IBAN + transacciones | +Dirección postal + Employee ID (`I`+8 dígitos) + datos plan ESPP | **Moderado:** añade datos de empleo/RRHH vinculados al empleador |
+
+El riesgo incremental frente a los extractos bancarios ya almacenados es **moderado, no severo**. La diferencia material es que el extracto Fidelity vincula explícitamente al usuario con su empleador y plan de compensación variable. En un despliegue self-hosted monousuario sobre volumen local, esto es aceptable. No hay más actores que el propio usuario.
+
+---
+
+## 3. Recomendación ranqueada
+
+### (a) ✅ MI ELECCIÓN — Guardar en el volumen, igual que los extractos bancarios
+- **Argumento principal:** parity. La app ya hace esto con extractos bancarios. Hay que ser consistente.
+- `/data/` está protegido por `.gitignore` — los PDFs nunca entran en git.
+- El PDF no se incluye en la imagen Docker (bind-mount).
+- Riesgo aceptable en self-hosted monousuario.
+- **Condición no negociable que lo acompaña:** la redacción pre-LLM de la Sección 4 debe implementarse siempre, independientemente de esta decisión de storage.
+- **Recomendación operativa:** si el usuario hace backups automáticos a nube (iCloud, Google Drive, OneDrive) del directorio que contiene `./data/`, debe saber que los PDFs estarán en ese backup. No es un blocker, pero sí es algo que el usuario debe conocer.
+
+### (b) Guardar con redacción previa de cabecera PII antes de escribir a disco
+- Se redactan nombre/dirección/employee-ID del texto antes de reescribir el PDF (o se guarda solo el texto redactado, no el PDF binario original).
+- Mayor carga de ingeniería; valor marginal en self-hosted monousuario.
+- Indicado si el scope crece a multi-usuario o a un servicio compartido.
+
+### (c) CSV en lugar de PDF
+- Si el owner proporciona un CSV de solo posiciones actuales, el debate desaparece casi por completo.
+- El CSV no contiene nombre, dirección, ni employee ID. Ver Sección 5 para la comparativa completa.
+- **Limitación:** un CSV de posiciones actuales no incluye lotes históricos (precio de compra por lote, fechas individuales). Si se necesita historial para cálculo de coste base y plusvalías, el PDF sigue siendo necesario.
+
+### (d) Solo en memoria, sin persistencia
+- Máxima privacidad, pero rompe la paridad con extractos bancarios.
+- Innecesario en el contexto self-hosted actual.
+
+---
+
+## 4. La frontera OpenAI — Requisito no negociable (separable de storage)
+
+Esta decisión es **independiente** de si se guarda o no el PDF. Independientemente del storage, el flujo de extracción ESPP enviará texto al LLM. El `redact_pii()` actual **no cubre** los campos de cabecera del extracto Fidelity.
+
+**Antes de cualquier llamada LLM con texto del extracto ESPP, deben redactarse:**
+
+1. **Número de participante** — patrón `\b[A-Z]\d{6,9}\b` (patrón confirmado en el SKILL de brokerage-statement-parsing)
+2. **Nombre completo** — presente en las primeras líneas de la cabecera de página 1
+3. **Dirección postal** — presentes en la cabecera de página 1, después del nombre
+
+**Estrategia pragmática:** las páginas 4, 5 y 8 contienen los datos financieros que el LLM necesita (holdings, lotes, ESPP metadata). La cabecera con PII personal está concentrada en la página 1. Una aproximación limpia: redactar las primeras N líneas de la página 1 (donde siempre están nombre y dirección) antes del LLM call, y aplicar el regex de participant number en todo el texto.
+
+**Esta redacción debe implementarse en `redact_pii()` o en un wrapper específico para ESPP antes de que Banner construya la integración.**
+
+---
+
+## 5. CSV vs. PDF — Comparativa PII
+
+| Campo | PDF completo (Fidelity statement) | CSV shares-only |
+|-------|-----------------------------------|-----------------|
+| Nombre completo | ✅ Presente | ❌ Ausente |
+| Dirección postal | ✅ Presente | ❌ Ausente |
+| Número de empleado (`I`+8 dígitos) | ✅ Presente | ❌ Ausente |
+| Ticker / símbolo bursátil | ✅ Presente | ✅ Presente |
+| Shares totales actuales | ✅ Presente | ✅ Presente |
+| Precio de cierre del período | ✅ Presente | Opcional |
+| Lotes individuales (fecha, precio, qty) | ✅ Presente | ❌ Ausente |
+| Coste base por lote | ✅ Presente | ❌ Ausente |
+| Período de oferta ESPP + % deducción | ✅ Presente | ❌ Ausente |
+
+**Conclusión:** Si el owner solo necesita "cuántas acciones tengo y cuánto valen hoy", el CSV es suficiente y minimiza drásticamente el PII. Si se necesita el historial de lotes para cálculo de plusvalías, coste base por lote, o visualización del plan ESPP, el PDF es necesario y la opción (a) es la recomendada.
+
+**El path CSV sidesteps casi todo este debate de privacidad.** Para un MVP de inversiones que solo muestre posición actual y valor en EUR, empezar con CSV es la opción más limpia.
+
+---
+
+## 6. Resumen ejecutivo
+
+| Pregunta | Respuesta |
+|----------|-----------|
+| ¿Los extractos bancarios ya se persisten al volumen? | **Sí**, vía `_persist_import_run` con `source_pdf=file_bytes` |
+| ¿`/data/` está en `.gitignore`? | **Sí**, línea 38 con comentario explícito |
+| ¿Guardar el ESPP PDF es paridad con extractos bancarios? | **Sí**, misma protección, mismo directorio |
+| ¿El riesgo incremental es severo en self-hosted monousuario? | **No**, moderado — datos de empleo vinculados al empleador |
+| ¿Qué es no negociable independientemente del storage? | Redacción pre-LLM de nombre/dirección/employee-ID |
+| ¿El CSV sidestea el debate? | **Sí, casi por completo**, a costa de perder historial de lotes |
+
+---
+
+# Fidelity "View open lots" CSV — Probe Findings
+
+**Autor:** Banner (Data/AI Engineer)  
+**Fecha:** 2026-07-15T09:24:54+02:00  
+**Status:** FINDINGS — para Fury (arquitectura), Shuri (schema), Romanoff (PII review)  
+**Contexto:** El owner puede exportar un CSV de "View open lots" desde Fidelity en lugar del PDF. Este documento recoge los hallazgos del probe real del fichero.
+
+---
+
+## 1. Estructura del CSV
+
+**Fichero:** `View open lots.csv` (export manual desde Fidelity, nombre con espacios — usar glob al parsear)
+
+| Propiedad | Valor |
+|-----------|-------|
+| Línea 1 | Cabecera (sin preamble) |
+| Filas de datos | **61 lotes fiscales individuales** |
+| Separador de campos | Coma `,` (CSV estándar) |
+| Separador decimal | Punto `.` (notación americana) |
+| Separadores de miles | **Ninguno** |
+| Signos `$` | **Ninguno** |
+| Campos con comillas | **Ninguno** |
+| Valores ausentes | Guión literal `-` |
+| Penúltima línea | Línea vacía (solo `,`) — ignorar |
+| Última línea (footer) | `The values are displayed in EUR` — **strip antes de parsear** |
+
+---
+
+## 2. Columnas (verbatim, 11 total)
+
+| # | Nombre columna | Tipo Python | Formato | Unidades | Notas |
+|---|---------------|-------------|---------|----------|-------|
+| 1 | `Date acquired` | `date` | `Mon-DD-YYYY` | — | Fecha settlement del lote; `datetime.strptime(v, "%b-%d-%Y")` |
+| 2 | `Quantity` | `Decimal` | 4 decimales | acciones | Compartidas fraccionales; nunca negativo |
+| 3 | `Cost basis` | `Decimal` | 2 decimales | **EUR** | Coste total del lote en EUR |
+| 4 | `Cost basis/share` | `Decimal` | 2 decimales | **EUR/acción** | Coste por acción; ya convertido a EUR en fecha de adquisición |
+| 5 | `Value` | `Decimal` | 2 decimales | **EUR** | Valor de mercado a fecha del export (volátil — no almacenar) |
+| 6 | `Gain/loss` | `Decimal` | 2 decimales | **EUR** | P&L no realizado; puede ser negativo |
+| 7 | `Sale availability date` | `date \| None` | `Mon-DD-YYYY` o `-` | — | `-` en todos los lotes observados |
+| 8 | `Transfer availability date` | `date \| None` | `Mon-DD-YYYY` o `-` | — | `-` en todos los lotes observados |
+| 9 | `Grant date` | `date \| None` | `Mon-DD-YYYY` o `-` | — | Solo lotes SP: = inicio del período de oferta ESPP |
+| 10 | `Share source` | `str` | `"SP"` o `"DO"` | — | `SP`=ESPP purchase trimestral, `DO`=Dividend reinvestment |
+| 11 | `Holding period` | `str` | `"Short"` o `"Long"` | — | Periodo fiscal de retención |
+
+**⚠️ CORRECCIÓN CRÍTICA a arquitectura Fury:**  
+El footer confirma `EUR`. `Cost basis/share` NO es el precio USD de compra — es ya el equivalente EUR (convertido por Fidelity al tipo de cambio de la fecha de adquisición). El campo `NormalizedLot.currency` debe ser `"EUR"`, no `"USD"`.
+
+---
+
+## 3. Presencia de campos necesarios para el MVP
+
+| Campo objetivo | Columna CSV | Presente | Notas |
+|----------------|-------------|----------|-------|
+| Ticker/símbolo | — | ❌ | No hay columna ticker. Hardcodear `MSFT` para MVP |
+| Fecha adquisición | `Date acquired` | ✅ | Por lote, formato `Mon-DD-YYYY` |
+| Acciones | `Quantity` | ✅ | Por lote, 4 decimales |
+| Coste total | `Cost basis` | ✅ | EUR, 2 decimales |
+| Coste por acción | `Cost basis/share` | ✅ | EUR, 2 decimales |
+| Precio actual | — | ❌ (derivable) | No columna explícita; derivar: `Value / Quantity` a fecha export |
+| Valor actual | `Value` | ✅ | EUR; volatile — no almacenar como campo permanente |
+| Ganancia/pérdida | `Gain/loss` | ✅ | EUR; recomputar diariamente con precio live |
+| Corto/largo plazo | `Holding period` | ✅ | `"Short"` / `"Long"` |
+| Tipo de lote | `Share source` | ✅ | `"SP"` / `"DO"` |
+| Inicio oferta ESPP | `Grant date` | ✅ (solo SP) | = offering_period_start para lotes ESPP |
+
+**Conclusión: el CSV SOLO es suficiente** para el objetivo MVP + Phases 2-3. Σ(Quantity) = shares totales; cost basis por lote para gain/loss; fechas para serie histórica.
+
+---
+
+## 4. Fecha "as-of"
+
+**No hay fecha "as-of" explícita en el fichero.** Los valores `Value` y `Gain/loss` reflejan el precio de mercado en el momento del export, pero la fecha no se registra en el CSV. El importer debe:
+- Capturar el `import_timestamp` como referencia temporal para la snapshot de valor
+- O bien ignorar `Value`/`Gain/loss` del CSV (recomputar desde precio live en Phase 2)
+
+---
+
+## 5. Tipos de lote
+
+| Tipo | `Share source` | Frecuencia | Cantidad típica | `Grant date` |
+|------|----------------|------------|-----------------|--------------|
+| ESPP purchase | `SP` | 1/trimestre, fin de trimestre | Mayor (~5–15 shares) | ✅ = inicio del período de oferta |
+| Dividend reinvestment | `DO` | Varios/mes, días 1/2/15/16/17 | Menor (~0.55–1.1 shares) | `-` |
+
+**Lotes duplicados:** múltiples lotes DO en la misma fecha pueden tener valores idénticos `(Date acquired, Quantity, Cost basis/share)`. La clave `(date, quantity, price)` **no es única**. Ver sección 7 para la estrategia de idempotencia.
+
+---
+
+## 6. CSV vs PDF — Veredicto
+
+| Criterio | CSV | PDF + LLM |
+|----------|-----|-----------|
+| Parse | Determinista, `csv.DictReader` stdlib | pdfplumber + LLM structured output |
+| PII | **Ninguna** (0 identifiers de identidad) | Nombre, dirección, participant ID |
+| Cobertura lotes | **Todos los lotes históricos** (~18 trimestres SP + DO) | Solo el período del statement (1 quarter) |
+| Moneda declarada | EUR (footer) | USD (Fidelity US) |
+| Ticker en fichero | ❌ No (hardcodear) | ✅ Explícito |
+| Fecha "as-of" explícita | ❌ No | ✅ Statement period end |
+| Campos extra (plan, payroll %) | ❌ No | ✅ Sí |
+| Esfuerzo Banner | **~1 día** | ~3 días |
+| Riesgo de error | Casi nulo | Layout drift, hallucination |
+| Dependencias nuevas | Ninguna | LLM, pdfplumber, redaction |
+
+### ✅ RECOMENDACIÓN: CSV como input primario — diferir PDF indefinidamente
+
+El CSV supera al PDF en todos los ejes que importan para el MVP:
+- Más lotes históricos (todos, no solo el último quarter)
+- Sin PII de identidad → sin necesidad de redacción
+- Parse 100% determinista → sin LLM, sin riesgo de alucinaciones
+- ~1 día de esfuerzo vs ~3 días
+
+Los únicos campos que el PDF añade (plan name, payroll deduction %, offering period formal, contributions totales) NO son necesarios para el objetivo "cuánto valen mis MSFT hoy en EUR". Phase 4 (PDF adapter) es probablemente **obsoleta**.
+
+---
+
+## 7. Mapping CSV → NormalizedLot (Shuri's model)
+
+```
+NormalizedLot:
+  ticker          ← hardcode "MSFT" (no hay columna en CSV)
+  shares          ← `Quantity`           (Decimal, 4 decimales)
+  purchase_date   ← `Date acquired`      (parse: strptime(v, "%b-%d-%Y"))
+  purchase_price  ← `Cost basis/share`   (Decimal, EUR, 2 decimales)
+  cost_basis      ← `Cost basis`         (Decimal, EUR, 2 decimales)
+  currency        ← hardcode "EUR"       (footer: "The values are displayed in EUR")
+  source_type     ← hardcode "csv"
+  holding_period  ← `Holding period`     ("Short" | "Long")
+  share_source    ← `Share source`       ("SP" | "DO")
+  grant_date      ← `Grant date`         (date | None; "-" → None)
+```
+
+**Campos del CSV a NO almacenar en la tabla de lotes:**
+- `Value` — volátil (cambia diariamente con precio de mercado), recomputar en Phase 2
+- `Gain/loss` — derivado de `Value - Cost basis`, recomputar en Phase 2
+- `Sale/Transfer availability date` — `-` en todos los lotes observados; almacenar como nullable si se quiere
+
+---
+
+## 8. Clave de idempotencia
+
+**Problema:** Lotes DO duplicados (mismo date/quantity/price) → clave simple no es única.
+
+**Estrategia recomendada — dos niveles:**
+
+### Nivel fichero (dedup grueso)
+```python
+file_hash = sha256(file_bytes).hexdigest()
+```
+Si mismo hash → skip completo. Evita re-procesar el mismo CSV.
+
+### Nivel lote (dedup fino, para accumulate-only)
+```python
+# ordinal = índice 0-based dentro de lotes con idénticos
+# (date_acquired, share_source, quantity_str, cost_basis_per_share_str)
+# en el orden en que aparecen en el CSV
+
+dedup_hash = sha256(
+    f"{ticker}|{date_acquired.isoformat()}|{quantity}|{cost_basis_per_share}|{share_source}|{ordinal}"
+    .encode()
+).hexdigest()
+```
+
+Justificación: accumulate-only → los lotes existentes nunca desaparecen; los nuevos siempre se añaden al final del CSV. El `ordinal` dentro del grupo es estable entre re-exports del mismo conjunto.
+
+---
+
+## 9. Esfuerzo estimado
+
+| Tarea | Enfoque | Días (Banner) |
+|-------|---------|--------------|
+| CSV importer determinista | `csv.DictReader` + Decimal + date parse + footer strip | **~1 día** |
+| Tests (fixture anónima, validación columnas, idempotencia) | pytest fixtures | ~0.5 día |
+| PDF + LLM adapter | pdfplumber + prompt + extractor + redaction | ~3 días |
+| **CSV total** | | **~1.5 días** |
+| **PDF total** | | **~3+ días** |
+
+**El CSV no necesita a Banner para Phase 1** (Fury ya asignó el CSV adapter a Shuri). Banner entra en Phase 4 si se construye el PDF adapter.
+
+---
+
+## 10. PII — Flag para Romanoff
+
+| Campo/dato | Tipo PII | Presencia en CSV |
+|------------|----------|-----------------|
+| Nombre del titular | PII directo | ❌ Ausente |
+| Dirección | PII directo | ❌ Ausente |
+| Número de cuenta Fidelity | Identifier financiero | ❌ Ausente |
+| Participant number (I + 8 dígitos) | Identifier laboral | ❌ Ausente |
+| Cantidades de acciones y valores EUR | Datos financieros personales | ✅ Presentes — no exponer |
+| Fechas de adquisición + cost basis | Datos financieros personales | ✅ Presentes — no exponer |
+
+**Conclusión para Romanoff:** El CSV tiene riesgo de privacidad **significativamente menor** que el PDF. No contiene identificadores directos de identidad. Los datos financieros personales (acciones, valores) deben tratarse con las mismas protecciones que las transacciones bancarias (no logear, no enviar a terceros), pero no requieren redacción activa antes de su procesamiento.
+
