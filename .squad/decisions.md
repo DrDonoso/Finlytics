@@ -5275,3 +5275,178 @@ Justificación: accumulate-only → los lotes existentes nunca desaparecen; los 
 
 **Conclusión para Romanoff:** El CSV tiene riesgo de privacidad **significativamente menor** que el PDF. No contiene identificadores directos de identidad. Los datos financieros personales (acciones, valores) deben tratarse con las mismas protecciones que las transacciones bancarias (no logear, no enviar a terceros), pero no requieren redacción activa antes de su procesamiento.
 
+
+## Fidelity ESPP — Closing Design Round (2026-07-15)
+
+**Coordinators:** Fury (Lead/Architect), Shuri (Backend), Vision (Frontend)  
+**Status:** FINAL DESIGN CONVERGED — awaiting owner sign-off on 6 final questions  
+**Context:** Closing refinement round. Currency-of-record = EUR (FINAL). CSV-first MVP confirmed. Endpoint contracts agreed (Vision ↔ Shuri).
+
+---
+
+### A. Currency-of-Record Decision: EUR (FINAL)
+
+- **CSV to owner:** Export in EUR (as already configured)
+- **Cost basis stored per lot:** EUR — final value, never recalculated
+- **Daily current value:** Σ(shares) × MSFT_close_USD(today) × EUR/USD(today) — derived live
+- **Gain/loss:** current_value_EUR − Σ(cost_basis_EUR) — captures stock + FX combined
+- **Fallback (if USD only):** Detect CSV footer → store USD + mark currency="USD" → requires historical FX per lot for cost basis in EUR (complexity avoided by requesting EUR)
+
+**Rationale:** Owner thinks in EUR (payroll-FX reality). Cost basis EUR = exactly what left the paycheck. Storing USD is a dead-end (would need historical FX per lot to show EUR cost basis anyway).
+
+---
+
+### B. End-to-End Flow (Numbered Narrative)
+
+1. **Export:** Owner opens Fidelity NetBenefits → "View open lots" → Export CSV (in EUR). Gets file with ~61+ lots (cumulative; grows each quarter).
+
+2. **Upload:** Uploads CSV in app (Finlytics → Inversiones → Fidelity ESPP → "Importar CSV" button). UI shows 3-step wizard.
+
+3. **Preview (deterministic parse):**
+   - POST /api/investments/fidelity/import/preview
+   - Calculates sha256(file_bytes) → if identical to prior import, warns "already imported" and stops
+   - Parses with csv.DictReader: 11 columns, footer strip, date parse (%b-%d-%Y), Decimal
+   - Per lot: calculates dedup_hash = sha256(MSFT|date|quantity|cost_per_share|share_source|ordinal)
+   - Returns list of new lots (not in DB) + summary of existing (no changes)
+   - Frontend: editable table of new lots. Owner reviews and confirms.
+
+4. **Confirm (persist):**
+   - POST /api/investments/fidelity/import/confirm
+   - Inserts new lots into holding_lots with ON CONFLICT (dedup_hash) DO NOTHING
+   - Creates investment_import_run (file_hash, timestamp, lots_added count)
+   - Response: summary of imported
+
+5. **Current value (auto-daily, Phase 2):**
+   - On each visit to Fidelity page (or once/day on first visit):
+   - GET /api/investments/portfolio?plugin=fidelity-espp
+   - Backend: queries price_cache for MSFT. If price_date < last_business_day → fetch Stooq (fallback yfinance) → upsert
+   - Computes: current_value = Σ(lot.shares) × close_price_usd × fx_eur_usd
+   - Computes: gain_loss = current_value − Σ(lot.cost_basis)
+   - Returns KPIs: current value EUR, cost basis total EUR, gain/loss EUR, gain/loss %
+   - Frontend: KPI cards + lots table with "current value" column recalculated
+
+6. **Historical series (Phase 3):**
+   - Endpoint: GET /api/investments/fidelity/evolution?period=ALL (or 1Y, YTD, etc.)
+   - Backend:
+     - shares_held(date) = step function: sum of lot.shares where lot.purchase_date ≤ date
+     - alue(date) = shares_held(date) × MSFT_close_USD(date) × FX_EUR_USD(date)
+     - invested(date) = Σ cost_basis_EUR of lots with purchase_date ≤ date (step function)
+     - Backfill: on endpoint creation, fetch MSFT + FX history from min(purchase_date) to today → bulk insert into price_cache. Once; then extends daily
+   - Returns: [{ date, value_eur, invested_eur }] — daily (business day) granularity
+   - Frontend: area/line chart like Indexa — value line + contributions line. Period selector.
+
+---
+
+### C. Final Phases
+
+**Phase 1:** CSV → Lots → Static display (demoable)
+- CSV parser + holding_lots table + investment_import_runs table (migration 0014)
+- Preview/confirm endpoints
+- FidelityProvider (statement_import)
+- Plugin registered frontend + backend
+- Upload wizard (3 steps: upload → preview table → confirm)
+- Value shown = snapshot from CSV (with disclaimer "as of import date")
+- Static KPIs: total shares, total cost basis EUR, snapshot value
+
+**Phase 2:** Daily price → Current value EUR live + Gain/Loss
+- Market data service (Stooq primary + yfinance fallback)
+- price_cache table (migration 0015 or merged with 0014)
+- On-request fetch + DB cache (no scheduler)
+- Calculation: Σ shares × MSFT_USD × FX = value EUR
+- Live KPIs: current value EUR, gain/loss EUR, gain/loss %
+- Lots table with "current value" column
+- Flag price_stale: true if fetch fails → UI shows "price from yesterday"
+
+**Phase 3:** Historical evolution + chart (Indexa-style)
+- Backfill MSFT + EUR/USD from min(lot.purchase_date) to today (Stooq accepts long ranges)
+- Time-series endpoint (value + invested per date)
+- Evolution chart: value line EUR + invested line EUR
+- Period selector: 1M / 3M / 6M / YTD / 1Y / ALL
+- Hover tooltip with value + day gain
+
+---
+
+### D. Database Schema (Final)
+
+**espp_lots table:**
+- id (PK autoincrement), connection_id (FK), import_run_id (FK)
+- 	icker, purchase_date, grant_date (null for DO), shares, cost_basis, cost_basis_per_share
+- source_currency ("EUR" or "USD"), share_source ("SP" or "DO"), holding_period
+- dedup_hash UNIQUE (SHA-256 of natural key + ordinal)
+- created_at (TIMESTAMPTZ default now())
+- Index: (connection_id, purchase_date)
+
+**investment_import_runs table:**
+- id (PK autoincrement), connection_id (FK)
+- source_filename, ile_hash UNIQUE (SHA-256 of raw bytes)
+- imported_at (TIMESTAMPTZ default now()), source_currency
+- 
+um_lots_parsed, 
+um_lots_inserted, 
+um_lots_skipped
+- Index: (connection_id)
+
+**price_history table:**
+- id (PK autoincrement)
+- 	icker, price_date
+- close_usd, x_eur_usd, close_eur (derived: close_usd × fx_eur_usd)
+- source ("stooq" | "yfinance" | "csv_snapshot")
+- etched_at (TIMESTAMPTZ default now())
+- Constraint: UNIQUE (ticker, price_date)
+
+---
+
+### E. Endpoint Contracts (Vision ↔ Shuri)
+
+**1. GET /api/investments/fidelity/kpis** (Phase 1+2+3)
+- Returns: { total_shares, invested_eur, current_value_eur, gain_loss_eur, gain_loss_pct, msft_price_usd, usd_eur_rate, last_price_date (ISO), price_stale, as_of_date (ISO) }
+- Phase 1: current_value_eur: null, gain_loss_eur: null, gain_loss_pct: null when no price yet
+- Phase 2+: populated with live market data
+
+**2. GET /api/investments/fidelity/evolution** (Phase 3)
+- Returns: { value_series: [{ date (ISO), value }], contributions_series: [{ date (ISO), value }] }
+- Dates as raw ISO "YYYY-MM-DD" (never pre-formatted)
+- alue_series: daily portfolio value (shares × price × FX)
+- contributions_series: cumulative cost basis step-line (one point per new lot)
+
+**3. GET /api/investments/fidelity/lots** (Phase 3)
+- Returns: array of lots with id, purchase_date (ISO), shares, cost_basis_per_share_eur, cost_basis_total_eur, current_value_eur (null until Phase 2), gain_loss_eur, gain_loss_pct, share_source ("SP"|"DO"), grant_date (ISO or null)
+
+---
+
+### F. Open Questions for Owner (Final 6)
+
+1. **Gain: "EUR reality" or "pure stock %"?**  
+   Gain/loss combines stock movement + FX effect. Show EUR combined (recommended) or also USD % separately?
+
+2. **Evolution periods: what range?**  
+   Show 1M / 3M / 6M / YTD / 1Y / All? Or simplify to YTD / 1Y / All?
+
+3. **Historical granularity: daily enough?**  
+   ~1,250 points for 5+ years. Daily (recommended) or weekly?
+
+4. **Lots SP vs DO: distinguish visually?**  
+   ~20 ESPP purchases (SP) vs ~40 dividend (DO). Color/group/filter or mixed by date?
+
+5. **Price source without SLA: acceptable?**  
+   Stooq + yfinance free, no guarantee. Show last known price with "stale" warning if they fail?
+
+6. **Confirm EUR for CSV?**  
+   Export CSV in EUR as configured now. If Fidelity stops offering EUR, we detect and handle USD.
+
+---
+
+### G. Notes for Implementation
+
+- **Shuri** detailing: price_cache schema, backfill strategy, series math, idempotent re-import
+- **Vision** detailing: FidelityView component, chart library, KPI cards layout, period UX
+- **Fury** (providing this) does NOT duplicate. This doc = what + why; Shuri/Vision = how
+- **Banner** not needed until/if Phase 4 PDF adapter (probably never)
+- **Romanoff** already validated: CSV = zero PII concern. Done.
+
+---
+
+**No real financial values or identity PII in decisions.md.**  
+Currency-of-record FINAL = EUR (Fury).  
+Endpoint contract kpis/evolution/lots agreed (Shuri ↔ Vision).
+
