@@ -1,0 +1,27 @@
+Dockerfile
+  s_68df1e206c1145::t_4084b7d1294438 2-13,43-44
+Dockerfile.local
+  s_68df1e206c1145::t_99c2467b992c7a 1-49
+.dockerignore
+  s_68df1e206c1145::t_447d4ed33fe203 20,22
+docker-compose.local.yml
+  s_68df1e206c1145::t_eff4a736fc2e5d 3-5
+AGENTS.md
+  s_68df1e206c1145::t_d90bd20b967ab1 1-28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "24ec57a79756dc3f117eda129323c321a72d83c5",
+  "prompts": {},
+  "sessions": {
+    "s_68df1e206c1145": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_017Ft7G3W3MFDFMzL5e3RrA4",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    }
+  }
+}
