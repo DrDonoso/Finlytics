@@ -77,17 +77,17 @@ export default function AnalyticsPage() {
 
   return (
     <main className="dashboard">
-      <div className="dashboard-header">
-        <GlobalFilterBar
-          filters={filters}
-          accounts={accounts}
-          categories={categories}
-          tags={allTags}
-          onChange={setFilters}
-          onClear={() => setFilters(makeDefaultFilters())}
-        />
-        <h1 className="analytics-page-title">{t.analyticsTitle}</h1>
+      <div className="tx-page-header">
+        <h1 className="tx-page-title">{t.analyticsTitle}</h1>
       </div>
+      <GlobalFilterBar
+        filters={filters}
+        accounts={accounts}
+        categories={categories}
+        tags={allTags}
+        onChange={setFilters}
+        onClear={() => setFilters(makeDefaultFilters())}
+      />
 
       <div className="charts-row">
         <SpendingByAccount

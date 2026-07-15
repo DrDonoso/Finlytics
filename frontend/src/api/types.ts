@@ -91,6 +91,11 @@ export interface DateRangeParams {
 
 // ─── Response types ───────────────────────────────────────────────────────────
 
+export interface SummaryMonths {
+  months: string[]          // "YYYY-MM" sorted ascending
+  latest: string | null     // last month with data, or null if empty
+}
+
 export interface Overview {
   total_expense: number   // positive magnitude
   total_income: number    // positive
@@ -357,6 +362,8 @@ export interface InvestmentPlugin {
   status: 'coming_soon' | 'available' | 'connected' | 'error'
   auth_type: 'api_key' | 'oauth' | 'token' | 'none'
   supported_features: string[]
+  /** Non-null for plugins that support CSV/file import; value is the import page route (e.g. '/investments/fidelity-espp'). Added by Shuri. */
+  import_route: string | null
 }
 
 export interface InvestmentReturns {
@@ -456,4 +463,106 @@ export interface ValidatedAccount {
 
 export interface ValidateAccountsResponse {
   accounts: ValidatedAccount[]
+}
+
+// ─── Fidelity ESPP ────────────────────────────────────────────────────────────
+
+export interface FidelityReminderResponse {
+  overdue: boolean
+  expected_date: string | null      // "YYYY-MM-DD"
+  period_label: string | null       // e.g. "Q2 2026"
+  last_lot_date: string | null      // "YYYY-MM-DD"
+}
+
+export interface FidelityKpis {
+  total_shares: number
+  invested_eur: number
+  current_value_eur: number | null
+  gain_loss_eur: number | null
+  gain_loss_pct: number | null
+  msft_price_usd: number | null
+  usd_eur_rate: number | null
+  last_price_date: string | null   // "YYYY-MM-DD"
+  price_stale: boolean
+  as_of_date: string               // "YYYY-MM-DD"
+}
+
+export interface FidelityEvolution {
+  value_series: ValuePoint[]
+  contributions_series: ValuePoint[]
+}
+
+export interface FidelityLot {
+  id: number
+  purchase_date: string            // "YYYY-MM-DD"
+  shares: number
+  cost_basis_per_share_eur: number
+  cost_basis_total_eur: number
+  current_value_eur: number | null
+  gain_loss_eur: number | null
+  gain_loss_pct: number | null     // percentage: 12.5 = 12.5%
+  share_source: 'SP' | 'DO'
+  grant_date: string | null        // "YYYY-MM-DD"
+}
+
+export interface FidelityLots {
+  lots: FidelityLot[]
+}
+
+export interface FidelityImportPreviewLot {
+  purchase_date: string
+  shares: number
+  cost_basis_per_share_eur: number
+  cost_basis_total_eur: number
+  share_source: 'SP' | 'DO'
+  grant_date: string | null
+}
+
+export interface FidelityImportPreview {
+  new_lots: FidelityImportPreviewLot[]
+  duplicate_count: number
+  total_in_file: number
+  source_currency: string
+  file_already_imported: boolean
+}
+
+export interface FidelityImportConfirmResult {
+  inserted: number
+  duplicates: number
+}
+
+// ─── Combined investments overview ────────────────────────────────────────────
+
+export interface CombinedOverviewProviderSlice {
+  provider: string
+  label: string
+  value_eur: number
+  pct: number
+}
+
+export interface CombinedOverviewAssetClassSlice {
+  asset_class: string
+  label: string
+  value_eur: number
+  pct: number
+}
+
+export interface CombinedOverviewProvider {
+  id: string
+  name: string
+  icon: string
+  value_eur: number | null
+  gain_loss_eur: number | null
+  gain_loss_pct: number | null
+  route: string
+}
+
+export interface CombinedOverview {
+  total_value_eur: number
+  total_invested_eur: number | null
+  total_gain_loss_eur: number | null
+  total_gain_loss_pct: number | null
+  by_provider: CombinedOverviewProviderSlice[]
+  by_asset_class: CombinedOverviewAssetClassSlice[]
+  providers: CombinedOverviewProvider[]
 }

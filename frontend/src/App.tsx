@@ -13,7 +13,9 @@ import RulesPage from './pages/RulesPage'
 import AccountsPage from './pages/AccountsPage'
 import LoginPage from './pages/LoginPage'
 import SetupPage from './pages/SetupPage'
-import InvestmentsPage from './pages/InvestmentsPage'
+import InvestmentsLandingPage from './pages/InvestmentsLandingPage'
+import FinancesOverviewPage from './pages/FinancesOverviewPage'
+import PluginViewWrapper from './investments/PluginViewWrapper'
 import ConnectorsPage from './pages/ConnectorsPage'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { useT } from './i18n'
@@ -38,11 +40,15 @@ function AppContent() {
       <Routes>
         <Route path="/" element={<Layout />}>
           <Route index element={<Dashboard />} />
+          <Route path="finances" element={<FinancesOverviewPage />} />
           <Route path="transactions" element={<TransactionsPage />} />
           <Route path="analytics" element={<AnalyticsPage />} />
-          <Route path="investments" element={<InvestmentsPage />} />
+          <Route path="investments">
+            <Route index element={<InvestmentsLandingPage />} />
+            <Route path=":pluginId" element={<PluginViewWrapper />} />
+          </Route>
           <Route path="statements" element={<StatementsPage />} />
-          <Route path="rules" element={<RulesPage />} />
+          <Route path="rules" element={<Navigate to="/settings/rules" replace />} />
           <Route path="settings" element={<SettingsLayout />}>
             <Route index element={<Navigate to="tags" replace />} />
             <Route path="accounts" element={<AccountsPage />} />
@@ -51,6 +57,7 @@ function AppContent() {
             <Route path="appearance" element={<AppearancePage />} />
             <Route path="backup" element={<BackupPage />} />
             <Route path="connectors" element={<ConnectorsPage />} />
+            <Route path="rules" element={<RulesPage />} />
           </Route>
         </Route>
       </Routes>

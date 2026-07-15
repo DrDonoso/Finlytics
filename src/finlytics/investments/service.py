@@ -2,15 +2,22 @@
 
 Resolves active connections for a user, decrypts tokens, calls the
 IndexaProvider, aggregates multi-account results, and maintains a
-5-minute in-memory TTL cache keyed by connection_id.
+DB-backed 24-hour cache per connection.
+
+Cache behaviour:
+  FRESH  (fetched_at < 24h): return cached payload immediately.
+  STALE  (fetched_at >= 24h): return stale payload immediately; schedule a
+         FastAPI BackgroundTask to re-fetch and update the DB cache.
+  MISSING (no cache row): fetch live, store in DB, return (first load is slower).
 """
 from __future__ import annotations
 
+import dataclasses
 import logging
-import time
 from collections import defaultdict
 from datetime import datetime, timezone
 
+from fastapi import BackgroundTasks
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -25,21 +32,47 @@ from finlytics.api.schemas import (
     MonthlyReturnRow,
     ValuePoint,
 )
-from finlytics.db.models import InvestmentConnection
-from finlytics.investments.base import NormalizedPortfolio
+from finlytics.db.models import InvestmentConnection, InvestmentPortfolioCache
+from finlytics.db.session import async_session_factory
+from finlytics.investments.base import (
+    InvestmentProvider,
+    NormalizedCashInvested,
+    NormalizedDrawdown,
+    NormalizedHolding,
+    NormalizedMonthlyReturnRow,
+    NormalizedPerformance,
+    NormalizedPortfolio,
+    NormalizedReturns,
+    NormalizedValuePoint,
+)
 from finlytics.investments.crypto import (
     EncryptionNotConfiguredError,
     decrypt_token,
     encrypt_token,
 )
 from finlytics.investments.indexa import IndexaAuthError, IndexaConnectionError, IndexaProvider
+from finlytics.investments.fidelity import FidelityESPPProvider
 
 log = logging.getLogger(__name__)
 
-_CACHE_TTL = 300.0  # seconds (5 minutes)
-_portfolio_cache: dict[int, tuple[float, NormalizedPortfolio]] = {}
+_CACHE_MAX_AGE = 86400.0  # seconds (24 hours)
+_refresh_in_flight: set[int] = set()  # connection IDs with an active background refresh
 
-_provider = IndexaProvider()
+# Registry keyed by plugin_id — add new providers here.
+# live_api providers (token_enc != NULL) are aggregated in get_portfolio().
+# statement_import providers (token_enc IS NULL) have their own endpoints.
+_PROVIDERS: dict[str, InvestmentProvider] = {
+    "indexa-capital": IndexaProvider(),
+    "fidelity-espp": FidelityESPPProvider(),
+}
+
+
+def _get_provider(plugin_id: str) -> InvestmentProvider:
+    """Resolve a provider by plugin_id; raises ValueError for unknown ids."""
+    provider = _PROVIDERS.get(plugin_id)
+    if provider is None:
+        raise ValueError(f"Unknown investment plugin_id: {plugin_id!r}")
+    return provider
 
 
 class NoValidAccountsError(Exception):
@@ -61,19 +94,169 @@ def _mask_account(account_number: str) -> str:
 
 
 def clear_connection_cache(connection_id: int) -> None:
-    """Evict a single connection from the portfolio cache."""
-    _portfolio_cache.pop(connection_id, None)
+    """Evict a connection from the in-flight refresh guard.
+
+    The DB cache row is cleaned up automatically by ON DELETE CASCADE when the
+    parent InvestmentConnection is deleted — no explicit DB deletion needed here.
+    """
+    _refresh_in_flight.discard(connection_id)
 
 
-def _get_cached(connection_id: int) -> NormalizedPortfolio | None:
-    entry = _portfolio_cache.get(connection_id)
-    if entry and (time.monotonic() - entry[0]) < _CACHE_TTL:
-        return entry[1]
-    return None
+# ── Serialisation helpers ─────────────────────────────────────────────────────
 
 
-def _put_cache(connection_id: int, portfolio: NormalizedPortfolio) -> None:
-    _portfolio_cache[connection_id] = (time.monotonic(), portfolio)
+def _serialize_portfolio(portfolio: NormalizedPortfolio) -> dict:
+    """Convert NormalizedPortfolio to a JSON-safe dict for DB storage."""
+    return dataclasses.asdict(portfolio)
+
+
+def _deserialize_portfolio(data: dict) -> NormalizedPortfolio:
+    """Reconstruct NormalizedPortfolio from a JSON-loaded dict (DB cache row)."""
+    perf_data = data.get("performance")
+    performance: NormalizedPerformance | None = None
+    if perf_data is not None:
+        returns_data = perf_data.get("returns") or {}
+        drawdown_data = perf_data.get("drawdown")
+        ci_data = perf_data.get("cash_invested")
+
+        # JSON keys are always strings; months_pct/months_eur use int keys in code.
+        monthly_returns = [
+            NormalizedMonthlyReturnRow(
+                year=r["year"],
+                months_pct={int(k): v for k, v in (r.get("months_pct") or {}).items()},
+                months_eur={int(k): v for k, v in (r.get("months_eur") or {}).items()},
+                total_pct=r.get("total_pct"),
+                total_eur=r.get("total_eur"),
+                benchmark_pct=r.get("benchmark_pct"),
+            )
+            for r in (perf_data.get("monthly_returns") or [])
+        ]
+
+        performance = NormalizedPerformance(
+            total_value=perf_data["total_value"],
+            returns=NormalizedReturns(**returns_data),
+            value_series=[
+                NormalizedValuePoint(**vp)
+                for vp in (perf_data.get("value_series") or [])
+            ],
+            contributions_series=[
+                NormalizedValuePoint(**vp)
+                for vp in (perf_data.get("contributions_series") or [])
+            ],
+            monthly_returns=monthly_returns,
+            drawdown=NormalizedDrawdown(**drawdown_data) if drawdown_data else None,
+            cash_invested=NormalizedCashInvested(**ci_data) if ci_data else None,
+        )
+
+    return NormalizedPortfolio(
+        holdings=[NormalizedHolding(**h) for h in (data.get("holdings") or [])],
+        total_value=data["total_value"],
+        total_invested=data.get("total_invested"),
+        total_gain_loss=data.get("total_gain_loss"),
+        performance=performance,
+    )
+
+
+async def _get_db_cache(
+    connection_id: int, db: AsyncSession
+) -> tuple[NormalizedPortfolio, datetime] | None:
+    """Return (portfolio, fetched_at) from DB cache, or None if not found."""
+    row = (
+        await db.execute(
+            select(InvestmentPortfolioCache).where(
+                InvestmentPortfolioCache.connection_id == connection_id
+            )
+        )
+    ).scalar_one_or_none()
+
+    if row is None:
+        return None
+
+    fetched_at = row.fetched_at
+    if fetched_at.tzinfo is None:
+        fetched_at = fetched_at.replace(tzinfo=timezone.utc)
+
+    return _deserialize_portfolio(row.payload), fetched_at
+
+
+async def _bg_refresh_connection(
+    connection_id: int,
+    token_enc: str,
+    account_label_masked: str | None,
+    plugin_id: str,
+) -> None:
+    """Background task: re-fetch portfolio from the live API and update DB cache.
+
+    Runs after the HTTP response is sent; creates its own DB session.
+    """
+    if connection_id in _refresh_in_flight:
+        log.debug("Background refresh already in-flight for connection %d — skipping", connection_id)
+        return
+    _refresh_in_flight.add(connection_id)
+    log.info("Background refresh started for connection %d", connection_id)
+    try:
+        try:
+            token = decrypt_token(token_enc)
+        except EncryptionNotConfiguredError:
+            log.warning("Background refresh: encryption key missing for connection %d", connection_id)
+            return
+
+        try:
+            validation = await _get_provider(plugin_id).validate_token(token)
+        except (IndexaAuthError, IndexaConnectionError) as exc:
+            log.warning("Background refresh: token validation failed for connection %d: %s", connection_id, exc)
+            return
+
+        acc_by_mask = {_mask_account(a.account_number): a for a in validation.accounts}
+        acc = acc_by_mask.get(account_label_masked)
+        if acc is None:
+            log.warning("Background refresh: no account matches mask %r for connection %d", account_label_masked, connection_id)
+            return
+
+        try:
+            portfolio = await _get_provider(plugin_id).get_portfolio(token, [acc.account_number])
+        except (IndexaAuthError, IndexaConnectionError) as exc:
+            log.warning("Background refresh: portfolio fetch failed for connection %d: %s", connection_id, exc)
+            return
+
+        now_dt = datetime.now(timezone.utc)
+        payload = _serialize_portfolio(portfolio)
+
+        async with async_session_factory() as bg_db:
+            async with bg_db.begin():
+                cache_row = (
+                    await bg_db.execute(
+                        select(InvestmentPortfolioCache).where(
+                            InvestmentPortfolioCache.connection_id == connection_id
+                        )
+                    )
+                ).scalar_one_or_none()
+
+                if cache_row is None:
+                    bg_db.add(InvestmentPortfolioCache(
+                        connection_id=connection_id,
+                        payload=payload,
+                        fetched_at=now_dt,
+                    ))
+                else:
+                    cache_row.payload = payload
+                    cache_row.fetched_at = now_dt
+
+                conn_row = (
+                    await bg_db.execute(
+                        select(InvestmentConnection).where(
+                            InvestmentConnection.id == connection_id
+                        )
+                    )
+                ).scalar_one_or_none()
+                if conn_row is not None:
+                    conn_row.last_synced_at = now_dt
+
+        log.info("Background refresh completed for connection %d", connection_id)
+    except Exception as exc:
+        log.warning("Background refresh: unexpected error for connection %d: %s", connection_id, exc, exc_info=True)
+    finally:
+        _refresh_in_flight.discard(connection_id)
 
 
 # ── Public service functions ──────────────────────────────────────────────────
@@ -85,7 +268,7 @@ async def validate_token_for_wizard(token: str) -> list[DiscoveredAccountOut]:
     Stores NOTHING — no DB writes, no encryption.  Raises IndexaAuthError or
     IndexaConnectionError on failure (propagated to API layer for error responses).
     """
-    validation = await _provider.validate_token(token)
+    validation = await _PROVIDERS["indexa-capital"].validate_token(token)
     return [
         DiscoveredAccountOut(
             account_number=acc.account_number,
@@ -116,9 +299,7 @@ async def connect_plugin(
         NoValidAccountsError: no account_numbers match the token's accounts.
         EncryptionNotConfiguredError: FINLYTICS_ENCRYPTION_KEY absent / invalid.
     """
-    validation = await _provider.validate_token(token)
-
-    # Server-side ownership filter — never trust client list blindly
+    validation = await _get_provider(plugin_id).validate_token(token)
     owned = {acc.account_number: acc for acc in validation.accounts}
     requested = set(account_numbers)
     selected = [acc for num, acc in owned.items() if num in requested]
@@ -220,8 +401,20 @@ async def delete_connection(
     return True
 
 
-async def get_portfolio(user_id: int, db: AsyncSession) -> InvestmentPortfolioOut:
+async def get_portfolio(
+    user_id: int,
+    db: AsyncSession,
+    background_tasks: BackgroundTasks | None = None,
+) -> InvestmentPortfolioOut:
     """Aggregate portfolio across all active connections.
+
+    Cache behaviour:
+      FRESH  (age < 24h): return cached payload, no live API call.
+      STALE  (age >= 24h): return stale cached payload immediately; if
+             background_tasks is provided, schedule an async refresh so the
+             next open is fresh. cache_stale=True signals this to the caller.
+      MISSING (no cache row): fetch live from Indexa, store in DB, return
+             (this first load is unavoidably slower).
 
     Raises EncryptionNotConfiguredError if decryption is impossible (propagates
     to API layer which returns 503).  Per-connection Indexa errors are logged
@@ -248,36 +441,59 @@ async def get_portfolio(user_id: int, db: AsyncSession) -> InvestmentPortfolioOu
             last_updated=None,
         )
 
-    # Group by token_enc to call /users/me only once per unique token
+    # Group by token_enc; skip statement_import providers (token_enc IS NULL).
     by_token: dict[str, list[InvestmentConnection]] = defaultdict(list)
     for conn in connections:
-        by_token[conn.token_enc].append(conn)
+        if conn.token_enc is not None:
+            by_token[conn.token_enc].append(conn)
 
     fetched: list[tuple[InvestmentConnection, NormalizedPortfolio]] = []
     status_errors: list[InvestmentConnection] = []
     synced_now: list[InvestmentConnection] = []
+    stale_connections: list[InvestmentConnection] = []
+    cache_rows_added = False
+    any_cached = False
+    any_stale = False
+    oldest_cache_ts: datetime | None = None
+    now_dt = datetime.now(timezone.utc)
 
     for token_enc, group in by_token.items():
+        need_fetch: list[InvestmentConnection] = []
+
+        for conn in group:
+            cached = await _get_db_cache(conn.id, db)
+            if cached is None:
+                need_fetch.append(conn)
+            else:
+                portfolio, fetched_at = cached
+                age_s = (now_dt - fetched_at).total_seconds()
+                if age_s < _CACHE_MAX_AGE:
+                    # Fresh: return immediately, no live call
+                    fetched.append((conn, portfolio))
+                    any_cached = True
+                    if oldest_cache_ts is None or fetched_at < oldest_cache_ts:
+                        oldest_cache_ts = fetched_at
+                else:
+                    # Stale: return cached payload now, refresh async
+                    fetched.append((conn, portfolio))
+                    stale_connections.append(conn)
+                    any_cached = True
+                    any_stale = True
+                    if oldest_cache_ts is None or fetched_at < oldest_cache_ts:
+                        oldest_cache_ts = fetched_at
+
+        if not need_fetch:
+            continue
+
+        # Live fetch for connections with no cache row
         try:
             token = decrypt_token(token_enc)
         except EncryptionNotConfiguredError:
             raise  # Let the API layer surface a 503
 
-        # Separate cached from stale
-        need_fetch: list[InvestmentConnection] = []
-        for conn in group:
-            hit = _get_cached(conn.id)
-            if hit:
-                fetched.append((conn, hit))
-            else:
-                need_fetch.append(conn)
-
-        if not need_fetch:
-            continue
-
         # Resolve account numbers from /users/me (once per unique token)
         try:
-            validation = await _provider.validate_token(token)
+            validation = await _get_provider(group[0].plugin_id).validate_token(token)
         except IndexaAuthError:
             status_errors.extend(need_fetch)
             log.warning(
@@ -306,7 +522,9 @@ async def get_portfolio(user_id: int, db: AsyncSession) -> InvestmentPortfolioOu
                 continue
 
             try:
-                portfolio = await _provider.get_portfolio(token, [acc.account_number])
+                portfolio = await _get_provider(conn.plugin_id).get_portfolio(
+                    token, [acc.account_number]
+                )
             except IndexaAuthError:
                 status_errors.append(conn)
                 continue
@@ -314,20 +532,44 @@ async def get_portfolio(user_id: int, db: AsyncSession) -> InvestmentPortfolioOu
                 log.warning("Indexa error for connection %d: %s", conn.id, exc)
                 continue
 
-            _put_cache(conn.id, portfolio)
+            # Cache miss → INSERT new row (no SELECT needed; _get_db_cache returned None)
+            db.add(InvestmentPortfolioCache(
+                connection_id=conn.id,
+                payload=_serialize_portfolio(portfolio),
+                fetched_at=now_dt,
+            ))
+            cache_rows_added = True
             fetched.append((conn, portfolio))
             synced_now.append(conn)
 
-    # Persist status / last_synced_at updates in one commit
-    now_dt = datetime.now(timezone.utc)
-    if status_errors or synced_now:
+    # Persist: status updates + last_synced_at + new cache rows — one commit
+    if status_errors or synced_now or cache_rows_added:
         for conn in status_errors:
             conn.status = "error"
         for conn in synced_now:
             conn.last_synced_at = now_dt
         await db.commit()
 
-    return _aggregate(fetched, len(connections))
+    # Schedule async refresh for stale connections (response already ready to send)
+    if background_tasks is not None and stale_connections:
+        for conn in stale_connections:
+            if conn.id not in _refresh_in_flight and conn.token_enc:
+                background_tasks.add_task(
+                    _bg_refresh_connection,
+                    conn.id,
+                    conn.token_enc,
+                    conn.account_label_masked,
+                    conn.plugin_id,
+                )
+
+    result = _aggregate(fetched, len(connections))
+
+    # Attach cache freshness metadata (additive/optional fields)
+    if any_cached and oldest_cache_ts is not None:
+        result.cached_at = oldest_cache_ts.isoformat()
+        result.cache_stale = any_stale
+
+    return result
 
 
 # ── Aggregation ───────────────────────────────────────────────────────────────

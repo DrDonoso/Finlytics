@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from finlytics.api.deps import get_db
-from finlytics.api.schemas import ByAccountRow, ByCategoryRow, ByDayRow, ByMerchantRow, ByMonthRow, CashflowOut, OverviewOut
+from finlytics.api.schemas import ByAccountRow, ByCategoryRow, ByDayRow, ByMerchantRow, ByMonthRow, CashflowOut, OverviewOut, TransactionMonthsOut
 from finlytics.db import queries
 
 router = APIRouter(prefix="/summary", tags=["summary"])
@@ -161,3 +161,16 @@ async def cashflow(
     return await queries.get_cashflow(
         session, from_date=from_date, to_date=to_date, account_id=account_id, category_id=category_id, tags=tag, flow=flow
     )
+
+
+@router.get("/months", response_model=TransactionMonthsOut)
+async def transaction_months(session: AsyncSession = Depends(get_db)) -> TransactionMonthsOut:
+    """Return distinct YYYY-MM months that have ≥1 transaction, sorted ASC.
+
+    The last element of ``months`` is the most recent month with data — the
+    Inicio (Home) page uses it to default its KPI view to the last completed month.
+    Returns ``months=[]`` and ``latest=null`` when no transactions exist.
+    """
+    raw = await queries.get_statement_months(session)
+    months = sorted(f"{r['year']:04d}-{r['month']:02d}" for r in raw)
+    return TransactionMonthsOut(months=months, latest=months[-1] if months else None)

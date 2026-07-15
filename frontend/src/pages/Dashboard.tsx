@@ -1,25 +1,17 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
-import type { Account, Category, Tag, GlobalFilters, Overview, CategorySummary, ImportResult } from '../api/types'
+import { useNavigate, Link } from 'react-router-dom'
+import type { Account, Category, Tag, Overview, ImportResult, FidelityReminderResponse } from '../api/types'
 import {
-  getAccounts, getCategories, getTags, getOverview,
-  getByCategory,
+  getAccounts, getCategories, getTags, getOverview, getOverviewMonths,
+  getFidelityReminder,
 } from '../api/client'
-import GlobalFilterBar from '../components/GlobalFilterBar'
 import KpiCards from '../components/KpiCards'
-import SpendingByCategory from '../components/SpendingByCategory'
-import CategoryMovers from '../components/CategoryMovers'
-import SpendingHeatmap from '../components/SpendingHeatmap'
-import TopMerchants from '../components/TopMerchants'
 import ImportModal from '../components/ImportModal'
 import ImportLauncher, { type ImportLauncherHandle } from '../components/ImportLauncher'
+import ImportSourcePicker from '../components/ImportSourcePicker'
+import InvestmentSnapshotCard from '../components/InvestmentSnapshotCard'
 import { useT } from '../i18n'
 import { defaultRange } from '../utils'
-import { previousCalendarMonth } from '../utils/comparison'
-
-function makeDefaultFilters(): GlobalFilters {
-  return { ...defaultRange(), tags: [] }
-}
 
 interface AsyncState<T> {
   loading: boolean
@@ -29,44 +21,51 @@ interface AsyncState<T> {
 
 function idle<T>(): AsyncState<T> { return { loading: true, error: null, data: null } }
 
-/** Serialize GlobalFilters to URLSearchParams for the Transactions page.
- *  Special rule: day → from=<day>&to=<day>; no `day` param sent. */
-function filtersToParams(f: GlobalFilters): string {
-  const p = new URLSearchParams()
-  if (f.from) p.set('from', f.from)
-  if (f.to)   p.set('to',   f.to)
-  // day overrides from/to (Transactions uses date range, not exact day)
-  if (f.day)  { p.set('from', f.day); p.set('to', f.day) }
-  if (f.account_id  !== undefined) p.set('account_id',  String(f.account_id))
-  if (f.category_id !== undefined) p.set('category_id', String(f.category_id))
-  if (f.flow)     p.set('flow',     f.flow)
-  if (f.merchant) p.set('merchant', f.merchant)
-  for (const tag of f.tags) p.append('tag', tag)
-  return p.toString()
+/** "YYYY-MM" → { from: "YYYY-MM-01", to: "YYYY-MM-DD" } */
+function monthRange(ym: string): { from: string; to: string } {
+  const [yearStr, monthStr] = ym.split('-')
+  const year = Number(yearStr)
+  const month = Number(monthStr)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const lastDay = new Date(year, month, 0).getDate()
+  return { from: `${year}-${pad(month)}-01`, to: `${year}-${pad(month)}-${pad(lastDay)}` }
+}
+
+/** "YYYY-MM" → "Junio 2026" (locale-aware, first letter capitalised) */
+function formatMonthLabel(ym: string, locale: string): string {
+  const [yearStr, monthStr] = ym.split('-')
+  const d = new Date(Number(yearStr), Number(monthStr) - 1, 1)
+  const label = new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric' }).format(d)
+  return label.charAt(0).toUpperCase() + label.slice(1)
+}
+
+/** Previous calendar month as "YYYY-MM" — used as graceful fallback. */
+function fallbackMonth(): string {
+  return defaultRange().from.slice(0, 7)
 }
 
 export default function Dashboard() {
-  const { t } = useT()
+  const { t, lang } = useT()
   const navigate = useNavigate()
-  const [filters, setFilters] = useState<GlobalFilters>(makeDefaultFilters)
+  const locale = lang === 'es' ? 'es-ES' : 'en-GB'
+
   const [accounts,   setAccounts]   = useState<Account[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [allTags,    setAllTags]    = useState<Tag[]>([])
 
   const [overview,   setOverview]   = useState<AsyncState<Overview>>(idle())
-  const [byCategory, setByCategory] = useState<AsyncState<CategorySummary[]>>(idle())
-
-  // Unfiltered net — refreshes only on import, ignores all active filters
-  const [globalOverview, setGlobalOverview] = useState<AsyncState<Overview>>(idle())
-
-  // Previous-period data for comparison (Slice 1 + 2 — fetched client-side)
-  const [prevOverview,    setPrevOverview]    = useState<AsyncState<Overview>>(idle())
-  const [prevByCategory,  setPrevByCategory]  = useState<AsyncState<CategorySummary[]>>(idle())
-
-  const [importFiles, setImportFiles] = useState<File[] | null>(null)
-  const launcherRef = useRef<ImportLauncherHandle>(null)
   const [refreshKey, setRefreshKey] = useState(0)
-  const [toast,      setToast]      = useState<string | null>(null)
+  const [pickerOpen,   setPickerOpen]   = useState(false)
+  const [importFiles,  setImportFiles]  = useState<File[] | null>(null)
+  const launcherRef = useRef<ImportLauncherHandle>(null)
+  const [toast, setToast] = useState<string | null>(null)
+
+  // ESPP upload-reminder banner
+  const [esppReminder, setEsppReminder] = useState<FidelityReminderResponse | null>(null)
+
+  // Available months from the backend; selectedMonth defaults to the last one
+  const [availableMonths, setAvailableMonths] = useState<string[]>([])
+  const [selectedMonth,   setSelectedMonth]   = useState<string>(fallbackMonth())
 
   function handleImportSuccess(result: ImportResult) {
     setImportFiles(null)
@@ -79,141 +78,106 @@ export default function Dashboard() {
     getAccounts().then(setAccounts).catch(() => {})
     getCategories().then(setCategories).catch(() => {})
     getTags().then(setAllTags).catch(() => {})
+    getFidelityReminder().then(setEsppReminder).catch(() => {})
   }, [])
 
-  // Unfiltered overview — only re-runs when data changes (import), not on filter changes
+  // Fetch available months — default to the LAST month with data (mes vencido)
   useEffect(() => {
-    setGlobalOverview(idle())
-    getOverview()
-      .then(d  => setGlobalOverview({ loading: false, error: null,     data: d }))
-      .catch(e => setGlobalOverview({ loading: false, error: String(e), data: null }))
-  }, [refreshKey])
+    getOverviewMonths()
+      .then(({ months, latest }) => {
+        if (months.length > 0) {
+          setAvailableMonths(months)
+          setSelectedMonth(latest ?? months[months.length - 1])
+        } else {
+          const fb = fallbackMonth()
+          setAvailableMonths([fb])
+          // selectedMonth already initialised to fallbackMonth()
+        }
+      })
+      .catch(() => {
+        const fb = fallbackMonth()
+        setAvailableMonths([fb])
+      })
+  }, [])
 
+  // Fetch overview for the currently selected month
   useEffect(() => {
-    const params = {
-      from:        filters.from || undefined,
-      to:          filters.to   || undefined,
-      account_id:  filters.account_id,
-      category_id: filters.category_id,
-      tags:        filters.tags.length > 0 ? filters.tags : undefined,
-      flow:        filters.flow,
-      merchant:    filters.merchant || undefined,
-      day:         filters.day || undefined,
-    }
-
+    const { from, to } = monthRange(selectedMonth)
     setOverview(idle())
-    setByCategory(idle())
-    setPrevOverview(idle())
-    setPrevByCategory(idle())
+    getOverview({ from, to })
+      .then(d  => setOverview({ loading: false, error: null,     data: d }))
+      .catch(e => setOverview({ loading: false, error: String(e), data: null }))
+  }, [selectedMonth, refreshKey])
 
-    getOverview(params)
-      .then(d  => setOverview ({ loading: false, error: null,     data: d }))
-      .catch(e => setOverview ({ loading: false, error: String(e), data: null }))
-
-    // by-category donut shows ALL categories (no category_id) so the user can switch/clear
-    getByCategory({ from: params.from, to: params.to, account_id: params.account_id, tags: params.tags, flow: params.flow, merchant: params.merchant, day: params.day })
-      .then(d  => setByCategory({ loading: false, error: null,     data: d }))
-      .catch(e => setByCategory({ loading: false, error: String(e), data: null }))
-
-    // ── Previous-period fetches (Slice 1 + 2) ─────────────────────────────
-    // Derive previous calendar month from the filter's from-date.
-    const prevRange = previousCalendarMonth(filters.from)
-    if (prevRange) {
-      // prev period: spread merchant but NOT day (keep month-over-month comparison meaningful)
-      const prevParams = { ...params, from: prevRange.from, to: prevRange.to, day: undefined }
-      getOverview(prevParams)
-        .then(d  => setPrevOverview({ loading: false, error: null,     data: d }))
-        .catch(() => setPrevOverview({ loading: false, error: null,     data: null }))
-
-      getByCategory({ from: prevRange.from, to: prevRange.to, account_id: params.account_id, tags: params.tags, flow: params.flow, merchant: params.merchant })
-        .then(d  => setPrevByCategory({ loading: false, error: null,     data: d }))
-        .catch(() => setPrevByCategory({ loading: false, error: null,     data: null }))
-    } else {
-      setPrevOverview({ loading: false, error: null, data: null })
-      setPrevByCategory({ loading: false, error: null, data: null })
-    }
-  }, [filters, refreshKey])
+  const monthIdx = availableMonths.indexOf(selectedMonth)
+  const canPrev  = monthIdx > 0
+  const canNext  = monthIdx < availableMonths.length - 1
+  const monthLabel = formatMonthLabel(selectedMonth, locale)
 
   return (
     <>
       <main className="dashboard">
         <div className="dashboard-header">
-          <GlobalFilterBar
-            filters={filters}
-            accounts={accounts}
-            categories={categories}
-            tags={allTags}
-            onChange={setFilters}
-            onClear={() => setFilters(makeDefaultFilters())}
-          />
+          {/* Month navigation — full-width top row inside the header card */}
+          <div style={{ flex: '0 0 100%', display: 'flex', alignItems: 'center', gap: 8, padding: '8px 20px', borderBottom: '1px solid var(--border)' }}>
+            <button
+              className="month-nav-arrow"
+              style={{ width: 32, height: 32, minWidth: 32, minHeight: 32, fontSize: 18 }}
+              onClick={() => canPrev && setSelectedMonth(availableMonths[monthIdx - 1])}
+              disabled={!canPrev}
+              aria-label={t.datePickerPrevMonth}
+            >‹</button>
+            <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--text)', minWidth: 130, textAlign: 'center' }}>
+              {monthLabel}
+            </span>
+            <button
+              className="month-nav-arrow"
+              style={{ width: 32, height: 32, minWidth: 32, minHeight: 32, fontSize: 18 }}
+              onClick={() => canNext && setSelectedMonth(availableMonths[monthIdx + 1])}
+              disabled={!canNext}
+              aria-label={t.datePickerNextMonth}
+            >›</button>
+          </div>
           <KpiCards
             overview={overview.data}
             loading={overview.loading}
             error={overview.error}
             compact
-            previousOverview={prevOverview.data}
-            constantOverview={globalOverview.data}
           />
           <div className="dashboard-header-actions">
             <button
               className="btn-secondary"
-              onClick={() => {
-                const qs = filtersToParams(filters)
-                navigate(`/transactions${qs ? `?${qs}` : ''}`)
-              }}
+              onClick={() => navigate('/transactions')}
             >
               {t.btnViewTransactions}
             </button>
             <button
               className="btn-primary"
-              onClick={() => launcherRef.current?.open()}
+              onClick={() => setPickerOpen(true)}
             >
               {t.btnImport}
             </button>
           </div>
         </div>
 
-        {/* Row: gastos por categoría | top comercios */}
-        <div className="charts-row-category">
-          <SpendingByCategory
-            data={byCategory.data ?? []}
-            categories={categories}
-            loading={byCategory.loading}
-            error={byCategory.error}
-            selectedCategoryId={filters.category_id}
-            onCategoryClick={(id) => setFilters(f => ({ ...f, category_id: id }))}
-          />
-          <TopMerchants
-            globalFilters={filters}
-            selectedMerchant={filters.merchant}
-            onMerchantClick={m => setFilters(f => ({ ...f, merchant: f.merchant === m ? undefined : m }))}
-            refreshKey={refreshKey}
-            periodTotalExpense={overview.data?.total_expense ?? null}
-          />
-        </div>
+        <InvestmentSnapshotCard />
 
-        {/* Full-width: spending heatmap */}
-        <div className="charts-row-full">
-          <SpendingHeatmap
-            globalFilters={filters}
-            selectedDay={filters.day}
-            onDayClick={day => setFilters(f => ({ ...f, day: f.day === day ? undefined : day }))}
-            refreshKey={refreshKey}
-          />
-        </div>
-
-        {/* Full-width: category movers */}
-        <div className="charts-row-full">
-          <CategoryMovers
-            current={byCategory.data ?? []}
-            previous={prevByCategory.data ?? []}
-            categories={categories}
-            loading={byCategory.loading}
-            prevLoading={prevByCategory.loading}
-            error={byCategory.error}
-          />
-        </div>
+        {esppReminder?.overdue && (
+          <div className="espp-reminder-banner" role="alert">
+            <span>⚠ {t.esppReminderBanner(esppReminder.period_label)}</span>
+            <Link to="/investments/fidelity-espp" className="espp-reminder-banner__link">
+              {t.esppReminderAction}
+            </Link>
+          </div>
+        )}
       </main>
+
+      {pickerOpen && (
+        <ImportSourcePicker
+          onClose={() => setPickerOpen(false)}
+          onStatements={() => launcherRef.current?.open()}
+        />
+      )}
 
       <ImportLauncher ref={launcherRef} onFiles={files => setImportFiles(files)} />
 
@@ -237,4 +201,3 @@ export default function Dashboard() {
     </>
   )
 }
-

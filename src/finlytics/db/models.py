@@ -2,12 +2,17 @@
 
 Table summary
 ─────────────
-accounts          – one row per bank/broker (BBVA, Indexa Capital, …)
-categories        – taxonomy of spending categories; is_base=True → seed data
-import_runs       – one row per statement-file import; holds import stats
-transactions      – core ledger; dedup_hash enforces idempotent ingestion
-tags              – free-form labels; M:N with transactions via transaction_tags
-transaction_tags  – join table for Transaction ↔ Tag many-to-many
+accounts                    – one row per bank/broker (BBVA, Indexa Capital, …)
+categories                  – taxonomy of spending categories; is_base=True → seed data
+import_runs                 – one row per statement-file import; holds import stats
+transactions                – core ledger; dedup_hash enforces idempotent ingestion
+tags                        – free-form labels; M:N with transactions via transaction_tags
+transaction_tags            – join table for Transaction ↔ Tag many-to-many
+investment_connections      – encrypted provider connections (Indexa, Fidelity ESPP, …)
+investment_import_runs      – audit trail per CSV import (Fidelity ESPP)
+espp_lots                   – immutable tax-lot per ESPP purchase row
+price_history               – daily EOD close cache for portfolio valuation
+investment_portfolio_cache  – per-connection DB cache for live portfolio data (24h freshness)
 """
 
 from __future__ import annotations
@@ -295,8 +300,9 @@ class InvestmentConnection(Base):
     )
     # Masked account label: first3•••last2 (e.g. "PBK•••Z5")
     account_label_masked: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    # Fernet ciphertext of the provider API token — NEVER the plaintext
-    token_enc: Mapped[str] = mapped_column(Text, nullable=False)
+    # Fernet ciphertext of the provider API token — NEVER the plaintext.
+    # NULL for statement-import providers (e.g. Fidelity ESPP) that have no API token.
+    token_enc: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -308,6 +314,160 @@ class InvestmentConnection(Base):
         return (
             f"<InvestmentConnection id={self.id} plugin={self.plugin_id!r} "
             f"mask={self.account_label_masked!r} status={self.status!r}>"
+        )
+
+
+class InvestmentImportRun(Base):
+    """Audit trail for a single Fidelity ESPP CSV import.
+
+    file_hash (sha256 of raw file bytes) is UNIQUE — re-uploading the same
+    file is detected here at the file level before touching espp_lots.
+    """
+
+    __tablename__ = "investment_import_runs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    connection_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("investment_connections.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    # SHA-256 hex digest of the raw file bytes — file-level idempotency key
+    file_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    source_currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    lots_inserted: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default="0"
+    )
+    lots_skipped: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default="0"
+    )
+    imported_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return (
+            f"<InvestmentImportRun id={self.id} conn={self.connection_id} "
+            f"inserted={self.lots_inserted} skipped={self.lots_skipped}>"
+        )
+
+
+class EsppLot(Base):
+    """An immutable ESPP tax-lot record — one row per CSV purchase row.
+
+    dedup_hash = sha256(ticker|purchase_date|shares:.8f|cost_basis_per_share:.6f
+                        |share_source|dedup_ordinal)
+
+    INSERT ON CONFLICT (dedup_hash) DO NOTHING makes re-imports idempotent.
+    share_source: 'SP' = stock purchase, 'DO' = dividend reinvestment.
+    source_currency: detected from CSV footer (typically 'EUR' for Fidelity EU).
+    """
+
+    __tablename__ = "espp_lots"
+    __table_args__ = (
+        Index("ix_espp_lots_connection_purchase", "connection_id", "purchase_date"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    connection_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("investment_connections.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    ticker: Mapped[str] = mapped_column(
+        String(10), nullable=False, server_default="MSFT"
+    )
+    purchase_date: Mapped[date] = mapped_column(Date, nullable=False)
+    grant_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    shares: Mapped[Decimal] = mapped_column(Numeric(18, 8), nullable=False)
+    cost_basis: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
+    cost_basis_per_share: Mapped[Decimal] = mapped_column(
+        Numeric(18, 6), nullable=False
+    )
+    # Currency of cost_basis values (from CSV footer, e.g. 'EUR')
+    source_currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    # 'SP' = stock purchase | 'DO' = dividend reinvestment
+    share_source: Mapped[str] = mapped_column(String(2), nullable=False)
+    holding_period: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    dedup_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return (
+            f"<EsppLot id={self.id} ticker={self.ticker!r} "
+            f"date={self.purchase_date} shares={self.shares}>"
+        )
+
+
+class PriceHistory(Base):
+    """Daily EOD close price for a ticker, with EUR/USD FX rate.
+
+    Serves two purposes:
+    (1) On-request price cache: fetch from Stooq / yfinance, store here.
+    (2) Historical series: used by the evolution endpoint to compute
+        value_eur(d) = shares_held(d) × close_usd(d) × fx_eur_usd(d).
+
+    close_eur is a derived field computed at insert time:
+        close_eur = close_usd × fx_eur_usd
+    UNIQUE(ticker, price_date) → INSERT ON CONFLICT DO NOTHING for idempotent backfill.
+    """
+
+    __tablename__ = "price_history"
+    __table_args__ = (
+        UniqueConstraint("ticker", "price_date", name="uq_price_history_ticker_date"),
+        Index("ix_price_history_ticker_date", "ticker", "price_date"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    ticker: Mapped[str] = mapped_column(String(10), nullable=False)
+    price_date: Mapped[date] = mapped_column(Date, nullable=False)
+    close_usd: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False)
+    fx_eur_usd: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False)
+    # Derived: close_usd × fx_eur_usd — stored for query efficiency
+    close_eur: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False)
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return (
+            f"<PriceHistory ticker={self.ticker!r} date={self.price_date} "
+            f"close_usd={self.close_usd} close_eur={self.close_eur}>"
+        )
+
+
+class InvestmentPortfolioCache(Base):
+    """Per-connection DB cache for the live-fetched NormalizedPortfolio.
+
+    One row per InvestmentConnection (connection_id UNIQUE).
+    payload stores the JSON-serialised NormalizedPortfolio so the
+    /portfolio endpoint can return immediately without hitting the
+    Indexa API on every page load.
+
+    Cache freshness: ~24 h (_CACHE_MAX_AGE in investments/service.py).
+    Stale entries are served immediately while a FastAPI BackgroundTask
+    re-fetches from Indexa and updates the row asynchronously.
+    ON DELETE CASCADE cleans up the row when the parent connection is deleted.
+    """
+
+    __tablename__ = "investment_portfolio_cache"
+    __table_args__ = (
+        UniqueConstraint("connection_id", name="uq_portfolio_cache_connection_id"),
+        Index("ix_portfolio_cache_connection_id", "connection_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    connection_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("investment_connections.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    payload: Mapped[dict] = mapped_column(JSON, nullable=False)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return (
+            f"<InvestmentPortfolioCache connection_id={self.connection_id} "
+            f"fetched_at={self.fetched_at}>"
         )
 
 

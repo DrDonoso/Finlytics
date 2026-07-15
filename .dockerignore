@@ -17,9 +17,8 @@ __pycache__/
 *.egg-info/
 .pytest_cache/
 
-# Frontend: node_modules and compiled output (rebuilt in Stage 1)
+# Frontend: node_modules only (dist pre-built on host and copied into image)
 frontend/node_modules/
-frontend/dist/
 frontend/.vite/
 
 # Tests (not needed at runtime)

@@ -109,6 +109,9 @@ class InvestmentProvider(ABC):
     """Base interface that every investment connector must implement."""
 
     plugin_id: str
+    # live_api: fetches data from an external API in real time (e.g. Indexa Capital).
+    # statement_import: ingests pre-parsed statements (e.g. Fidelity ESPP CSV).
+    provider_type: str = "live_api"
 
     @abstractmethod
     async def validate_token(self, token: str) -> ValidationResult:
@@ -128,3 +131,10 @@ class InvestmentProvider(ABC):
     ) -> NormalizedPerformance:
         """Fetch return metrics + value series for one account."""
         ...
+
+    async def import_statement(self, *args, **kwargs) -> None:
+        """Non-abstract hook for statement-import providers.
+
+        Override in subclasses that process file uploads rather than live APIs.
+        The default no-op is intentional: live_api providers never call this.
+        """

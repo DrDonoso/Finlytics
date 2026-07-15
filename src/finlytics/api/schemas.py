@@ -204,6 +204,12 @@ class CashflowOut(BaseModel):
     currency: str
 
 
+class TransactionMonthsOut(BaseModel):
+    """Response for GET /api/summary/months — available months for the Home KPI picker."""
+    months: list[str]   # ["YYYY-MM", ...] sorted ASC; frontend takes last as default
+    latest: str | None  # months[-1] or None when no transactions exist
+
+
 # ── Statements ────────────────────────────────────────────────────────────────
 
 class StatementMonth(BaseModel):
@@ -414,6 +420,7 @@ class InvestmentPluginOut(BaseModel):
     status: str             # coming_soon | available | connected | error
     auth_type: str          # api_key | oauth | token | none
     supported_features: list[str]
+    import_route: str | None = None  # frontend route for in-app CSV import; None when not supported
 
 
 class InvestmentHoldingOut(BaseModel):
@@ -448,6 +455,9 @@ class InvestmentPortfolioOut(BaseModel):
     monthly_returns: list[MonthlyReturnRow] | None = None
     drawdown: DrawdownOut | None = None
     cash_invested: CashInvestedSplit | None = None
+    # Cache freshness metadata — additive/optional; frontend may use for a stale indicator
+    cached_at: str | None = None      # ISO datetime of the oldest cache fetch across connections
+    cache_stale: bool = False          # True when stale data returned + async refresh scheduled
 
 
 class ValidateTokenRequest(BaseModel):
@@ -564,3 +574,122 @@ class RuleOut(BaseModel):
     skip_ai: bool
     created_at: datetime
     updated_at: datetime
+
+
+# ── Fidelity ESPP ─────────────────────────────────────────────────────────────
+
+class FidelityPreviewLotOut(BaseModel):
+    """One lot in the preview diff."""
+    purchase_date: str           # YYYY-MM-DD
+    shares: float
+    cost_basis_per_share_eur: float
+    cost_basis_total_eur: float
+    share_source: str            # SP | DO
+    grant_date: str | None = None
+    source_currency: str
+
+
+class FidelityPreviewOut(BaseModel):
+    """Response from POST /investments/fidelity/import/preview."""
+    new_lots: list[FidelityPreviewLotOut]
+    duplicate_count: int
+    total_in_file: int
+    source_currency: str
+    file_already_imported: bool
+
+
+class FidelityImportResult(BaseModel):
+    """Response from POST /investments/fidelity/import/confirm."""
+    inserted: int
+    duplicates: int
+
+
+class FidelityKpisOut(BaseModel):
+    """Aggregated KPIs for the Fidelity ESPP portfolio."""
+    total_shares: float
+    invested_eur: float
+    current_value_eur: float | None = None
+    gain_loss_eur: float | None = None
+    gain_loss_pct: float | None = None      # e.g. 12.5 for +12.5 %
+    msft_price_usd: float | None = None
+    usd_eur_rate: float | None = None       # fx_eur_usd = EUR per USD
+    last_price_date: str | None = None      # YYYY-MM-DD
+    price_stale: bool = True
+    as_of_date: str                         # YYYY-MM-DD
+
+
+class FidelityEvolutionOut(BaseModel):
+    """Response from GET /investments/fidelity/evolution."""
+    value_series: list[ValuePoint]
+    contributions_series: list[ValuePoint]
+
+
+class FidelityLotOut(BaseModel):
+    """Single lot with current market valuation."""
+    id: int
+    purchase_date: str           # YYYY-MM-DD
+    shares: float
+    cost_basis_per_share_eur: float
+    cost_basis_total_eur: float
+    current_value_eur: float | None = None
+    gain_loss_eur: float | None = None
+    gain_loss_pct: float | None = None      # percentage
+    share_source: str            # SP | DO
+    grant_date: str | None = None
+
+
+class FidelityLotsOut(BaseModel):
+    """Response from GET /investments/fidelity/lots."""
+    lots: list[FidelityLotOut]
+
+
+class FidelityReminderOut(BaseModel):
+    """Response from GET /investments/fidelity/reminder."""
+    overdue: bool
+    expected_date: str | None = None    # YYYY-MM-DD of the most recent expected ESPP purchase
+    period_label: str | None = None     # e.g. "Q2 2026"
+    last_lot_date: str | None = None    # YYYY-MM-DD of the latest SP lot in DB
+
+
+# ── Investments Combined Overview ─────────────────────────────────────────────
+
+class ProviderAllocationItem(BaseModel):
+    """Provider slice in the by-provider allocation donut."""
+    provider: str   # "indexa" | "fidelity"
+    label: str      # display name — i18n applied on frontend
+    value_eur: float
+    pct: float      # percentage of total_value_eur (0–100)
+
+
+class AssetClassAllocationItem(BaseModel):
+    """Asset-class slice in the by-asset-class allocation donut."""
+    asset_class: str    # "equity" | "fixed_income" | "cash" | "espp_stock" | "other"
+    label: str          # display label — i18n applied on frontend
+    value_eur: float
+    pct: float          # percentage of total_value_eur (0–100)
+
+
+class ProviderCardOut(BaseModel):
+    """Summary card for one investment provider on the /investments overview page."""
+    id: str                               # "indexa-capital" | "fidelity-espp"
+    name: str
+    icon: str
+    value_eur: float | None = None        # null when current price unavailable
+    gain_loss_eur: float | None = None    # null when current price unavailable
+    gain_loss_pct: float | None = None    # percentage e.g. 19.4 for +19.4 %; null when unavailable
+    route: str                            # frontend route: "/investments/{plugin_id}"
+
+
+class CombinedOverviewOut(BaseModel):
+    """Response for GET /api/investments/combined-overview.
+
+    Aggregated investments overview across all connected providers
+    (Indexa Capital + Fidelity ESPP).
+    """
+    total_value_eur: float
+    total_invested_eur: float | None = None
+    total_gain_loss_eur: float | None = None
+    total_gain_loss_pct: float | None = None    # percentage e.g. 19.03 for +19.03 %
+    by_provider: list[ProviderAllocationItem]
+    by_asset_class: list[AssetClassAllocationItem]
+    providers: list[ProviderCardOut]

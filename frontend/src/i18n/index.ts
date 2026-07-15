@@ -346,6 +346,7 @@ export interface Dict {
   heatmapLess: string
   heatmapMore: string
   heatmapEmpty: string
+  heatmapZoomOut: string
   // ── Top merchants panel ───────────────────────────────────────────────────
   topMerchantsTitle: string
   topMerchantsEmpty: string
@@ -487,6 +488,76 @@ export interface Dict {
   invMetricTwrInfo: string
   invMetricMwrInfo: string
   invMetricVolInfo: string
+  // ── Nav restructure — Investments accordion ────────────────────────────────
+  navInvestmentsOverview: string
+  invNoPluginsHint: string
+  invLandingTitle: string
+  invLandingEmpty: string
+  invPluginNotAvailable: string
+  // ── Nav restructure — Settings regrouping ─────────────────────────────────
+  settingsGroupData: string
+  settingsGroupRules: string
+  settingsGroupSystem: string
+  settingsGroupApp: string
+  // ── Nav restructure — Finanzas group ──────────────────────────────────────
+  navFinances: string
+  financesOverviewTitle: string
+  // ── Combined investments overview ─────────────────────────────────────────
+  invCombinedTitle: string
+  invCombinedTotalValue: string
+  invCombinedTotalGain: string
+  invCombinedByProvider: string
+  invCombinedByAssetClass: string
+  // ── Fidelity ESPP ─────────────────────────────────────────────────────────
+  fidelityTitle: string
+  fidelityKpiShares: string
+  fidelityKpiSharesSub: (n: number) => string
+  fidelityKpiInvested: string
+  fidelityKpiCurrentValue: string
+  fidelityKpiGainLoss: string
+  fidelityAsOf: (date: string) => string
+  fidelityPriceStale: string
+  fidelityPriceInfo: (usd: number, rate: number) => string
+  fidelityImportBtn: string
+  fidelityImportTitle: string
+  fidelityImportStep1Hint: string
+  fidelityImportPreviewTitle: string
+  fidelityImportNewLots: (n: number) => string
+  fidelityImportDuplicates: (n: number) => string
+  fidelityImportConfirmBtn: string
+  fidelityImportConfirmingBtn: string
+  fidelityImportSuccessTitle: string
+  fidelityImportSuccessSub: (inserted: number, dupes: number) => string
+  fidelityEmptyTitle: string
+  fidelityEvolutionTitle: string
+  fidelityLegendPortfolio: string
+  fidelityLegendInvested: string
+  fidelityColDate: string
+  fidelityColSource: string
+  fidelityColShares: string
+  fidelityColCostPerShare: string
+  fidelityColTotalCost: string
+  fidelityColCurrentValue: string
+  fidelityColGain: string
+  fidelityColGainPct: string
+  fidelityImportCta: string
+  fidelitySourceSpTooltip: string
+  fidelitySourceDoTooltip: string
+  // ── InvestmentSnapshotCard (Inicio cross-domain hub) ──────────────────────
+  invSnapshotTitle: string
+  invSnapshotNoConnections: string
+  invSnapshotGoTo: string
+  // ── ImportSourcePicker (Inicio import prompt) ─────────────────────────────
+  importPickerTitle: string
+  importPickerStatements: string
+  importPickerStatementsDesc: string
+  importPickerClose: string
+  // ── Plugin descriptions (localized, keyed by plugin id) ───────────────────
+  invPluginDescIndexa: string
+  invPluginDescFidelity: string
+  // ── ESPP upload-reminder banner ───────────────────────────────────────────
+  esppReminderBanner: (periodLabel: string | null) => string
+  esppReminderAction: string
 }
 
 const ES_LABELS: Record<string, string> = {

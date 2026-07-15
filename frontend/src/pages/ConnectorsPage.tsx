@@ -1,11 +1,24 @@
 import { useState, useEffect, useCallback } from 'react'
+import { Link } from 'react-router-dom'
 import type { InvestmentPlugin, InvestmentConnection } from '../api/types'
 import { getInvestmentPlugins, getConnections, disconnectConnection } from '../api/client'
 import { useT } from '../i18n'
+import type { Dict } from '../i18n'
 import IndexaWizard from '../components/IndexaWizard'
+
+// Map plugin.id → i18n key for localized descriptions (fallback: backend description)
+const PLUGIN_DESC_KEYS: Partial<Record<string, keyof Dict>> = {
+  'indexa-capital': 'invPluginDescIndexa',
+  'fidelity-espp':  'invPluginDescFidelity',
+}
 
 export default function ConnectorsPage() {
   const { t } = useT()
+
+  function pluginDesc(plugin: InvestmentPlugin): string {
+    const key = PLUGIN_DESC_KEYS[plugin.id]
+    return key ? (t[key] as string) : plugin.description
+  }
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [plugins, setPlugins] = useState<InvestmentPlugin[]>([])
@@ -38,6 +51,39 @@ export default function ConnectorsPage() {
       .catch(() => { setDisconnecting(false) })
   }
 
+  function renderFidelityEsppCard(plugin: InvestmentPlugin) {
+    const conn = connections.find(c => c.plugin_id === 'fidelity-espp' && c.status === 'active')
+
+    if (conn) {
+      return (
+        <div className="plugin-card connector-card--connected" key={plugin.id}>
+          <span className="plugin-card__icon" aria-hidden="true">{plugin.icon}</span>
+          <span className="plugin-card__name">{plugin.name}</span>
+          <p className="plugin-card__description">{pluginDesc(plugin)}</p>
+          <span className="connected-badge">✓ {t.connectorConnected}</span>
+          <button
+            className="btn-disconnect"
+            onClick={() => handleDisconnect(conn)}
+            disabled={disconnecting}
+          >
+            {t.connectorDisconnect}
+          </button>
+        </div>
+      )
+    }
+
+    return (
+      <div className="plugin-card" key={plugin.id}>
+        <span className="plugin-card__icon" aria-hidden="true">{plugin.icon}</span>
+        <span className="plugin-card__name">{plugin.name}</span>
+        <p className="plugin-card__description">{pluginDesc(plugin)}</p>
+        <Link className="btn-primary" to="/investments/fidelity-espp">
+          {t.fidelityImportCta}
+        </Link>
+      </div>
+    )
+  }
+
   function renderIndexaCard(plugin: InvestmentPlugin) {
     const conn = connections.find(c => c.plugin_id === 'indexa-capital')
     const connStatus = conn?.status
@@ -47,7 +93,7 @@ export default function ConnectorsPage() {
         <div className="plugin-card connector-card--connected" key={plugin.id}>
           <span className="plugin-card__icon" aria-hidden="true">{plugin.icon}</span>
           <span className="plugin-card__name">{plugin.name}</span>
-          <p className="plugin-card__description">{plugin.description}</p>
+          <p className="plugin-card__description">{pluginDesc(plugin)}</p>
           <span className="connected-badge">✓ {t.connectorConnected}</span>
           <button
             className="btn-disconnect"
@@ -65,7 +111,7 @@ export default function ConnectorsPage() {
         <div className="plugin-card connector-card--error" key={plugin.id}>
           <span className="plugin-card__icon" aria-hidden="true">{plugin.icon}</span>
           <span className="plugin-card__name">{plugin.name}</span>
-          <p className="plugin-card__description">{plugin.description}</p>
+          <p className="plugin-card__description">{pluginDesc(plugin)}</p>
           <span className="error-badge">⚠ {t.connectorError}</span>
           <button className="btn-primary" onClick={() => setWizardOpen(true)}>
             {t.connectorErrorRetry}
@@ -78,7 +124,7 @@ export default function ConnectorsPage() {
       <div className="plugin-card" key={plugin.id}>
         <span className="plugin-card__icon" aria-hidden="true">{plugin.icon}</span>
         <span className="plugin-card__name">{plugin.name}</span>
-        <p className="plugin-card__description">{plugin.description}</p>
+        <p className="plugin-card__description">{pluginDesc(plugin)}</p>
         <button className="btn-primary" onClick={() => setWizardOpen(true)}>
           {t.investmentsConnect}
         </button>
@@ -104,11 +150,12 @@ export default function ConnectorsPage() {
           <div className="plugin-catalog">
             {plugins.map(plugin => {
               if (plugin.id === 'indexa-capital') return renderIndexaCard(plugin)
+              if (plugin.id === 'fidelity-espp') return renderFidelityEsppCard(plugin)
               return (
                 <div className="plugin-card" key={plugin.id}>
                   <span className="plugin-card__icon" aria-hidden="true">{plugin.icon}</span>
                   <span className="plugin-card__name">{plugin.name}</span>
-                  <p className="plugin-card__description">{plugin.description}</p>
+                  <p className="plugin-card__description">{pluginDesc(plugin)}</p>
                   <span className="coming-soon-badge">{t.investmentsComingSoon}</span>
                   <button className="btn-primary" disabled aria-disabled="true">
                     {t.investmentsConnect}
