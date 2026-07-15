@@ -29,6 +29,84 @@ Shuri delivered two post-integration refinements:
 - Nullability contract fix (Coordinator) — combined-overview fields typed number|null, guarded usages
 
 ---
+
+## Vision: Inicio/Finanzas Split + InvestmentSnapshotCard + ImportSourcePicker (2026-07-15)
+
+**Fecha:** 2026-07-15T16:20:19+02:00  
+**Autor:** Vision (Frontend Engineer)  
+**Solicitado por:** DrDonoso (David)  
+**Estado:** SHIPPED — build limpio, 0 errores TS
+
+### Contexto
+
+Batch de 5 items de feedback del owner implementa la propuesta MOVE+REPLACE de Wanda (`.squad/decisions.md` § "PROPOSAL: Recomendación: Inicio vs Finanzas") — esta decisión estaba marcada como pendiente.
+
+### Decisiones implementadas
+
+**1. Connectors — Eliminar botón "Resumen" de Fidelity ESPP cuando conectado**  
+Card connected muestra solo: badge ✓ + botón Desconectar. Archivo: `ConnectorsPage.tsx` — `renderFidelityEsppCard`.
+
+**2. Settings groups collapsed por defecto**  
+Los 4 grupos colapsables (Datos/Reglas/Sistema/Aplicación) usan `useState(false)`. Archivo: `Layout.tsx` líneas ~57-60.
+
+**3. Split Inicio vs Finanzas — MOVE + REPLACE** (Principio: cada widget tiene UN único hogar. Sin duplicación.)
+
+| Componente | Antes | Ahora |
+|---|---|---|
+| `GlobalFilterBar` | ✅ | ❌ |
+| `SpendingByCategory` | ✅ | ❌ |
+| `TopMerchants` | ✅ | ❌ |
+| `SpendingHeatmap` | ✅ | ❌ |
+| `CategoryMovers` | ✅ | ❌ |
+| `KpiCards` | ✅ Filtrable | ✅ Mes actual fijo |
+| `InvestmentSnapshotCard` | ❌ | ✅ Nuevo |
+| Botón Importar | File picker | `ImportSourcePicker` |
+
+**Nota:** `defaultRange()` devuelve mes anterior; Dashboard usa `currentMonthRange()` inline para mes en curso.
+
+**Finanzas:** Hereda GlobalFilterBar, KpiCards (con previousOverview), SpendingByCategory, TopMerchants; AÑADE SpendingHeatmap, CategoryMovers, ImportLauncher + ImportModal.
+
+**4. Botón Importar en Finanzas**  
+`ImportLauncher` + `ImportModal` + `refreshKey` + `toast` en `FinancesOverviewPage.tsx`. Tras importar, `refreshKey` dispara re-fetch de todos los datos.
+
+**5. Inicio: Importar → ImportSourcePicker (data-driven)**  
+Nuevo componente `ImportSourcePicker.tsx`:
+- Siempre lista "Extractos bancarios" (file picker).
+- Fetches `GET /api/investments/plugins` y filtra `import_route !== null`.
+- Fidelity ESPP → `import_route: '/investments/fidelity-espp'` (Shuri backend).
+- Extensible: futuros plugins aparecen automáticamente.
+
+Tipo actualizado: `InvestmentPlugin.import_route: string | null` en `api/types.ts`.
+
+**6. Nuevo componente: InvestmentSnapshotCard**  
+`frontend/src/components/InvestmentSnapshotCard.tsx`:
+- Fetches `GET /api/investments/combined-overview`.
+- Loading → spinner. Error → error box. Vacío → mensaje + link "Ver inversiones →".
+- Populated → total_value_eur grande + desglose por provider (icon + name + value_eur).
+- `fmtEur(null)` → "—".
+- Header siempre muestra link a `/investments`. CSS: clases `inv-snapshot-*` en `index.css`.
+
+### Archivos modificados/creados
+
+| Archivo | Cambio |
+|---|---|
+| `frontend/src/api/types.ts` | `InvestmentPlugin.import_route: string \| null` |
+| `frontend/src/api/mock.ts` | `import_route` en todos plugins; fidelity-espp entry |
+| `frontend/src/i18n/index.ts` | 7 nuevas claves (invSnapshot*, importPicker*) |
+| `frontend/src/i18n/es.ts` | 7 traducciones ES |
+| `frontend/src/i18n/en.ts` | 7 traducciones EN |
+| `frontend/src/components/Layout.tsx` | sg* collapsed por defecto |
+| `frontend/src/pages/ConnectorsPage.tsx` | Eliminado Link "Resumen" en Fidelity connected |
+| `frontend/src/pages/Dashboard.tsx` | Reescrito como hub cross-domain |
+| `frontend/src/pages/FinancesOverviewPage.tsx` | Heatmap + Movers + Import añadidos |
+| `frontend/src/index.css` | CSS para inv-snapshot-* e import-picker-* |
+| `frontend/src/components/InvestmentSnapshotCard.tsx` | **Nuevo** |
+| `frontend/src/components/ImportSourcePicker.tsx` | **Nuevo** |
+
+**Build:** `tsc --noEmit && vite build` → 0 TypeScript errors, built in 6.48s ✓
+
+---
+
 # DESIGN SPEC + PROPOSAL: Reestructuración de navegación y páginas overview
 
 **Autora:** Wanda (UX/UI Designer)  
