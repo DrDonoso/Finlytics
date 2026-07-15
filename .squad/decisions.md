@@ -4356,3 +4356,301 @@ function pct(v: number | null | undefined): string {
 All values come from `portfolio.returns` object:  
 `twr_total`, `twr_last_week`, `twr_last_month`, `twr_last_year`, `twr_annual`, `xirr`, `volatility` — all **decimals** (e.g. `0.0423` = 4.23%). Multiply × 100 before display.
 
+---
+
+## 2026-07-15T06:51:14Z — Fidelity ESPP "Statement-Import" Connector — Feasibility Probe & Architecture
+
+**Coordinators:** Fury (Lead/Architect), Banner (Data/AI), Shuri (Backend)  
+**Contributors:** Romanoff (Security flagged), Vision/Wanda (UX noted for Phase 1)  
+**Status:** FEASIBILITY CONFIRMED — 3-Phase Plan Draft; awaiting owner scope decisions (Phase 1 details)  
+**Context:** Owner requested import capability for quarterly Fidelity ESPP (MSFT) statements (PDF) with daily market-based valuation in EUR. Team conducted feasibility probe: PDF parseable, pricing viable, DB schema designed.
+
+---
+
+## Executive Verdict: ¿Es viable?
+
+**Sí, completamente viable.** ESPP statement import + market-priced holdings is a standard pattern (not novel). The key insight: this requires a new **provider type** (`statement_import`) coexisting with the existing `live_api` type (Indexa). No architectural blocker; all three critical pieces (PDF extraction, market price source, DB persistence) have concrete solutions.
+
+---
+
+## 1. Architecture: Two Provider Types Coexist
+
+### Discovery
+
+The existing `InvestmentProvider` ABC is implicitly designed for live-API connectors (token validation, portfolio fetch, performance metrics). Fidelity ESPP doesn't have an API — it's a PDF-based statement import + market-priced holdings pattern.
+
+**Solution:** Extend the provider abstraction minimally:
+- Add `provider_type: str` attribute (`"live_api"` | `"statement_import"`)
+- New optional methods: `import_statement(parsed_data, connection_id, db)` and `refresh_price_cache(tickers)`
+- `service.py` routes by `provider_type`: live-API calls token-decrypt-fetch; statement-import reads lots from DB + fetches current price
+
+**Output:** Both types produce identical `NormalizedPortfolio` → frontend and aggregation unchanged.
+
+### Generalization
+
+The pattern (statement-import + market-priced holdings) is reusable:
+- Any broker without API (CSV/PDF/Excel statements)
+- Stock plans (RSU, options) from any employer
+- Manual holdings ("I own X shares of Y")
+- The "market-priced holding" piece (ticker → daily price → current value) is generic
+
+---
+
+## 2. PDF Extraction — Fidelity ESPP Statement
+
+### Probe Result: ✅ Fully Parseable
+
+- **Text layer:** Real text (not scanned/OCR) generated from stable Fidelity template
+- **Pages:** Typically 8–10 pages; target sections: Holdings detail (page 4), Activity/Lots (page 5), Stock Plans metadata (page 8)
+- **Fields present & locatable:** Ticker, shares held (cumulative), price at period end, cost basis, per-lot purchase date, price, quantity, ESPP plan metadata
+- **Layout:** Stable machine-generated template (Helvetica headers, fixed x-positions for columns) — low risk of format drift
+
+### Recommended Approach: Hybrid (Structured Parse + LLM)
+
+| Approach | Pros | Contras |
+|----------|------|---------|
+| Pure regex/x-position | No LLM cost; deterministic | Fragile if layout changes; hard to maintain |
+| **Hybrid** ← recommended | Extract clean text locally; LLM structured output; review step in wizard = safety net | Small LLM cost (~$0.01–0.05/PDF); owner imports ~4/year so negligible |
+
+The review step (user confirms extracted holdings before saving) mitigates errors.
+
+### New Modules Needed (Banner's Scope)
+
+```
+src/finlytics/extraction/
+├── espp_schema.py          # ESPPLot + ESPPHoldingSnapshot Pydantic models
+├── espp_prompts.py         # build_espp_system_prompt() + build_espp_user_prompt()
+└── espp_extractor.py       # extract_espp_holdings(pdf_source) → ESPPHoldingSnapshot
+```
+
+**Schema structure (no real values):**
+```python
+class ESPPLot(BaseModel):
+  purchase_date: date
+  shares: Decimal              # ≥ 3 decimal places (fractional shares confirmed)
+  price_per_share_usd: Decimal
+  cost_basis_usd: Decimal      # computed: shares × price
+
+class ESPPHoldingSnapshot(BaseModel):
+  statement_period_start: date
+  statement_period_end: date
+  offering_period_start: date
+  offering_period_end: date
+  plan_type: str               # e.g. "Section 423 Qualified"
+  payroll_deduction_pct: Decimal
+  ticker: str                  # "MSFT"
+  shares_held: Decimal         # cumulative total
+  price_at_close_usd: Decimal
+  market_value_usd: Decimal
+  cost_basis_total_usd: Decimal
+  unrealized_gain_loss_usd: Decimal
+  lots: list[ESPPLot]          # per-purchase entries
+  contributions_usd: Decimal   # payroll sum for period
+```
+
+### Edge Cases & Mitigations
+
+1. **Multi-currency:** Statement is 100% USD; USD→EUR conversion applied externally with daily FX rate.
+2. **Fractional shares:** Confirmed present (≥3 decimals); use `Decimal` type always.
+3. **Multiple lots per purchase:** A single quarterly ESPP purchase can generate 4+ "Conversion" rows in Activity section, each with distinct price and quantity — extractor must collect all.
+4. **Accumulativity:** Holdings section (page 4) shows cumulative total shares; Activity (page 5) shows only this period's deposits. Both needed for complete model.
+5. **Dividends & withholding:** Present in statement but not part of Phase 1 objective.
+
+### Effort Estimate (Banner)
+
+~2.75 days: schema (0.5d) + prompts (0.5d) + extractor (0.5d) + PII redaction expansion (0.25d) + tests (1d).
+
+---
+
+## 3. Market Data & Persistence — Backend
+
+### Price Source Decision
+
+**Primary: Stooq** (HTTP GET, CSV response, no auth)
+```
+GET https://stooq.com/q/d/l/?s=msft.us&d1=YYYYMMDD&d2=YYYYMMDD&i=d  → Date,Open,High,Low,Close,Volume
+GET https://stooq.com/q/d/l/?s=eurusd.us&d1=YYYYMMDD&d2=YYYYMMDD&i=d  → FX rate
+```
+- Fiable para 1 fetch/día sobre 1 ticker. Sin límite de tasa documentado a esta frecuencia. Cero dependencias de auth.
+
+**Fallback: yfinance** (Python lib, no API key)
+```python
+import yfinance as yf
+msft = yf.Ticker("MSFT").history(period="5d")["Close"].iloc[-1]
+```
+- If Stooq returns error/empty → yfinance as second line.
+
+**Future:** If source requirements evolve, abstraction allows pivot to Alpha Vantage, Finnhub, etc. (25–60 calls/day free tiers).
+
+### DB Schema (Shuri's Scope)
+
+#### `espp_lots` — Tax-lot style tracking
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | INTEGER PK | |
+| `connection_id` | FK → investment_connections | |
+| `import_run_id` | FK → import_runs | Traces back to source statement |
+| `purchase_date` | DATE NOT NULL | ESPP purchase date |
+| `shares` | NUMERIC(18,8) NOT NULL | Shares bought (fractional OK) |
+| `purchase_price_usd` | NUMERIC(18,4) NOT NULL | Price paid per share |
+| `cost_basis_usd` | NUMERIC(18,4) NOT NULL | Total cost (shares × price) |
+| `dedup_hash` | VARCHAR(64) UNIQUE | SHA-256 of natural key for idempotence |
+| `created_at` | TIMESTAMPTZ | |
+
+Index: `(connection_id, purchase_date)` for valuation queries.
+
+#### `price_cache` — Daily close + FX
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | INTEGER PK | |
+| `ticker` | VARCHAR(20) NOT NULL | "MSFT" |
+| `price_date` | DATE NOT NULL | |
+| `close_price_usd` | NUMERIC(18,4) | |
+| `fx_eur_usd` | NUMERIC(18,6) | EUR/USD (1 EUR = X USD) |
+| `close_price_eur` | NUMERIC(18,4) | Converted: close_price_usd × fx_eur_usd |
+| `source` | VARCHAR(30) | "stooq" | "yfinance" |
+| `fetched_at` | TIMESTAMPTZ | |
+
+Constraint UNIQUE: `(ticker, price_date)` — idempotent backfill.
+
+### Refresh Strategy: On-Request + DB Cache
+
+**No background scheduler** (simpler than APScheduler). Flujo en `GET /api/investments/portfolio`:
+1. Query `price_cache` for MSFT, most recent row.
+2. If `price_date` = today (or last business day) → use cached value.
+3. If stale or missing → fetch from Stooq (HTTP ~50ms) → insert `price_cache` row.
+4. If Stooq fails → return last known price with `price_stale: true` flag (graceful degradation).
+5. Compute: `current_value_eur = SUM(lots.shares) × close_price_eur`.
+
+**Advantages:**
+- Zero schedulers; survives Docker restarts (cache in PG, not in-memory).
+- Max 1 HTTP call to Stooq per day per ticker.
+- Portfolio never completely fails (stale price is better than null).
+
+### Idempotence
+
+Same pattern as transactions: SHA-256 of natural key `(connection_id, purchase_date, shares, purchase_price_usd)`. Inserción with `ON CONFLICT (dedup_hash) DO NOTHING`. Re-import of same PDF → no duplicate rows; counter incremented instead.
+
+**Critical normalization:** Fidelity PDFs may use European number format (comma decimal). Always normalize to float before hashing: `float(str(value).replace(",", ".")` with fixed precision.
+
+### Migration & Integration
+
+**Alembic migration 0014** (design, not yet written):
+- Create `espp_lots` and `price_cache` tables.
+- **Make `investment_connections.token_enc` NULLABLE** — Indexa continues `NOT NULL` at app layer; Fidelity ESPP omits token.
+- No breaking changes to existing live-API providers.
+
+**Provider ABC extensions** (Shuri):
+- Add `provider_type: str = "live_api"` (override `"statement_import"` in Fidelity).
+- Add `async def import_statement(parsed_data, connection_id, db) → int` (number of lots inserted).
+- Add `async def refresh_price_cache(tickers) → None` (optional hook).
+
+**`service.py` logic:**
+- Registry: `plugin_id → provider_instance` dict (not hardcoded Indexa).
+- Branch by `provider_type`:
+- `live_api`: decrypt token → call API → return portfolio.
+- `statement_import`: read lots from DB → fetch price → compute portfolio.
+
+---
+
+## 4. Three-Phase Plan (Vertical Slices)
+
+### Phase 1: Import PDF → Save Lots → Display Holdings
+
+**Objective:** Upload Fidelity ESPP statement → see holdings and cost basis.
+
+| Task | Agent |
+|------|-------|
+| PDF parser + extractors | Banner |
+| DB tables + migration | Shuri |
+| POST endpoint (`/investments/fidelity/import`) | Shuri |
+| FidelityESPPProvider (`provider_type="statement_import"`) | Shuri |
+| Register plugin in registry (backend + frontend) | Shuri + Vision |
+| Upload wizard (file picker + review extracted data + confirm) | Wanda + Vision |
+| Validate PDF privacy handling | Romanoff |
+| Unit tests + idempotence | Barton |
+
+**Demo:** "Upload PDF → see holdings with total shares and cost basis."
+
+### Phase 2: Daily Price → Current Value + Gain/Loss
+
+**Objective:** See current value in EUR, updated daily, with gain/loss metrics.
+
+| Task | Agent |
+|------|-------|
+| Market data service (Stooq primary + yfinance fallback) | Shuri |
+| `price_cache` table + on-request fetch | Shuri |
+| Portfolio computation: lots × price × FX | Shuri |
+| Daily refresh (post–market close) | Rocket (if scheduler added) |
+| Fidelity holdings view (KPIs: current value, gain/loss, %) | Vision |
+| Valuation + FX tests | Barton |
+
+**Demo:** "See that my MSFT ESPP holdings are worth €X today (+Y% gain)."
+
+### Phase 3: Historical Evolution + Multi-Statement
+
+**Objective:** See investment growth over time; import multiple statements.
+
+| Task | Agent |
+|------|-------|
+| Backfill MSFT price history (from first lot date) | Shuri |
+| Value series: lots × historical price → time series | Shuri |
+| Evolution chart (reuse Indexa component) | Vision |
+| Multi-statement import + cumulative lots | Shuri + Banner |
+| Import history view (uploaded statements, dates) | Wanda + Vision |
+| Series + multi-import tests | Barton |
+
+**Demo:** "See a chart of how my MSFT ESPP has grown since first purchase."
+
+---
+
+## 5. Open Questions for Owner
+
+1. **Statement acumulativity:** Does each PDF show all holdings cumulative (replace prior state) or only period deposits (accumulate)?
+2. **Currency display:** Show EUR (converted, consistent with Indexa) or USD native + EUR converted side-by-side?
+3. **Price timeliness:** Previous-day close sufficient, or need intraday (~15 min delay)?
+4. **ESPP discount tracking:** Track the ~15% discount separately from market gain (fiscal relevance)?
+5. **Disposals:** Will you ever sell shares (FIFO/LIFO logic) or accumulate-only (simpler model)?
+6. **PDF format changes:** If Fidelity updates layout, the review step in the wizard is the safety net. Acceptable?
+
+---
+
+## 6. Privacy & Security Flags for Romanoff
+
+⚠️ PII present in statements: full name, postal address, **participant number** (pattern: `I` + 8 digits = employee ID). 
+
+**Requirements:**
+1. **Redact** full name, address, participant number **before any LLM call** — extract locally, parse text, mask PII, then call LLM.
+2. **Never store original PDF** in database; only structured extracted data.
+3. **Participant number pattern:** Expand `redact_pii()` to match and mask this identifier.
+4. Validate that the flow (parse local → redact → LLM with sanitized text) meets security policy.
+
+---
+
+## 7. Risk Summary
+
+| Risk | Likelihood | Impact | Mitigation |
+|------|------------|--------|------------|
+| Fidelity PDF layout change | Low–Medium | Parser breaks | Hybrid parse+LLM + review step in wizard |
+| yfinance endpoint rotation (Yahoo scraping) | Low | Price fetch fails | Stooq primary; yfinance fallback; abstraction for future swap |
+| Multi-lot per purchase edge case | Low | Incorrect total shares | Extractor tested against real statement; review step catches errors |
+| Fractional share precision loss | Very Low | Rounding error | Enforce `Decimal` type; fixed-point arithmetic |
+
+---
+
+## Summary Table
+
+| Aspect | Answer |
+|--------|--------|
+| **Viable?** | ✅ Yes |
+| **Insensate?** | ❌ No — standard pattern |
+| **New provider type needed?** | ✅ Yes — `statement_import` coexists with `live_api` |
+| **Phases** | 3 (import → price → evolution) |
+| **DB tables** | `espp_lots`, `price_cache`, migration 0014 |
+| **Price source** | Stooq primary + yfinance fallback (no auth) |
+| **Extraction strategy** | Hybrid parse + LLM structured output |
+| **Effort (design)** | ~2.75d Banner + ~3–4d Shuri + UX/tests in Phase 1 |
+| **Owner blockers?** | Scope decisions: Phase 1 depth, sell logic, currency display |
+
