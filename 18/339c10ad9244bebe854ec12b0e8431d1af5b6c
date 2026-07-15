@@ -1,0 +1,550 @@
+frontend/src/pages/FinancesOverviewPage.tsx
+  s_783ec39de29055::t_ff0d6a376112eb 57-68
+  s_a2ff46e539a0fa::t_c7f083ab95a335 2
+  s_a2ff46e539a0fa::t_41cfe095190d19 136-141
+  s_8cf4831cf56a5c::t_28c7d7b6618b66 1,3,11-14,39-40,44-47,49-56,113,116-123,126-135,142-171,174-194,197-200,202-210
+  s_783ec39de29055::t_a681b51a2f188c 124-125
+  s_783ec39de29055::t_fd874b45d1caad 172-173
+  s_783ec39de29055::t_9b36999ada5d34 48
+  s_a10dd2c333192e::t_9fb38b1bec4cf1 4-10,15-32,34-38,41-43,69-112,114-115,195-196,201,211-212
+  s_a2ff46e539a0fa::t_abb4942df76845 33
+frontend/src/i18n/index.ts
+  s_4a5e32c2e88a9d::t_ca58d0be8b155c 542
+  s_a10dd2c333192e::t_1f1a9f764ca4b9 499-510
+  s_8cf4831cf56a5c::t_8848c7aeb5ae39 546-554
+  s_92c6e501a8912b::t_9a36eba7583b5b 544-545
+  s_585478d4b86fc6::t_1a060d0df7e6ec 543
+  s_94fbc3d541bf72::t_595b31b12698d3 558-560
+  s_783ec39de29055::t_08f8f0b23447c6 349
+  s_a2ff46e539a0fa::t_c3c328f78b8aad 555-557
+  s_dcb205366e3309::t_72f20ccbb6b8e2 511-541
+  s_a10dd2c333192e::t_d198354cf108f8 496-498
+  s_8b6b43c529dcc0::t_fa85461804a2fb 491-495
+src/finlytics/investments/fidelity_csv.py
+  s_ff03e0d6ffc608::t_9f3adec9ca3bb2 1-204
+src/finlytics/investments/base.py
+  s_e99d4d6f51e1eb::t_8edee51b525bec 112-114,134-140
+Dockerfile
+  s_9902207d58a897::t_0267092703e944 46-47
+  s_9902207d58a897::t_aaf4206a40761f 2-16
+src/finlytics/investments/fidelity.py
+  s_e99d4d6f51e1eb::t_dc2885462bb353 1-211
+alembic/versions/0014_add_fidelity_espp.py
+  s_e99d4d6f51e1eb::t_6a364f3aa12c86 1-134
+src/finlytics/investments/service.py
+  s_44c3cbff2dbc7c::t_433d923de1530b 97-157,160-188,190-202,204-259
+  s_e99d4d6f51e1eb::t_b1af3baf081816 496
+  s_e99d4d6f51e1eb::t_f452b027c7ccd4 302
+  s_e99d4d6f51e1eb::t_2653cd34e2463a 271
+  s_44c3cbff2dbc7c::t_7e11c1e158a388 20,35-47
+  s_ff03e0d6ffc608::t_0763747a6feb08 54,61-68,70-75
+  s_44c3cbff2dbc7c::t_c4e8ad9a567894 5-11,15
+  s_44c3cbff2dbc7c::t_699795b22fbaef 404-408,411-418,444,453-458,462,464-465,467-483,488-492,525-527,535-541,545-546,553-572
+  s_44c3cbff2dbc7c::t_06a49086b82db3 58-59
+  s_e99d4d6f51e1eb::t_9bd7705466f9c0 447-448
+  s_44c3cbff2dbc7c::t_3fa621757404eb 493
+  s_8b6b43c529dcc0::t_3000e048fcf245 60
+tests/api/conftest.py
+  s_d29fdd30e0a943::t_1a25635e069954 43
+src/finlytics/api/fidelity.py
+  s_390f6f0807fa35::t_53533b60bc7fbb 1-9,11-13,16-32,34-38,40-114,119-120,122-123,133-140,144-159,161-173,267-354,357-410,412-422,428-490,493-511,514-521,541-562,568-609
+  s_8cbd9374d7d991::t_8e40e6d4670e1d 174-266
+  s_8cbd9374d7d991::t_6e8f16e763be50 33
+  s_8cbd9374d7d991::t_914420fdc22488 15
+  s_08963ca7f34f82::t_be0df7095d4a2c 512-513,522,531-532,534-540
+  s_8cbd9374d7d991::t_18494acb574434 10,14
+  s_2efd1e1c4c07f3::t_dbd7a360288ad5 39
+  s_8cbd9374d7d991::t_c1f932e98ab7b7 610-637
+  s_809f5ed4211e5c::t_9ad5a72777fcbe 355-356,411,423-427,563-567
+  s_edc44e4cc010a3::t_1cf7fa1fcc58a1 491-492
+  s_2efd1e1c4c07f3::t_d97914aeffd2c5 523-530,533
+  s_edc44e4cc010a3::t_7fb48b3ae8c6de 115-118,121,124-132,141-143,160
+frontend/src/App.tsx
+  s_a10dd2c333192e::t_c6333ee1e7a8f4 43
+  s_a10dd2c333192e::t_2838df527a356c 17
+  s_a10dd2c333192e::t_a237674742f3ba 16
+  s_a10dd2c333192e::t_f1ea04f96cd7b0 18
+  s_8b6b43c529dcc0::t_281bcbb62acbc7 46-49,51,60
+src/finlytics/investments/market_data.py
+  s_390f6f0807fa35::t_dec649e7be0a35 2-4,6-7,9-13,16-23,25-35,47,49-52,54-65,67-73,174-175,177-252,254-257,263,268-270,272,280,286,292,294-295,297-300,302,305,311,315,321,323,356,380,390,404-408,410-416,419-458
+  s_2efd1e1c4c07f3::t_10a788a25263c6 273-279,281-284,287-291,293,296,301,303-304,306-310,312-314,316-320,322,324-355,357-379,381-389,391-403
+  s_08963ca7f34f82::t_15407e2bcfe43d 1,5,8,14-15,24,36-46,48,53,66,74-173,176,253,258-262,264-267,271,285,409,417-418
+frontend/src/pages/AnalyticsPage.tsx
+  s_470c14cb87814a::t_fcc17ee508f391 80,83-90
+  s_a10dd2c333192e::t_55589a067336f4 81
+tests/api/test_summary.py
+  s_cc9cb4148dd473::t_63aa98bc8c0207 390-490
+frontend/src/pages/Dashboard.tsx
+  s_94fbc3d541bf72::t_c8c8cb540034e2 81
+  s_94fbc3d541bf72::t_670cfaeb80421f 63-64
+  s_a2ff46e539a0fa::t_9c3e9f7c713519 87,90
+  s_94fbc3d541bf72::t_fc9b29be15a6e9 2-3,6
+  s_a2ff46e539a0fa::t_006b8d4b3e4256 5,24-28,34-44,48,50,66-68,84,86,88-89,91-101,103,105,110-115,121-140
+  s_8cf4831cf56a5c::t_9b6a2ad354be25 11-12,29-31,51,57-61,107-109,150,156,163,175-181
+  s_94fbc3d541bf72::t_26220546f76611 165-172
+  s_8b6b43c529dcc0::t_5896ea5724b29c 32-33
+src/finlytics/app.py
+  s_390f6f0807fa35::t_66197ae73ebf22 44
+  s_390f6f0807fa35::t_c57bf11a607427 79
+frontend/src/investments/views/FidelityView.tsx
+  s_92c6e501a8912b::t_e90511dd229125 736,739-756
+  s_4a5e32c2e88a9d::t_dc3de77c7acb3a 639,650-654,675-679,685-699
+  s_92c6e501a8912b::t_bebfba9ca8030c 93
+  s_94fbc3d541bf72::t_d8d5e2d3d5f45e 116-119
+  s_4a5e32c2e88a9d::t_a002e6c4016ff1 54-56
+  s_4a5e32c2e88a9d::t_a761e5927e06b8 798-802
+  s_4a5e32c2e88a9d::t_523245a86df920 890-919
+  s_94fbc3d541bf72::t_f0bad349184498 3
+  s_94fbc3d541bf72::t_78aa2ba5724e7c 71-73
+  s_94fbc3d541bf72::t_aecf407f9c4db4 9,15
+  s_92c6e501a8912b::t_872d456b8575b3 796-797,803
+  s_4a5e32c2e88a9d::t_2a2865e348c401 74-81
+  s_92c6e501a8912b::t_bfb2198e17aeba 1
+  s_92c6e501a8912b::t_d00bb0f9ad9f03 648-649,655
+  s_4a5e32c2e88a9d::t_8bb929d65112e7 580-635
+  s_809f5ed4211e5c::t_50e6eabc3b1416 439,774
+  s_4a5e32c2e88a9d::t_56a179a791f0b3 129-182
+  s_dcb205366e3309::t_dd257c068dea76 2,4-8,10-14,16-53,57-70,82-92,94-115,120-128,183-258,260-349,359-438,440-579,636-638,640-647,656-674,680-684,700-735,737-738,757-773,775-795,804-889,920-922
+  s_92c6e501a8912b::t_ced0dc02255a6c 259
+  s_94fbc3d541bf72::t_c99fa99425d5cf 350-358
+frontend/src/i18n/es.ts
+  s_92c6e501a8912b::t_406a923e8477d4 532-533
+  s_783ec39de29055::t_4570566fdc76ee 337
+  s_4a5e32c2e88a9d::t_3aa87eefa4a5b1 529-530
+  s_585478d4b86fc6::t_c24b7122e0a286 531
+  s_8cf4831cf56a5c::t_7f84f9adc5dd5f 534-542
+  s_94fbc3d541bf72::t_cb203da628f71b 546-551
+  s_a2ff46e539a0fa::t_bb2026b46af25e 543-545
+  s_dcb205366e3309::t_a715b79e31cd60 499-528
+  s_a10dd2c333192e::t_bd76a91ab04aee 487-498
+  s_a10dd2c333192e::t_2a9716a9a5bcf2 484-486
+  s_8b6b43c529dcc0::t_1a1f14a03f7dce 479-483
+frontend/src/investments/registry.ts
+  s_dcb205366e3309::t_ef6e3c58d18895 16-21
+  s_dcb205366e3309::t_d4cb6b85e0ade2 13-15
+  s_dcb205366e3309::t_6deeaad3b1f1d2 22
+  s_8b6b43c529dcc0::t_11b257fa31f5aa 1-12
+tests/api/test_fidelity.py
+  s_8cbd9374d7d991::t_93c8b2d67d2196 824-903
+  s_2efd1e1c4c07f3::t_c47525aa815f5d 46
+  s_1af3e65847cf0a::t_c8108b53356cb1 1-45,47-392,394-487,489-605,613,615-617,625-659,662-670,673-683,686-695,698-701,733-823
+  s_1af3e65847cf0a::t_82d7ddff646ed2 612,614
+  s_809f5ed4211e5c::t_964019e743bf86 393,488,606-611,618-624
+  s_2efd1e1c4c07f3::t_1cf851b9546b90 660-661,671-672,684-685,696-697,702-732
+tests/investments/test_portfolio_cache.py
+  s_44c3cbff2dbc7c::t_867c5c3456a19e 1-322
+.github/workflows/docker-deploy.yml
+  s_1507fba0a153eb::t_d29b8f0320a733 111-123
+frontend/src/api/mock.ts
+  s_8cf4831cf56a5c::t_09aec544cd100c 446-456,466
+  s_8cf4831cf56a5c::t_eeea4663c66f59 476
+frontend/src/pages/InvestmentsLandingPage.tsx
+  s_bc016fd38d5705::t_33df5d1f9883df 124,127-129
+  s_bc016fd38d5705::t_d6937d98420283 280-284,295,297-304
+  s_bc016fd38d5705::t_24f71c72813ca4 119
+  s_bc016fd38d5705::t_502bfdbf6c66c0 85-89
+  s_a10dd2c333192e::t_c69383eab354e9 3-84,90-118,120-123,125-126,130-279,285-294,296,305-314
+  s_a10dd2c333192e::t_a17cf1a574b134 1-2
+frontend/src/components/ImportSourcePicker.tsx
+  s_8cf4831cf56a5c::t_53ef96e475ed8c 1-94
+src/finlytics/api/investments.py
+  s_7470d7ea949002::t_6f54e65a15a650 13-14,21-22,28-29,33,37,40
+  s_d29fdd30e0a943::t_2b65f9bf8b4fcd 55-61,66-67
+  s_44c3cbff2dbc7c::t_6dde9acc2991a0 15
+  s_44c3cbff2dbc7c::t_c43e940aab53a7 188,196-199,202-204
+  s_1990b25f224b60::t_05556471f334e2 333,353,424,430
+  s_7470d7ea949002::t_07514cedeb1806 211-332,334-352,354-423,425-429,431-441
+  s_22bdf53cc5a73d::t_c4bd592269dc48 62
+  s_d29fdd30e0a943::t_d8a1f945b561b0 85
+  s_d29fdd30e0a943::t_99c8467ecba505 75-77,81,83,87-88
+  s_d29fdd30e0a943::t_e19eed636aa4cf 16
+  s_7470d7ea949002::t_5da774fbd7de93 41
+  s_d29fdd30e0a943::t_ad00b2302e88f4 68
+frontend/src/components/SpendingHeatmap.tsx
+  s_94fbc3d541bf72::t_a5756f7aa26268 103-107,169-175,177-182,184-214,254-273,276-281,286-289,292-296,298,300,302-313,315,318-352,357-369,373
+  s_783ec39de29055::t_f0309a64871b8c 221-228
+  s_783ec39de29055::t_09477dc1e8cd1d 10-11
+  s_783ec39de29055::t_3367d461feacfe 274-275,282-285
+  s_783ec39de29055::t_e0a368ee7bf1b9 353-356
+  s_783ec39de29055::t_e0b399d8fd19cc 110
+  s_94fbc3d541bf72::t_2e8a981b2dc149 215-217
+src/finlytics/api/summary.py
+  s_cc9cb4148dd473::t_f951b32d66da2f 16
+  s_cc9cb4148dd473::t_808caf9de5304b 164-176
+frontend/src/api/client.ts
+  s_94fbc3d541bf72::t_1092267694cb19 12
+  s_a2ff46e539a0fa::t_42ff5f1006de6e 537,539
+  s_94fbc3d541bf72::t_363c3c59af3d70 522,524-529,533,543
+  s_a2ff46e539a0fa::t_30bf59e604049c 534,538,540,542
+  s_a10dd2c333192e::t_9f6f7f8d010c08 523,530-532
+  s_dcb205366e3309::t_64979191cb8932 11
+  s_dcb205366e3309::t_ec1f2e868b7db4 486-521
+  s_a2ff46e539a0fa::t_f13d622556ba84 13
+  s_a2ff46e539a0fa::t_8294af7c5dd438 535-536,541
+src/finlytics/api/schemas.py
+  s_809f5ed4211e5c::t_f6988e23700709 585-586,604
+  s_44c3cbff2dbc7c::t_ba87f1248aa3cc 458-460
+  s_22bdf53cc5a73d::t_d1da9e9b8ca26d 423
+  s_1990b25f224b60::t_ecc4809e0a0024 674,680
+  s_7470d7ea949002::t_a6ee911bf1d39d 644-645,654-673,675-679,681-695
+  s_390f6f0807fa35::t_0f90f63b950264 577-584,587-603,605-643
+  s_cc9cb4148dd473::t_fd4b7c24f3507d 207-212
+  s_8cbd9374d7d991::t_e330f8b415ec35 646-653
+.dockerignore
+  s_9902207d58a897::t_76d3f403cdda1b 20
+frontend/src/index.css
+  s_8cf4831cf56a5c::t_158f3c8c1263c5 199,213,1001,5725-5840
+  s_783ec39de29055::t_d3208efa3742d0 935-955
+  s_94fbc3d541bf72::t_2b2d638014470c 813-814,839-846,848,850,852-861,863-864,876,910-911,918,920-924,956-1000,1004-1005,1020-1025
+  s_783ec39de29055::t_9af2c9e6c5cba0 1002-1003
+  s_470c14cb87814a::t_537447af9b0e59 201-208
+  s_dcb205366e3309::t_01c490b661ec2f 4630-4697
+  s_94fbc3d541bf72::t_feb94dd7fbbac1 4593-4629
+  s_a10dd2c333192e::t_1bcf517c839dee 5633-5724
+  s_8cf4831cf56a5c::t_456ea3a26efe16 196-198
+  s_94fbc3d541bf72::t_3008213606dece 1026
+  s_dcb205366e3309::t_cf522c3490255f 4698
+  s_8b6b43c529dcc0::t_524de924a2798a 194-195,200,209-212,5510,5627
+frontend/src/components/Layout.tsx
+  s_470c14cb87814a::t_19dd5c805e0300 153-155,157-192
+  s_470c14cb87814a::t_64a69689b84cba 5-7
+  s_8cf4831cf56a5c::t_661fe40d01cd4e 56-60
+  s_470c14cb87814a::t_ceb0d3a89a36a0 208-229,232-245,248-266,269-282
+  s_470c14cb87814a::t_b8261f5cbbd038 33-47
+  s_a10dd2c333192e::t_c9f4ea27874413 24-32,125-152,207,230-231,246-247,267-268
+  s_470c14cb87814a::t_662abb398a11c6 48
+  s_8cf4831cf56a5c::t_469ccb934816e1 61
+  s_8b6b43c529dcc0::t_b6963566212d19 2,19
+alembic/versions/0015_add_portfolio_cache.py
+  s_44c3cbff2dbc7c::t_3a6cb85e802065 1-47
+tests/investments/test_fidelity_provider.py
+  s_edc44e4cc010a3::t_8ab862528f1508 345-346,352-353,355-356,363-364
+  s_1af3e65847cf0a::t_e88b4560a33f15 1-344,347-351,354,357-362,365-403
+frontend/src/i18n/en.ts
+  s_92c6e501a8912b::t_e69c6fba7a2a27 532-533
+  s_a10dd2c333192e::t_e0ee3e418d2e50 487-498
+  s_8cf4831cf56a5c::t_4bca2fa25473c7 534-542
+  s_a2ff46e539a0fa::t_9e3f207251318d 543-545
+  s_dcb205366e3309::t_19eb1a21109760 499-528
+  s_783ec39de29055::t_eeac58347d928a 337
+  s_4a5e32c2e88a9d::t_4f24088caced76 529-530
+  s_94fbc3d541bf72::t_6b7b15cc5980a9 546-551
+  s_585478d4b86fc6::t_b99308d812e642 531
+  s_a10dd2c333192e::t_752cfe20fb3186 484-486
+  s_8b6b43c529dcc0::t_af47713624b100 479-483
+src/finlytics/db/models.py
+  s_e99d4d6f51e1eb::t_a5cbdf416fe7ef 320-435,471
+  s_e99d4d6f51e1eb::t_9bcd8bc43a174d 303-305
+  s_44c3cbff2dbc7c::t_4b37518f2e024a 438-470
+  s_44c3cbff2dbc7c::t_7a46a736bdae8c 5-15
+  s_e99d4d6f51e1eb::t_2c5d053b4d368d 472-473
+  s_8b6b43c529dcc0::t_654394e8f75bc4 436-437
+pyproject.toml
+  s_efa906de9ae3fa::t_3df453470915f5 25
+frontend/src/components/InvestmentSnapshotCard.tsx
+  s_8cf4831cf56a5c::t_9c6e0df10d9562 1-71
+tests/api/test_investments.py
+  s_e99d4d6f51e1eb::t_b71f62b99adf6e 329
+  s_d29fdd30e0a943::t_fd6d04616fbf82 88-90,94,97
+  s_d29fdd30e0a943::t_d1155f30cf29a4 937,958
+  s_d29fdd30e0a943::t_8668965359a03f 106
+  s_7470d7ea949002::t_1f64bb56073c5b 2070-2257,2267-2308,2311-2341,2348-2354
+  s_44c3cbff2dbc7c::t_ce969a641b8dad 1702-1703,1707
+  s_1990b25f224b60::t_acd93af705595b 34,72-73,76,2258-2266,2309-2310,2342-2347
+  s_7470d7ea949002::t_9944b126fe265e 12,23-24,32
+  s_44c3cbff2dbc7c::t_09de12afcf7ee7 858-859,863
+  s_e99d4d6f51e1eb::t_b8c395ecb0a10a 900-901
+  s_e99d4d6f51e1eb::t_c08f57cff8d7b6 359
+  s_d29fdd30e0a943::t_842df6d4d00130 936,947-957,959-972
+  s_22bdf53cc5a73d::t_15bce282d392a4 35
+  s_22bdf53cc5a73d::t_38c9ef85457369 121-128
+  s_e99d4d6f51e1eb::t_adf43da010f058 1754-1755
+frontend/src/api/types.ts
+  s_a10dd2c333192e::t_b57b213080190e 533-553,557-561,565-568
+  s_a2ff46e539a0fa::t_ae803af91c3378 94-98
+  s_dcb205366e3309::t_d483d97389951f 467-469,477-502,504-523,527-532
+  s_809f5ed4211e5c::t_69f762982692a4 503,524-526
+  s_bc016fd38d5705::t_7f10fae5f8c9cb 554-556,562-564
+  s_94fbc3d541bf72::t_dde6dde103f5e8 470-476
+  s_8cf4831cf56a5c::t_366e8a11eed270 365-366
+tests/investments/test_market_data.py
+  s_2efd1e1c4c07f3::t_320d233b079dd8 561-918
+  s_edc44e4cc010a3::t_a2f891f4c6b14f 502,504-505,514,516-517,519,525-543
+  s_edc44e4cc010a3::t_60400b3b5eaaf4 11
+  s_edc44e4cc010a3::t_f26a729fdd5768 444-445
+  s_390f6f0807fa35::t_61f87733184163 1-6,12-17,19,21,23-24,38-50,133-140,142-185,192,194-220,222-226,228-247,249-254,404-443,446-469,471,473-474,476,481-501,503,506-513,515,518,520-524,544-560
+  s_08963ca7f34f82::t_01c8005f9af63e 7-8,18,22,25,27-33,36,51-132,141,186-191,193,221,227,248,255-403
+  s_2efd1e1c4c07f3::t_608010fba90906 9-10,20,26,34-35,37
+  s_edc44e4cc010a3::t_ae12d2879bff0d 470,472,475,477-480
+frontend/src/pages/ConnectorsPage.tsx
+  s_585478d4b86fc6::t_9ac7f32f7746f3 2
+  s_a2ff46e539a0fa::t_42d8aa64d51900 96,114,127
+  s_a2ff46e539a0fa::t_af3c91114c2cc9 6,9-14,17-21,85
+  s_a2ff46e539a0fa::t_247d6648c68e2e 62,79
+  s_585478d4b86fc6::t_d2a0dafe62a092 54-61,63-78,80-84
+  s_585478d4b86fc6::t_0f8c5500dd5d01 153
+  s_a2ff46e539a0fa::t_d25f770e7b411d 158
+  s_a2ff46e539a0fa::t_f24b0fed8e21b9 86
+tests/investments/test_fidelity_csv.py
+  s_ff03e0d6ffc608::t_de9632195b48df 1-327
+frontend/src/investments/PluginViewWrapper.tsx
+  s_1970efd7f8075d::t_4dee4f5f9498e0 1-44
+frontend/src/investments/views/IndexaView.tsx
+  s_1970efd7f8075d::t_1f2dc1e3d4ab84 8-11,83
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "18339c10ad9244bebe854ec12b0e8431d1af5b6c",
+  "prompts": {},
+  "sessions": {
+    "s_08963ca7f34f82": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01P1oxgdV1hJmrysy1u2ChAi",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_1507fba0a153eb": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_011yaHwNtDiz3SjEWJ8HKzUQ",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_1970efd7f8075d": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "a68a76a9-4be7-4bd0-a287-e358a0225e5a",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_1990b25f224b60": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01KUV4S4wxYPkbeqHyvP8woY",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_1af3e65847cf0a": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_019cKhxvd2YMHcGSfdwj3bSV",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_22bdf53cc5a73d": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_015bZVYtLpfwkYAsTQE7X3PX",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_2efd1e1c4c07f3": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_013WvBrEGFZuGPjky16rCP65",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_390f6f0807fa35": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01Ta8HrwETag5YpVezGnRh7V",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_44c3cbff2dbc7c": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01KvLyEfqa5RbKzXJoGzadn5",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_470c14cb87814a": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01PTEvP53rQYBvx41KpTqT8L",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_4a5e32c2e88a9d": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01TCegVfQQtpVwebZGGwM6h5",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_585478d4b86fc6": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01J6eXLTjigVxocc2BVkQpT4",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_7470d7ea949002": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_016vVpZWh2q9VSu8kpbATWHc",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_783ec39de29055": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_015176WetbVaRxyjMVEJKoUj",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_809f5ed4211e5c": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_011zBTCgc5iZEE7w9fS6GG9q",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_8b6b43c529dcc0": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "5d2e8110-bbaf-485a-a220-90d80cac9d2e",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_8cbd9374d7d991": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01Xp9WL1JJjf98Acm7P9h6yS",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_8cf4831cf56a5c": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01SX54einTCV23zTxM6dBXUy",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_92c6e501a8912b": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01VsGJazPo9S543bNF5FGdTb",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_94fbc3d541bf72": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01CYBTKQPHWPfNzwCgYhdKKb",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_9902207d58a897": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01FiKXHzg1F5HTkTzFaFBFtN",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_a10dd2c333192e": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_018dftxL7Nez9qjkbzgyN333",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_a2ff46e539a0fa": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_018QqcYZA5aWSdvbnSf8FNxD",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_bc016fd38d5705": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01Bxo1p2RQkzHhWkRgBSwK76",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_cc9cb4148dd473": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01WmTRZBfPQp6EEe3Ktyer2L",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_d29fdd30e0a943": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01NSBwcgCpAj7DhcbrgJHk8q",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_dcb205366e3309": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01HzcjKnaA9h9cTSVNA7nyGu",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_e99d4d6f51e1eb": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01GRumT9po1Fn1TW6uD2xzJy",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_edc44e4cc010a3": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_0148ac2VAiQrDvCmXoz48UKH",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_efa906de9ae3fa": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01FKdExaE7aEpcoZq3FzAozm",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_ff03e0d6ffc608": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_013CWYHcRnWxE9hmuXCzGZnF",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    }
+  }
+}
