@@ -1,19 +1,15 @@
-# ─── Stage 1: Build the React frontend ──────────────────────────────────────
-FROM node:20-alpine AS frontend-builder
-
-WORKDIR /frontend
-
-# Install dependencies (cache-friendly: only re-runs when lock file changes)
-COPY frontend/package.json frontend/package-lock.json ./
-RUN npm ci
-
-# Copy source and produce frontend/dist
-COPY frontend/ ./
-RUN npm run build
-# → output: /frontend/dist/
+# ─── Local-only Dockerfile ────────────────────────────────────────────────────
+# Build `frontend/dist` on the host first:
+#   cd frontend && npm run build
+# Then build the image with:
+#   docker compose -f docker-compose.local.yml build
+#
+# Exists because npm 10 fails inside Docker on the owner's machine
+# ("Exit handler never called" — bin-symlink bug).
+# CI/prod use the main Dockerfile which builds everything inside Docker.
 
 
-# ─── Stage 2: Python runtime ──────────────────────────────────────────────────
+# ─── Python runtime ───────────────────────────────────────────────────────────
 FROM python:3.12-slim AS base
 
 # Create non-root user
@@ -32,7 +28,6 @@ RUN mkdir -p src/finlytics && touch src/finlytics/__init__.py && \
 RUN mkdir -p /app/data/uploads && chown -R app:app /app/data
 
 # Copy full source and reinstall package (deps already cached).
-# These are the only layers that change on a normal code update.
 COPY src/ ./src/
 RUN pip install --no-cache-dir --no-deps .
 
@@ -40,8 +35,8 @@ RUN pip install --no-cache-dir --no-deps .
 COPY alembic.ini seed.py ./
 COPY alembic/ ./alembic/
 
-# Copy the compiled React SPA from the frontend stage
-COPY --from=frontend-builder /frontend/dist ./frontend/dist
+# Copy the pre-built React SPA from the host (built with: cd frontend && npm run build)
+COPY frontend/dist ./frontend/dist
 
 # Entrypoint: runs migrations + seed → exec uvicorn
 COPY docker-entrypoint.sh /docker-entrypoint.sh

@@ -1,6 +1,8 @@
 services:
   api:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.local
     image: drdonoso/finlytics
     restart: unless-stopped
     ports:
