@@ -4,6 +4,15 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260715.02] - 2026-07-15
+
+- Restore full multi-stage Dockerfile (Node 20 frontend-builder stage + Python runtime); CI/prod are self-contained again
+- Revert .dockerignore: re-add frontend/dist/ so the dist is never sent to the Docker build context
+- Remove Node.js + frontend pre-build steps from docker-deploy.yml; the Dockerfile handles it
+- Add Dockerfile.local (host-prebuilt frontend) + update docker-compose.local.yml to use it; workaround for npm 10 crash-in-Docker on owner's machine
+- Add AGENTS.md documenting the two-Dockerfile convention
+
+
 ## [20260715] - 2026-07-15
 
 - Fidelity ESPP CSV connector: import wizard, ESPP lots, daily Yahoo Finance pricing + FX conversion, evolution chart, KPIs (unrealized gain, ESPP discount, current value)
