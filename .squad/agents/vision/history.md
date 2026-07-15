@@ -621,3 +621,84 @@ Inversiones volvió de NavLink directo a sección expandible (sidebar-section). 
 
 #### Grupos colapsables en Settings accordion
 Convertidos los 4 grupos (Datos/Reglas/Sistema/App) de <span className="sidebar-group-label"> a <button className="sidebar-group-label sidebar-group-toggle"> con aria-expanded y sidebar-arrow. Estados: sgData/sgRules/sgSystem/sgApp (useState(true) — expandidos por defecto). CSS nuevo: .sidebar-group-toggle con display:flex, justify-content:space-between, width:100%, background:none, border:none, cursor:pointer. Build: 0 TS errors.
+
+### 2026-07-15 — Inicio/Finanzas split + InvestmentSnapshotCard + ImportSourcePicker + batch fixes
+
+**Fecha:** 2026-07-15T16:20:19+02:00  
+**Tarea:** Batch de 5 items de feedback del owner (DrDonoso). Implementación de la propuesta MOVE+REPLACE de Wanda para Inicio vs Finanzas.
+
+---
+
+#### Items implementados
+
+| # | Item | Cambios |
+|---|---|---|
+| 1 | Quitar "Resumen" de Fidelity en Connectors | `ConnectorsPage.tsx`: eliminado `<Link to="/investments/fidelity-espp">` en estado connected. Card connected muestra solo badge + desconectar. |
+| 2 | Settings groups collapsed por defecto | `Layout.tsx`: `sgData/sgRules/sgSystem/sgApp` → `useState(false)` (antes `true`). |
+| 3 | Split Inicio/Finanzas (MOVE+REPLACE) | Dashboard reescrito como hub cross-domain; FinancesOverviewPage ampliado con análisis completo. |
+| 4 | Import en Finanzas | `FinancesOverviewPage.tsx` — añadidos `ImportLauncher` + `ImportModal` + `refreshKey` + `toast`. |
+| 5 | Inicio Import → picker multi-fuente | Botón Importar abre `ImportSourcePicker` (data-driven vía `import_route`). |
+
+---
+
+#### Inicio (Dashboard.tsx) — ahora hub cross-domain
+
+**Quitado:** `GlobalFilterBar`, `SpendingByCategory`, `TopMerchants`, `SpendingHeatmap`, `CategoryMovers`, todo estado de filtros, fetches de previous-period, unfiltered-overview, `getByCategory`.
+
+**Añadido:**
+- `currentMonthRange()` helper — siempre muestra el mes en curso (a diferencia de `defaultRange()` que devolvía el mes anterior).
+- `InvestmentSnapshotCard` — nuevo componente abajo del dashboard-header.
+- `ImportSourcePicker` — modal con fuentes de importación antes de abrir el file picker.
+
+**Mantenido:** `KpiCards` (compact, sin `previousOverview` — vista simplificada), botón "Ver transacciones", botón "Importar" (ahora abre el picker).
+
+---
+
+#### Finanzas (FinancesOverviewPage.tsx) — análisis completo de cash-flow
+
+**Añadido:** `SpendingHeatmap`, `CategoryMovers`, `ImportLauncher`, `ImportModal`, `refreshKey`, `toast`, botón "Importar" en `dashboard-header-actions`. El `refreshKey` dispara re-fetch de overview + byCategory al importar (igual que Dashboard).
+
+**Mantenido:** `GlobalFilterBar`, `KpiCards` con `previousOverview`, `SpendingByCategory`, `TopMerchants` — con cross-filter completo.
+
+---
+
+#### Nuevos componentes
+
+**`InvestmentSnapshotCard.tsx`** (`src/components/`)
+- Llama `getCombinedOverview()` al montar.
+- Estados: loading / error / empty (sin providers → "Sin inversiones conectadas" + Link a /investments) / populated (total_value_eur + breakdown por provider).
+- Muestra "—" si `value_eur === null` (helper `fmtEur`).
+- CSS: clases `inv-snapshot-*` añadidas al final de `index.css`.
+- Link "Ver inversiones →" siempre visible en el header.
+
+**`ImportSourcePicker.tsx`** (`src/components/`)
+- Modal data-driven: fuente 1 siempre = extractos bancarios (llama `onStatements`), fuentes N = plugins con `import_route !== null` (fetches `getInvestmentPlugins()` y filtra).
+- Navegación: `navigate(p.import_route!)` para rutas de plugins.
+- Cierre por Escape, click en backdrop, o botón ✕.
+- CSS: clases `import-picker-*` añadidas al final de `index.css`.
+
+---
+
+#### Tipo `InvestmentPlugin` — campo `import_route`
+
+`api/types.ts`: añadido `import_route: string | null` (Shuri lo añade en backend en paralelo).
+`api/mock.ts`: todos los entries existentes actualziados con `import_route: null`. Añadida entry `fidelity-espp` con `import_route: '/investments/fidelity-espp'` para que el mock refleje el comportamiento real.
+
+---
+
+#### i18n — 7 nuevas claves
+
+`invSnapshotTitle`, `invSnapshotNoConnections`, `invSnapshotGoTo` (InvestmentSnapshotCard).
+`importPickerTitle`, `importPickerStatements`, `importPickerStatementsDesc`, `importPickerClose` (ImportSourcePicker).
+
+---
+
+#### Principio clave aprendido
+
+`defaultRange()` devuelve el **mes anterior** (no el actual). Para una vista fixed de "mes actual" hay que calcular el range con `currentMonthRange()` inline o extraerlo a utils.
+
+---
+
+#### Build
+
+`npm run build` → `tsc --noEmit && vite build` → **0 errores TypeScript, 0 warnings CSS**. Chunk-size warning pre-existente presente.
