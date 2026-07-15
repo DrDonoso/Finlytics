@@ -366,3 +366,22 @@ JS constant: `INSTRUMENT_PALETTE` array (Vision adds to InvestmentsPage.tsx or s
 **Data:** `instrumentSlices` derived from `portfolio.holdings` (fund_name + current_value, sorted desc)
 
 **New i18n keys:** `invDonutAssetTitle` (Por clase de activo / By asset class), `invDonutInstrumentTitle` (Por instrumento / By instrument)
+---
+
+## 2026-07-15 — Fidelity ESPP Phase 1 UI: Pending Owner Preference
+
+**From Fury architecture & Banner findings:**
+
+**CSV-first MVP confirmed.** Fury has identified 3 key UI questions pending owner input:
+
+1. **Display preference:** How should Phase 1 UI present Fidelity ESPP?
+   - Option A: KPI cards (estilo Indexa) — valor actual, gain/loss %, total cost basis
+   - Option B: Table view — per-lot detail (date acquired, shares, cost basis)
+   - Option C: Both
+
+2. **Currency:** EUR-only display (cost basis in EUR, values in EUR when Phase 2 live pricing arrives) or EUR + USD side-by-side?
+
+3. **Revaluation frequency:** On-demand (fetch live price when user navigates to page), hourly refresh, or daily?
+
+**No production UI work until owner sign-off.** Design phase ready; await decision gate.
+
