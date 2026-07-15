@@ -472,3 +472,67 @@ Claves i18n añadidas en `index.ts` / `es.ts` / `en.ts`:
 
 Aplicado en **ambos** lugares donde aparece el badge: tabla de lotes principal + tabla de preview del wizard de importación.
 
+---
+
+## Learnings
+
+### 2026-07-15 — Fidelity lots table: tooltip portal, sortable columns, pagination (vision-37)
+
+**Contexto:** Tres mejoras UX en `FidelityView.tsx` pedidas por David.
+
+#### Tooltip patrón reutilizado (IndexaView `createPortal` + `openTip`)
+
+Se descartó el atributo `title=` nativo (no visible para el dueño) y se migró al **patrón `openTip` de IndexaView** (`frontend/src/investments/views/IndexaView.tsx` ~línea 951):
+
+```tsx
+// Estado en el componente:
+const [openTip, setOpenTip] = useState<{ text: string; x: number; y: number } | null>(null)
+
+// En el badge (tabla de lotes Y preview de importación):
+<span
+  className={`fid-source-badge fid-source-badge--${lot.share_source.toLowerCase()}`}
+  tabIndex={0}
+  onMouseEnter={e => { const r = e.currentTarget.getBoundingClientRect(); setOpenTip({ text: ..., x: r.left + r.width / 2, y: r.top }) }}
+  onFocus={e => { const r = e.currentTarget.getBoundingClientRect(); setOpenTip({ ... }) }}
+  onMouseLeave={() => setOpenTip(null)}
+  onBlur={() => setOpenTip(null)}
+>
+  {lot.share_source}
+</span>
+
+// Portal al final del componente (antes de </main>):
+{openTip && createPortal(
+  <div role="tooltip" style={{ position: 'fixed', left: openTip.x, top: openTip.y - 10, transform: 'translate(-50%, -100%)', zIndex: 4000, ... }}>
+    {openTip.text}
+  </div>,
+  document.body,
+)}
+```
+
+Ventaja: `position: fixed` en un portal escapa el `overflow: hidden` de la tabla; se ve siempre.
+
+#### Columnas ordenables (FIX 2)
+
+- Tipo `LotsSortCol = 'date' | 'source' | 'shares' | 'costPerShare' | 'totalCost' | 'currentValue' | 'gain' | 'gainPct'`
+- Estado: `lotsSortCol` (default `'date'`) + `lotsSortDir` (default `'desc'`)
+- `sortedLots` useMemo con `switch` tipado; nulls siempre al final sin importar la dirección (retorno incondicional `1` / `-1` antes del `dir *`)
+- `handleLotsSortClick` resetea la página a 0 al cambiar de columna
+- `LotsSortArrow` component interno igual que IndexaView (retorna `▲`/`▼` o null)
+- Headers `th` con `inv-th-sortable`, `inv-th-sort-active`, `aria-sort`, `tabIndex={0}`, `onKeyDown`
+- La columna "Ganancia" se **dividió en dos**: `fidelityColGain` (€) + `fidelityColGainPct` (%) — permite ordenar cada métrica por separado
+
+#### Paginación (FIX 3)
+
+- `LOTS_PAGE_SIZE = 15` — constante a nivel de módulo
+- Estado `lotsPage` (número de página base-0), se resetea a 0 en cada cambio de sort
+- `pageLots` useMemo = `sortedLots.slice(page * 15, (page+1) * 15)`
+- Controles reutilizando la clase `.pagination` existente (CSS en `index.css` línea 751) + claves i18n `t.tablePrev` / `t.tableNext` / `t.tablePaginationInfo`
+- Los controles solo se renderizan si `lotsPageCount > 1` (evita controles innecesarios con pocos lotes)
+
+#### i18n añadido
+
+- `fidelityColGain` → renombrado a "Ganancia €" / "Gain €"
+- `fidelityColGainPct` → "Ganancia %" / "Gain %" (nuevo en `index.ts`, `es.ts`, `en.ts`)
+
+**Build:** `npm run build` (tsc --noEmit + vite build) → 0 errores TypeScript ✅
+
