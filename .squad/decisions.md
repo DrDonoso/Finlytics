@@ -1,5 +1,530 @@
 # Decisions Log
 
+## INTEGRATION STATUS: Fidelity ESPP Connector — Full Implementation Complete
+
+Fidelity ESPP connector implemented (all phases: foundation + parser + endpoints), Fury APPROVED, running in Docker at http://localhost:7777; repo code uncommitted pending owner test; Dockerfile npm-in-Docker workaround flagged for CI deploy follow-up.
+
+---
+
+## 2026-07-15T10:08:20+02:00 — Fidelity ESPP Connector — Implementation Wave 1–2 Decision Record
+
+**Coordinators:** Shuri (Backend), Banner (Parser), Vision (Frontend), Rocket (DevOps)  
+**Reviewers:** Fury (Architecture & Contract), Romanoff (Privacy), Barton (QA)  
+**Status:** APPROVED & RUNNING (Docker http://localhost:7777)  
+**Context:** Multi-wave implementation (foundation + parser + endpoints + frontend + tests + DevOps) with reviewer-driven contract fixes. Feature complete, awaiting owner CSV testing.
+
+---
+
+### Wave 1–A: Shuri Foundation — Database & Service Skeleton
+
+#### Decisiones de implementación (Shuri)
+
+**Cambio 1: `cost_basis NUMERIC(18,2)` (spec Wave 1)**
+- Spec Wave 1 says explícitamente `NUMERIC(18,2)`.
+- **Decisión:** Use 18,2 according to task spec (2 decimals sufficient for EUR).
+
+**Cambio 2: `import_run_id` NOT added to `espp_lots` in Wave 1**
+- Omitted per spec. Can be added in Wave 2 with migration 0015 if needed for ORM navigation.
+
+**Confirmaciones:**
+- `dedup_hash`: sha256(ticker|purchase_date|shares:.8f|cost_basis_per_share:.6f|share_source|dedup_ordinal)
+- `token_enc` → NULLABLE in migration 0014 and ORM model
+- `_PROVIDERS` dict: `{"indexa-capital": IndexaProvider(), "fidelity-espp": FidelityESPPProvider()}`
+- `provider_type = "live_api"` in ABC; `FidelityESPPProvider.provider_type = "statement_import"`
+- FidelityESPPProvider does NOT import fidelity_csv.py (Banner in parallel)
+- Test suite: 971 passed, 0 failed
+
+---
+
+### Wave 1–B: Banner CSV Parser
+
+#### Decisión 1: Auto-detección del separador decimal (con moneda como desempate)
+
+**Spec original:** "handle both US ('.') and EU (',') decimal styles based on detected currency"
+
+**Implementación real:** Primary strategy = auto-detect per field; currency used only for ambiguous case (comma-only, no dot):
+
+| Caso | Ejemplo | Resolución |
+|------|---------|-----------|
+| Ambos, último punto | `1,234.56` | Siempre US (dot = decimal) |
+| Ambos, última coma | `1.234,56` | Siempre EU (comma = decimal) |
+| Solo coma + currency=EUR | `50,0000` | EU: coma = decimal |
+| Solo coma + currency=USD | `1,234` | US: coma = thousands |
+| Solo punto | `2000.00` | Siempre US |
+
+**Razón:** CSV real de Fidelity usa EUR en footer pero puntos como decimal (notación US). La auto-detección es más robusta. Para el CSV Fidelity real (todos sus números tienen punto), `eu_style` es inerte.
+
+#### Decisión 2: Header scan dinámico (no índice fijo)
+
+**Implementación:** Parser escanea buscando primer field = `"date acquired"` (case-insensitive), no asume línea 0.
+
+**Razón:** Defensive parsing — si Fidelity añade línea de título antes de cabecera, parser no se rompe.
+
+#### Decisión 3: Filas omitidas
+
+Descartadas sin error:
+1. Filas con < 11 celdas no vacías (separadores, footer)
+2. Primera celda empieza por `"total"` (fila agregada)
+3. Primera celda contiene `"values are displayed"` (footer)
+4. Date acquired no parseable
+
+**Sin cambios vs spec:** `NormalizedLot`, `ParsedOpenLots`, firma de `parse_open_lots_csv` coinciden exactamente.
+
+**Suite de tests:** 50 new tests + existing 921 = 971 passed
+
+---
+
+### Wave 1–C: CRITICAL CORRECTION — CSV Currency (Fury + Romanoff + Banner)
+
+**Earlier assumption:** CSV sería USD.  
+**Real discovery (Banner empirical probe):** Footer de "View open lots.csv" ACTUAL dice EUR. **Todos los valores ya están en EUR** — cost basis, per-share prices, value fields.
+
+**Consecuencias:**
+- `NormalizedLot.currency = "EUR"` (hardcoded para MSFT ESPP, no USD)
+- Phase 1 (parse + display) = SIN conversión FX; cost basis es final
+- FX conversion SOLO en Phase 2 (live USD market price → EUR valuation)
+
+**Simplificación:** Phase 1 no tiene multi-moneda math.
+
+#### Idempotency refinement — Duplicate DO Lots
+
+Multiple dividend-reinvestment (DO) lots pueden tener identical (date, qty, cbps). Dedup strategy:
+- File-level: sha256(file_bytes) para gross dedup
+- Lot-level: sha256(ticker|date|qty|cost_per_share|share_source|ordinal_within_group) para dedup estable
+- Ordinal index (0-based within identical groups in CSV order) → dedup estable en re-exports
+
+---
+
+### Wave 2: Shuri Endpoints — Market Data + 5 HTTP Endpoints
+
+#### Resumen
+
+Wave 2 implementada conforme spec. 1000+ tests green. Divergencias documentadas:
+
+**1. FX Direction** ✅ Correcto y documentado en tests
+```
+Stooq/yfinance eurusd = USD por 1 EUR (e.g. 1.0823)
+fx_eur_usd = 1 / eurusd_quote                (EUR por USD = 0.9239)
+close_eur = close_usd × fx_eur_usd            (= close_usd / eurusd_quote)
+```
+Caso canónico: MSFT $450, EURUSD=1.08 → €416.67 ✓
+
+**2. `compute_evolution_series` — Función pura exportada**
+- Spec: lógica implícita dentro endpoint
+- Implementación: extraída a `compute_evolution_series(lots, price_map, min_date, max_date)` exportada y testeable
+- Razón: facilita tests de Barton (full suite sin mocks DB/red)
+
+**3. `get_latest_price` — Doble `async with db.begin()` (transacciones)**
+- Spec: no especificaba internals
+- Implementación: dos bloques `async with db.begin()` secuenciales
+  - Primero: SELECT caché (read-only)
+  - Segundo (condicional): INSERT precio fresco
+- Contrato: función debe llamarse sin SQL previo
+
+**4. Backfill — `inserted > 0` para disparar**
+- Spec: trigger on first confirm
+- Implementación: solo dispara si `inserted > 0` (hay lotes nuevos)
+- Razón: re-import del mismo fichero (dedup) → `inserted=0` → no backfill (idempotente, sin fetch innecesario)
+
+**5. `source_filename` NOT presente en Wave 1 model**
+- History mencionaba pero model real (0014 migration) no lo incluye
+- Si se necesita futuro: migración 0015
+
+**6. Rutas Fidelity**
+- `POST /api/investments/fidelity/import/preview`
+- `POST /api/investments/fidelity/import/confirm`
+- `GET  /api/investments/fidelity/kpis`
+- `GET  /api/investments/fidelity/evolution`
+- `GET  /api/investments/fidelity/lots`
+
+Router usa prefix="/investments", coexiste con investments.py router bajo `/api/investments/`.
+
+---
+
+### Wave 2–B: Privacy Review (Romanoff) — ✅ PASS
+
+#### Respuestas a cuatro preguntas
+
+**1. ¿CSV almacena/transmite PII de identidad?** NO.
+- CSV Fidelity no contiene nombre, dirección, ID empleado
+- Parser no introduce campos identidad adicionales
+- Raw CSV NUNCA escrito a disco — en memoria solo
+- Endpoints persisten solo: file hash (SHA-256, opaco) + dedup hashes + datos estructurados lot
+
+**2. ¿Qué sale a servicios externos?** SOLO símbolos públicos.
+- A Stooq: `s=msft.us`, `s=eurusd` + rango fechas
+- A yfinance (fallback): `MSFT`, `EURUSD=X`
+- CERO datos usuario/posiciones/acciones/lotes
+
+**3. ¿Almacenamiento coherente con paridad + gitignore?** SÍ — más estricto.
+- Decisión previa: PDFs extracto bancario persisten en `/app/data/uploads/` (volumen montado, cubierto `.gitignore`)
+- Ruta CSV Fidelity: NO persiste en disco (más estricto aún)
+
+**4. ¿Riesgo de secretos?** NO.
+- Stooq/yfinance = servicios públicos sin autenticación
+- `InvestmentConnection.token_enc=None` para Fidelity/ESPP (keyless intencional)
+- Sin credenciales hardcodeadas ni en logs
+
+#### Logging
+Todos limpios (solo excepción + símbolo + conteo, nunca importes/shares/costbasis):
+- `api/fidelity.py:310` — `log.warning("Price backfill failed (non-fatal): %s", exc)` ✅
+- `market_data.py` (4 logs) — símbolos + excepciones + conteos ✅
+
+#### Nota menor (no bloqueante)
+Error parsing CSV expuesto en 400 detail. Para single-user autoalojada, no es problema. Multi-user futuro: considerar sanitizar.
+
+#### Veredicto: ✅ **PASS**
+Cumple criterios privacidad: sin PII, sin datos usuario externos, almacenamiento inexistente en disco, sin secretos, logging limpio.
+
+---
+
+### Wave 2–C: Barton QA — Test Coverage (69 new tests)
+
+#### Files Created
+| File | Tests | Description |
+|---|---|---|
+| `tests/investments/test_fidelity_provider.py` | 23 | Provider unit + evolution edge cases |
+| `tests/api/test_fidelity.py` | 46 | HTTP endpoint integration tests |
+
+#### Coverage Areas
+
+**1. `_compute_dedup_hash` (7 tests)** — Determinism, sensitivity to inputs, ordinal-0 ≠ ordinal-1
+
+**2. `import_lots` idempotency (10 tests)**
+- File-level: existing file_hash → previous (inserted, skipped)
+- Lot-level: conflicts, partial inserts, empty lists
+- Audit: InvestmentImportRun created for new files only
+
+**3. `compute_evolution_series` edge cases (6 tests)**
+- 366-day range → weekly granularity
+- 365-day range → daily granularity
+- Step function: lot included from purchase_date
+- Identical DO lots both accumulate
+
+**4. Auth guards (5 tests)** — All 5 endpoints enforce 401 without session
+
+**5. Preview endpoint (11 tests)** — shape, currency, duplicate detection, non-persisting, 400 on malformed
+
+**6. Confirm endpoint (8 tests)** — shape, backfill trigger condition (`inserted > 0`), idempotency
+
+**7. KPIs endpoint (8 tests)** — no connection, missing price, formulas, stale flag, **BUG documented**
+
+**8. Evolution endpoint (6 tests)** — series shape, ISO dates
+
+**9. Lots endpoint (7 tests)** — field presence, formulas, null values
+
+#### BUG FOUND — BUG #KPI-1
+
+**Title:** `fidelity_kpis` (and `fidelity_lots`) crash on DB error at `get_latest_price`
+
+**Severity:** Medium — affects users at startup or DB momentarily unavailable
+
+**Root cause:** Both endpoints call `get_latest_price(db)` with NO guard. While `get_latest_price` catches network errors, a DB error on initial cache read propagates uncaught.
+
+**Recommended fix:** Wrap in try/except, degrade to `price = None` path (HTTP 200 with null fields instead of 500).
+
+---
+
+### Wave 2–D: Fury Review #1 — ❌ REJECT (4 contract mismatches)
+
+#### Blocking Issues
+
+**1. `gain_loss_pct` double-multiply → renders 1250% instead of 12.5%**
+- Backend: sends 12.5 (percentage)
+- Frontend type comment: "decimal: 0.15 = 15%" (contradicts)
+- Frontend display: `{kpis.gain_loss_pct * 100}.toFixed(2)%` → 1250% BUG
+- Fix: Remove `* 100` in frontend OR backend send 0.125
+- **Assign to:** Vision (frontend/type owner) — align types + display
+
+**2. `FidelityImportPreviewLot` field name mismatch**
+- Backend sends: `cost_basis_per_share`, `cost_basis`
+- Frontend expects: `cost_basis_per_share_eur`, `cost_basis_total_eur`
+- Result: Preview table shows `undefined`
+- Fix: Rename backend fields to `_eur` suffix (cleaner, matches /lots endpoint already)
+
+**3. `new_count` field doesn't exist in backend**
+- Frontend: `importPreview.new_count`
+- Backend: sends `new_lots` array (no `new_count` field)
+- Result: Import preview shows `NaN` or blank
+- Fix: Frontend use `importPreview.new_lots.length`
+
+**4. `skipped` vs `duplicates`**
+- Backend: `FidelityImportResult` sends `skipped: int`
+- Frontend: expects `duplicates: number`
+- Fix: Rename backend field to `duplicates` or frontend to `skipped` (backend rename reads better)
+
+#### Non-blocking Nits
+1. `uq_investment_import_runs_file_hash` is global unique instead of composite (single-user safe)
+2. Frontend `FidelityImportPreview.filename` (dead field, not harmful)
+3. TypeScript type comment source of confusion
+
+#### What Passed ✓
+- Money math/FX direction ✓
+- Cost basis as EUR ✓
+- Lot-level idempotency ✓
+- File-level idempotency ✓
+- Plugin_id consistency ✓
+- Evolution series ✓
+- Provider abstraction ✓
+- Migration pattern ✓
+- Graceful degradation (Stooq→yfinance) ✓
+- Indexa untouched ✓
+- CSV parser ✓
+- i18n ✓
+
+#### Summary
+4 blocking contract mismatches → runtime integration failures. Core architecture, money math, idempotency solid. Fix 4 field/convention mismatches → ships.
+
+---
+
+### Wave 2–E: Banner Contract Fix (NON-AUTHOR per reviewer-lockout rule)
+
+#### Status: ✅ APPLIED — all fixes merged, 1069 tests green, 0 TS errors
+
+#### Fixes Applied
+
+| Issue | File(s) | Change |
+|---|---|---|
+| **#1 gain_loss_pct ×100** | FidelityView.tsx | Removed `* 100`; backend sends percentage directly |
+| **#2 preview field names** | schemas.py, fidelity.py | `cost_basis_per_share` → `cost_basis_per_share_eur`; `cost_basis` → `cost_basis_total_eur` |
+| **#3 new_count** | FidelityView.tsx, types.ts | Removed non-existent `new_count`; view uses `new_lots.length` |
+| **#4 skipped → duplicates** | schemas.py, fidelity.py | `FidelityImportResult.skipped` → `.duplicates` |
+| **BUG #KPI-1** | fidelity.py | `get_latest_price` wrapped in try/except in both `fidelity_kpis` and `fidelity_lots` |
+| **types.ts hygiene** | types.ts | Removed dead `filename`; added `total_in_file`, `source_currency`, `file_already_imported` |
+| **comment fix** | types.ts | Updated comment to `// percentage: 12.5 = 12.5%` |
+
+#### Final Contract — 5 Endpoints
+
+**GET /kpis:**
+- `gain_loss_pct` = percentage (12.5 = +12.5%), render as `pct.toFixed(2) + "%"` — do NOT multiply
+
+**POST /preview:**
+- `new_lots`, `duplicate_count`, `total_in_file`, `source_currency`, `file_already_imported`
+- Per-lot: `purchase_date`, `shares`, `cost_basis_per_share_eur`, `cost_basis_total_eur`, `share_source`, `grant_date`
+
+**POST /confirm:**
+- Response: `{inserted, duplicates}` (was `skipped`)
+
+#### Tests Updated
+- Confirm tests: `data["skipped"]` → `data["duplicates"]`
+- KPIs test: Renamed `test_kpis_get_latest_price_raises_propagates_bug` → `test_kpis_get_latest_price_raises_returns_degraded_200`; assert HTTP 200 + null instead of RuntimeError
+
+#### Verification
+```
+pytest -q  →  1069 passed, 2 skipped  ✅
+npm run build  →  0 TS errors  ✅
+```
+
+---
+
+### Wave 2–F: Fury Review #2 — ✅ APPROVE
+
+#### Prior Verdict: REJECT (4 blocking contract mismatches) — ALL RESOLVED
+
+**Issue 1 — `gain_loss_pct`** ✅
+- `FidelityView.tsx:355,536` → no `* 100`
+- `types.ts:489` comment updated to `// percentage: 12.5 = 12.5%`
+- Consistent across endpoints
+
+**Issue 2 — Preview lot field names** ✅
+- `schemas.py` → `cost_basis_per_share_eur`, `cost_basis_total_eur`
+- Frontend types match exactly
+
+**Issue 3 — `new_count`** ✅
+- Removed from type
+- Frontend derives: `new_lots.length`
+
+**Issue 4 — `skipped` → `duplicates`** ✅
+- `schemas.py:594` → `duplicates: int`
+- `types.ts:517` → `duplicates: number`
+
+**BUG #KPI-1** ✅
+- Both endpoints wrapped in try/except
+- Degrade to HTTP 200 with null fields (not 500)
+
+#### Full Contract Cross-Check (5 endpoints) — Zero Remaining Mismatches ✅
+
+| Endpoint | Match |
+|---|---|
+| GET kpis | ✅ |
+| GET evolution | ✅ |
+| GET lots | ✅ |
+| POST preview | ✅ |
+| POST preview (per-lot) | ✅ (source_currency backend-only, harmless) |
+| POST confirm | ✅ |
+
+#### Conclusion
+Banner's fixes correct, complete, verified. All 4 blocking mismatches resolved. BUG #KPI-1 graceful degradation in place. Both test suites green (1069 pytest, 0 TS errors). **This ships.**
+
+---
+
+### Wave 3: Vision Frontend — Fidelity ESPP Visualization
+
+#### Implementation Notes
+
+**1. Full implementation in single phase (vs phasing plan)**
+- Plan described 3 phases; spec requested everything in one PR
+- View auto-detects null fields, shows "—" automatically
+- Behavior of phases 1/2 covered without re-deploy
+
+**2. Multipart file upload for both preview + confirm**
+- Both endpoints send CSV in multipart POST
+- Backend re-parses, re-inserts (idempotent with dedup)
+- Obligation: save File reference during wizard
+
+**3. Carry-forward for `contributions_series` sparse**
+- Plan: use `contribMap.get()` with `connectNulls` (from IndexaView)
+- Implemented: Carry-forward last known value for each value_series point
+- Reason: sparse series (1 point per new lot); carry-forward guarantees perfect step function visually
+
+**4. isEmpty condition: `lots.length === 0 && kpis === null`**
+- Plan: empty state when no lots
+- Implemented: empty state only when BOTH conditions true
+- Reason: avoids treating real cartera (kpis available) as "empty" if lots temporarily empty
+
+**5. New CSS classes**
+- `kpi-sub--pos` / `kpi-sub--neg` — gain/loss pct below KPI card, green/red
+- `fid-source-badge--sp` / `fid-source-badge--do` — lot source badge (SP/DO), dark-mode support
+
+**6. Omitted: toggle €/%**
+- Plan contemplated; implemented without
+- Reason: mono-activo (single stock), % adds no useful info for ESPP
+
+#### Matched vs Plan
+- ResponsiveContainer height numeric ✅
+- XAxis dataKey + tickFormatter ✅
+- Tooltip labelFormatter → formatDDMMYYYY ✅
+- Default period: 'Todo' ✅
+- Periods: 1M/3M/1A/dynamic years/Todo ✅
+- price_stale banner (amber, non-blocking) ✅
+- Loading/empty/error as first-class states ✅
+- No pagination in lots table ✅
+- No donut or returns matrix ✅
+
+---
+
+### FUTURE: Investments Plugin Navigation & Settings Reorganization (Fury + Wanda)
+
+#### Navigation Architecture Proposal (Fury)
+
+**Target:** Investments expandable sidebar section (like Settings). Routes:
+- `/investments` → Landing hub (connected plugins as cards)
+- `/investments/:pluginId` → Per-plugin view (e.g. `/investments/fidelity-espp`)
+
+**Backend impact:** NONE (routes already exist).
+
+**Frontend changes:**
+1. Extract Indexa view from InvestmentsPage → `views/IndexaView.tsx`
+2. New `InvestmentsLandingPage.tsx` — hub with cards
+3. Plugin view registry (`frontend/src/investments/registry.ts`) — map `{pluginId → LazyComponent}`
+4. Plugin view wrapper (`PluginViewWrapper.tsx`) — reads `:pluginId` from URL, renders or 404
+5. Update `App.tsx` routes: nested `/investments` + `/investments/:pluginId`
+6. Update `Layout.tsx` sidebar: accordion pattern (clone Settings)
+7. i18n: 3 new keys × 2 langs
+
+**Rules for visibility:**
+- Plugin appears in sidebar only if: (1) registered in PLUGIN_VIEW_REGISTRY AND (2) user has active connection
+
+**Sequencing:**
+1. Wanda confirms sidebar section CSS reusable
+2. Vision implements all 7 items
+3. Barton updates/adds tests
+4. Fury reviews
+
+#### Settings Reorganization (Wanda) — Part A REVISED
+
+**Decision: sub-headers inside accordion (option a, not nested submenus)**
+
+**Rationale:** Sub-headers = visual grouping without tap depth on mobile.
+
+**Structure (owner constraints applied):**
+```
+⚙️ Settings
+ ├── DATOS / DATA
+ │   ├── Categorías
+ │   ├── Etiquetas
+ │   └── Cuentas
+ ├── REGLAS / RULES
+ │   └── Reglas  ← MOVED from top-level (solo group)
+ ├── SISTEMA / SYSTEM
+ │   ├── Copia de seguridad
+ │   └── Conectores
+ └── APLICACIÓN / APP
+     └── Apariencia
+```
+
+**Rules: YES, move to Settings**
+- Removed from top-level nav
+- Lives alone under REGLAS group inside Settings
+- Route: `/settings/rules` (for consistency)
+
+**Group label CSS:**
+```css
+.sidebar-group-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 10px 12px 2px;
+  opacity: 0.6;
+  user-select: none;
+}
+.sidebar-subnav > .sidebar-group-label:first-child {
+  padding-top: 4px;
+}
+```
+
+**i18n keys (group labels):**
+- `settingsGroupData` / `settingsGroupRules` / `settingsGroupSystem` / `settingsGroupApp`
+
+#### Investments Expandable Section (Wanda) — Part B
+
+**Pattern:** Exact reuse of Settings accordion (.sidebar-section + .sidebar-section-btn + .sidebar-subnav).
+
+**Behavior:**
+- Auto-expands on `location.pathname.startsWith('/investments')`
+- Collapse/expand on click
+- Mobile: overlay, close on route change
+
+**DOM:**
+```
+<div class="sidebar-section">
+  <button class="sidebar-section-btn">
+    💰 Investments ▾
+  </button>
+  {investmentsExpanded && (
+    <div class="sidebar-subnav">
+      <NavLink to="/investments">Resumen</NavLink>
+      {connectedPlugins.map(plugin => (
+        <NavLink to={`/investments/${plugin.id}`}>{plugin.name}</NavLink>
+      ))}
+      {connectedPlugins.length === 0 && <span class="sidebar-plugin-hint">Conecta un plugin →</span>}
+    </div>
+  )}
+</div>
+```
+
+**Plugin sub-item styling:** Same `.sidebar-nav-link` + `nav-icon` (emoji from registry) + `nav-label`.
+
+**Empty state CSS:**
+```css
+.sidebar-plugin-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+  padding: 2px 12px 6px;
+  opacity: 0.7;
+  display: block;
+}
+```
+
+**New i18n keys (Part B):**
+- `navInvestmentsOverview` ("Resumen" / "Overview")
+- `invNoPluginsHint` ("Conecta un plugin →" / "Connect a plugin →")
+
+**Total changes:** ~14 lines CSS (additive), 20 lines JSX, 5 lines state/effect. No visual regressions.
+
 ---
 
 ## 2026-07-14T11:10:33+02:00 — Phase 2: Indexa Capital Connector — Complete Design & Implementation Record

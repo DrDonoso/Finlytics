@@ -141,3 +141,86 @@ Transición transparente: FidelityView detecta campos `null` y adapta el render 
 ---
 
 *For earlier sessions and learning archive, see history-archive.md.*
+
+## Learnings
+
+### 2026-07-15 — Fidelity ESPP Full Frontend Implementation
+
+**Fecha:** 2026-07-15T10:20:50+02:00  
+**Tarea:** Implementación completa del frontend Fidelity ESPP contra el contrato de endpoint acordado.  
+
+---
+
+#### Estructura final de componentes y archivos
+
+| Archivo | Tipo | Descripción |
+|---|---|---|
+| `frontend/src/investments/views/FidelityView.tsx` | **NUEVO** | Vista principal Fidelity ESPP (~380 líneas) |
+| `frontend/src/investments/registry.ts` | editado | Añadida entrada `'fidelity-espp'` (icono 💼, lazy import) |
+| `frontend/src/api/types.ts` | editado | 7 nuevas interfaces: `FidelityKpis`, `FidelityEvolution`, `FidelityLot`, `FidelityLots`, `FidelityImportPreviewLot`, `FidelityImportPreview`, `FidelityImportConfirmResult` |
+| `frontend/src/api/client.ts` | editado | 5 nuevas funciones: `getFidelityKpis`, `getFidelityEvolution`, `getFidelityLots`, `fidelityImportPreview`, `fidelityImportConfirm` |
+| `frontend/src/i18n/index.ts` | editado | 30 nuevas claves en `Dict` (prefijo `fidelity*`) |
+| `frontend/src/i18n/es.ts` | editado | 30 traducciones ES |
+| `frontend/src/i18n/en.ts` | editado | 30 traducciones EN |
+| `frontend/src/index.css` | editado | `inv-account-header__updated--stale` (amber), `fid-source-badge--sp/--do`, `kpi-sub--pos/--neg` |
+
+---
+
+#### Wiring de endpoints
+
+- `GET /api/investments/fidelity/kpis` → `getFidelityKpis()` → state `kpis`
+- `GET /api/investments/fidelity/evolution` → `getFidelityEvolution()` → state `evolution`
+- `GET /api/investments/fidelity/lots` → `getFidelityLots()` → state `lots`
+- `POST /api/investments/fidelity/import/preview` (multipart) → `fidelityImportPreview(file)`
+- `POST /api/investments/fidelity/import/confirm` (multipart) → `fidelityImportConfirm(file)`
+
+Los tres primeros se llaman en `Promise.all` al montar. En caso de error cualquiera, se muestra error state. El confirm envía el mismo archivo CSV de nuevo (multipart, el backend re-parsea e inserta).
+
+---
+
+#### Reutilización de Indexa
+
+- **CSS `inv-*`:** `inv-account-header`, `inv-evolution-card`, `inv-evolution-header`, `inv-evolution-controls`, `inv-period-selector`, `inv-period-btn`, `inv-evolution-chart-wrap`, `inv-chart-legend`, `inv-holdings-card`, `inv-holdings-table-wrap`, `inv-holdings-table`, `inv-pnl--pos/--neg` — todos reutilizados sin cambio CSS.
+- **`kpi-grid` / `kpi-card` / `kpi-label` / `kpi-value` / `kpi-sub`:** reutilizados para las 4 KPI cards.
+- **Helpers:** `formatDDMMYYYY`, `niceStep`, `niceFloor`, `niceCeil` — copiados directamente de IndexaView.
+- **`evolutionData` useMemo:** misma lógica base (contribMap, cutoff período) pero con **carry-forward** de contributions (Fidelity tiene series sparse por lote, no diaria).
+- **Modal pattern:** `modal-backdrop`, `modal`, `modal-header`, `modal-body`, `modal-footer`, `inv-wizard__body`, `inv-wizard__success`, `inv-wizard__error-banner` — reutilizados del patrón IndexaWizard.
+- **`investmentsFetch` pattern:** `apiFetch` + `_on401` handler — mismo patrón, no logout global.
+
+---
+
+#### Decisiones de implementación
+
+1. **Implementación full en una fase:** El task pedía KPIs + chart + lots + import wizard en un solo PR. La vista detecta campos `null` y muestra "—" transparentemente.
+2. **Carry-forward contributions:** La `contributions_series` es sparse (un punto por lote). El `useMemo` evolutionData lleva forward el último valor conocido para que el gráfico `stepAfter` sea correcto sin `connectNulls` gaps.
+3. **`isEmpty` condition:** `lots.length === 0 && kpis === null` — si el backend devuelve kpis pero no hay lotes, se muestran las KPI cards (con "—") en lugar del empty state.
+4. **No toggle €/%:** Chart siempre en EUR (mono-activo). Sin estado `evMode`.
+5. **Period selector:** 1M / 3M / 1A / años dinámicos / Todo (sin 6M vs Indexa).
+6. **Nav sub-item:** Automático vía `PLUGIN_VIEW_REGISTRY` — Layout.tsx ya lo gestiona cuando el backend devuelva conexión `fidelity-espp` activa. No requirió tocar Layout.tsx.
+
+---
+
+#### Resultado de build
+
+`npm run build` → `tsc --noEmit && vite build` → **0 errores TypeScript, 0 warnings CSS**.  
+`FidelityView-*.js` = 15.25 kB (lazy chunk, correcto). Pre-existing chunk-size warning presente.
+
+### 2026-07-15 — Fidelity Connectors-page entry point
+
+**Fecha:** 2026-07-15T12:05:21+02:00  
+**Tarea:** Añadir el entry point de Fidelity ESPP en la página de Connectors para que el owner pueda iniciar la importación de CSV.
+
+**Aprendizaje clave:** Para plugins de tipo statement-import (sin token/OAuth), el flujo correcto es un `Link` directo a la ruta `/investments/<plugin-id>`, **sin** abrir ningún wizard de credenciales (no IndexaWizard). La FidelityView en esa ruta ya contiene el upload wizard del CSV.
+
+**Cambios realizados:**
+- `frontend/src/pages/ConnectorsPage.tsx` — añadido `import { Link }` de react-router-dom + función `renderFidelityEsppCard` + branch `plugin.id === 'fidelity-espp'` en `plugins.map` antes del fallback coming-soon.
+- `frontend/src/i18n/index.ts` — nueva clave `fidelityImportCta: string`
+- `frontend/src/i18n/es.ts` — `fidelityImportCta: 'Importar CSV'`
+- `frontend/src/i18n/en.ts` — `fidelityImportCta: 'Import CSV'`
+
+**Comportamiento de la card:**
+- Sin conexión activa → card con `<Link className="btn-primary" to="/investments/fidelity-espp">Importar CSV</Link>` (botón habilitado, navega directamente)
+- Con conexión activa (`status === 'active'`) → `connector-card--connected` + badge ✓ + Link "Resumen" + botón desconectar
+
+**Build:** `npm run build` → 0 errores TS, 0 warnings CSS. Exit code 0.
+
