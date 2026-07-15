@@ -1,3 +1,21 @@
+## BATCH STATUS: Finlytics Feedback Batch 5 (2026-07-15)
+
+**Summary:** 2 feature items completed + verified in Docker. Heatmap scaling problem solved + ESPP upload reminder shipped.
+
+1. **Wanda:** SpendingHeatmap redesign spec — 3 adaptive modes (Daily ≤182d GitHub-calendar / Compact 183–547d in-card scroll / Monthly-Grid >547d 12×year always-fits). Root-cause CSS fix (.heatmap-card overflow:hidden + .heatmap-outer width:100%) + full CSS rewrite + 3-mode logic + monthGrid aggregation. Spec: `.squad/decisions/inbox/wanda-heatmap-redesign.md`.
+
+2. **Shuri:** ESPP purchase-reminder endpoint — GET /api/investments/fidelity/reminder → {overdue, expected_date, period_label, last_lot_date}. Backend functions: _last_weekday_of_month + _expected_espp_dates + compute_espp_reminder (pure, fully testable). 5-day grace window. 4 test cases, all passing. Spec: `.squad/decisions/inbox/shuri-espp-reminder.md`.
+
+3. **Vision:** Implemented both — SpendingHeatmap.tsx (3-mode detection, monthGrid useMemo, Intl date labels, render branching) + index.css (complete rewrite, heatmap tokens, overflow fix, monthly-grid CSS). ESPP banner on Inicio (Dashboard) + Fidelity view (via /reminder endpoint) — amber badge with i18n + Link to import. Frontend types + client method + i18n keys added. Build: 0 errors TS. Implementation spec: `.squad/decisions/inbox/vision-heatmap-espp-reminder.md`.
+
+4. **Rocket:** Rebuilt docker-compose.local.yml; no new migrations (head 0015); /api/investments/fidelity/reminder verified 401 (auth-gated); heatmap overflow fixed in DevTools; ESPP banner displays correctly when overdue; running :7777.
+
+5. **Coordinator:** Cadence analysis — ESPP purchases (SP) are consistent year-round at quarter-end (last business day Mar/Jun/Sep/Dec, 4/yr); dividend reinvestments (DO) irregular per MSFT calendar. Owner's question answered: "quarterly, plus unexpected dividends".
+
+**Outcome:** ✅ Heatmap scaling fixed (3-mode + adaptive cellsize) | ✅ ESPP import reminder endpoint shipped + banner integrated | ✅ Cadence analysis delivered | ⏳ Pending: owner acceptance + checkpoint commit of feature code.
+
+---
+
 # Decisions Log
 
 ## INTEGRATION STATUS: Fidelity ESPP Connector — Full Implementation + Refinements Complete (2026-07-15)
@@ -7337,4 +7355,5 @@ Con los widgets movidos:
 > **Backend: 0 endpoints nuevos necesarios.**
 
 ---
+
 

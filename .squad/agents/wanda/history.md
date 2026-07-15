@@ -67,3 +67,17 @@ See `history-archive.md` for detailed CSS learnings from 2026-07-06 to 2026-07-1
 - **Tendencias title fix:** `.analytics-page-title` uses 18px/600 vs standard `tx-page-title` 22px/700. Fix: change `<h1>` class to `tx-page-title`. Orphan CSS rule can be removed.
 - **Spec delivered to:** `.squad/decisions/inbox/wanda-nav-restructure-overviews.md` — contract for Vision to implement.
 - **2026-07-15 — Inicio vs Finanzas differentiation:** Recommended MOVER + REEMPLAZAR strategy. Move all analysis widgets (SpendingByCategory, TopMerchants, CategoryMovers, SpendingHeatmap, GlobalFilterBar) exclusively to Finanzas. Replace Inicio content with cross-domain landing: simplified month KPIs (no filters), new InvestmentSnapshotCard (using existing `/api/investments/combined-overview`), and quick-access nav grid. Zero endpoint duplication, zero widget duplication. Finanzas becomes the complete cash-flow analysis tool; Inicio becomes the 3-second cross-domain health check. Decision memo: `.squad/decisions/inbox/wanda-inicio-vs-finanzas-recommendation.md`.
+
+## Learnings
+
+- **2026-07-15 — SpendingHeatmap rediseño (heatmap overflow → calendario GitHub + scroll contenido + granularidad adaptativa):**
+  - **Raíz del overflow de página:** `.heatmap-card` no tenía `overflow: hidden`, permitiendo que la tarjeta creciera fuera de la grid (`1fr`). `.heatmap-outer` ya tenía `overflow-x: auto` pero no tenía `width: 100%` explícito — con el padre sin restricción, el overflow-x: auto nunca se activaba porque el contenedor se expandía al contenido. Fix de dos líneas: `.heatmap-card { overflow: hidden }` + `.heatmap-outer { width: 100% }`.
+  - **Patrón overflow-x contenido en card:** Para confinar scroll horizontal dentro de una tarjeta, la tarjeta padre necesita `overflow: hidden` (o `min-width: 0`). El wrapper de scroll necesita `width: 100%` + `overflow-x: auto`. El contenido interior puede ser `inline-flex; min-width: min-content` sin problema. Sin `overflow: hidden` en el padre, el elemento crece para alojar el contenido en lugar de scrollear.
+  - **Granularidad adaptativa (3 modos):** Thresholds por `totalDays`:
+    - ≤ 182 días (≤ 6 meses): **Daily** — 7 filas × N semanas, cellPx 16–20px, raro necesitar scroll.
+    - 183–547 días (6–18 meses): **Compact** — mismo 7-filas × N semanas, cellPx 11px / gap 2px, scroll dentro del card.
+    - > 547 días (> 18 meses): **Monthly Grid** — 12 columnas × Y filas (años), cellPx 36px, siempre cabe sin scroll (max ≈ 492px).
+  - **Monthly grid:** Datos diarios `DaySummary[]` se agregan en el frontend por `YYYY-MM` — sin cambios en API. Render: fila por año, 12 celdas por mes (Ene–Dic). Sin clic en modo monthly (filtro por día no aplica a rangos de mes).
+  - **Scrollbar styling:** `scrollbar-width: thin; scrollbar-color: var(--border) transparent` (Firefox) + `::-webkit-scrollbar` con `height: 6px` (Chrome/Safari). Siempre usar tokens.
+  - **Touch:** `-webkit-overflow-scrolling: touch` + `touch-action: pan-x pan-y` en `.heatmap-outer`. El padding-bottom puede reducirse a 4px en móvil (scrollbar overlay en iOS no ocupa espacio).
+  - **Spec entregada en:** `.squad/decisions/inbox/wanda-heatmap-redesign.md`
