@@ -755,3 +755,51 @@ Convertidos los 4 grupos (Datos/Reglas/Sistema/App) de <span className="sidebar-
 #### Build
 
 `npm run build` → `tsc --noEmit && vite build` → **0 errores TypeScript, 0 warnings CSS**. Chunk-size warning pre-existente presente.
+
+
+## Learnings
+
+### 2026-07-15 — Heatmap 3-mode redesign + ESPP upload-reminder banner
+
+**Fecha:** 2026-07-15T18:23:00+02:00  
+**Tareas:** (A) SpendingHeatmap redesign per Wanda's spec; (B) ESPP reminder banner per Shuri's endpoint.
+
+---
+
+#### A) SpendingHeatmap — 3 modos adaptativos
+
+**Root-cause overflow fix:**
+- .heatmap-card { min-width: 0; overflow: hidden } — impide que la card salga de la grid y cause scroll de página.
+- .heatmap-outer { width: 100%; overflow-x: auto; ... } — ancla el scroll-wrapper al ancho de la card.
+
+**Tres modos por 	otalDays:**
+| Modo | Umbral | Estructura | Celda |
+|------|--------|------------|-------|
+| daily | ≤ 182 días | 7 filas × N semanas (GitHub calendar) | 14–20px adaptativo |
+| compact | 183–547 días | Mismo calendario, scroll interno de card | 11px fijo |
+| monthly | > 547 días | 12 col (meses) × Y filas (años) | 36px, sin scroll |
+
+**Agregación mensual (modo C):** 100% frontend — DaySummary[] → Map<"YYYY-MM", number> con suma de gastos por mes.  
+**Etiquetas de mes (modo C):** Generadas con Intl.DateTimeFormat({ month: 'short' }) para i18n.  
+**Click en modo monthly:** Deshabilitado (sin ole="button" ni onClick) — Wanda lo indica explícitamente hasta que el filtro admita rangos de mes.  
+**CSS:** --hm-month-cell: 36px, --hm-month-radius: 6px, .heatmap-month-grid-wrap, .heatmap-month-header, .hm-year-placeholder, .hm-month-col-label, .heatmap-month-row, .hm-year-label.
+
+**Archivos modificados:** rontend/src/components/SpendingHeatmap.tsx, rontend/src/index.css
+
+---
+
+#### B) ESPP upload-reminder banner
+
+**Endpoint:** GET /api/investments/fidelity/reminder → { overdue, expected_date, period_label, last_lot_date }.  
+**Tipo:** FidelityReminderResponse añadido a pi/types.ts.  
+**Función cliente:** getFidelityReminder() en pi/client.ts — sin mock fallback (falla silenciosamente).  
+**Banner:** .espp-reminder-banner — amber, non-blocking, order-left: 4px solid #f59e0b, dark-mode aware.  
+**Páginas:** Inicio (Dashboard.tsx) y Fidelity (FidelityView.tsx). Oculto cuando overdue === false.  
+**i18n:** sppReminderBanner(periodLabel) + sppReminderAction en s.ts, n.ts, index.ts.  
+**Link de acción:** <Link to="/investments/fidelity-espp"> (react-router-dom).  
+**Fetch failure:** Silenciosa (.catch(() => {})), banner no aparece.
+
+**Archivos modificados:** pi/types.ts, pi/client.ts, i18n/index.ts, i18n/es.ts, i18n/en.ts, pages/Dashboard.tsx, investments/views/FidelityView.tsx, index.css
+
+**Build:** 
+pm run build → 	sc --noEmit && vite build → **0 errores TypeScript ✅**
