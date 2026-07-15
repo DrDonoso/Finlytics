@@ -803,3 +803,26 @@ Convertidos los 4 grupos (Datos/Reglas/Sistema/App) de <span className="sidebar-
 
 **Build:** 
 pm run build → 	sc --noEmit && vite build → **0 errores TypeScript ✅**
+
+## Learnings
+### 2026-07-15 — Heatmap drill-down (click → Finanzas global date range)
+
+**Feature:** SpendingHeatmap clickable con zoom-in por clic en celda.
+
+**Wiring click → global date filter:**
+- Props onDayClick / selectedDay reemplazados por onSelectPeriod(from, to) + onResetPeriod?.
+- Modo monthly (>18 meses): click celda → onSelectPeriod("YYYY-MM-01", lastDayOfMonth).
+- Modo daily/compact: click celda → onSelectPeriod(date, date) (from=to=día).
+- FinancesOverviewPage: guarda preZoomFilters antes del drill-down; handleResetPeriod lo restaura. Limpiar preZoomFilters al cambio manual de GlobalFilterBar.
+
+**Zoom-out affordance:** Botón .hm-reset-btn ("‹ Ampliar rango" / "‹ Zoom out") en la cabecera del card, visible solo cuando onResetPeriod existe. Usa card-title--has-action para el layout flex.
+
+**Accesibilidad:** ole="button", 	abIndex={0}, onKeyDown (Enter/Space) en todas las celdas activas de los 3 modos.
+
+**CSS:** CSS cursor:pointer + :focus-visible habilitados también para celdas de monthly-grid (antes desactivadas). Nuevo .hm-reset-btn con design tokens.
+
+**i18n:** Añadida clave heatmapZoomOut en es.ts / en.ts / index.ts.
+
+**Archivos modificados:** components/SpendingHeatmap.tsx, pages/FinancesOverviewPage.tsx, i18n/es.ts, i18n/en.ts, i18n/index.ts, index.css
+
+**Build:** npm run build → tsc --noEmit && vite build → **0 errores TypeScript ✅**
