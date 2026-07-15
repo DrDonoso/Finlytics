@@ -9,6 +9,7 @@ Coverage:
   * GET /portfolio: zero state, full shape with Phase 2 fields, service-level mapping,
     gain_loss_pct formula, value_series YYYYMMDD dates, missing encryption key.
   * GET /plugins: Indexa status dynamic (available / connected).
+  * GET /combined-overview: both providers, single provider, no connections, degraded price.
   * 🔒 SECURITY INVARIANTS (Romanoff): token never in any response; masked label has "•";
     crypto round-trip; tampered ciphertext fails; missing key → fail-closed (raise); TLS verify=True.
 
@@ -19,7 +20,8 @@ Fixtures:
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
+from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -27,9 +29,10 @@ from httpx import ASGITransport, AsyncClient
 
 from finlytics.api.deps import get_current_user, get_db
 from finlytics.app import app
+from finlytics.investments.market_data import LatestPriceRow
 
-_EXPECTED_IDS = {"indexa-capital", "generic-broker", "crypto-exchange"}
-_REQUIRED_KEYS = {"id", "name", "description", "icon", "status", "auth_type", "supported_features"}
+_EXPECTED_IDS = {"indexa-capital", "fidelity-espp"}
+_REQUIRED_KEYS = {"id", "name", "description", "icon", "status", "auth_type", "supported_features", "import_route"}
 
 
 # ── Fixture for unauthenticated requests ─────────────────────────────────────
@@ -66,11 +69,11 @@ async def test_plugins_401_unauthenticated(unauthenticated_client):
 
 # ── Shape & content (authenticated via conftest ``client`` fixture) ───────────
 
-async def test_plugins_200_returns_list_of_three(client):
-    """Authenticated request → 200, exactly 3 plugins."""
+async def test_plugins_200_returns_list_of_two(client):
+    """Authenticated request → 200, exactly 2 plugins."""
     resp = await client.get("/api/investments/plugins")
     assert resp.status_code == 200
-    assert len(resp.json()) == 3
+    assert len(resp.json()) == 2
 
 
 async def test_plugins_all_required_keys_present(client):
@@ -82,16 +85,16 @@ async def test_plugins_all_required_keys_present(client):
 
 
 async def test_plugins_all_status_coming_soon(client):
-    """Phase 2: non-Indexa plugins stay 'coming_soon'.
-    Indexa Capital is now dynamic — 'available' when no active connection exists
-    (mock scalar returns 0).
+    """Phase 2: non-connectable plugins stay 'coming_soon'.
+    Indexa Capital and Fidelity ESPP are dynamic — 'available' when no active
+    connection exists (mock execute returns empty set).
     """
     resp = await client.get("/api/investments/plugins")
     for plugin in resp.json():
-        if plugin["id"] == "indexa-capital":
+        if plugin["id"] in ("indexa-capital", "fidelity-espp"):
             # Dynamic: 'available' (no connection) or 'connected' — never 'coming_soon'
             assert plugin["status"] in ("available", "connected"), (
-                f"Unexpected Indexa status: {plugin['status']}"
+                f"Unexpected status for dynamic plugin '{plugin['id']}': {plugin['status']}"
             )
         else:
             assert plugin["status"] == "coming_soon", (
@@ -100,7 +103,7 @@ async def test_plugins_all_status_coming_soon(client):
 
 
 async def test_plugins_correct_id_set(client):
-    """Returned id set matches the three expected plugin identifiers exactly."""
+    """Returned id set matches the four expected plugin identifiers exactly."""
     resp = await client.get("/api/investments/plugins")
     ids = {p["id"] for p in resp.json()}
     assert ids == _EXPECTED_IDS
@@ -113,6 +116,14 @@ async def test_plugins_supported_features_nonempty(client):
         features = plugin["supported_features"]
         assert isinstance(features, list), f"Plugin '{plugin['id']}': features not a list"
         assert len(features) > 0, f"Plugin '{plugin['id']}': supported_features is empty"
+
+
+async def test_plugins_import_route_values(client):
+    """fidelity-espp has an import_route; indexa-capital has none (live-API plugin)."""
+    resp = await client.get("/api/investments/plugins")
+    by_id = {p["id"]: p for p in resp.json()}
+    assert by_id["fidelity-espp"]["import_route"] == "/investments/fidelity-espp"
+    assert by_id["indexa-capital"]["import_route"] is None
 
 
 # ── POST /connections/validate ────────────────────────────────────────────────
@@ -315,7 +326,7 @@ async def test_service_connect_filters_non_owned_accounts():
 
     with (
         patch.object(
-            svc._provider, "validate_token", AsyncMock(return_value=mock_validation)
+            svc._PROVIDERS["indexa-capital"], "validate_token", AsyncMock(return_value=mock_validation)
         ),
         patch("finlytics.investments.service.encrypt_token", return_value="enc"),
     ):
@@ -345,7 +356,7 @@ async def test_service_connect_all_non_owned_raises_error():
     mock_db = MagicMock()
 
     with patch.object(
-        svc._provider, "validate_token", AsyncMock(return_value=mock_validation)
+        svc._PROVIDERS["indexa-capital"], "validate_token", AsyncMock(return_value=mock_validation)
     ):
         with pytest.raises(svc.NoValidAccountsError):
             await svc.connect_plugin(
@@ -834,8 +845,6 @@ async def test_portfolio_service_maps_holdings_gain_loss_and_returns():
         ValidationResult,
     )
 
-    svc._portfolio_cache.clear()
-
     mock_conn = MagicMock()
     mock_conn.id = 1
     mock_conn.plugin_id = "indexa-capital"
@@ -846,9 +855,12 @@ async def test_portfolio_service_maps_holdings_gain_loss_and_returns():
 
     execute_result = MagicMock()
     execute_result.scalars.return_value.all.return_value = [mock_conn]
+    # Simulate DB cache miss so the live-fetch path is exercised
+    execute_result.scalar_one_or_none.return_value = None
     mock_db = MagicMock()
     mock_db.execute = AsyncMock(return_value=execute_result)
     mock_db.commit = AsyncMock()
+    mock_db.add = MagicMock()
 
     validation = ValidationResult(
         valid=True,
@@ -885,8 +897,8 @@ async def test_portfolio_service_maps_holdings_gain_loss_and_returns():
 
     with (
         patch("finlytics.investments.service.decrypt_token", return_value="plain-tok"),
-        patch.object(svc._provider, "validate_token", AsyncMock(return_value=validation)),
-        patch.object(svc._provider, "get_portfolio", AsyncMock(return_value=portfolio)),
+        patch.object(svc._PROVIDERS["indexa-capital"], "validate_token", AsyncMock(return_value=validation)),
+        patch.object(svc._PROVIDERS["indexa-capital"], "get_portfolio", AsyncMock(return_value=portfolio)),
     ):
         result = await svc.get_portfolio(user_id=1, db=mock_db)
 
@@ -921,8 +933,8 @@ async def test_portfolio_service_maps_holdings_gain_loss_and_returns():
 
 
 async def test_plugins_indexa_status_connected_when_connection_exists(client, mock_session):
-    """Indexa status = 'connected' when DB scalar returns ≥1 active connections."""
-    mock_session.scalar = AsyncMock(return_value=1)
+    """Indexa status = 'connected' when DB execute returns it as an active connection."""
+    mock_session.execute = AsyncMock(return_value=[("indexa-capital",)])
 
     resp = await client.get("/api/investments/plugins")
 
@@ -932,8 +944,32 @@ async def test_plugins_indexa_status_connected_when_connection_exists(client, mo
     assert indexa["status"] == "connected", (
         f"Expected 'connected' when connection exists, got {indexa['status']!r}"
     )
-    # Non-Indexa plugins unaffected
-    others = [p for p in plugins if p["id"] != "indexa-capital"]
+    # fidelity-espp is dynamic but not connected here → available
+    fidelity = next(p for p in plugins if p["id"] == "fidelity-espp")
+    assert fidelity["status"] == "available"
+    # Non-dynamic plugins unaffected
+    others = [p for p in plugins if p["id"] not in ("indexa-capital", "fidelity-espp")]
+    for p in others:
+        assert p["status"] == "coming_soon"
+
+
+async def test_plugins_fidelity_status_connected_when_connection_exists(client, mock_session):
+    """fidelity-espp status = 'connected' when DB execute returns it as an active connection."""
+    mock_session.execute = AsyncMock(return_value=[("fidelity-espp",)])
+
+    resp = await client.get("/api/investments/plugins")
+
+    assert resp.status_code == 200
+    plugins = resp.json()
+    fidelity = next(p for p in plugins if p["id"] == "fidelity-espp")
+    assert fidelity["status"] == "connected", (
+        f"Expected 'connected' when fidelity connection exists, got {fidelity['status']!r}"
+    )
+    # indexa-capital is dynamic but not connected here → available
+    indexa = next(p for p in plugins if p["id"] == "indexa-capital")
+    assert indexa["status"] == "available"
+    # Non-dynamic plugins unaffected
+    others = [p for p in plugins if p["id"] not in ("indexa-capital", "fidelity-espp")]
     for p in others:
         assert p["status"] == "coming_soon"
 
@@ -1653,8 +1689,6 @@ async def test_aggregate_single_account_passes_through_monthly_and_drawdown():
         ValidationResult,
     )
 
-    svc._portfolio_cache.clear()
-
     mock_conn = MagicMock()
     mock_conn.id = 1
     mock_conn.plugin_id = "indexa-capital"
@@ -1665,9 +1699,12 @@ async def test_aggregate_single_account_passes_through_monthly_and_drawdown():
 
     execute_result = MagicMock()
     execute_result.scalars.return_value.all.return_value = [mock_conn]
+    # Simulate DB cache miss so the live-fetch path is exercised
+    execute_result.scalar_one_or_none.return_value = None
     mock_db = MagicMock()
     mock_db.execute = AsyncMock(return_value=execute_result)
     mock_db.commit = AsyncMock()
+    mock_db.add = MagicMock()
 
     validation = ValidationResult(
         valid=True,
@@ -1714,8 +1751,8 @@ async def test_aggregate_single_account_passes_through_monthly_and_drawdown():
 
     with (
         patch("finlytics.investments.service.decrypt_token", return_value="plain-tok"),
-        patch.object(svc._provider, "validate_token", AsyncMock(return_value=validation)),
-        patch.object(svc._provider, "get_portfolio", AsyncMock(return_value=portfolio)),
+        patch.object(svc._PROVIDERS["indexa-capital"], "validate_token", AsyncMock(return_value=validation)),
+        patch.object(svc._PROVIDERS["indexa-capital"], "get_portfolio", AsyncMock(return_value=portfolio)),
     ):
         result = await svc.get_portfolio(user_id=1, db=mock_db)
 
@@ -2030,3 +2067,288 @@ def test_aggregate_multi_account_nulls_and_sums():
     # Total portfolio value
     assert result.total_value == pytest.approx(21000.0)
     assert result.plugins_connected == 2
+
+# ── GET /combined-overview ────────────────────────────────────────────────────
+# Helpers shared by combined-overview tests
+
+def _co_exec_result(scalars_all=None, scalar=None) -> MagicMock:
+    """Build a mock execute() return value for combined-overview queries."""
+    r = MagicMock()
+    r.scalar_one_or_none.return_value = scalar
+    r.scalars.return_value.all.return_value = scalars_all if scalars_all is not None else []
+    return r
+
+
+def _make_indexa_conn(conn_id: int = 1) -> MagicMock:
+    c = MagicMock()
+    c.id = conn_id
+    c.plugin_id = "indexa-capital"
+    c.status = "active"
+    c.token_enc = "enc-tok"
+    return c
+
+
+def _make_fidelity_conn(conn_id: int = 2) -> MagicMock:
+    c = MagicMock()
+    c.id = conn_id
+    c.plugin_id = "fidelity-espp"
+    c.status = "active"
+    c.token_enc = None
+    return c
+
+
+def _make_co_lot(lot_id: int, shares: str, cost_basis: str, conn_id: int = 2) -> MagicMock:
+    lot = MagicMock()
+    lot.id = lot_id
+    lot.shares = Decimal(shares)
+    lot.cost_basis = Decimal(cost_basis)
+    lot.connection_id = conn_id
+    return lot
+
+
+_CO_MOCK_PRICE = LatestPriceRow(
+    price_date=date(2026, 7, 15),
+    close_usd=400.0,
+    fx_eur_usd=1.0 / 1.08,
+    close_eur=400.0 / 1.08,
+    price_stale=False,
+)
+
+# Indexa mock: total_value=30000, total_invested=25000, gain=5000
+# Holdings: equity=20000, fixed_income=8000, cash=2000
+def _make_indexa_portfolio_mock():
+    from finlytics.api.schemas import InvestmentHoldingOut, InvestmentPortfolioOut
+    now_str = datetime.now(timezone.utc).isoformat()
+    return InvestmentPortfolioOut(
+        total_value=30000.0,
+        total_invested=25000.0,
+        total_gain_loss=5000.0,
+        total_gain_loss_pct=20.0,
+        currency="EUR",
+        holdings=[
+            InvestmentHoldingOut(
+                plugin_id="indexa-capital",
+                name="RV Global",
+                asset_class="equity",
+                current_value=20000.0,
+                currency="EUR",
+                last_updated=now_str,
+            ),
+            InvestmentHoldingOut(
+                plugin_id="indexa-capital",
+                name="RF Global",
+                asset_class="fixed_income",
+                current_value=8000.0,
+                currency="EUR",
+                last_updated=now_str,
+            ),
+            InvestmentHoldingOut(
+                plugin_id="indexa-capital",
+                name="Liquidez",
+                asset_class="cash",
+                current_value=2000.0,
+                currency="EUR",
+                last_updated=now_str,
+            ),
+        ],
+        plugins_connected=1,
+        last_updated=now_str,
+    )
+
+
+# Fidelity lot: 50 shares, cost_basis 2500 EUR
+_CO_LOT = _make_co_lot(1, "50.0000", "2500.00")
+
+# Expected Fidelity value: 50 * 400 / 1.08 = 18518.52 EUR
+_CO_FIDELITY_VALUE = 50 * 400.0 * (1.0 / 1.08)
+
+
+# ===========================================================================
+# combined-overview tests
+# ===========================================================================
+
+
+async def test_combined_overview_no_connections_returns_zeros(client, mock_session):
+    """No active connections → 200 with zero totals and empty arrays."""
+    mock_session.execute = AsyncMock(side_effect=[
+        _co_exec_result(scalars_all=[]),  # active_conns = []
+    ])
+    resp = await client.get("/api/investments/combined-overview")
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total_value_eur"] == 0.0
+    assert data["total_invested_eur"] is None
+    assert data["total_gain_loss_eur"] is None
+    assert data["total_gain_loss_pct"] is None
+    assert data["by_provider"] == []
+    assert data["by_asset_class"] == []
+    assert data["providers"] == []
+
+
+async def test_combined_overview_both_providers_totals_correct(client, mock_session):
+    """Both Indexa + Fidelity connected → totals and allocations are aggregated."""
+    mock_session.execute = AsyncMock(side_effect=[
+        _co_exec_result(scalars_all=[_make_indexa_conn(), _make_fidelity_conn()]),
+        _co_exec_result(scalars_all=[_CO_LOT]),
+    ])
+    with (
+        patch("finlytics.api.investments.get_latest_price", new=AsyncMock(return_value=_CO_MOCK_PRICE)),
+        patch("finlytics.api.investments.inv_service.get_portfolio", new=AsyncMock(return_value=_make_indexa_portfolio_mock())),
+    ):
+        resp = await client.get("/api/investments/combined-overview")
+
+    assert resp.status_code == 200
+    data = resp.json()
+
+    expected_fidelity_value = round(_CO_FIDELITY_VALUE, 2)
+    expected_total = round(30000.0 + expected_fidelity_value, 2)
+    assert data["total_value_eur"] == pytest.approx(expected_total, abs=0.02)
+    assert data["total_invested_eur"] == pytest.approx(25000.0 + 2500.0, abs=0.01)
+
+    expected_fidelity_gain = expected_fidelity_value - 2500.0
+    assert data["total_gain_loss_eur"] == pytest.approx(5000.0 + expected_fidelity_gain, abs=0.02)
+    assert data["total_gain_loss_pct"] is not None
+
+
+async def test_combined_overview_both_providers_pct_sums_to_100(client, mock_session):
+    """Allocation percentages in by_provider and by_asset_class each sum to ~100."""
+    mock_session.execute = AsyncMock(side_effect=[
+        _co_exec_result(scalars_all=[_make_indexa_conn(), _make_fidelity_conn()]),
+        _co_exec_result(scalars_all=[_CO_LOT]),
+    ])
+    with (
+        patch("finlytics.api.investments.get_latest_price", new=AsyncMock(return_value=_CO_MOCK_PRICE)),
+        patch("finlytics.api.investments.inv_service.get_portfolio", new=AsyncMock(return_value=_make_indexa_portfolio_mock())),
+    ):
+        resp = await client.get("/api/investments/combined-overview")
+
+    assert resp.status_code == 200
+    data = resp.json()
+
+    provider_pct_sum = sum(p["pct"] for p in data["by_provider"])
+    assert abs(provider_pct_sum - 100.0) < 0.3, f"by_provider pcts sum {provider_pct_sum} ≠ 100"
+
+    ac_pct_sum = sum(ac["pct"] for ac in data["by_asset_class"])
+    assert abs(ac_pct_sum - 100.0) < 0.3, f"by_asset_class pcts sum {ac_pct_sum} ≠ 100"
+
+
+async def test_combined_overview_both_providers_shape(client, mock_session):
+    """Full shape: 2 items in by_provider, 4 items in by_asset_class, 2 providers cards."""
+    mock_session.execute = AsyncMock(side_effect=[
+        _co_exec_result(scalars_all=[_make_indexa_conn(), _make_fidelity_conn()]),
+        _co_exec_result(scalars_all=[_CO_LOT]),
+    ])
+    with (
+        patch("finlytics.api.investments.get_latest_price", new=AsyncMock(return_value=_CO_MOCK_PRICE)),
+        patch("finlytics.api.investments.inv_service.get_portfolio", new=AsyncMock(return_value=_make_indexa_portfolio_mock())),
+    ):
+        resp = await client.get("/api/investments/combined-overview")
+
+    data = resp.json()
+    assert len(data["by_provider"]) == 2
+    provider_ids = {p["provider"] for p in data["by_provider"]}
+    assert provider_ids == {"indexa", "fidelity"}
+
+    # by_asset_class: equity + fixed_income + cash (Indexa) + espp_stock (Fidelity)
+    assert len(data["by_asset_class"]) == 4
+    ac_classes = {ac["asset_class"] for ac in data["by_asset_class"]}
+    assert ac_classes == {"equity", "fixed_income", "cash", "espp_stock"}
+
+    assert len(data["providers"]) == 2
+    card_ids = {c["id"] for c in data["providers"]}
+    assert card_ids == {"indexa-capital", "fidelity-espp"}
+
+    # Provider cards have routes matching real plugin_ids
+    for card in data["providers"]:
+        assert card["route"] == f"/investments/{card['id']}"
+        assert card["value_eur"] is not None
+        assert card["gain_loss_eur"] is not None
+        assert card["gain_loss_pct"] is not None
+
+
+async def test_combined_overview_indexa_only(client, mock_session):
+    """Only Indexa connected → by_provider has 1 item, no espp_stock class."""
+    mock_session.execute = AsyncMock(side_effect=[
+        _co_exec_result(scalars_all=[_make_indexa_conn()]),
+        # No second call; Fidelity is not connected
+    ])
+    with patch("finlytics.api.investments.inv_service.get_portfolio", new=AsyncMock(return_value=_make_indexa_portfolio_mock())):
+        resp = await client.get("/api/investments/combined-overview")
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total_value_eur"] == pytest.approx(30000.0)
+    assert data["total_invested_eur"] == pytest.approx(25000.0)
+    assert len(data["by_provider"]) == 1
+    assert data["by_provider"][0]["provider"] == "indexa"
+    assert data["by_provider"][0]["pct"] == pytest.approx(100.0, abs=0.01)
+    assert len(data["providers"]) == 1
+    ac_classes = {ac["asset_class"] for ac in data["by_asset_class"]}
+    assert "espp_stock" not in ac_classes
+
+
+async def test_combined_overview_fidelity_only(client, mock_session):
+    """Only Fidelity connected → by_provider has 1 item with espp_stock."""
+    mock_session.execute = AsyncMock(side_effect=[
+        _co_exec_result(scalars_all=[_make_fidelity_conn()]),
+        _co_exec_result(scalars_all=[_CO_LOT]),
+    ])
+    with patch("finlytics.api.investments.get_latest_price", new=AsyncMock(return_value=_CO_MOCK_PRICE)):
+        resp = await client.get("/api/investments/combined-overview")
+
+    assert resp.status_code == 200
+    data = resp.json()
+    expected_value = round(_CO_FIDELITY_VALUE, 2)
+    assert data["total_value_eur"] == pytest.approx(expected_value, abs=0.02)
+    assert len(data["by_provider"]) == 1
+    assert data["by_provider"][0]["provider"] == "fidelity"
+    assert data["by_provider"][0]["pct"] == pytest.approx(100.0, abs=0.01)
+    assert len(data["by_asset_class"]) == 1
+    assert data["by_asset_class"][0]["asset_class"] == "espp_stock"
+    assert len(data["providers"]) == 1
+    assert data["providers"][0]["id"] == "fidelity-espp"
+
+
+async def test_combined_overview_degraded_fidelity_price(client, mock_session):
+    """Fidelity price unavailable → Fidelity card present with nulls; Indexa data intact."""
+    mock_session.execute = AsyncMock(side_effect=[
+        _co_exec_result(scalars_all=[_make_indexa_conn(), _make_fidelity_conn()]),
+        _co_exec_result(scalars_all=[_CO_LOT]),
+    ])
+    with (
+        patch("finlytics.api.investments.get_latest_price", new=AsyncMock(return_value=None)),
+        patch("finlytics.api.investments.inv_service.get_portfolio", new=AsyncMock(return_value=_make_indexa_portfolio_mock())),
+    ):
+        resp = await client.get("/api/investments/combined-overview")
+
+    assert resp.status_code == 200
+    data = resp.json()
+
+    # Totals: only Indexa contributes (Fidelity has no value)
+    assert data["total_value_eur"] == pytest.approx(30000.0)
+    assert data["total_invested_eur"] == pytest.approx(25000.0)
+
+    # by_provider: only Indexa (Fidelity omitted — no value)
+    assert len(data["by_provider"]) == 1
+    assert data["by_provider"][0]["provider"] == "indexa"
+
+    # Fidelity NOT in by_asset_class
+    ac_classes = {ac["asset_class"] for ac in data["by_asset_class"]}
+    assert "espp_stock" not in ac_classes
+
+    # providers: both present, Fidelity card has null values
+    assert len(data["providers"]) == 2
+    fidelity_card = next(c for c in data["providers"] if c["id"] == "fidelity-espp")
+    assert fidelity_card["value_eur"] is None
+    assert fidelity_card["gain_loss_eur"] is None
+    assert fidelity_card["gain_loss_pct"] is None
+    # Indexa card still has values
+    indexa_card = next(c for c in data["providers"] if c["id"] == "indexa-capital")
+    assert indexa_card["value_eur"] == pytest.approx(30000.0)
+
+
+async def test_combined_overview_401_unauthenticated(unauthenticated_client):
+    """No session cookie → 401 on GET /combined-overview."""
+    resp = await unauthenticated_client.get("/api/investments/combined-overview")
+    assert resp.status_code == 401

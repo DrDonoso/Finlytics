@@ -191,6 +191,26 @@ a { color: var(--primary); text-decoration: none; }
   padding: 8px 12px;
   min-height: 40px;
 }
+.sidebar-group-label {
+  font-size: 10px; font-weight: 600;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--text-muted); padding: 10px 12px 2px;
+  opacity: 0.6; user-select: none;
+}
+.sidebar-subnav > .sidebar-group-label:first-child { padding-top: 4px; }
+.sidebar-group-toggle {
+  display: flex; align-items: center; justify-content: space-between;
+  width: 100%; background: none; border: none; cursor: pointer;
+  font-family: inherit; text-align: left;
+  padding-top: 10px; padding-bottom: 2px;
+  transition: opacity 0.15s;
+}
+.sidebar-group-toggle:hover { opacity: 1; }
+.sidebar-plugin-hint {
+  font-size: 11px; color: var(--text-muted);
+  font-style: italic; padding: 2px 12px 6px;
+  opacity: 0.7; display: block;
+}
 
 /* ── Sidebar footer ── */
 .sidebar-footer {
@@ -790,6 +810,8 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
   --hm-cell: 14px;
   --hm-gap:  3px;
   --hm-radius: 2px;
+  --hm-month-cell: 36px;
+  --hm-month-radius: 6px;
   /* Expense intensity — light mode (0 = empty, 4 = heaviest) */
   --hm-c0: #e2e8f0;
   --hm-c1: #fecaca;
@@ -814,24 +836,44 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
   }
 }
 
-.heatmap-outer {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  padding-bottom: 4px;
+/* ── Card constraint — CRÍTICO para evitar scroll de página ── */
+.heatmap-card {
+  min-width: 0;
+  overflow: hidden;
 }
+.heatmap-card .state-box { min-height: 180px; }
+
+/* ── Scroll wrapper ── */
+.heatmap-outer {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y;
+  padding-bottom: 8px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+.heatmap-outer::-webkit-scrollbar        { height: 6px; }
+.heatmap-outer::-webkit-scrollbar-track  { background: transparent; }
+.heatmap-outer::-webkit-scrollbar-thumb  {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+/* ── Contenido del calendario (diario y compacto) ── */
 .heatmap-wrap {
   display: inline-flex;
   flex-direction: column;
   gap: 4px;
   min-width: min-content;
-  /* Fallback sizing if inline style is absent */
   --hm-cell: 14px;
   --hm-radius: 2px;
 }
 .heatmap-months {
   display: grid;
   gap: var(--hm-gap);
-  margin-left: 36px; /* align with cell grid, past weekday labels */
+  margin-left: 36px;
 }
 .hm-month-label {
   font-size: 10px;
@@ -865,18 +907,21 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
   grid-template-rows: repeat(7, var(--hm-cell));
   gap: var(--hm-gap);
 }
+
+/* ── Celdas base ── */
 .hm-cell {
   width: var(--hm-cell);
   height: var(--hm-cell);
   border-radius: var(--hm-radius);
   cursor: default;
   flex-shrink: 0;
+  transition: outline 0.1s;
 }
-.hm-cell--0 { background: var(--hm-c0); }
-.hm-cell--1 { background: var(--hm-c1); }
-.hm-cell--2 { background: var(--hm-c2); }
-.hm-cell--3 { background: var(--hm-c3); }
-.hm-cell--4 { background: var(--hm-c4); }
+.hm-cell--0   { background: var(--hm-c0); }
+.hm-cell--1   { background: var(--hm-c1); }
+.hm-cell--2   { background: var(--hm-c2); }
+.hm-cell--3   { background: var(--hm-c3); }
+.hm-cell--4   { background: var(--hm-c4); }
 .hm-cell--out { background: transparent; }
 .hm-cell:not(.hm-cell--out) { cursor: pointer; }
 .hm-cell:not(.hm-cell--out):hover {
@@ -887,6 +932,77 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
   outline: 2px solid var(--primary) !important;
   outline-offset: 1px;
 }
+.hm-cell:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* ── Zoom-out reset button ── */
+.hm-reset-btn {
+  background: none;
+  border: none;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--primary);
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: background 0.15s;
+  white-space: nowrap;
+  min-height: 28px;
+}
+.hm-reset-btn:hover { background: rgba(37, 99, 235, 0.08); }
+.hm-reset-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+
+/* ── Monthly Grid (modo C) ── */
+.heatmap-month-grid-wrap {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: min-content;
+}
+.heatmap-month-header {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  margin-bottom: 2px;
+}
+.hm-year-placeholder {
+  width: 36px;
+  flex-shrink: 0;
+}
+.hm-month-col-label {
+  width: var(--hm-month-cell);
+  font-size: 10px;
+  color: var(--text-muted);
+  text-align: center;
+  user-select: none;
+  flex-shrink: 0;
+}
+.heatmap-month-row {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+}
+.hm-year-label {
+  width: 36px;
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: right;
+  padding-right: 4px;
+  flex-shrink: 0;
+  user-select: none;
+  white-space: nowrap;
+}
+.heatmap-month-row .hm-cell {
+  width: var(--hm-month-cell);
+  height: var(--hm-month-cell);
+  border-radius: var(--hm-month-radius);
+}
+/* Sin cursor pointer en modo monthly — ELIMINADO: ahora también son clickables */
+.heatmap-month-row .hm-cell:not(.hm-cell--out) { cursor: pointer; }
+
+/* ── Leyenda ── */
 .heatmap-legend {
   display: flex;
   align-items: center;
@@ -900,6 +1016,13 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
   margin: 0 4px;
 }
 .heatmap-legend .hm-cell:hover { outline: none; }
+
+/* ── Responsive / Mobile ── */
+@media (max-width: 600px) {
+  .heatmap-outer {
+    padding-bottom: 4px;
+  }
+}
 
 /* ─── TopMerchants panel ─────────────────────────────────────────────── */
 .merchants-list  { display: flex; flex-direction: column; }
@@ -4467,6 +4590,112 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
   white-space: nowrap;
 }
 
+/* ── ESPP upload-reminder banner (Dashboard + FidelityView) ─────────────── */
+.espp-reminder-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 16px;
+  background: rgba(251, 191, 36, 0.12);
+  border: 1px solid rgba(251, 191, 36, 0.4);
+  border-left: 4px solid #f59e0b;
+  border-radius: 8px;
+  color: #b45309;
+  font-size: 13px;
+  line-height: 1.5;
+  margin-bottom: 16px;
+}
+[data-theme="dark"] .espp-reminder-banner {
+  background: rgba(251, 191, 36, 0.08);
+  color: #fbbf24;
+  border-left-color: #fbbf24;
+  border-color: rgba(251, 191, 36, 0.3);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .espp-reminder-banner {
+    background: rgba(251, 191, 36, 0.08);
+    color: #fbbf24;
+    border-left-color: #fbbf24;
+    border-color: rgba(251, 191, 36, 0.3);
+  }
+}
+.espp-reminder-banner__link {
+  font-weight: 600;
+  text-decoration: underline;
+  color: inherit;
+  white-space: nowrap;
+  margin-left: 6px;
+}
+
+/* Amber stale-price indicator inside the account header strip */
+.inv-account-header__updated--stale {
+  color: #b45309;
+  font-weight: 600;
+}
+[data-theme="dark"] .inv-account-header__updated--stale {
+  color: #fbbf24;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .inv-account-header__updated--stale {
+    color: #fbbf24;
+  }
+}
+
+/* ─── Fidelity ESPP — lot source badges (SP / DO) ───────────────────────────── */
+.fid-source-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+/* SP — Stock Purchase: blue (mirrors equity badge) */
+.fid-source-badge--sp {
+  background: rgba(37, 99, 235, 0.10);
+  color: var(--primary);
+  border: 1px solid rgba(37, 99, 235, 0.22);
+}
+
+/* DO — Dividend / Company Option: green (mirrors fixed-income badge) */
+.fid-source-badge--do {
+  background: rgba(34, 197, 94, 0.10);
+  color: #15803d;
+  border: 1px solid rgba(34, 197, 94, 0.22);
+}
+
+[data-theme="dark"] .fid-source-badge--sp {
+  color: #60a5fa;
+  background: rgba(96, 165, 250, 0.12);
+  border-color: rgba(96, 165, 250, 0.22);
+}
+[data-theme="dark"] .fid-source-badge--do {
+  color: #4ade80;
+  background: rgba(74, 222, 128, 0.12);
+  border-color: rgba(74, 222, 128, 0.22);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .fid-source-badge--sp {
+    color: #60a5fa;
+    background: rgba(96, 165, 250, 0.12);
+    border-color: rgba(96, 165, 250, 0.22);
+  }
+  :root:not([data-theme="light"]) .fid-source-badge--do {
+    color: #4ade80;
+    background: rgba(74, 222, 128, 0.12);
+    border-color: rgba(74, 222, 128, 0.22);
+  }
+}
+
+/* Coloured kpi-sub for gain/loss pct */
+.kpi-sub--pos { color: var(--income); }
+.kpi-sub--neg { color: var(--expense); }
+
 /* Charts row — value chart (wider) + allocation donut (narrower) */
 .inv-charts-row {
   display: grid;
@@ -5278,7 +5507,7 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
 }
 
 /* ── Change 2: Fix donut center label — height mismatch ─────────────── */
-/* InvestmentsPage passes height={220} to ResponsiveContainer, but the  */
+/* IndexaView passes height={220} to ResponsiveContainer, but the       */
 /* shared .cat-donut-wrap CSS had height: 280px. The mismatch pushed the */
 /* absolute-positioned .cat-donut-center (inset: 0) ~30px below the     */
 /* visual ring centre. Scoped override matches the RC height exactly so  */
@@ -5395,9 +5624,217 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
   display: block;
 }
 
+
 @media (max-width: 600px) {
   /* Larger tap target on mobile */
   .inv-info-tip { width: 16px; height: 16px; font-size: 10px; }
   /* Narrower bubble to fit half-width columns */
   .inv-info-bubble { font-size: 11px; max-width: 200px; min-width: 120px; }
+}
+
+/* ─── Combined investments overview (/investments landing) ──────────────── */
+
+/* KPI strip: 3 cards in a row */
+.inv-kpi-strip {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 0;
+}
+@media (max-width: 600px) {
+  .inv-kpi-strip { grid-template-columns: 1fr; }
+}
+
+/* Single KPI card — mirrors .kpi-card but investments-specific */
+.inv-kpi-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: var(--shadow);
+}
+.inv-kpi-card__label {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+.inv-kpi-card__value {
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--text);
+}
+.inv-kpi-card__sub {
+  font-size: 13px;
+  font-weight: 500;
+  margin-top: 4px;
+}
+.inv-kpi-card__value--pos { color: var(--income); }
+.inv-kpi-card__value--neg { color: var(--expense); }
+
+/* Provider cards grid */
+.inv-provider-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+/* Single provider card */
+.inv-provider-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  cursor: pointer;
+  transition: box-shadow 0.15s;
+  text-decoration: none;
+}
+.inv-provider-card:hover {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+.inv-provider-card__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.inv-provider-card__icon {
+  font-size: 20px;
+}
+.inv-provider-card__name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+.inv-provider-card__value {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+}
+.inv-provider-card__gain {
+  font-size: 13px;
+  font-weight: 500;
+}
+.inv-provider-card__gain--positive { color: var(--income); }
+.inv-provider-card__gain--negative { color: var(--expense); }
+.inv-provider-card__cta {
+  font-size: 12px;
+  color: var(--primary);
+  margin-top: 4px;
+}
+/* ── InvestmentSnapshotCard ─────────────────────────────────────────────────── */
+.inv-snapshot-card {
+  margin-top: 16px;
+}
+.inv-snapshot-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.inv-snapshot-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0;
+}
+.inv-snapshot-link {
+  font-size: 13px;
+  color: var(--primary);
+  text-decoration: none;
+}
+.inv-snapshot-link:hover { text-decoration: underline; }
+
+.inv-snapshot-body { display: flex; flex-direction: column; gap: 12px; }
+
+.inv-snapshot-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.inv-snapshot-total-label {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.inv-snapshot-total-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.inv-snapshot-providers {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.inv-snapshot-provider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-top: 1px solid var(--border);
+}
+.inv-snapshot-provider-icon { font-size: 18px; }
+.inv-snapshot-provider-name {
+  flex: 1;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.inv-snapshot-provider-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+.inv-snapshot-cta { margin-top: 8px; }
+
+/* ── ImportSourcePicker modal ───────────────────────────────────────────────── */
+.import-picker-modal { max-width: 420px; width: 100%; }
+
+.import-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 0 4px;
+}
+
+.import-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 16px;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s, border-color 0.15s;
+  color: var(--text);
+}
+.import-picker-row:hover {
+  background: var(--bg);
+  border-color: var(--primary);
+}
+.import-picker-icon { font-size: 22px; flex-shrink: 0; }
+.import-picker-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.import-picker-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+.import-picker-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.import-picker-arrow {
+  font-size: 20px;
+  color: var(--text-muted);
+  flex-shrink: 0;
 }

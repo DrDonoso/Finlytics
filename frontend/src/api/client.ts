@@ -8,6 +8,9 @@ import type {
   Rule, RuleInput, RulePatch,
   StatementMonth, MerchantSummary, StatementOriginal, InvestmentPlugin,
   InvestmentPortfolio, InvestmentConnection, ValidateAccountsResponse,
+  FidelityKpis, FidelityEvolution, FidelityLots,
+  FidelityImportPreview, FidelityImportConfirmResult, FidelityReminderResponse,
+  CombinedOverview, SummaryMonths,
 } from './types'
 import {
   mockGetAccounts, mockGetCategories, mockGetTags, mockGetTransactions,
@@ -479,4 +482,62 @@ export async function disconnectConnection(id: number): Promise<void> {
 export async function getInvestmentPortfolio(): Promise<InvestmentPortfolio> {
   if (USE_MOCK) return mockGetInvestmentPortfolio()
   return apiFetch<InvestmentPortfolio>(buildUrl('/api/investments/portfolio'))
+}
+
+// ─── Fidelity ESPP ────────────────────────────────────────────────────────────
+
+/** GET /api/investments/fidelity/kpis — KPI summary for the MSFT ESPP portfolio. */
+export async function getFidelityKpis(): Promise<FidelityKpis> {
+  return apiFetch<FidelityKpis>(buildUrl('/api/investments/fidelity/kpis'))
+}
+
+/** GET /api/investments/fidelity/evolution — time-series: portfolio value + contributions. */
+export async function getFidelityEvolution(): Promise<FidelityEvolution> {
+  return apiFetch<FidelityEvolution>(buildUrl('/api/investments/fidelity/evolution'))
+}
+
+/** GET /api/investments/fidelity/lots — all purchase lots, ordered by purchase_date DESC. */
+export async function getFidelityLots(): Promise<FidelityLots> {
+  return apiFetch<FidelityLots>(buildUrl('/api/investments/fidelity/lots'))
+}
+
+/** POST /api/investments/fidelity/import/preview — parse CSV and return new lots (not yet persisted). */
+export async function fidelityImportPreview(file: File): Promise<FidelityImportPreview> {
+  const form = new FormData()
+  form.append('file', file)
+  return apiFetch<FidelityImportPreview>('/api/investments/fidelity/import/preview', {
+    method: 'POST',
+    body: form,
+  })
+}
+
+/** POST /api/investments/fidelity/import/confirm — re-send the file to persist new lots. */
+export async function fidelityImportConfirm(file: File): Promise<FidelityImportConfirmResult> {
+  const form = new FormData()
+  form.append('file', file)
+  return apiFetch<FidelityImportConfirmResult>('/api/investments/fidelity/import/confirm', {
+    method: 'POST',
+    body: form,
+  })
+}
+
+/** GET /api/investments/fidelity/reminder — ESPP upload reminder status.
+ *  Always returns 200; overdue=false when no connection. Fails silently (caller ignores errors). */
+export async function getFidelityReminder(): Promise<FidelityReminderResponse> {
+  return apiFetch<FidelityReminderResponse>(buildUrl('/api/investments/fidelity/reminder'))
+}
+
+/** GET /api/investments/combined-overview — consolidated overview across all providers. */
+export async function getCombinedOverview(): Promise<CombinedOverview> {
+  return apiFetch<CombinedOverview>(buildUrl('/api/investments/combined-overview'))
+}
+
+/** GET /api/summary/months → { months: ["YYYY-MM", …], latest: "YYYY-MM" | null }.
+ *  Degrades to { months: [], latest: null } on any error; caller falls back to the previous calendar month. */
+export async function getOverviewMonths(): Promise<SummaryMonths> {
+  try {
+    return await apiFetch<SummaryMonths>(buildUrl('/api/summary/months'))
+  } catch {
+    return { months: [], latest: null }
+  }
 }

@@ -334,6 +334,7 @@ const es: Dict = {
   heatmapLess: 'menos',
   heatmapMore: 'más',
   heatmapEmpty: 'Sin gastos en el periodo',
+  heatmapZoomOut: '‹ Ampliar rango',
   // ── Top merchants panel ───────────────────────────────────────────────────
   topMerchantsTitle: 'Top comercios',
   topMerchantsEmpty: 'Sin datos de comercios',
@@ -475,5 +476,78 @@ const es: Dict = {
   invMetricTwrInfo: 'Rentabilidad ponderada por tiempo (TWR). Mide el rendimiento de la cartera eliminando el efecto de aportaciones y reintegros; compara gestores en igualdad de condiciones.',
   invMetricMwrInfo: 'Rentabilidad ponderada por dinero (MWR / TIR). Tu rentabilidad real teniendo en cuenta cuándo y cuánto aportaste; refleja el impacto de tus decisiones de inversión.',
   invMetricVolInfo: 'Volatilidad anualizada. Variabilidad histórica de los rendimientos diarios. A mayor volatilidad, mayor incertidumbre a corto plazo y mayor riesgo percibido.',
+  // ── Nav restructure — Investments accordion ────────────────────────────────
+  navInvestmentsOverview: 'Resumen',
+  invNoPluginsHint: 'Conecta un plugin →',
+  invLandingTitle: 'Inversiones',
+  invLandingEmpty: 'Conecta un plugin para ver tus inversiones',
+  invPluginNotAvailable: 'Plugin no disponible. Conecta este plugin en Ajustes → Conectores.',
+  // ── Nav restructure — Settings regrouping ─────────────────────────────────
+  settingsGroupData: 'Datos',
+  settingsGroupRules: 'Reglas',
+  settingsGroupSystem: 'Sistema',
+  settingsGroupApp: 'Aplicación',
+  // ── Nav restructure — Finanzas group ──────────────────────────────────────
+  navFinances: 'Finanzas',
+  financesOverviewTitle: 'Finanzas',
+  // ── Combined investments overview ─────────────────────────────────────────
+  invCombinedTitle: 'Inversiones',
+  invCombinedTotalValue: 'Valor total',
+  invCombinedTotalGain: 'Ganancia total',
+  invCombinedByProvider: 'Por proveedor',
+  invCombinedByAssetClass: 'Por tipo de activo',
+  // ── Fidelity ESPP ─────────────────────────────────────────────────────────
+  fidelityTitle: 'ESPP Fidelity – MSFT',
+  fidelityKpiShares: 'Acciones MSFT',
+  fidelityKpiSharesSub: (n) => n !== 1 ? `${n} lotes` : '1 lote',
+  fidelityKpiInvested: 'Invertido',
+  fidelityKpiCurrentValue: 'Valor actual',
+  fidelityKpiGainLoss: 'Ganancia / Pérdida',
+  fidelityAsOf: (date) => `A fecha ${date}`,
+  fidelityPriceStale: 'Precio puede estar desactualizado',
+  fidelityPriceInfo: (usd, rate) => `MSFT ${usd.toFixed(2)} $ · 1 $ = ${rate.toFixed(4)} €`,
+  fidelityImportBtn: '↑ Importar CSV',
+  fidelityImportTitle: 'Importar lotes Fidelity',
+  fidelityImportStep1Hint: 'Sube el CSV de historial de transacciones de Fidelity (historial de ESPP). Los lotes ya importados se omitirán automáticamente.',
+  fidelityImportPreviewTitle: 'Lotes nuevos detectados',
+  fidelityImportNewLots: (n) => n !== 1 ? `${n} lotes nuevos` : '1 lote nuevo',
+  fidelityImportDuplicates: (n) => n !== 1 ? `${n} duplicados omitidos` : '1 duplicado omitido',
+  fidelityImportConfirmBtn: 'Confirmar importación',
+  fidelityImportConfirmingBtn: 'Importando lotes…',
+  fidelityImportSuccessTitle: '¡Importación completada!',
+  fidelityImportSuccessSub: (ins, dup) => `${ins} ${ins !== 1 ? 'lotes añadidos' : 'lote añadido'} · ${dup} ${dup !== 1 ? 'duplicados omitidos' : 'duplicado omitido'}`,
+  fidelityEmptyTitle: 'Sin lotes importados. Importa tu CSV de Fidelity para ver tu cartera MSFT.',
+  fidelityEvolutionTitle: 'Evolución cartera MSFT',
+  fidelityLegendPortfolio: 'Tu cartera MSFT',
+  fidelityLegendInvested: 'Invertido',
+  fidelityColDate: 'Fecha',
+  fidelityColSource: 'Origen',
+  fidelityColShares: 'Acciones',
+  fidelityColCostPerShare: 'Coste/acc.',
+  fidelityColTotalCost: 'Coste total',
+  fidelityColCurrentValue: 'Valor actual',
+  fidelityColGain: 'Ganancia €',
+  fidelityColGainPct: 'Ganancia %',
+  fidelityImportCta: 'Importar CSV',
+  fidelitySourceSpTooltip: 'SP – Compra ESPP',
+  fidelitySourceDoTooltip: 'DO – Dividendo reinvertido',
+  // ── InvestmentSnapshotCard (Inicio cross-domain hub) ──────────────────────
+  invSnapshotTitle: 'Inversiones',
+  invSnapshotNoConnections: 'Sin inversiones conectadas',
+  invSnapshotGoTo: 'Ver inversiones →',
+  // ── ImportSourcePicker (Inicio import prompt) ─────────────────────────────
+  importPickerTitle: 'Importar',
+  importPickerStatements: 'Extractos bancarios',
+  importPickerStatementsDesc: 'Importa un PDF de extracto de tu banco',
+  importPickerClose: 'Cerrar',
+  // ── Plugin descriptions (localized, keyed by plugin id) ───────────────────
+  invPluginDescIndexa: 'Cartera de fondos indexados — acceso de solo lectura vía token de API.',
+  invPluginDescFidelity: 'Plan de compra de acciones para empleados (ESPP MSFT) — importa tu historial de lotes en CSV.',
+  // ── ESPP upload-reminder banner ───────────────────────────────────────────
+  esppReminderBanner: (periodLabel) =>
+    periodLabel
+      ? `Hay una compra ESPP pendiente de importar (${periodLabel}). Exporta tu CSV de Fidelity y súbelo.`
+      : 'Hay una compra ESPP pendiente de importar. Exporta tu CSV de Fidelity y súbelo.',
+  esppReminderAction: 'Importar ahora',
 }
 export default es

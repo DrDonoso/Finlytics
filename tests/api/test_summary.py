@@ -387,6 +387,107 @@ async def test_cashflow_multi_tag_or_filter(client):
     assert set(kwargs["tags"]) == {"luz", "agua"}
 
 
+# ── GET /api/summary/months ───────────────────────────────────────────────────
+
+_STATEMENT_MONTHS_RAW = [
+    {"year": 2024, "month": 6, "count": 12},
+    {"year": 2024, "month": 5, "count": 8},
+    {"year": 2024, "month": 1, "count": 15},
+    {"year": 2023, "month": 12, "count": 7},
+]
+
+
+async def test_transaction_months_status_200(client):
+    with patch("finlytics.db.queries.get_statement_months", new_callable=AsyncMock) as mock:
+        mock.return_value = _STATEMENT_MONTHS_RAW
+        resp = await client.get("/api/summary/months")
+
+    assert resp.status_code == 200
+
+
+async def test_transaction_months_schema(client):
+    """Response has exactly {months: [...], latest: str}."""
+    with patch("finlytics.db.queries.get_statement_months", new_callable=AsyncMock) as mock:
+        mock.return_value = _STATEMENT_MONTHS_RAW
+        resp = await client.get("/api/summary/months")
+
+    body = resp.json()
+    assert set(body.keys()) == {"months", "latest"}
+    assert isinstance(body["months"], list)
+    assert isinstance(body["latest"], str)
+
+
+async def test_transaction_months_format_yyyy_mm(client):
+    """Each entry in months is a zero-padded YYYY-MM string."""
+    with patch("finlytics.db.queries.get_statement_months", new_callable=AsyncMock) as mock:
+        mock.return_value = _STATEMENT_MONTHS_RAW
+        resp = await client.get("/api/summary/months")
+
+    for m in resp.json()["months"]:
+        assert len(m) == 7, f"Expected YYYY-MM (7 chars), got '{m}'"
+        assert m[4] == "-"
+
+
+async def test_transaction_months_sorted_asc(client):
+    """Months are sorted ascending so the frontend can take the last as default."""
+    with patch("finlytics.db.queries.get_statement_months", new_callable=AsyncMock) as mock:
+        mock.return_value = _STATEMENT_MONTHS_RAW
+        resp = await client.get("/api/summary/months")
+
+    months = resp.json()["months"]
+    assert months == sorted(months)
+
+
+async def test_transaction_months_latest_is_last(client):
+    """latest equals the last element of months."""
+    with patch("finlytics.db.queries.get_statement_months", new_callable=AsyncMock) as mock:
+        mock.return_value = _STATEMENT_MONTHS_RAW
+        resp = await client.get("/api/summary/months")
+
+    body = resp.json()
+    assert body["latest"] == body["months"][-1]
+    assert body["latest"] == "2024-06"
+
+
+async def test_transaction_months_values_correct(client):
+    with patch("finlytics.db.queries.get_statement_months", new_callable=AsyncMock) as mock:
+        mock.return_value = _STATEMENT_MONTHS_RAW
+        resp = await client.get("/api/summary/months")
+
+    assert resp.json()["months"] == ["2023-12", "2024-01", "2024-05", "2024-06"]
+
+
+async def test_transaction_months_empty(client):
+    """No transactions → months=[], latest=null, still 200."""
+    with patch("finlytics.db.queries.get_statement_months", new_callable=AsyncMock) as mock:
+        mock.return_value = []
+        resp = await client.get("/api/summary/months")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["months"] == []
+    assert body["latest"] is None
+
+
+async def test_transaction_months_calls_get_statement_months(client):
+    """Endpoint delegates to get_statement_months (reuses existing query)."""
+    with patch("finlytics.db.queries.get_statement_months", new_callable=AsyncMock) as mock:
+        mock.return_value = []
+        await client.get("/api/summary/months")
+
+    mock.assert_called_once()
+
+
+async def test_transaction_months_single_entry(client):
+    with patch("finlytics.db.queries.get_statement_months", new_callable=AsyncMock) as mock:
+        mock.return_value = [{"year": 2025, "month": 3, "count": 5}]
+        resp = await client.get("/api/summary/months")
+
+    body = resp.json()
+    assert body["months"] == ["2025-03"]
+    assert body["latest"] == "2025-03"
+
+
 async def test_transactions_multi_tag_no_duplicate_rows(client):
     """Multi-tag OR filter: the query layer gets a list; no row duplication from the API layer."""
     tx_base = {

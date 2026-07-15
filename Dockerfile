@@ -1,16 +1,19 @@
 # ─── Stage 1: Build the React frontend ──────────────────────────────────────
-FROM node:20-alpine AS frontend-builder
-
-WORKDIR /frontend
-
-# Install dependencies (cache-friendly: only re-runs when lock file changes)
-COPY frontend/package.json frontend/package-lock.json ./
-RUN npm ci
-
-# Copy source and produce frontend/dist
-COPY frontend/ ./
-RUN npm run build
-# → output: /frontend/dist/
+# NOTE: npm 10.x crashes in Docker containers ("Exit handler never called"),
+# skipping bin-symlink creation. Build the frontend on the host before running
+# docker compose build:
+#   cd frontend && npm ci && npm run build
+# Then the pre-built frontend/dist/ is copied into the image below.
+#
+# To re-enable in-Docker builds once npm resolves the issue, restore:
+#   FROM node:20-slim AS frontend-builder
+#   WORKDIR /frontend
+#   COPY frontend/package.json frontend/package-lock.json ./
+#   RUN npm ci
+#   COPY frontend/ ./
+#   RUN npm run build
+#   # and change the COPY below back to:
+#   # COPY --from=frontend-builder /frontend/dist ./frontend/dist
 
 
 # ─── Stage 2: Python runtime ──────────────────────────────────────────────────
@@ -40,8 +43,8 @@ RUN pip install --no-cache-dir --no-deps .
 COPY alembic.ini seed.py ./
 COPY alembic/ ./alembic/
 
-# Copy the compiled React SPA from the frontend stage
-COPY --from=frontend-builder /frontend/dist ./frontend/dist
+# Copy the compiled React SPA (pre-built on host: cd frontend && npm ci && npm run build)
+COPY frontend/dist ./frontend/dist
 
 # Entrypoint: runs migrations + seed → exec uvicorn
 COPY docker-entrypoint.sh /docker-entrypoint.sh

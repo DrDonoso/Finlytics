@@ -7,8 +7,8 @@ import type { Lang } from '../i18n'
 
 interface Props {
   globalFilters: GlobalFilters
-  selectedDay?: string
-  onDayClick: (day: string) => void
+  onSelectPeriod: (from: string, to: string) => void
+  onResetPeriod?: () => void
   refreshKey?: number
 }
 
@@ -100,9 +100,14 @@ function computeWeekdayLabels(lang: Lang): string[] {
   return Array.from({ length: 7 }, (_, i) => fmt.format(new Date(2024, 0, 1 + i)))
 }
 
+function isMonthInRange(year: number, monthIdx: number, fromStr: string, toStr: string): boolean {
+  const key = `${year}-${String(monthIdx + 1).padStart(2, '0')}`
+  return key >= fromStr.slice(0, 7) && key <= toStr.slice(0, 7)
+}
+
 // ─── Component ─────────────────────────────────────────────────────────────────
 
-export default function SpendingHeatmap({ globalFilters, selectedDay, onDayClick, refreshKey = 0 }: Props) {
+export default function SpendingHeatmap({ globalFilters, onSelectPeriod, onResetPeriod, refreshKey = 0 }: Props) {
   const { t, lang, formatCurrency } = useT()
   const [loading, setLoading] = useState(true)
   const [error, setError]     = useState<string | null>(null)
@@ -161,17 +166,66 @@ export default function SpendingHeatmap({ globalFilters, selectedDay, onDayClick
     return { weeks, maxExp, monthCols, cells, wdLabels: computeWeekdayLabels(lang) }
   }, [data, globalFilters.from, globalFilters.to, lang])
 
+  // ── Mode detection (3 adaptive modes by totalDays) ─────────────────────────
+  const totalDays = useMemo(() => {
+    if (data.length === 0) return 0
+    const fromStr = globalFilters.from || data[0].day
+    const toStr   = globalFilters.to   || data[data.length - 1].day
+    return Math.round((parseDate(toStr).getTime() - parseDate(fromStr).getTime()) / 86_400_000) + 1
+  }, [data, globalFilters.from, globalFilters.to])
+
+  const mode: 'daily' | 'compact' | 'monthly' =
+    totalDays <= 182 ? 'daily'
+    : totalDays <= 547 ? 'compact'
+    : 'monthly'
+
+  // ── Adaptive sizes for daily + compact ────────────────────────────────────
+  const weekCount = grid ? grid.weeks.length : 52
+  const cellPx    = mode === 'compact' ? 11
+    : weekCount <= 6  ? 20
+    : weekCount <= 12 ? 18
+    : weekCount <= 26 ? 16
+    : 14
+  const gapPx     = mode === 'compact' ? 2 : 3
+  const radiusPx  = mode === 'compact' ? 2 : weekCount <= 6 ? 4 : weekCount <= 12 ? 3 : 2
+
+  // ── Monthly grid data (mode C: > 18 months) ───────────────────────────────
+  const monthGrid = useMemo(() => {
+    if (mode !== 'monthly' || !grid || data.length === 0) return null
+    const monthMap = new Map<string, number>()
+    for (const row of data) {
+      const key = row.day.slice(0, 7)
+      monthMap.set(key, (monthMap.get(key) ?? 0) + row.expense)
+    }
+    const maxMonthExp = Math.max(0, ...monthMap.values())
+    const fromStr  = globalFilters.from || data[0].day
+    const toStr    = globalFilters.to   || data[data.length - 1].day
+    const fromYear = parseInt(fromStr.slice(0, 4))
+    const toYear   = parseInt(toStr.slice(0, 4))
+    const years    = Array.from({ length: toYear - fromYear + 1 }, (_, i) => fromYear + i)
+    return { monthMap, maxMonthExp, years, fromStr, toStr }
+  }, [data, mode, globalFilters.from, globalFilters.to, grid])
+
+  // ── Month column labels (Intl, i18n) ──────────────────────────────────────
+  const MONTH_LABELS = useMemo(() => {
+    const locale = lang === 'es' ? 'es-ES' : 'en-GB'
+    const fmt = new Intl.DateTimeFormat(locale, { month: 'short' })
+    return Array.from({ length: 12 }, (_, m) => fmt.format(new Date(2024, m, 1)))
+  }, [lang])
+
   const hasData = !loading && !error && data.some(d => d.expense > 0)
   const isEmpty = !loading && !error && !hasData
 
-  // Adaptive cell size based on number of week columns
-  const weekCount = grid ? grid.weeks.length : 52
-  const cellPx   = weekCount <= 6 ? 30 : weekCount <= 12 ? 20 : weekCount <= 26 ? 16 : 14
-  const radiusPx = weekCount <= 6 ? 4  : weekCount <= 12 ? 3  : 2
-
   return (
     <div className="card heatmap-card">
-      <div className="card-title">{t.heatmapTitle}</div>
+      <div className={`card-title${onResetPeriod ? ' card-title--has-action' : ''}`}>
+        <span>{t.heatmapTitle}</span>
+        {onResetPeriod && (
+          <button className="hm-reset-btn" onClick={onResetPeriod}>
+            {t.heatmapZoomOut}
+          </button>
+        )}
+      </div>
 
       {error && (
         <div className="state-box error">
@@ -196,72 +250,128 @@ export default function SpendingHeatmap({ globalFilters, selectedDay, onDayClick
 
       {!error && !loading && hasData && grid && (
         <div className="heatmap-outer">
-          <div
-            className="heatmap-wrap"
-            style={{ '--hm-cell': `${cellPx}px`, '--hm-radius': `${radiusPx}px` } as CSSProperties}
-          >
 
-            {/* Month labels — one per week column */}
-            <div
-              className="heatmap-months"
-              style={{ gridTemplateColumns: `repeat(${grid.weeks.length}, var(--hm-cell))` }}
-            >
-              {grid.monthCols.map((label, i) => (
-                <div key={i} className="hm-month-label">{label}</div>
+          {mode === 'monthly' && monthGrid ? (
+            /* ── Modo C: Monthly Grid (> 18 months) ── */
+            <div className="heatmap-month-grid-wrap">
+              <div className="heatmap-month-header">
+                <div className="hm-year-placeholder" />
+                {MONTH_LABELS.map(label => (
+                  <div key={label} className="hm-month-col-label">{label}</div>
+                ))}
+              </div>
+              {monthGrid.years.map(year => (
+                <div key={year} className="heatmap-month-row">
+                  <div className="hm-year-label">{year}</div>
+                  {Array.from({ length: 12 }, (_, m) => {
+                    const key    = `${year}-${String(m + 1).padStart(2, '0')}`
+                    const exp    = monthGrid.monthMap.get(key) ?? 0
+                    const isOut  = !isMonthInRange(year, m, monthGrid.fromStr, monthGrid.toStr)
+                    const b      = isOut ? 0 : colorBucket(exp, monthGrid.maxMonthExp)
+                    const title  = isOut
+                      ? undefined
+                      : exp > 0 ? `${MONTH_LABELS[m]} ${year} · ${formatCurrency(exp)}` : `${MONTH_LABELS[m]} ${year}`
+                    const firstDay = `${year}-${String(m + 1).padStart(2, '0')}-01`
+                    const lastDay  = toDateStr(new Date(year, m + 1, 0))
+                    return (
+                      <div
+                        key={m}
+                        className={['hm-cell', isOut ? 'hm-cell--out' : `hm-cell--${b}`].join(' ')}
+                        title={title}
+                        aria-label={title}
+                        tabIndex={!isOut ? 0 : undefined}
+                        role={!isOut ? 'button' : undefined}
+                        onClick={!isOut ? () => onSelectPeriod(firstDay, lastDay) : undefined}
+                        onKeyDown={!isOut ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectPeriod(firstDay, lastDay) } } : undefined}
+                      />
+                    )
+                  })}
+                </div>
               ))}
+
+              {/* Legend */}
+              <div className="heatmap-legend" style={{ marginLeft: 40 }}>
+                <span className="hm-legend-label">{t.heatmapLess}</span>
+                {([0, 1, 2, 3, 4] as const).map(b => (
+                  <div key={b} className={`hm-cell hm-cell--${b}`} />
+                ))}
+                <span className="hm-legend-label">{t.heatmapMore}</span>
+              </div>
             </div>
 
-            {/* Weekday labels + cell grid */}
-            <div className="heatmap-body">
-              <div className="heatmap-weekdays">
-                {grid.wdLabels.map((label, i) => (
-                  <div key={i} className="hm-weekday">
-                    {/* Only show Mon / Wed / Fri to avoid crowding */}
-                    {i % 2 === 0 ? label : ''}
-                  </div>
+          ) : (
+            /* ── Modos A/B: Daily / Compact calendar ── */
+            <div
+              className="heatmap-wrap"
+              style={{
+                '--hm-cell': `${Math.max(10, cellPx)}px`,
+                '--hm-gap': `${gapPx}px`,
+                '--hm-radius': `${radiusPx}px`,
+              } as CSSProperties}
+            >
+
+              {/* Month labels — one per week column */}
+              <div
+                className="heatmap-months"
+                style={{ gridTemplateColumns: `repeat(${grid.weeks.length}, var(--hm-cell))` }}
+              >
+                {grid.monthCols.map((label, i) => (
+                  <div key={i} className="hm-month-label">{label}</div>
                 ))}
               </div>
 
-              <div
-                className="heatmap-grid"
-                role="grid"
-                aria-label={t.heatmapTitle}
-                style={{ gridTemplateColumns: `repeat(${grid.weeks.length}, var(--hm-cell))` }}
-              >
-                {grid.cells.map(({ date, expense, weekIdx, dayIdx }) => {
-                  const isOut      = date === null
-                  const b          = isOut ? 0 : colorBucket(expense, grid.maxExp)
-                  const isSelected = date !== null && date === selectedDay
-                  const title      = date ? fmtDayTooltip(date, expense, lang, formatCurrency) : undefined
-                  return (
-                    <div
-                      key={`${weekIdx}-${dayIdx}`}
-                      className={[
-                        'hm-cell',
-                        isOut ? 'hm-cell--out' : `hm-cell--${b}`,
-                        isSelected ? 'hm-cell--selected' : '',
-                      ].filter(Boolean).join(' ')}
-                      title={title}
-                      aria-label={title}
-                      aria-pressed={isSelected || undefined}
-                      role={!isOut ? 'button' : undefined}
-                      onClick={(!isOut && date) ? () => onDayClick(date) : undefined}
-                    />
-                  )
-                })}
+              {/* Weekday labels + cell grid */}
+              <div className="heatmap-body">
+                <div className="heatmap-weekdays">
+                  {grid.wdLabels.map((label, i) => (
+                    <div key={i} className="hm-weekday">
+                      {/* Only show Mon / Wed / Fri to avoid crowding */}
+                      {i % 2 === 0 ? label : ''}
+                    </div>
+                  ))}
+                </div>
+
+                <div
+                  className="heatmap-grid"
+                  role="grid"
+                  aria-label={t.heatmapTitle}
+                  style={{ gridTemplateColumns: `repeat(${grid.weeks.length}, var(--hm-cell))` }}
+                >
+                  {grid.cells.map(({ date, expense, weekIdx, dayIdx }) => {
+                    const isOut      = date === null
+                    const b          = isOut ? 0 : colorBucket(expense, grid.maxExp)
+                    const title      = date ? fmtDayTooltip(date, expense, lang, formatCurrency) : undefined
+                    return (
+                      <div
+                        key={`${weekIdx}-${dayIdx}`}
+                        className={[
+                          'hm-cell',
+                          isOut ? 'hm-cell--out' : `hm-cell--${b}`,
+                        ].filter(Boolean).join(' ')}
+                        title={title}
+                        aria-label={title}
+                        tabIndex={(!isOut && date) ? 0 : undefined}
+                        role={(!isOut && date) ? 'button' : undefined}
+                        onClick={(!isOut && date) ? () => onSelectPeriod(date, date) : undefined}
+                        onKeyDown={(!isOut && date) ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectPeriod(date, date) } } : undefined}
+                      />
+                    )
+                  })}
+                </div>
               </div>
-            </div>
 
-            {/* Legend */}
-            <div className="heatmap-legend">
-              <span className="hm-legend-label">{t.heatmapLess}</span>
-              {([0, 1, 2, 3, 4] as const).map(b => (
-                <div key={b} className={`hm-cell hm-cell--${b}`} />
-              ))}
-              <span className="hm-legend-label">{t.heatmapMore}</span>
-            </div>
+              {/* Legend */}
+              <div className="heatmap-legend">
+                <span className="hm-legend-label">{t.heatmapLess}</span>
+                {([0, 1, 2, 3, 4] as const).map(b => (
+                  <div key={b} className={`hm-cell hm-cell--${b}`} />
+                ))}
+                <span className="hm-legend-label">{t.heatmapMore}</span>
+              </div>
 
-          </div>
+            </div>
+          )}
+
         </div>
       )}
     </div>

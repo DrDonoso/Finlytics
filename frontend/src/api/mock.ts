@@ -443,6 +443,17 @@ export function mockGetInvestmentPlugins(): Promise<InvestmentPlugin[]> {
       status: _mockConnected ? 'connected' : 'available',
       auth_type: 'token',
       supported_features: ['holdings', 'transactions', 'performance'],
+      import_route: null,
+    },
+    {
+      id: 'fidelity-espp',
+      name: 'Fidelity ESPP',
+      description: 'Import MSFT ESPP holdings from Fidelity CSV',
+      icon: '🏢',
+      status: 'available',
+      auth_type: 'none',
+      supported_features: ['holdings'],
+      import_route: '/investments/fidelity-espp',
     },
     {
       id: 'generic-broker',
@@ -452,6 +463,7 @@ export function mockGetInvestmentPlugins(): Promise<InvestmentPlugin[]> {
       status: 'coming_soon',
       auth_type: 'api_key',
       supported_features: ['holdings', 'transactions'],
+      import_route: null,
     },
     {
       id: 'crypto-exchange',
@@ -461,6 +473,7 @@ export function mockGetInvestmentPlugins(): Promise<InvestmentPlugin[]> {
       status: 'coming_soon',
       auth_type: 'api_key',
       supported_features: ['holdings'],
+      import_route: null,
     },
   ])
 }

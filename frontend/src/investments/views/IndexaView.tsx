@@ -5,10 +5,10 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell,
 } from 'recharts'
-import type { InvestmentPortfolio, InvestmentConnection } from '../api/types'
-import { getInvestmentPortfolio, getConnections } from '../api/client'
-import { useT, langLocale } from '../i18n'
-import type { Dict } from '../i18n'
+import type { InvestmentPortfolio, InvestmentConnection } from '../../api/types'
+import { getInvestmentPortfolio, getConnections } from '../../api/client'
+import { useT, langLocale } from '../../i18n'
+import type { Dict } from '../../i18n'
 
 const ASSET_CLASS_COLORS: Record<string, string> = {
   equity:       '#2563eb',
@@ -80,7 +80,7 @@ type EvolutionPeriod = string
 type EvolutionMode   = 'eur' | 'pct'
 type MatrixMode      = 'pct' | 'eur'
 
-export default function InvestmentsPage() {
+export default function IndexaView() {
   const { t, lang, formatCurrency } = useT()
   const locale = langLocale(lang)
 
