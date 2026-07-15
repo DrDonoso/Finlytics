@@ -1,0 +1,32 @@
+.squad/agents/vision/history.md
+  s_d1391829ee53d4::t_54972e5c88fcdd 37,39-41,45,47,49-59,61-64,68,70-73,75,79,81-87,91,93-95,97-98,100-101,105,107,111,113-117,119
+  s_1e001def0ab2d2::t_6c1dd8c75826f7 143
+.squad/agents/wanda/history.md
+  s_1e001def0ab2d2::t_76a53895efdd9e 1,3-6,8,10-16,18,20-37,41
+.squad/decisions.md
+  s_1e001def0ab2d2::t_5e2d7926670c94 5278-5452
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "b7253d703f33c277b37369dcc7376319684d6960",
+  "prompts": {},
+  "sessions": {
+    "s_1e001def0ab2d2": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_015vVMKMZr381MnBdq1XVshx",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_d1391829ee53d4": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01NHMCKJbPr1J7uayNUf9LXZ",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    }
+  }
+}
