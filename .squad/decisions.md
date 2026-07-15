@@ -30,6 +30,22 @@ Shuri delivered two post-integration refinements:
 
 ---
 
+## BATCH STATUS: Finlytics Feedback Batch 4 (2026-07-15)
+
+**Summary:** 3 feature items completed + verified in Docker.
+
+1. **Shuri:** New GET /api/summary/months endpoint — {months: ["YYYY-MM"...ASC], latest: "YYYY-MM"|null}. Reuses get_statement_months over Transaction. Tests: 1130 passed.
+
+2. **Vision:** (1) Connector descriptions localized via frontend i18n (PLUGIN_DESC_KEYS) instead of backend English. (2) Inicio KPIs default to LAST month with transaction data + Mes/Año label + prev/next month nav (consumes /api/summary/months). (3) "Ver transacciones" button added to Finanzas → /transactions. Build: 0 errors TS.
+
+3. **Coordinator:** Caught + corrected endpoint contract mismatch before rebuild (vision assumed /api/overview/months bare array; actual is /api/summary/months {months, latest}).
+
+4. **Rocket:** Rebuilt docker-compose.local.yml; no new migrations (head 0015); /api/summary/months verified 401 (route wired); new frontend chunk served; running :7777.
+
+**Outcome:** ✅ 3 items implemented + verified | ⏳ Pending owner decisions: heatmap scaling proposal (GitHub-calendar + in-card scroll + weekly for long ranges) + checkpoint commit of uncommitted feature code.
+
+---
+
 ## Vision: Inicio/Finanzas Split + InvestmentSnapshotCard + ImportSourcePicker (2026-07-15)
 
 **Fecha:** 2026-07-15T16:20:19+02:00  
