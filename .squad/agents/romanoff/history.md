@@ -45,6 +45,16 @@
 - **[2026-07-14 DISCONNECT]** Disconnect = hard-delete of `token_enc` row + clear of any cached holdings data. User notified to also revoke in Indexa UI.
 - **[2026-07-14 BLOCKERS]** 7 build blockers defined (see threat model table in design doc). Key: no plaintext storage, no token in logs/API response, TLS verify=True, no POST auth path, fail-closed on missing key, hard-delete on disconnect.
 
+## Learnings (2026-07-15 Fidelity ESPP CSV Import Privacy Review)
+
+- **[2026-07-15 CSV IMPORT — VEREDICTO: PASS]** Revisión de privacidad completada sobre la ruta de importación CSV de Fidelity ESPP. Cuatro ficheros revisados: `api/fidelity.py`, `investments/fidelity_csv.py`, `investments/market_data.py`, `.gitignore`.
+- **[2026-07-15 SIN ALMACENAMIENTO DE CSV EN DISCO]** `api/fidelity.py` (preview y confirm) lee el CSV en memoria (`file_bytes = await file.read()`), nunca lo escribe a disco. Sin `UPLOAD_DIR`, sin `open()`, sin `file.write()`. El raw CSV se descarta en cuanto termina el request. Solo persisten en BD: hashes (SHA-256 del fichero, dedup hashes por lot) y datos estructurados de cada lot.
+- **[2026-07-15 SIN PII DE IDENTIDAD EN LA RUTA CSV]** El CSV de Fidelity "View open lots" no contiene nombre, dirección ni ID de empleado — solo datos de lotes (fecha, acciones, base de coste, fuente, divisa). El parser (`fidelity_csv.py`) no introduce campos de identidad; el hash SHA-256 del fichero es opaco y sin PII. Confirma lo dictaminado por Banner.
+- **[2026-07-15 FRONTERA EXTERNA LIMPIA]** `market_data.py` solo envía símbolos de ticker/FX a servicios externos (`msft.us`, `eurusd` → Stooq; `MSFT`, `EURUSD=X` → yfinance). Cero datos de usuario/posiciones salen de la máquina. Sin claves API (Stooq/yfinance son servicios sin autenticación).
+- **[2026-07-15 LOGGING LIMPIO]** El único `log.warning` en `api/fidelity.py` registra solo excepciones de backfill de precios, sin valores de lots. `market_data.py` registra únicamente símbolos, conteo de filas y fechas — jamás importes, shares ni datos de usuario.
+- **[2026-07-15 GITIGNORE CONFIRMA]** `/data/` está en `.gitignore` con comentario explícito. Coherente con el criterio de paridad de bank statements. La ruta CSV en realidad no genera fichero alguno en disco, por lo que este punto es moot pero igualmente verificado.
+- **[2026-07-15 SIN RIESGO DE SECRETOS]** No hay claves API, tokens ni credenciales en `market_data.py`. `InvestmentConnection.token_enc=None` en la ruta Fidelity/ESPP (CSV path es keyless por diseño).
+
 ## Learnings (2026-07-15 ESPP PDF Storage Privacy Review)
 
 - **[2026-07-15 UPLOAD BEHAVIOR — CONFIRMED]** Bank statement PDFs **are already persisted** to disk. The one-shot endpoint (`create_import`) calls `_persist_import_run(session, ..., source_pdf=file_bytes)`, which writes the PDF to `settings.upload_dir` (`/app/data/uploads/`) on the mounted volume. The preview/confirm two-step flow discards the PDF in memory (no persistence). `parser.py` is purely in-memory. `/data/` is covered by `.gitignore` (explicit comment).
