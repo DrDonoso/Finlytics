@@ -549,5 +549,14 @@ const es: Dict = {
       ? `Hay una compra ESPP pendiente de importar (${periodLabel}). Exporta tu CSV de Fidelity y súbelo.`
       : 'Hay una compra ESPP pendiente de importar. Exporta tu CSV de Fidelity y súbelo.',
   esppReminderAction: 'Importar ahora',
+  // ── About page ────────────────────────────────────────────────────────────
+  settingsSubAbout: 'Acerca de',
+  aboutTitle: 'Acerca de',
+  aboutVersion: 'Versión',
+  aboutBuiltAt: 'Compilado el',
+  aboutRepository: 'Repositorio',
+  aboutReportIssue: 'Reportar un problema',
+  aboutChangelog: 'Novedades',
+  aboutLicense: 'Licencia',
 }
 export default es

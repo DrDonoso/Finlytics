@@ -276,9 +276,14 @@ export default function Layout() {
                   <span className={`sidebar-arrow${sgApp ? ' open' : ''}`}>▾</span>
                 </button>
                 {sgApp && (
-                  <NavLink to="/settings/appearance" className={navLinkClass}>
-                    <span className="nav-label">{t.settingsSubAppearance}</span>
-                  </NavLink>
+                  <>
+                    <NavLink to="/settings/appearance" className={navLinkClass}>
+                      <span className="nav-label">{t.settingsSubAppearance}</span>
+                    </NavLink>
+                    <NavLink to="/settings/about" className={navLinkClass}>
+                      <span className="nav-label">{t.settingsSubAbout}</span>
+                    </NavLink>
+                  </>
                 )}
               </div>
             )}

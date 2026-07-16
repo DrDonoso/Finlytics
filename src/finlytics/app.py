@@ -21,6 +21,7 @@ Route layout:
   GET  /api/statements/months               — months with ≥1 transaction (DESC)
   DELETE /api/statements/month?year&month   — hard-delete a month's transactions
   POST /api/imports       — upload statement → parse → LLM extract → persist
+  GET  /api/version       — app version + optional build metadata (PROTECTED)
 
   /{full_path:path}       — React SPA catch-all (GET only; registered AFTER /api)
                             Serves frontend/dist/<path> when the file exists;
@@ -49,6 +50,7 @@ from finlytics.api.statements import router as statements_router
 from finlytics.api.summary import router as summary_router
 from finlytics.api.tags import router as tags_router
 from finlytics.api.transactions import router as transactions_router
+from finlytics.api.version import router as version_router
 
 log = logging.getLogger(__name__)
 
@@ -77,6 +79,7 @@ app.include_router(summary_router,      prefix="/api", dependencies=_auth)
 app.include_router(imports_router,      prefix="/api", dependencies=_auth)
 app.include_router(investments_router,  prefix="/api", dependencies=_auth)
 app.include_router(fidelity_router,     prefix="/api", dependencies=_auth)
+app.include_router(version_router,      prefix="/api", dependencies=_auth)
 
 
 @app.get("/health", tags=["health"])

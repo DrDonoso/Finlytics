@@ -117,6 +117,10 @@ jobs:
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
 
+    - name: Compute build date
+      id: build_date
+      run: echo "date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
     - name: Build and push Docker image
       uses: docker/build-push-action@v7
       with:
@@ -132,6 +136,9 @@ jobs:
         tags: |
           drdonoso/finlytics:latest
           drdonoso/finlytics:${{ steps.calver.outputs.version }}
+        build-args: |
+          IMAGE_TAG=${{ steps.calver.outputs.version }}
+          BUILD_DATE=${{ steps.build_date.outputs.date }}
 
     - name: Create GitHub Release
       env:

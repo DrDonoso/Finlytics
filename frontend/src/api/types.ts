@@ -531,6 +531,14 @@ export interface FidelityImportConfirmResult {
   duplicates: number
 }
 
+// ─── App version ─────────────────────────────────────────────────────────────
+
+export interface AppVersion {
+  version: string
+  image_tag: string | null
+  built_at: string | null
+}
+
 // ─── Combined investments overview ────────────────────────────────────────────
 
 export interface CombinedOverviewProviderSlice {

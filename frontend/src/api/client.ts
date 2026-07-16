@@ -10,7 +10,7 @@ import type {
   InvestmentPortfolio, InvestmentConnection, ValidateAccountsResponse,
   FidelityKpis, FidelityEvolution, FidelityLots,
   FidelityImportPreview, FidelityImportConfirmResult, FidelityReminderResponse,
-  CombinedOverview, SummaryMonths,
+  CombinedOverview, SummaryMonths, AppVersion,
 } from './types'
 import {
   mockGetAccounts, mockGetCategories, mockGetTags, mockGetTransactions,
@@ -540,4 +540,10 @@ export async function getOverviewMonths(): Promise<SummaryMonths> {
   } catch {
     return { months: [], latest: null }
   }
+}
+
+/** GET /api/version → { version, commit, built_at }.
+ *  Fails silently — callers fall back to the frontend build version. */
+export async function getAppVersion(): Promise<AppVersion> {
+  return apiFetch<AppVersion>('/api/version')
 }
