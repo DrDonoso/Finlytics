@@ -1,0 +1,27 @@
+.squad/decisions.md
+  s_2349c42a597372::t_2e8945380dfc9c 1-52
+.squad/agents/vision/history.md
+  s_2349c42a597372::t_92270c1deec7a2 1-42
+.squad/log/2026-07-16T10-30-00Z-merchant-feature-removed.md
+  s_2349c42a597372::t_d0553f206faaf7 1-16
+.squad/agents/shuri/history.md
+  s_2349c42a597372::t_81e399176dd031 1-38
+.squad/orchestration-log/2026-07-16T10-30-00Z-coordinator-merchant-removal.md
+  s_2349c42a597372::t_1228963114aac2 1-41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "db07dee9d986af75adc44f9597c7b28696b36667",
+  "prompts": {},
+  "sessions": {
+    "s_2349c42a597372": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01UJtUeVHwyb7HGYSphVHok6",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    }
+  }
+}
