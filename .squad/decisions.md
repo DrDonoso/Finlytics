@@ -1,3 +1,55 @@
+# Merchant Normalization Feature — REMOVED/REVERTED
+
+**Date:** 2026-07-16T12:30:00+02:00  
+**Owner request:** DrDonoso rejected the merchant-normalization feature ("no me convence esta parte de los comercios"). Coordinator removed it entirely and retained only the palette work (Wanda).
+
+## Decision
+
+Merchant Normalization (Slice 1 backend + Slice 2 UI) is REVERTED to HEAD state:
+- DB migration 0016 removed; downgraded to 0015 (`alembic upgrade head` → head is now 0015_add_portfolio_cache.py)
+- Dropped `merchants`, `merchant_aliases` tables
+- Dropped `transactions.canonical_merchant_id` and `transactions.merchant_resolution_source` columns
+- Transaction data intact; no data loss
+
+## Files removed
+
+- `alembic/versions/0016_add_merchant_normalization.py`
+- `src/finlytics/api/merchants.py` (Slice 1 endpoints)
+- `src/finlytics/db/merchant_normalization.py` (deterministic resolver)
+- `frontend/src/pages/MerchantsPage.tsx` (Slice 2 UI)
+- `tests/api/test_merchants.py`
+- `tests/test_merchant_normalization.py`
+- 38-line "Merchant normalization management" i18n block from `frontend/src/i18n/{index,es,en}.ts` (kept pre-existing merchant keys for TopMerchants panel, rules, columns)
+
+## Reverted to HEAD
+
+- `src/finlytics/api/schemas.py`
+- `src/finlytics/app.py`
+- `src/finlytics/db/models.py`
+- `src/finlytics/db/queries.py`
+- `src/finlytics/db/repository.py`
+- `frontend/src/App.tsx`
+- `frontend/src/api/client.ts`
+- `frontend/src/api/mock.ts`
+- `frontend/src/api/types.ts`
+- `frontend/src/components/CategorySelect.tsx`
+- `frontend/src/components/Layout.tsx`
+
+## Retained
+
+Color palettes (Wanda) and palette-aware charts remain deployed. This decision supersedes the earlier merchant-normalization decision entries from Shuri and Vision (both marked reverted).
+
+## Verification
+
+- Docker rebuild: alembic_version column = 0015 ✓
+- merchants table: gone ✓
+- OpenAPI schema: 0 /merchants routes ✓
+- /api/categories returns 401 (auth-gated correctly) ✓
+- Palette bootstrap served ✓
+- Container healthy on :7777 ✓
+
+---
+
 # Wanda — Palette-aware finance semantic colors
 
 **Date:** 2026-07-16
