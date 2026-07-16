@@ -7645,3 +7645,30 @@ Normalization: uppercase, trim, collapse whitespace, strip punctuation and diacr
 
 
 
+# Vision — Import Preview Expand Defaults + Typeahead Focus
+
+**Date:** 2026-07-16T13:44:54+02:00  
+**Owner:** DrDonoso  
+**Scope:** Small frontend fixes for the import preview UI.
+
+## Fixes shipped
+
+1. Grouped preview file/account accordions now start expanded by default and remain manually collapsible.
+2. Import quality signal details (\Ver detalle\) now start expanded by default and remain manually collapsible.
+3. Spanish import quality title corrected from \Calidad del import\ to \Calidad del importe\.
+4. \PreviewTypeahead\ now separates displayed selected value from the active search query. On focus/click, the query is empty so category, merchant, and account selectors show all options; filtering starts only after typing. Category labels remain localized while canonical values are stored.
+
+## Files touched
+
+- \rontend/src/components/ImportModal.tsx\
+- \rontend/src/components/PreviewTypeahead.tsx\
+- \rontend/src/i18n/es.ts\
+- \.squad/agents/vision/history.md\
+
+## Validation
+
+\cd frontend && npm run build\ passed with zero TypeScript errors. The existing Vite chunk-size warning remains expected.
+
+
+---
+
