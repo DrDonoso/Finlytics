@@ -1,3 +1,66 @@
+# Wanda — Palette-aware finance semantic colors
+
+**Date:** 2026-07-16
+**Owner request:** DrDonoso wanted analytics charts and the rest of the app to feel cohesive across accent palettes instead of always using the exact same red/green tones.
+
+## Decision
+
+`--income` and `--expense` are now palette-aware tonal variants for all non-classic palettes, with matching `--income-rgb`, `--expense-rgb`, `--income-bright`, and `--expense-bright` derived tokens. Classic keeps the previous defaults exactly (`#22c55e` income, `#ef4444` expense).
+
+Meaning is preserved: income/positive remains unmistakably green, and expense/negative remains unmistakably red. Light and dark palette overrides are defined in `frontend/src/index.css`.
+
+## Applied scope
+
+- Chart semantics: cashflow Sankey ribbons now use `rgba(var(--income-rgb), …)` / `rgba(var(--expense-rgb), …)`.
+- Heatmap expense intensity now derives from `--expense*`, so it follows the selected palette.
+- Existing tokenized CSS for KPIs, transaction totals, import/error states, investment P&L, provider gains, and returns matrix now inherits the palette-aware semantic tokens.
+
+## Guardrail
+
+Category identity colors remain untouched: backend `category.color`, categorical fallback arrays, merchant/category slice colors, provider colors, asset-class colors, and instrument palettes are not reinterpreted as income/expense semantics.
+
+---
+
+# Vision decision — Merchant management UI Slice 2
+
+**Date:** 2026-07-16T11:59:01+02:00  
+**Owner:** Vision  
+**Scope:** Frontend UI on top of Shuri's deployed merchant-normalization Slice 1 backend.
+
+## Decisions implemented
+
+1. **Placement:** The page lives at `/settings/merchants`, nested under `SettingsLayout`, and appears in sidebar under `Ajustes → Datos → Comercios` beside Categories/Tags/Accounts.
+2. **Client contract:** Added typed client methods for the existing backend endpoints: list/create/update merchants, add/delete aliases, backfill, and unmatched queue. Mock equivalents are available for `VITE_USE_MOCK=1`.
+3. **Defaults language:** The UI explicitly explains merchant default category/tags as "fill if missing" only, matching the locked Slice 1 product decision.
+4. **Soft delete:** No hard-delete UI exists for canonical merchants. The action is "Deactivate", implemented as `PATCH active:false`.
+5. **Alias behavior:** Alias add/delete is presented as deterministic and applying to all matching transactions (past + future). Regex is hidden behind an advanced toggle; exact/normalized/contains/prefix are the default modes.
+6. **Unmatched queue:** Unknown merchants are not auto-created. The "Sin mapear" section lets the owner map raw text to an existing merchant or create a new merchant and immediately add a normalized alias for that raw text.
+
+## Known backend seam
+
+`GET /api/merchants` currently returns canonical merchants with `alias_count`, but Slice 1 does not expose a read endpoint for existing aliases. The page therefore shows alias counts and any aliases added during the current session. A future `GET /api/merchants/{id}/aliases` (or aliases embedded in `MerchantOut`) would allow complete alias listing.
+
+## Files touched
+
+- `frontend/src/pages/MerchantsPage.tsx`
+- `frontend/src/api/client.ts`
+- `frontend/src/api/types.ts`
+- `frontend/src/api/mock.ts`
+- `frontend/src/components/CategorySelect.tsx`
+- `frontend/src/components/Layout.tsx`
+- `frontend/src/App.tsx`
+- `frontend/src/i18n/index.ts`
+- `frontend/src/i18n/es.ts`
+- `frontend/src/i18n/en.ts`
+- `.squad/agents/vision/history.md`
+- `.squad/decisions/inbox/vision-merchant-ui-slice2.md`
+
+## Validation
+
+`cd frontend && npm run build` passed with zero TypeScript errors. The existing Vite chunk-size warning remains expected.
+
+---
+
 ## BATCH STATUS: Finlytics Feedback Batch 5 (2026-07-15)
 
 **Summary:** 2 feature items completed + verified in Docker. Heatmap scaling problem solved + ESPP upload reminder shipped.
@@ -7353,6 +7416,86 @@ Con los widgets movidos:
 > **Finanzas = Análisis completo de cash-flow con filtros**
 > **Dirección: MOVER widgets de análisis a Finanzas, REEMPLAZAR en Inicio con contenido cross-domain. No duplicar.**
 > **Backend: 0 endpoints nuevos necesarios.**
+
+---
+
+## Wanda Decision Drop — Accent Palette Presets (2026-07-16)
+
+**Status:** Implemented after owner approval
+
+### Approved approach
+
+Finlytics now exposes user-selectable accent palettes in **Ajustes → Aplicación → Apariencia**. Presets offered:
+
+- Classic Blue — current default, preserving the existing look
+- Emerald
+- Violet
+- Amber / Warm
+- High-Contrast
+
+### Token mechanism
+
+Palette selection sets `data-palette` on `document.documentElement` and swaps only accent tokens in `frontend/src/index.css`:
+
+- `--primary`
+- `--primary-rgb`
+- `--primary-hover`
+- `--primary-bright`
+- `--primary-contrast`
+
+Hard-coded blue accent rgba usages now derive from `rgba(var(--primary-rgb), alpha)`, so hover/soft/ring states follow the selected palette. Light/dark theme remains an independent axis via `data-theme`; palette overrides compose with both themes.
+
+### Persistence
+
+Palette persistence follows the existing theme pattern in `ThemeContext`: local React state + `localStorage`. The new key is `finlytics_accent_palette`. `frontend/index.html` applies `data-palette` before React mounts, mirroring the existing `data-theme` FOUC-prevention script.
+
+### Guardrail
+
+Financial semantic colors are not palette-driven. Income/positive green, expense/negative red, category colors, chart colors, and investment instrument palettes remain intact regardless of accent selection.
+
+---
+
+## Merchant Normalization — Slice 1 Implementation & Locked Decisions (2026-07-16)
+
+**Status:** Implemented, Slice 1 complete
+
+**Author:** Shuri  
+
+### Approved schema
+
+- New `merchants` table: canonical display name, unique normalized key, optional default category, JSON-array default tags, active flag, notes, timestamps.
+- New `merchant_aliases` table: owner/system/suggested aliases with deterministic match types `exact`, `normalized`, `contains`, `prefix`, `regex`, priority, active flag, notes, timestamps.
+- `transactions` keeps raw `merchant` untouched and gains nullable `canonical_merchant_id` plus nullable `merchant_resolution_source`.
+- Migration: `alembic/versions/0016_add_merchant_normalization.py`, chained from head `0015_add_portfolio_cache.py`.
+- Dedup invariant: `merchant` and `canonical_merchant_id` remain outside `dedup_hash`; dedup remains account/date/amount/description plus optional detail.
+
+### Resolver
+
+Deterministic only, no fuzzy auto-matching:
+1. exact alias text match;
+2. normalized equality against active canonical merchant keys and alias keys;
+3. priority-ordered pattern aliases: prefix, contains, regex.
+
+Normalization: uppercase, trim, collapse whitespace, strip punctuation and diacritics.
+
+### Locked decisions (owner-approved)
+
+1. `default_category_behavior = fill_if_missing`: default category/tags apply only when a transaction lacks category/tags; extractor/user values are never overridden.
+2. `auto_create = manual_review`: unknown raw merchants are not auto-created and remain unmatched.
+3. `apply_historical = apply_all`: alias changes trigger re-resolution across all historical transactions.
+4. `topmerchants_unmatched = mixed_fallback`: `/summary/by-merchant` uses canonical display names when resolved and raw merchant text when unmatched.
+5. `matching_aggressiveness = deterministic_only`: no fuzzy matching in Slice 1.
+
+### Minor defaults
+
+- Deleting a canonical merchant means soft deactivation (`active=false` via PATCH), not hard delete.
+- Regex aliases are allowed in the API; UI exposure is reserved for a later slice.
+
+### Implementation artifacts
+
+**Backend:** `src/finlytics/db/merchant_normalization.py` (390 lines, deterministic resolver) + `src/finlytics/api/merchants.py` (prefix /merchants, auth-gated).  
+**Tests:** `tests/test_merchant_normalization.py` + `tests/api/test_merchants.py` (full suite: 1156 passed, 2 skipped).  
+**Endpoints:** GET/POST `/merchants`, PATCH `/merchants/{id}`, POST/DELETE `/merchants/{id}/aliases`, GET `/merchants/unmatched`, POST `/merchants/backfill`.
 
 ---
 
