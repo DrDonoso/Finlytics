@@ -4,6 +4,16 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260716.02] - 2026-07-16
+
+- Rewrite README with Inicio hub, Finanzas (heatmap + drill-down) and full Investments section (Indexa live-API + Fidelity ESPP)
+- Document the dual data-flow (bank statements + investments) and refresh the tech stack (Fernet, Yahoo Chart API, plugin architecture)
+- Add the two-Dockerfile convention (Dockerfile / Dockerfile.local) and FINLYTICS_ENCRYPTION_KEY to DEPLOY.md
+- Document migrations head (0015), connector architecture (live-API vs statement-import) and Fernet token encryption in AGENTS.md
+- Update frontend/README.md with the current directory structure and component/page list
+- Correct the license note to MIT
+
+
 ## [20260716] - 2026-07-16
 
 - Pagina About disponible en Settings > Application con info de la imagen desplegada
