@@ -1,3 +1,34 @@
+# Vision — Inicio refinements
+
+**Date:** 2026-07-16T15:51:09+02:00  
+**Owner:** DrDonoso  
+**Scope:** Inicio dashboard frontend-only refinements.
+
+## Decisions implemented
+
+1. **No visible month scope:** Inicio no longer renders the top month selector/navigation. `getOverviewMonths()` remains internal only to resolve latest and previous available months for monthly KPIs.
+2. **Three KPI strip:** The top strip renders exactly `Neto total`, `Tasa de ahorro`, and `% crecimiento`. The separate `Patrimonio inversiones` KPI was removed because investments already appear in the snapshot card.
+3. **Net-worth formula:** `Neto total` is computed as the sum of the all-time per-account net values displayed in the Cuentas table (`getByAccount()` without date range) plus `getCombinedOverview().total_value_eur`.
+4. **Monthly KPI formulas:** `Tasa de ahorro` uses latest available month `net / total_income * 100` with divide-by-zero guarded as `—`. `% crecimiento` uses `(net_latest - net_prev) / abs(net_prev) * 100`, latest vs previous available month.
+5. **Portal tooltips:** The savings-rate and growth labels use the existing investments tooltip pattern: fixed-position `createPortal` tooltip from `getBoundingClientRect()` at `zIndex: 4000`.
+6. **Page order:** Inicio now renders KPIs → Cuentas table → InvestmentSnapshotCard, with the ESPP reminder below.
+
+## Files touched
+
+- `frontend/src/pages/Dashboard.tsx`
+- `frontend/src/i18n/index.ts`
+- `frontend/src/i18n/es.ts`
+- `frontend/src/i18n/en.ts`
+- `frontend/src/index.css`
+- `.squad/agents/vision/history.md`
+
+## Validation
+
+`cd frontend && npm run build` passed with zero TypeScript errors. The existing Vite chunk-size warning remains expected.
+
+
+---
+
 # Vision — Import Quality UI Slice 1
 
 **Date:** 2026-07-16T12:49:24+02:00  
@@ -7671,4 +7702,5 @@ Normalization: uppercase, trim, collapse whitespace, strip punctuation and diacr
 
 
 ---
+
 
