@@ -19,7 +19,9 @@ __pycache__/
 
 # Frontend: node_modules and compiled output (rebuilt in Stage 1)
 frontend/node_modules/
-frontend/dist/
+# frontend/dist/ is excluded from CI/prod (multi-stage build) but included for Dockerfile.local
+# (host-pre-built dist is COPYied directly). Un-ignored via the rule below:
+!frontend/dist/
 frontend/.vite/
 
 # Tests (not needed at runtime)

@@ -558,6 +558,15 @@ export interface Dict {
   // ── ESPP upload-reminder banner ───────────────────────────────────────────
   esppReminderBanner: (periodLabel: string | null) => string
   esppReminderAction: string
+  // ── About page ────────────────────────────────────────────────────────────
+  settingsSubAbout: string
+  aboutTitle: string
+  aboutVersion: string
+  aboutBuiltAt: string
+  aboutRepository: string
+  aboutReportIssue: string
+  aboutChangelog: string
+  aboutLicense: string
 }
 
 const ES_LABELS: Record<string, string> = {

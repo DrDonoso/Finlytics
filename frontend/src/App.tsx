@@ -17,6 +17,7 @@ import InvestmentsLandingPage from './pages/InvestmentsLandingPage'
 import FinancesOverviewPage from './pages/FinancesOverviewPage'
 import PluginViewWrapper from './investments/PluginViewWrapper'
 import ConnectorsPage from './pages/ConnectorsPage'
+import AboutPage from './pages/AboutPage'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { useT } from './i18n'
 
@@ -58,6 +59,7 @@ function AppContent() {
             <Route path="backup" element={<BackupPage />} />
             <Route path="connectors" element={<ConnectorsPage />} />
             <Route path="rules" element={<RulesPage />} />
+            <Route path="about" element={<AboutPage />} />
           </Route>
         </Route>
       </Routes>

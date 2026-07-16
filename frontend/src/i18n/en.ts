@@ -549,5 +549,14 @@ const en: Dict = {
       ? `There is a pending ESPP purchase to import (${periodLabel}). Export your Fidelity CSV and upload it.`
       : 'There is a pending ESPP purchase to import. Export your Fidelity CSV and upload it.',
   esppReminderAction: 'Import now',
+  // ── About page ────────────────────────────────────────────────────────────
+  settingsSubAbout: 'About',
+  aboutTitle: 'About',
+  aboutVersion: 'Version',
+  aboutBuiltAt: 'Built at',
+  aboutRepository: 'Repository',
+  aboutReportIssue: 'Report an issue',
+  aboutChangelog: 'Changelog',
+  aboutLicense: 'License',
 }
 export default en

@@ -42,6 +42,11 @@ COPY frontend/dist ./frontend/dist
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 RUN sed -i 's/\r$//' /docker-entrypoint.sh && chmod +x /docker-entrypoint.sh
 
+ARG IMAGE_TAG=""
+ARG BUILD_DATE=""
+ENV FINLYTICS_IMAGE_TAG=$IMAGE_TAG
+ENV FINLYTICS_BUILD_DATE=$BUILD_DATE
+
 EXPOSE 7777
 
 USER app
