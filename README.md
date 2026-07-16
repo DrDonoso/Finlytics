@@ -1,6 +1,6 @@
 # Finlytics 💰
 
-**Self-hosted personal finance tracker — upload your bank statement, let AI categorize it, explore the dashboard.**
+**Self-hosted personal finance + investments tracker — import bank statements, connect investment accounts, and see your full financial picture in one place.**
 
 ---
 
@@ -10,7 +10,7 @@ Every open-source personal finance tool I evaluated was either too complex, requ
 
 1. Download the monthly PDF my bank already generates.
 2. Drop it in → AI parses the PDF and categorizes every transaction automatically.
-3. See where my money went.
+3. See where my money went — and how my investments are doing.
 
 None of the available solutions fit that workflow. **Finlytics was built to be exactly that — simple, self-hosted, and tailored to a single owner's real workflow.**
 
@@ -18,7 +18,16 @@ None of the available solutions fit that workflow. **Finlytics was built to be e
 
 ## What It Does
 
-### 📥 Import
+### 🏠 Inicio (Home)
+
+The home page is a cross-domain hub that gives you the full picture at a glance:
+
+- **Month-navigation KPIs** — income, expenses, net balance for the last completed month, with previous/next controls to browse any month with data.
+- **Investment snapshot** — total portfolio value across all connected providers, with a per-provider breakdown, fetched from `/api/investments/combined-overview`.
+- **Import source picker** — a data-driven list of import actions: "Bank statement PDF" is always available; any investment connector with an import flow (currently Fidelity ESPP) appears automatically.
+- **ESPP purchase reminder banner** — an amber banner appears when a Fidelity ESPP upload is overdue (quarter-end schedule: last business day of March/June/September/December).
+
+### 📥 Bank Statement Import
 
 - Upload a monthly bank-statement **PDF** (built and tested against BBVA; the parser is designed to extend to XLSX/CSV).
 - **AI-powered extraction** via the OpenAI API or any OpenAI-compatible endpoint — structured output extracts date, amount, currency, description, merchant, category, and tags per transaction.
@@ -32,24 +41,68 @@ None of the available solutions fit that workflow. **Finlytics was built to be e
 - Actions: set category, set merchant, add tags, or **skip AI entirely** for known recurring charges.
 - Rules run automatically on every import (before and after AI extraction).
 
-### 📊 Dashboard
+### 💳 Finanzas (Finances)
 
-- Spending by **category**, over **time**, by **account**, and a **cashflow Sankey** diagram.
-- KPI summary cards (total in/out, net balance).
-- Filters: date range, account, category, tags, amount range, income/expense toggle.
-- Sortable, searchable transaction table.
+The Finanzas overview (`/finances`) is the day-to-day spending dashboard:
+
+- **Global filter bar** — date range, account, category, tags, amount range, income/expense toggle.
+- **KPI cards** with delta % vs the previous calendar month (income, expenses, net).
+- **Spending by category** — donut chart with table; click a category to filter the whole page.
+- **Top merchants** — bar chart of top spend by merchant.
+- **Adaptive spending heatmap** — three rendering modes depending on the selected date range:
+  - **≤ 182 days:** GitHub-calendar style (daily cells, 7-row grid).
+  - **183 – 547 days:** Compact scroll view.
+  - **> 547 days:** Monthly-grid (12 columns × N years, always fits).
+  - **Drill-down:** click any cell to filter the entire page to that day or month; a reset button restores the previous filter state.
+- **Category movers** — categories that rose or fell most vs the previous period.
+- Import button (bank statement PDF).
+
+Sub-pages under Finanzas: **Transacciones** (sortable/filterable full transaction list), **Tendencias** (spending over time, by account, Sankey cashflow), **Extractos** (statement history).
+
+### 💰 Inversiones (Investments)
+
+#### Combined Overview (`/investments`)
+
+- Total portfolio value, total invested, total gain/loss (€ + %).
+- **Allocation donuts** — by provider (Indexa Capital / Fidelity ESPP) and by asset class (Renta Variable / Renta Fija / Efectivo / ESPP Stock).
+- **Provider cards** — per-provider value, gain/loss, and link to the detail view.
+
+#### Indexa Capital connector (live-API)
+
+Connect your Indexa Capital account with a personal API token:
+
+- Token stored encrypted at rest (Fernet / `FINLYTICS_ENCRYPTION_KEY`); never logged, never returned to the frontend.
+- **24-hour DB portfolio cache** — the first page load returns cached data instantly; a background task refreshes from the Indexa API so the next open is up-to-date. `cache_stale: true` in the response signals when data is being refreshed.
+- View: portfolio value, holdings table (instrument, asset class, current value, weight), evolution line chart, allocation donut, return metrics.
+
+#### Fidelity ESPP connector (statement-import)
+
+Import the Fidelity "View open lots" CSV to track your MSFT ESPP holdings:
+
+- **Two-step import wizard** — upload CSV → preview new lots (with dedup against existing lots) → confirm.
+- **Tax-lot holdings** — each lot stores shares, purchase date, EUR cost basis, source type (SP purchase / DO dividend reinvestment).
+- **Daily MSFT valuation** — price fetched from the Yahoo Chart API (`query1`/`query2.finance.yahoo.com`) with EUR/USD FX conversion. Intraday snapshots are settled to the official close on next read (incremental price top-up).
+- **Evolution chart** — daily-resolution value + contributions series with adaptive period selector.
+- **KPIs** — total shares, total invested (EUR), current value (EUR), total gain/loss (€ + %).
+- **Lots table** — sortable by date, shares, cost per share, current value, gain/loss; paginated.
+- **ESPP purchase reminder** — the same banner shown on Inicio also appears here when an upload is overdue.
 
 ### 🗂️ Management
 
 - **Categories & tags** with color swatches (name-derived colors or a custom picker).
+- **Accounts** management.
 - **Full backup** — export the entire dataset to JSON and re-import it.
+- **Connectors** (Settings → Sistema → Conectores) — connect/disconnect Indexa Capital; Fidelity status reflects CSV import state.
 - Bilingual UI: **Spanish / English**.
 - **Light / dark / system** theme.
 - Single-user authentication with session tokens.
+- **Acerca de** (About) page — shows the deployed Docker image tag (CalVer), build date, links to the repo / Issues / CHANGELOG, and MIT license.
 
 ---
 
 ## How It Works
+
+### Bank statement pipeline
 
 ```
 Bank statement PDF
@@ -73,7 +126,29 @@ Bank statement PDF
   Content-hash de-duplication → persist to PostgreSQL
         │
         ▼
-  Interactive dashboard
+  Finanzas dashboard (spending KPIs, charts, heatmap)
+```
+
+### Investment pipeline
+
+```
+Indexa Capital API token          Fidelity "open lots" CSV
+        │                                   │
+        ▼                                   ▼
+  POST /api/investments/connections   Preview + confirm wizard
+  Token encrypted (Fernet) → DB      New lots persisted to DB
+        │                                   │
+        ▼                                   ▼
+  GET /api/investments/portfolio      Yahoo Chart API (MSFT + EUR/USD FX)
+  24h DB cache + background refresh   Intraday → settled to close daily
+        │                                   │
+        └──────────────┬────────────────────┘
+                       ▼
+         /api/investments/combined-overview
+         Total value · gain/loss · allocation by provider + asset class
+                       │
+                       ▼
+         Investments dashboard (overview + per-provider detail)
 ```
 
 ---
@@ -86,6 +161,9 @@ Bank statement PDF
 | Database | PostgreSQL 16 |
 | PDF parsing | pdfplumber |
 | AI extraction | OpenAI SDK — structured outputs via any OpenAI-compatible endpoint |
+| Token encryption | `cryptography` Fernet (AES-128-CBC + HMAC-SHA256) |
+| Market data | Yahoo Chart API (`query1`/`query2.finance.yahoo.com`) — MSFT price + EUR/USD FX |
+| Investment connectors | Plugin architecture: live-API (Indexa) + statement-import (Fidelity ESPP) |
 | Frontend | React 18 · TypeScript · Vite · Recharts |
 | Container | Multi-stage Docker (Node 20 builds the React SPA → Python 3.12-slim runtime serves both API and SPA) |
 | CI/CD | GitHub Actions — CalVer tags, Docker Hub push, auto-generated categorized changelog |
@@ -115,21 +193,39 @@ POSTGRES_PASSWORD=a-strong-password
 OPENAI_API_KEY=your-key
 OPENAI_BASE_URL=https://api.openai.com/v1
 OPENAI_MODEL=your-model-name
+
+# Required to use the Indexa Capital connector (token encryption)
+# Generate: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+FINLYTICS_ENCRYPTION_KEY=your-fernet-key
 ```
 
 ### 2. Run
 
-**Using the published Docker Hub image (recommended):**
+**Using the published Docker Hub image (recommended for production):**
 
 ```bash
 docker compose up -d
 ```
 
-**Or build from source:**
+This pulls `drdonoso/finlytics:latest` from Docker Hub and starts the full stack (app + PostgreSQL). No local build required.
+
+**Build from source (CI / full multi-stage):**
 
 ```bash
+docker compose up -d --build
+```
+
+Uses the main `Dockerfile` — Node 20 compiles the React SPA inside Docker, then Python 3.12-slim serves both the API and the SPA. This is what GitHub Actions runs on every push to `main`.
+
+**Local dev (host-prebuilt frontend):**
+
+```bash
+cd frontend && npm run build        # build the SPA on your machine
+cd ..
 docker compose -f docker-compose.local.yml up -d --build
 ```
+
+`Dockerfile.local` skips the Node stage and expects `frontend/dist/` to already exist on the host. Use this when `npm` inside Docker fails on your machine (known `npm 10.x` bin-symlink bug on some setups).
 
 ### 3. Open
 
@@ -151,11 +247,15 @@ All configuration lives in `.env` (copy from `.env.example`).
 | `OPENAI_API_KEY` | *(unset)* | API key for the OpenAI-compatible endpoint |
 | `OPENAI_BASE_URL` | *(unset)* | Base URL of the endpoint (e.g. `https://host/v1`) |
 | `OPENAI_MODEL` | *(unset)* | Model name to use for extraction |
+| `FINLYTICS_ENCRYPTION_KEY` | *(unset)* | Fernet key for encrypting connector API tokens at rest. Required to use the Indexa Capital connector. Generate: `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` |
 | `FINLYTICS_PORT` | `7777` | Host port the app is exposed on |
 | `TIMEZONE` | `Europe/Madrid` | Timezone used for date display |
-| `AUTH_SECRET` | *(random)* | Secret for signing session tokens. If unset, a new key is generated on each startup — sessions won't survive container restarts. Generate a stable value with: `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
+| `AUTH_SECRET` | *(random)* | Secret for signing session tokens. If unset, a new key is generated on each startup — sessions won't survive container restarts. Generate: `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
+| `AUTH_COOKIE_SECURE` | `false` | Set to `true` when serving over HTTPS so the session cookie gets the `Secure` flag. |
 
 > **AI extraction** requires all three `OPENAI_*` variables to be set. Leaving them unset disables extraction; you can still import statements and edit transactions manually.
+>
+> **Investments / Indexa Capital** requires `FINLYTICS_ENCRYPTION_KEY`. Without it the app starts normally but connecting a provider returns HTTP 503.
 
 ---
 
@@ -163,6 +263,12 @@ All configuration lives in `.env` (copy from `.env.example`).
 
 Finlytics is a **personal project** with a single-owner focus — built for one specific workflow and not designed for multi-user deployments.
 
-- Tested against BBVA monthly PDF statements.
+- Bank import tested against BBVA monthly PDF statements.
 - AI extraction requires an OpenAI API key (or any OpenAI-compatible endpoint).
-- No license file — shared publicly as-is.
+- Investment connectors: Indexa Capital (live API) and Fidelity ESPP (CSV import).
+
+---
+
+## 📄 License
+
+[MIT](./LICENSE) — © 2026 DrDonoso.
