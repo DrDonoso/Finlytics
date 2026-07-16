@@ -4,6 +4,15 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260716] - 2026-07-16
+
+- Pagina About disponible en Settings > Application con info de la imagen desplegada
+- GET /api/version expone {version, image_tag, built_at} consumido por el frontend
+- Workflow de deploy inyecta CalVer IMAGE_TAG + BUILD_DATE como build-args al construir la imagen Docker
+- Licencia MIT (LICENSE) anadida al repositorio
+- .dockerignore corregido para incluir frontend/dist/ en la imagen de produccion
+
+
 ## [20260715.02] - 2026-07-15
 
 - Restore full multi-stage Dockerfile (Node 20 frontend-builder stage + Python runtime); CI/prod are self-contained again
