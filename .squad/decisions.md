@@ -1,3 +1,95 @@
+# Vision — Import Quality UI Slice 1
+
+**Date:** 2026-07-16T12:49:24+02:00  
+**Owner:** DrDonoso  
+**Scope:** Frontend UI on top of Banner's import-quality preview response.
+
+## Decisions implemented
+
+1. **Advisory only:** Import quality is shown as review guidance. Confirm/import remains enabled and is not gated by warnings, errors, or duplicates.
+2. **Placement:** The quality panel is compact and lives inside each existing preview file/account accordion block, before the preview table. Counts stay per file/account rather than global.
+3. **Duplicate merge:** The panel reports duplicate totals by unioning backend `intra_batch_duplicate` row flags with rows marked by the existing `/api/imports/check-duplicates` flow. Rows are badged but not auto-deselected; backend confirm still skips duplicates.
+4. **Localization contract:** Backend stable codes are mapped in frontend i18n (`importQualitySignalLabels` and `importQualitySignalMessages`) for ES/EN. The UI never renders raw codes.
+5. **Flagged row workflow:** The preview table has a localized `Solo marcadas` / `Flagged only` toggle showing backend `row_flags` plus duplicate rows. Flagged cells render small localized badges based on `row_flags[].fields`.
+6. **Mock support:** `VITE_USE_MOCK=1` preview now includes representative `quality` data so the panel and filter can be reviewed without the backend.
+
+## Files touched
+
+- `frontend/src/api/types.ts`
+- `frontend/src/api/mock.ts`
+- `frontend/src/i18n/index.ts`
+- `frontend/src/i18n/es.ts`
+- `frontend/src/i18n/en.ts`
+- `frontend/src/components/ImportModal.tsx`
+- `frontend/src/components/ImportPreviewTable.tsx`
+- `.squad/agents/vision/history.md`
+
+## Validation
+
+`cd frontend && npm run build` passed with zero TypeScript errors. The existing Vite chunk-size warning remains expected.
+
+
+---
+
+# Banner — Import Quality Report Slice 1 Backend
+
+**Date:** 2026-07-16  
+**Owner:** DrDonoso  
+**Scope:** Backend-only advisory quality section on `POST /api/imports/preview`.
+
+## Design shipped
+
+Preview responses now include a deterministic `quality` object computed from transactions already available at preview time. The function is pure/unit-testable and lives in `src/finlytics/extraction/import_quality.py`; it is wired in `src/finlytics/api/imports.py` and typed in `src/finlytics/api/schemas.py`.
+
+Response shape:
+
+```json
+{
+  "summary": {
+    "error_count": 0,
+    "warning_count": 0,
+    "info_count": 0,
+    "flagged_row_count": 0
+  },
+  "signals": [
+    { "code": "low_confidence_category", "severity": "warning", "count": 1 }
+  ],
+  "row_flags": [
+    { "row_index": 0, "code": "low_confidence_category", "severity": "warning", "fields": ["category"] }
+  ]
+}
+```
+
+Only stable signal `code` values and severities are returned; no localized human text is emitted.
+
+## Locked decisions implemented
+
+1. **Blocking = advisory:** quality never blocks confirm; no confirm endpoint changes.
+2. **Confidence threshold = 0.6:** category confidence is low only when `category_confidence is not None and < 0.6`.
+3. **Other category = only low confidence:** `generic_category` is emitted only for `category == "Other"` with confidence present and below 0.6; empty/null category remains separate `missing_category`.
+4. **Duplicates = reuse existing behavior:** Slice 1 computes only intra-batch duplicates using the repository dedup inputs (`account_ref`, date, amount, description, optional detail). DB duplicate detection stays in `/api/imports/check-duplicates`; no new quality endpoint was added.
+5. **Missing merchant scope = expense/card-like only:** negative amounts are treated as expenses per the app contract. Conservative exclusions cover Income, Transfers, Taxes, Bank Fees, Cash/ATM and salary/nómina, transfer, tax, fee, ATM/cash descriptions.
+6. **Counting scope = per file:** quality is per preview call, matching the existing per-file/account preview flow.
+
+## Signal codes
+
+- `low_confidence_category` — warning
+- `missing_category` — warning
+- `generic_category` — warning
+- `missing_merchant` — warning
+- `zero_amount` — error, still non-blocking
+- `date_year_mismatch` — warning
+- `year_undetected` — info, file-level
+- `intra_batch_duplicate` — warning
+
+## Validation
+
+- Targeted: `C:\Python314\python.exe -m pytest tests\extraction\test_import_quality.py -q` → 13 passed.
+- Full suite: `C:\Python314\python.exe -m pytest -q` → 1153 passed, 2 skipped.
+
+
+---
+
 # Merchant Normalization Feature — REMOVED/REVERTED
 
 **Date:** 2026-07-16T12:30:00+02:00  
@@ -7550,5 +7642,6 @@ Normalization: uppercase, trim, collapse whitespace, strip punctuation and diacr
 **Endpoints:** GET/POST `/merchants`, PATCH `/merchants/{id}`, POST/DELETE `/merchants/{id}/aliases`, GET `/merchants/unmatched`, POST `/merchants/backfill`.
 
 ---
+
 
 
