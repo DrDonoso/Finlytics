@@ -1,0 +1,143 @@
+frontend/src/components/Layout.tsx
+  s_7e9863b9676666::t_aef806595ed40d 279-286
+frontend/src/vite-env.d.ts
+  s_7e9863b9676666::t_8ad1deb385c546 2-3
+frontend/src/api/client.ts
+  s_7e9863b9676666::t_ac6f45cf25bc2e 13,544-548
+  s_44a411061bd4ac::t_230174b7e55245 549
+frontend/src/i18n/es.ts
+  s_ea76b7e627e4aa::t_593d941da6139f 560
+  s_7e9863b9676666::t_6e36db132fb1e4 552-559
+frontend/src/i18n/en.ts
+  s_7e9863b9676666::t_3f7396535b7189 552-559
+  s_ea76b7e627e4aa::t_819856aaef5373 560
+frontend/src/index.css
+  s_7e9863b9676666::t_1c5285a1f3848e 5841-5882
+LICENSE
+  s_8b6b43c529dcc0::t_4e00cc1d1d5360 1-21
+.github/workflows/docker-deploy.yml
+  s_1bfeed21148ed2::t_62dee0205de9d2 120-123,139,141
+  s_c1ae3248ab0abc::t_8c15d7c23fa560 140
+frontend/src/pages/AboutPage.tsx
+  s_ea76b7e627e4aa::t_71c8edf4c9cfaf 61-69
+  s_590e74c1236080::t_7bb27446dc807e 16-18,27-29
+  s_7e9863b9676666::t_045cee6fdfe0b5 1-15,19-26,30-60,70-74
+src/finlytics/app.py
+  s_e9ffee6ef79120::t_dad9593244503f 24
+  s_e9ffee6ef79120::t_4d3f9e5ed3d9c0 53
+  s_e9ffee6ef79120::t_de9ebb985f8160 82
+.dockerignore
+  s_ab8d26652aabfd::t_2c60be5449073f 22-24
+Dockerfile.local
+  s_1bfeed21148ed2::t_6a0f6583c6b418 46,48-49
+  s_c1ae3248ab0abc::t_244ca5ab85c1a4 45,47
+tests/api/test_version.py
+  s_e9ffee6ef79120::t_96daaefddc9af0 1-15,17-21,24-29,31-34,37-42,44-82
+  s_1c605448ccb331::t_45771a619d73c8 22-23,30,35-36,43
+  s_1c605448ccb331::t_33cab33d5cf226 16
+frontend/src/i18n/index.ts
+  s_7e9863b9676666::t_49431ea06c53d5 561-568
+  s_ea76b7e627e4aa::t_6e4ded7a7fa668 569
+frontend/src/App.tsx
+  s_7e9863b9676666::t_c4232ed119c722 20,62
+frontend/vite.config.ts
+  s_7e9863b9676666::t_f0c28da95f9e15 7,10,12
+  s_7e9863b9676666::t_18d916bb16655e 4-6,11
+frontend/src/api/types.ts
+  s_7e9863b9676666::t_798be05ed86eae 534-537,539-541
+  s_590e74c1236080::t_2ed41936c2cb47 538
+Dockerfile
+  s_c1ae3248ab0abc::t_6cf585ad5a818a 50,52
+  s_1bfeed21148ed2::t_3c29650b411c13 51,53-54
+src/finlytics/api/version.py
+  s_1c605448ccb331::t_fe29ea4143cfaf 8,49,58
+  s_e9ffee6ef79120::t_b59538c8ef9b00 1-7,9-48,50-57,59-60
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "59386163feb29a4996bc79188370cce06c96aca3",
+  "prompts": {},
+  "sessions": {
+    "s_1bfeed21148ed2": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01SDtnS7Sbfk3yBagofzqMHm",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_1c605448ccb331": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01QU1XCy1XMPR29mMmgwGhFy",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_44a411061bd4ac": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01QLeWPTeD8wKtab2vGL3QzJ",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_590e74c1236080": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01GdrcXFizcC9ts8jDmzAit9",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_7e9863b9676666": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_011UrUv49Lz44jtiBy6t7j9h",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_8b6b43c529dcc0": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "5d2e8110-bbaf-485a-a220-90d80cac9d2e",
+        "model": "claude-opus-4.8"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_ab8d26652aabfd": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_011RBbyqEGGYFyr4Av96cvR7",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_c1ae3248ab0abc": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01YPFaxonwaWkcSe3Hd1nfh4",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_e9ffee6ef79120": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01PVJqTbNSB6Jwydt6NuzYRs",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_ea76b7e627e4aa": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01WoSvMRr6ESEU3Xcfz77uPu",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    }
+  }
+}
