@@ -1,0 +1,25 @@
+frontend/README.md
+  s_9c42fbeda62564::t_5d9c7cd1665b1b 3-5,40,42,49-50,54-57,71-97
+DEPLOY.md
+  s_9c42fbeda62564::t_4afd6448afea22 3-14,17-18,21-22,25-53,62-66,79,82,84,98
+AGENTS.md
+  s_9c42fbeda62564::t_31e89691ba471b 29-76
+README.md
+  s_9c42fbeda62564::t_194a193d60f55d 3,13,21-30,44-64,66-88,93,95,99,105-106,129-151,164-166,196-199,204,210-212,215-224,228-229,250,253-254,257-258,266,268-274
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "dc92c1257895f94025c2e5c4881b8833b82d27f5",
+  "prompts": {},
+  "sessions": {
+    "s_9c42fbeda62564": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01H46e1cxh8iRK8z1e2dFppd",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    }
+  }
+}
