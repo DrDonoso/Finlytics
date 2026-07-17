@@ -1,5 +1,34 @@
 # Finlytics Decision Log
 
+## Vision — Backup wizard section icons
+
+**Date:** 2026-07-17T14:09:26+02:00  
+**Owner:** DrDonoso  
+**Scope:** Frontend backup wizard UI polish.
+
+### Decision
+
+Add a consistent icon before every Backup wizard export section label, reusing existing sidebar menu icons where an exact navigation mapping exists.
+
+### Icon mapping
+
+- Transacciones / Transactions: 📋 (sidebar Transactions icon)
+- Inversiones / Investments: 💰 (sidebar Investments icon)
+- Cuentas / Accounts: 🏦
+- Categorías / Categories: 🗂️
+- Etiquetas / Tags: 🏷️
+- Reglas / Rules: 🧩
+
+### Implementation notes
+
+Icons are inline UI decoration in `BackupPage.tsx`, not i18n strings. The import result summary headings also use the same mapping for consistency.
+
+### Validation
+
+`cd frontend && npm run build` passed with zero TypeScript errors. Vite emitted only the existing chunk-size warning.
+
+---
+
 ## Shuri — Backup v2 selective rules/investments
 
 **Date:** 2026-07-17T13:29:35+02:00  
