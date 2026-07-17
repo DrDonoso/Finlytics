@@ -3,11 +3,11 @@
 # Relies on compose depends_on + healthcheck to guarantee DB is ready before this runs.
 set -e
 
-echo "[entrypoint] Running DB migrations..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') [entrypoint] Running DB migrations..."
 alembic upgrade head
 
-echo "[entrypoint] Seeding base categories..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') [entrypoint] Seeding base categories..."
 python seed.py
 
-echo "[entrypoint] Starting Finlytics..."
+echo "$(date '+%Y-%m-%d %H:%M:%S') [entrypoint] Starting Finlytics..."
 exec python -m finlytics
