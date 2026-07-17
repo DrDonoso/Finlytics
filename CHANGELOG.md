@@ -4,6 +4,11 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260717.03] - 2026-07-17
+
+- fix(i18n): show localized category label in PreviewTypeahead (rule form + preview)
+
+
 ## [20260717.02] - 2026-07-17
 
 - uvicorn + app: custom log_config in __main__.py (built from uvicorn LOGGING_CONFIG + a root logger so finlytics.* module logs are timestamped too)
