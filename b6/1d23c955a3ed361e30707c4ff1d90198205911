@@ -1,0 +1,25 @@
+alembic.ini
+  s_973fa8fee5f8b3::t_bbed3e74fa8f8e 49-50
+src/finlytics/__main__.py
+  s_973fa8fee5f8b3::t_bbed3e74fa8f8e 3-4,6-20,28
+seed.py
+  s_973fa8fee5f8b3::t_bbed3e74fa8f8e 12,48-51,76
+docker-entrypoint.sh
+  s_973fa8fee5f8b3::t_bbed3e74fa8f8e 6,9,12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "b61d23c955a3ed361e30707c4ff1d90198205911",
+  "prompts": {},
+  "sessions": {
+    "s_973fa8fee5f8b3": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01H9GxksGypuLX65bhGyidZe",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    }
+  }
+}
