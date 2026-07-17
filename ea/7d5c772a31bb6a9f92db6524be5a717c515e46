@@ -1,0 +1,19 @@
+frontend/src/components/PreviewTypeahead.tsx
+  s_d80022575585c6::t_d5a11854b68a59 52-58,62,67,141-146,172
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "ea7d5c772a31bb6a9f92db6524be5a717c515e46",
+  "prompts": {},
+  "sessions": {
+    "s_d80022575585c6": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01VsUjNtZaPnGMGKLfuaZD89",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    }
+  }
+}

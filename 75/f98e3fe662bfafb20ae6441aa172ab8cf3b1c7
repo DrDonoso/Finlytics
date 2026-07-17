@@ -1,0 +1,23 @@
+.squad/orchestration-log/2026-07-17T10-00-00Z-vision.md
+  s_e818820dcfd048::t_566b854334a33a 1-23
+.squad/log/2026-07-17T10-00-00Z-typeahead-label-fix.md
+  s_e818820dcfd048::t_10cbd838d9cb7e 1-15
+.squad/decisions.md
+  s_e818820dcfd048::t_8b7c841b841193 1-25,7759
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "75f98e3fe662bfafb20ae6441aa172ab8cf3b1c7",
+  "prompts": {},
+  "sessions": {
+    "s_e818820dcfd048": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01W13CDLprqFCNKfjevHSikD",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    }
+  }
+}
