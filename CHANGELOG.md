@@ -4,6 +4,18 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260717.02] - 2026-07-17
+
+- uvicorn + app: custom log_config in __main__.py (built from uvicorn LOGGING_CONFIG + a root logger so finlytics.* module logs are timestamped too)
+- alembic: alembic.ini [formatter_generic]
+- entrypoint: date-prefixed echoes in docker-entrypoint.sh
+- seed: timestamped print in seed.py
+- Merge rocket-log-timestamps decision into decisions.md (inbox→main)
+- Write orchestration log: Rocket log-timestamps + Coordinator deploy
+- Write session log: brief summary of log-timestamps feature
+- Verify: decisions.md no items >7d old; all history.md <15360 bytes
+
+
 ## [20260717] - 2026-07-17
 
 - Appearance: 5 selectable accent palettes (Classic/Emerald/Violet/Amber/High-Contrast) via CSS custom properties, persisted in localStorage, light/dark aware.
