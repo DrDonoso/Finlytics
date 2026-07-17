@@ -4,6 +4,12 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260717.04] - 2026-07-17
+
+- backend: per-transaction allow_duplicate flag on ExtractedTransaction (carried through /api/imports/confirm). compute_dedup_hash() gains an optional disambiguator (None keeps existing hashes byte-identical); upsert_transactions() hashes a uuid disambiguator for allow_duplicate rows so they get a unique dedup_hash and INSERT instead of being skipped by ON CONFLICT.
+- frontend: "No es duplicada / Not a duplicate" control beside the duplicate badge in the import preview; clears the flag, excludes the row from duplicate counts and the flagged-only filter, survives re-checks, and sends allow_duplicate in the confirm payload.
+
+
 ## [20260717.03] - 2026-07-17
 
 - fix(i18n): show localized category label in PreviewTypeahead (rule form + preview)
