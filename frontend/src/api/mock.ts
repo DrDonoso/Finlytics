@@ -302,7 +302,28 @@ const MOCK_PREVIEW_TXNS: ImportTransaction[] = [
 ]
 
 export function mockPreviewImport(_file: File, _accountName: string): Promise<PreviewResponse> {
-  return delay({ account_ref: 'BBVA', filename: 'extracto-bbva-julio-2026.pdf', transactions: MOCK_PREVIEW_TXNS, statement_year: 2026, year_detected: true })
+  return delay({
+    account_ref: 'BBVA',
+    filename: 'extracto-bbva-julio-2026.pdf',
+    transactions: MOCK_PREVIEW_TXNS,
+    statement_year: 2026,
+    year_detected: true,
+    quality: {
+      summary: { error_count: 0, warning_count: 3, info_count: 1, flagged_row_count: 3 },
+      signals: [
+        { code: 'low_confidence_category', severity: 'warning', count: 2 },
+        { code: 'missing_merchant', severity: 'info', count: 1 },
+        { code: 'generic_category', severity: 'warning', count: 1 },
+      ],
+      row_flags: [
+        { row_index: 3, code: 'low_confidence_category', severity: 'warning', fields: ['category'] },
+        { row_index: 3, code: 'generic_category', severity: 'warning', fields: ['category'] },
+        { row_index: 3, code: 'missing_merchant', severity: 'info', fields: ['merchant'] },
+        { row_index: 5, code: 'low_confidence_category', severity: 'warning', fields: ['category'] },
+        { row_index: 5, code: 'missing_merchant', severity: 'info', fields: ['merchant'] },
+      ],
+    },
+  })
 }
 
 export function mockConfirmImport(payload: ConfirmRequest): Promise<ImportResult> {

@@ -1,16 +1,20 @@
-import { useMemo } from 'react'
-import type { Account, Category, Tag, ImportTransaction } from '../api/types'
+import { useCallback, useMemo, useState } from 'react'
+import type { Account, Category, Tag, ImportTransaction, ImportQualityRowFlag } from '../api/types'
 import { useT, categoryLabel } from '../i18n'
 import DateInput from './DateInput'
-import CategorySelect from './CategorySelect'
 import TagTypeahead from './TagTypeahead'
+import PreviewTypeahead, { type PreviewTypeaheadOption } from './PreviewTypeahead'
+import type { LiveImportQuality } from './importQuality'
 
-export type EditRow = ImportTransaction & { _key: number; isDuplicate?: boolean }
+export type EditRow = ImportTransaction & {
+  _key: number
+  isDuplicate?: boolean
+  _qualityFlags?: ImportQualityRowFlag[]
+  _originalCategory?: string
+}
 
 interface Props {
   rows: EditRow[]
-  /** Unique string prefix used for datalist element IDs — prevents conflicts when multiple tables are on screen */
-  fileKey: string
   accounts: Account[]
   categories: Category[]
   allTags: Tag[]
@@ -20,14 +24,49 @@ interface Props {
   onAddBlankRow: () => void
   onCreateRule: (row: EditRow) => void
   showYearWarning?: boolean
+  liveQuality: LiveImportQuality
 }
 
 export default function ImportPreviewTable({
-  rows, fileKey, accounts, categories, allTags, suggestedColors,
+  rows, accounts, categories, allTags, suggestedColors,
   onUpdateRow, onDeleteRow, onAddBlankRow, onCreateRule,
-  showYearWarning = false,
+  showYearWarning = false, liveQuality,
 }: Props) {
   const { t, lang, formatCurrency } = useT()
+  const [flaggedOnly, setFlaggedOnly] = useState(false)
+  const [focusedRowKey, setFocusedRowKey] = useState<number | null>(null)
+
+  const flaggedRowCount = liveQuality.flaggedRowKeys.size
+  const visibleRows = flaggedOnly
+    ? rows.filter(r => liveQuality.flaggedRowKeys.has(r._key) || focusedRowKey === r._key)
+    : rows
+
+  const signalLabel = (code: string) => t.importQualitySignalLabels[code] ?? t.importQualityUnknownSignal
+  const signalMessage = (code: string) => t.importQualitySignalMessages[code] ?? t.importQualityUnknownSignal
+  const severityMark = (severity: string) => severity === 'error' ? '!' : severity === 'warning' ? '⚠' : 'i'
+  const flagBadges = (row: EditRow, field: string) => {
+    const flags = (liveQuality.rowFlagsByKey.get(row._key) ?? []).filter(flag => flag.fields.includes(field))
+    if (flags.length === 0) return null
+    return (
+      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 3 }}>
+        {flags.map((flag, i) => {
+          const title = `${signalLabel(flag.code)} — ${signalMessage(flag.code)}`
+          const color = flag.severity === 'error' ? 'var(--expense)' : flag.severity === 'warning' ? '#b45309' : 'var(--text-muted)'
+          return (
+            <span
+              key={`${flag.code}-${i}`}
+              className="import-dup-badge"
+              title={title}
+              aria-label={title}
+              style={{ color, borderColor: color }}
+            >
+              {severityMark(flag.severity)}
+            </span>
+          )
+        })}
+      </div>
+    )
+  }
 
   const dynamicEs = useMemo(
     () => Object.fromEntries(categories.filter(c => c.name_es).map(c => [c.name, c.name_es!])),
@@ -52,6 +91,27 @@ export default function ImportPreviewTable({
     return result.sort()
   }, [rows, categories])
 
+  const categoryOptions = useMemo<PreviewTypeaheadOption[]>(() => [
+    ...baseCategories.map(c => ({ value: c.name, label: categoryLabel(c.name, lang, dynamicEs) })),
+    ...customCategories.map(cat => ({ value: cat, label: categoryLabel(cat, lang, dynamicEs) })),
+  ], [baseCategories, customCategories, lang, dynamicEs])
+
+  const getPreviewCategoryLabel = useCallback(
+    (value: string) => categoryLabel(value, lang, dynamicEs),
+    [lang, dynamicEs],
+  )
+
+  const normalizeCategoryInput = useCallback((input: string, options: PreviewTypeaheadOption[]) => {
+    const trimmed = input.trim()
+    const lower = trimmed.toLocaleLowerCase(lang)
+    const match = options.find(opt => {
+      const optionValue = opt.value.toLocaleLowerCase(lang)
+      const optionLabel = (opt.label ?? getPreviewCategoryLabel(opt.value)).toLocaleLowerCase(lang)
+      return optionValue === lower || optionLabel === lower
+    })
+    return match?.value ?? trimmed
+  }, [getPreviewCategoryLabel, lang])
+
   const distinctMerchants = useMemo(() => {
     const seen = new Set<string>()
     for (const row of rows) { const m = row.merchant?.trim(); if (m) seen.add(m) }
@@ -64,14 +124,26 @@ export default function ImportPreviewTable({
     return [...seen].sort()
   }, [rows])
 
-  const hasLowConf = rows.some(r => r.category_confidence !== null && r.category_confidence < 0.5)
-  const accsListId = `prev-accs-${fileKey}`
-  const merListId  = `prev-merch-${fileKey}`
+  const hasLowConf = rows.some(r =>
+    (liveQuality.rowFlagsByKey.get(r._key) ?? []).some(flag => flag.code === 'low_confidence_category')
+  )
+  const accountOptions = useMemo(() => accounts.map(a => ({ value: a.name })), [accounts])
+  const merchantOptions = useMemo(() => distinctMerchants.map(m => ({ value: m })), [distinctMerchants])
 
   return (
     <div>
       <div style={{ marginBottom: 8, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
         <button className="btn-outline" onClick={onAddBlankRow}>{t.modalAddRow}</button>
+        {flaggedRowCount > 0 && (
+          <button
+            type="button"
+            className="btn-outline"
+            onClick={() => setFlaggedOnly(v => !v)}
+            aria-pressed={flaggedOnly}
+          >
+            {flaggedOnly ? t.importQualityShowAllRows : t.importQualityFlaggedOnly}
+          </button>
+        )}
         {hasLowConf && <span className="confidence-hint" style={{ fontSize: 12 }}>{t.modalLowConfidence}</span>}
       </div>
 
@@ -93,12 +165,31 @@ export default function ImportPreviewTable({
             </tr>
           </thead>
           <tbody>
-            {rows.map(row => {
-              const lowConf = row.category_confidence !== null && row.category_confidence < 0.5
+            {visibleRows.length === 0 && (
+              <tr>
+                <td colSpan={9} style={{ color: 'var(--text-muted)', padding: 14, textAlign: 'center' }}>
+                  {t.importQualityNoFlaggedRows}
+                </td>
+              </tr>
+            )}
+            {visibleRows.map(row => {
+              const rowFlags = liveQuality.rowFlagsByKey.get(row._key) ?? []
+              const lowConf = rowFlags.some(flag => flag.code === 'low_confidence_category')
+              const isDuplicate = liveQuality.duplicateRowKeys.has(row._key)
               const amountColor = row.amount < 0 ? 'var(--expense)' : row.amount > 0 ? 'var(--income)' : 'inherit'
-              const rowClass = [lowConf ? 'row-low-confidence' : '', row.isDuplicate ? 'row-duplicate' : ''].filter(Boolean).join(' ')
+              const rowClass = [lowConf ? 'row-low-confidence' : '', isDuplicate ? 'row-duplicate' : ''].filter(Boolean).join(' ')
               return (
-                <tr key={row._key} className={rowClass || undefined}>
+                <tr
+                  key={row._key}
+                  className={rowClass || undefined}
+                  onFocus={() => setFocusedRowKey(row._key)}
+                  onBlur={e => {
+                    const nextFocus = e.relatedTarget
+                    if (!(nextFocus instanceof Node) || !e.currentTarget.contains(nextFocus)) {
+                      setFocusedRowKey(current => current === row._key ? null : current)
+                    }
+                  }}
+                >
                   <td>
                     <DateInput
                       className="cell-input cell-date"
@@ -106,6 +197,7 @@ export default function ImportPreviewTable({
                       lang={lang}
                       onChange={iso => onUpdateRow(row._key, { transaction_date: iso })}
                     />
+                    {flagBadges(row, 'transaction_date')}
                   </td>
                   <td>
                     <input
@@ -114,7 +206,7 @@ export default function ImportPreviewTable({
                       value={row.description}
                       onChange={e => onUpdateRow(row._key, { description: e.target.value })}
                     />
-                    {row.isDuplicate && (
+                    {liveQuality.dbDuplicateRowKeys.has(row._key) && (
                       <div className="import-dup-badge-wrap">
                         <span className="import-dup-badge">{t.importDuplicateBadge}</span>
                       </div>
@@ -122,16 +214,17 @@ export default function ImportPreviewTable({
                     {row.detail && (
                       <div className="tx-detail-subline tx-detail-subline--input-aligned">{row.detail}</div>
                     )}
+                    {flagBadges(row, 'description')}
                   </td>
                   <td>
-                    <input
-                      type="text"
-                      list={merListId}
-                      className="cell-input cell-merchant import-merchant-input"
+                    <PreviewTypeahead
                       value={row.merchant ?? ''}
+                      options={merchantOptions}
                       placeholder={t.importMerchantPlaceholder}
-                      onChange={e => onUpdateRow(row._key, { merchant: e.target.value || null })}
+                      className="cell-merchant import-merchant-input"
+                      onChange={value => onUpdateRow(row._key, { merchant: value || null })}
                     />
+                    {flagBadges(row, 'merchant')}
                   </td>
                   <td>
                     <div className="amount-cell">
@@ -160,17 +253,20 @@ export default function ImportPreviewTable({
                         }}
                       />
                     </div>
+                    {flagBadges(row, 'amount')}
                   </td>
                   <td>
                     <div className="category-cell-wrap">
-                      <CategorySelect
+                      <PreviewTypeahead
                         value={row.category}
-                        baseCategories={baseCategories}
-                        extraCategories={customCategories}
-                        lang={lang}
-                        t={t}
+                        options={categoryOptions}
                         onChange={val => onUpdateRow(row._key, { category: val })}
+                        placeholder={t.previewCategoryCustomPlaceholder || t.previewCategoryCustom}
+                        className="cell-category"
+                        getLabel={getPreviewCategoryLabel}
+                        normalizeInput={normalizeCategoryInput}
                       />
+                      {flagBadges(row, 'category')}
                       {row.matched_rule_id != null && (
                         <span
                           className="rule-match-badge"
@@ -182,13 +278,13 @@ export default function ImportPreviewTable({
                     </div>
                   </td>
                   <td>
-                    <input
-                      type="text"
-                      list={accsListId}
-                      className="cell-input cell-account"
+                    <PreviewTypeahead
                       value={row.account_ref}
-                      onChange={e => onUpdateRow(row._key, { account_ref: e.target.value })}
+                      options={accountOptions}
+                      className="cell-account"
+                      onChange={value => onUpdateRow(row._key, { account_ref: value })}
                     />
+                    {flagBadges(row, 'account_ref')}
                   </td>
                   <td>
                     <TagTypeahead
@@ -230,20 +326,13 @@ export default function ImportPreviewTable({
         </table>
       </div>
 
-      <datalist id={accsListId}>
-        {accounts.map(a => <option key={a.id} value={a.name} />)}
-      </datalist>
-      <datalist id={merListId}>
-        {distinctMerchants.map(m => <option key={m} value={m} />)}
-      </datalist>
-
       <div style={{ marginTop: 12, fontSize: 12, color: 'var(--text-muted)' }}>
         {t.previewTotalExpenses}: <strong style={{ color: 'var(--expense)' }}>
-          {formatCurrency(rows.filter(r => r.amount < 0).reduce((s, r) => s + Math.abs(r.amount), 0))}
+          {formatCurrency(visibleRows.filter(r => r.amount < 0).reduce((s, r) => s + Math.abs(r.amount), 0))}
         </strong>
         &nbsp;·&nbsp;
         {t.previewTotalIncome}: <strong style={{ color: 'var(--income)' }}>
-          {formatCurrency(rows.filter(r => r.amount > 0).reduce((s, r) => s + r.amount, 0))}
+          {formatCurrency(visibleRows.filter(r => r.amount > 0).reduce((s, r) => s + r.amount, 0))}
         </strong>
       </div>
     </div>

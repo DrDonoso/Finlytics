@@ -307,6 +307,32 @@ class SuggestedTag(BaseModel):
     color: str  # hex #RRGGBB
 
 
+class ImportQualitySummary(BaseModel):
+    error_count: int
+    warning_count: int
+    info_count: int
+    flagged_row_count: int
+
+
+class ImportQualitySignal(BaseModel):
+    code: str
+    severity: str
+    count: int
+
+
+class ImportQualityRowFlag(BaseModel):
+    row_index: int
+    code: str
+    severity: str
+    fields: list[str]
+
+
+class ImportQuality(BaseModel):
+    summary: ImportQualitySummary
+    signals: list[ImportQualitySignal]
+    row_flags: list[ImportQualityRowFlag]
+
+
 class PreviewOut(BaseModel):
     """Response from POST /api/imports/preview — extracted transactions not yet persisted."""
     account_ref: str | None
@@ -314,6 +340,7 @@ class PreviewOut(BaseModel):
     transactions: list[ExtractedTransaction]
     statement_year: int | None
     year_detected: bool
+    quality: ImportQuality
     suggested_tags: list[SuggestedTag] = []
     # IBAN detection fields (None when no IBAN found in the statement header)
     detected_account_masked: str | None = None  # masked IBAN for display

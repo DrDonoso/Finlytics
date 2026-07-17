@@ -5,6 +5,7 @@ import { getInvestmentPlugins, getConnections, disconnectConnection } from '../a
 import { useT } from '../i18n'
 import type { Dict } from '../i18n'
 import IndexaWizard from '../components/IndexaWizard'
+import { getPluginLogo, pluginInitial } from '../investments/registry'
 
 // Map plugin.id → i18n key for localized descriptions (fallback: backend description)
 const PLUGIN_DESC_KEYS: Partial<Record<string, keyof Dict>> = {
@@ -14,6 +15,12 @@ const PLUGIN_DESC_KEYS: Partial<Record<string, keyof Dict>> = {
 
 export default function ConnectorsPage() {
   const { t } = useT()
+
+  function renderPluginIcon(plugin: InvestmentPlugin) {
+    const logo = getPluginLogo(plugin.id)
+    if (logo) return <img src={logo} alt={plugin.name} className="plugin-card__icon plugin-logo" />
+    return <span className="plugin-card__icon plugin-logo-fallback" aria-label={plugin.name}>{pluginInitial(plugin.name)}</span>
+  }
 
   function pluginDesc(plugin: InvestmentPlugin): string {
     const key = PLUGIN_DESC_KEYS[plugin.id]
@@ -57,7 +64,7 @@ export default function ConnectorsPage() {
     if (conn) {
       return (
         <div className="plugin-card connector-card--connected" key={plugin.id}>
-          <span className="plugin-card__icon" aria-hidden="true">{plugin.icon}</span>
+          {renderPluginIcon(plugin)}
           <span className="plugin-card__name">{plugin.name}</span>
           <p className="plugin-card__description">{pluginDesc(plugin)}</p>
           <span className="connected-badge">✓ {t.connectorConnected}</span>
@@ -74,7 +81,7 @@ export default function ConnectorsPage() {
 
     return (
       <div className="plugin-card" key={plugin.id}>
-        <span className="plugin-card__icon" aria-hidden="true">{plugin.icon}</span>
+        {renderPluginIcon(plugin)}
         <span className="plugin-card__name">{plugin.name}</span>
         <p className="plugin-card__description">{pluginDesc(plugin)}</p>
         <Link className="btn-primary" to="/investments/fidelity-espp">
@@ -91,7 +98,7 @@ export default function ConnectorsPage() {
     if (connStatus === 'active') {
       return (
         <div className="plugin-card connector-card--connected" key={plugin.id}>
-          <span className="plugin-card__icon" aria-hidden="true">{plugin.icon}</span>
+          {renderPluginIcon(plugin)}
           <span className="plugin-card__name">{plugin.name}</span>
           <p className="plugin-card__description">{pluginDesc(plugin)}</p>
           <span className="connected-badge">✓ {t.connectorConnected}</span>
@@ -109,7 +116,7 @@ export default function ConnectorsPage() {
     if (connStatus === 'error') {
       return (
         <div className="plugin-card connector-card--error" key={plugin.id}>
-          <span className="plugin-card__icon" aria-hidden="true">{plugin.icon}</span>
+          {renderPluginIcon(plugin)}
           <span className="plugin-card__name">{plugin.name}</span>
           <p className="plugin-card__description">{pluginDesc(plugin)}</p>
           <span className="error-badge">⚠ {t.connectorError}</span>
@@ -122,7 +129,7 @@ export default function ConnectorsPage() {
 
     return (
       <div className="plugin-card" key={plugin.id}>
-        <span className="plugin-card__icon" aria-hidden="true">{plugin.icon}</span>
+        {renderPluginIcon(plugin)}
         <span className="plugin-card__name">{plugin.name}</span>
         <p className="plugin-card__description">{pluginDesc(plugin)}</p>
         <button className="btn-primary" onClick={() => setWizardOpen(true)}>
@@ -153,7 +160,7 @@ export default function ConnectorsPage() {
               if (plugin.id === 'fidelity-espp') return renderFidelityEsppCard(plugin)
               return (
                 <div className="plugin-card" key={plugin.id}>
-                  <span className="plugin-card__icon" aria-hidden="true">{plugin.icon}</span>
+                  {renderPluginIcon(plugin)}
                   <span className="plugin-card__name">{plugin.name}</span>
                   <p className="plugin-card__description">{pluginDesc(plugin)}</p>
                   <span className="coming-soon-badge">{t.investmentsComingSoon}</span>
@@ -176,4 +183,3 @@ export default function ConnectorsPage() {
     </>
   )
 }
-

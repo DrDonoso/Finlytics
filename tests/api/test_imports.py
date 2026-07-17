@@ -153,9 +153,10 @@ async def test_preview_returns_transactions(client_with_llm):
     """Preview returns PreviewOut with transactions and does NOT persist anything."""
     client, _ = client_with_llm
     extracted = _make_extracted()
+    extracted[0].merchant = "Mercadona"
 
     with (
-        patch("finlytics.api.imports.parse_statement", return_value="statement text"),
+        patch("finlytics.api.imports.parse_statement", return_value="extracto de junio 2024"),
         patch("finlytics.api.imports.extract_transactions", new_callable=AsyncMock,
               return_value=extracted),
         patch("finlytics.api.imports.list_rules", new_callable=AsyncMock, return_value=[]),
@@ -176,6 +177,16 @@ async def test_preview_returns_transactions(client_with_llm):
     assert tx["category"] == "Groceries"
     assert isinstance(tx["amount"], float)  # Decimal serialised as JSON number
     assert tx["amount"] < 0
+    assert body["quality"] == {
+        "summary": {
+            "error_count": 0,
+            "warning_count": 0,
+            "info_count": 0,
+            "flagged_row_count": 0,
+        },
+        "signals": [],
+        "row_flags": [],
+    }
 
 
 async def test_preview_does_not_persist(client_with_llm, mock_session):

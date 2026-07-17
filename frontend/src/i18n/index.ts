@@ -132,9 +132,16 @@ export interface Dict {
   settingsSubAppearance: string
   settingsAppearanceTitle: string
   settingsThemeLabel: string
+  settingsAccentLabel: string
+  settingsAccentHint: string
   themeLight: string
   themeDark: string
   themeSystem: string
+  paletteClassicBlue: string
+  paletteEmerald: string
+  paletteViolet: string
+  paletteAmber: string
+  paletteHighContrast: string
   // ── Category chart table ──────────────────────────────────────────────
   catColCategories: string
   catColValue: string
@@ -341,6 +348,22 @@ export interface Dict {
   batchRetryFile:         string
   importDuplicateBadge:   string
   importDuplicateCount:   (n: number) => string
+  // ── Import quality report ────────────────────────────────────────────────
+  importQualityTitle: string
+  importQualityDetails: string
+  importQualityFlaggedOnly: string
+  importQualityShowAllRows: string
+  importQualityNoFlaggedRows: string
+  importQualityErrors: (n: number) => string
+  importQualityWarnings: (n: number) => string
+  importQualityInfo: (n: number) => string
+  importQualityDuplicates: (n: number) => string
+  importQualitySeverityError: string
+  importQualitySeverityWarning: string
+  importQualitySeverityInfo: string
+  importQualityUnknownSignal: string
+  importQualitySignalLabels: Record<string, string>
+  importQualitySignalMessages: Record<string, string>
   // ── Spending heatmap ──────────────────────────────────────────────────────
   heatmapTitle: string
   heatmapLess: string
@@ -365,6 +388,18 @@ export interface Dict {
   datePickerNextYear: string
   // ── Constant (unfiltered) net KPI ─────────────────────────────────────────
   kpiCurrentNet: string
+  // ── Inicio dashboard redesign ────────────────────────────────────────────
+  dashboardKpiTotalNet: string
+  dashboardKpiSavingsRate: string
+  dashboardKpiSavingsRateInfo: string
+  dashboardKpiAverageMonthlyNet: string
+  dashboardKpiAverageMonthlyNetInfo: string
+  dashboardPerMonthSuffix: string
+  dashboardAccountsTitle: string
+  dashboardAccountsAccount: string
+  dashboardAccountsNet: string
+  dashboardAccountsAvgMonthlyExpense: string
+  dashboardAccountsEmpty: string
   // ── Investments page ──────────────────────────────────────────────────────
   investmentsTitle: string
   investmentsKpiTotalValue: string

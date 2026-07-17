@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Indexa Capital">
+  <rect width="32" height="32" rx="7" fill="#0F5FC7"/>
+  <path d="M9 21.5 L13.5 15.5 L18 18.5 L23 11" fill="none" stroke="#8FC0FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>
+  <text x="16" y="20.5" font-family="Segoe UI, Arial, sans-serif" font-size="12.5" font-weight="700" fill="#ffffff" text-anchor="middle">IC</text>
+</svg>
