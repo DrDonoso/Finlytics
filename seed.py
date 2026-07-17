@@ -9,6 +9,7 @@ Tags are user-created only; seed does not insert any tags.
 """
 
 import asyncio
+from datetime import datetime
 
 from sqlalchemy import select
 
@@ -44,6 +45,10 @@ BASE_CATEGORY_COLORS: dict[str, str] = {
 _DEFAULT_COLOR = "#64748b"
 
 
+def _timestamp() -> str:
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
 async def seed() -> None:
     inserted_cats = 0
     recolored_cats = 0
@@ -68,6 +73,7 @@ async def seed() -> None:
 
     skipped_cats = len(BASE_CATEGORIES) - inserted_cats - recolored_cats
     print(
+        f"{_timestamp()} "
         f"Seed complete — "
         f"categories: {inserted_cats} inserted, {recolored_cats} recolored, "
         f"{skipped_cats} already had correct color"
