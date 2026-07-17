@@ -1,3 +1,28 @@
+# Vision — PreviewTypeahead localized label display
+
+**Date:** 2026-07-17T10:12:43+02:00
+**Owner:** DrDonoso
+**Scope:** Component input display localization.
+
+## Context
+
+The Rule form category selector passed canonical category values with localized option labels, but the closed input rendered the raw value (e.g., Groceries) instead of the selected option label (e.g., Compra) in Spanish.
+
+## Decision
+
+Update PreviewTypeahead generally so the idle input displays the label of the option whose alue matches the current alue prop. If no option matches, display the raw value.
+
+## Impact
+
+- Rule form category display is localized while set_category remains canonical.
+- Import preview category selector keeps the same localized label behavior.
+- Merchant/account free-text typeaheads continue to display raw values when no option label exists.
+
+## Files touched
+
+- rontend/src/components/PreviewTypeahead.tsx
+
+---
 # Rocket — Application log timestamps
 
 **Date:** 2026-07-17T10:12:43+02:00  
@@ -7729,5 +7754,6 @@ Normalization: uppercase, trim, collapse whitespace, strip punctuation and diacr
 
 
 ---
+
 
 
