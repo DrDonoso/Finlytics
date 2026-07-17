@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from datetime import date
 from decimal import Decimal
 
@@ -18,6 +20,22 @@ _BASE = dict(
 def test_no_detail_arg_equals_detail_none():
     """Calling with no detail arg is identical to detail=None."""
     assert compute_dedup_hash(**_BASE) == compute_dedup_hash(**_BASE, detail=None)
+
+
+def test_disambiguator_none_matches_legacy_formula():
+    """disambiguator=None preserves the exact pre-override hash payload."""
+    legacy_payload = json.dumps(
+        {
+            "account": "bbva",
+            "date": "2024-01-15",
+            "amount": "100.00",
+            "description": "nomina",
+        },
+        sort_keys=True,
+    )
+    expected = hashlib.sha256(legacy_payload.encode("utf-8")).hexdigest()
+
+    assert compute_dedup_hash(**_BASE, disambiguator=None) == expected
 
 
 def test_empty_string_detail_equals_no_detail():
@@ -62,4 +80,21 @@ def test_detail_stripped_whitespace():
     """Leading/trailing whitespace in detail is stripped before hashing."""
     h1 = compute_dedup_hash(**_BASE, detail="OCTOPUS ENERGY")
     h2 = compute_dedup_hash(**_BASE, detail="  OCTOPUS ENERGY  ")
+    assert h1 == h2
+
+
+def test_different_disambiguators_produce_different_hashes():
+    """Different force-import disambiguators produce different 64-char digests."""
+    h1 = compute_dedup_hash(**_BASE, disambiguator="force-1")
+    h2 = compute_dedup_hash(**_BASE, disambiguator="force-2")
+
+    assert h1 != h2
+    assert len(h1) == 64
+    assert len(h2) == 64
+
+
+def test_same_disambiguator_same_hash():
+    """The same disambiguator is stable for deterministic tests and retries."""
+    h1 = compute_dedup_hash(**_BASE, disambiguator="force-1")
+    h2 = compute_dedup_hash(**_BASE, disambiguator="force-1")
     assert h1 == h2

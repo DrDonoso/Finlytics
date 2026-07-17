@@ -3,6 +3,7 @@ import type {
   Account, Category, Tag,
   ImportTransaction, PreviewResponse, ConfirmRequest, ImportResult,
   ImportQualitySignal,
+  ImportQualityRowFlag,
 } from '../api/types'
 import { previewImport, confirmImport, checkDuplicates } from '../api/client'
 import { useT, type Dict, paletteColor } from '../i18n'
@@ -76,6 +77,7 @@ function toImportTxn(row: EditRow): ImportTransaction {
     tags:                row.tags,
     merchant:            row.merchant,
     detail:              row.detail,
+    allow_duplicate:     row.allow_duplicate ?? false,
   }
 }
 
@@ -118,6 +120,57 @@ function mergedQualitySignals(liveQuality: LiveImportQuality): ImportQualitySign
     signals.push({ code: 'intra_batch_duplicate', severity: 'info', count: duplicateCount })
   }
   return signals
+}
+
+function applyDuplicateOverrides(liveQuality: LiveImportQuality, rows: EditRow[]): LiveImportQuality {
+  const overriddenKeys = new Set(rows.filter(row => row.allow_duplicate).map(row => row._key))
+  if (overriddenKeys.size === 0) return liveQuality
+
+  let removedIntraBatch = 0
+  const rowFlags = liveQuality.quality.row_flags.filter(flag => {
+    const rowKey = rows[flag.row_index]?._key
+    const remove = flag.code === 'intra_batch_duplicate' && rowKey != null && overriddenKeys.has(rowKey)
+    if (remove) removedIntraBatch += 1
+    return !remove
+  })
+
+  const rowFlagsByKey = new Map<number, ImportQualityRowFlag[]>()
+  for (const flag of rowFlags) {
+    const rowKey = rows[flag.row_index]?._key
+    if (rowKey == null) continue
+    rowFlagsByKey.set(rowKey, [...(rowFlagsByKey.get(rowKey) ?? []), flag])
+  }
+
+  const dbDuplicateRowKeys = new Set([...liveQuality.dbDuplicateRowKeys].filter(key => !overriddenKeys.has(key)))
+  const duplicateRowKeys = new Set([...liveQuality.duplicateRowKeys].filter(key => !overriddenKeys.has(key)))
+  const flaggedRowKeys = new Set(duplicateRowKeys)
+  for (const flag of rowFlags) {
+    const rowKey = rows[flag.row_index]?._key
+    if (rowKey != null) flaggedRowKeys.add(rowKey)
+  }
+
+  return {
+    ...liveQuality,
+    quality: {
+      ...liveQuality.quality,
+      summary: {
+        ...liveQuality.quality.summary,
+        warning_count: Math.max(0, liveQuality.quality.summary.warning_count - removedIntraBatch),
+        flagged_row_count: new Set(rowFlags.map(flag => flag.row_index)).size,
+      },
+      signals: liveQuality.quality.signals
+        .map(signal => signal.code === 'intra_batch_duplicate'
+          ? { ...signal, count: Math.max(0, signal.count - removedIntraBatch) }
+          : signal
+        )
+        .filter(signal => signal.count > 0),
+      row_flags: rowFlags,
+    },
+    rowFlagsByKey,
+    dbDuplicateRowKeys,
+    duplicateRowKeys,
+    flaggedRowKeys,
+  }
 }
 
 function ImportQualityPanel({ liveQuality, t }: { liveQuality: LiveImportQuality; t: Dict }) {
@@ -199,10 +252,13 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
   const [ruleToast, setRuleToast] = useState<string | null>(null)
 
   const liveQualityByFile = useMemo(
-    () => fileItems.map(fi => computeLiveImportQuality(
+    () => fileItems.map(fi => applyDuplicateOverrides(
+      computeLiveImportQuality(
+        fi.rows,
+        fi.preview?.statement_year ?? null,
+        fi.preview?.year_detected ?? true,
+      ),
       fi.rows,
-      fi.preview?.statement_year ?? null,
-      fi.preview?.year_detected ?? true,
     )),
     [fileItems],
   )
@@ -318,7 +374,10 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
       setFileItems(prev => prev.map((item, idx) =>
         idx !== fileIdx ? item : {
           ...item,
-          rows: item.rows.map((r, ri) => ({ ...r, isDuplicate: res.is_duplicate[ri] ?? false })),
+          rows: item.rows.map((r, ri) => ({
+            ...r,
+            isDuplicate: r.allow_duplicate ? false : (res.is_duplicate[ri] ?? false),
+          })),
         }
       ))
     }).catch(() => { /* degrade gracefully — leave rows unmarked */ })
@@ -377,7 +436,11 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
             ...fi,
             rows: fi.rows.map(r =>
               r._key === key
-                ? { ...r, ...patch, ...(isDedupField && phase === 'preview' ? { isDuplicate: false } : {}) }
+                ? {
+                    ...r,
+                    ...patch,
+                    ...((patch.allow_duplicate === true || (isDedupField && phase === 'preview')) ? { isDuplicate: false } : {}),
+                  }
                 : r
             ),
           }

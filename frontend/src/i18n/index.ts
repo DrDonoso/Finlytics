@@ -347,6 +347,8 @@ export interface Dict {
   batchSummaryFileError:  (file: string, reason: string) => string
   batchRetryFile:         string
   importDuplicateBadge:   string
+  importDuplicateOverrideLabel: string
+  importDuplicateOverrideTooltip: string
   importDuplicateCount:   (n: number) => string
   // ── Import quality report ────────────────────────────────────────────────
   importQualityTitle: string

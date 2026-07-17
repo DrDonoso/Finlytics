@@ -335,6 +335,8 @@ const es: Dict = {
   batchSummaryFileError:  (file, reason) => `✗ ${file} — ${reason}`,
   batchRetryFile:         'Reintentar',
   importDuplicateBadge:   'Duplicada',
+  importDuplicateOverrideLabel: 'No es duplicada',
+  importDuplicateOverrideTooltip: 'Importar esta fila aunque coincida con una transacción existente.',
   importDuplicateCount:   (n) => `${n} duplicada${n !== 1 ? 's' : ''}`,
   importQualityTitle: 'Calidad del importe',
   importQualityDetails: 'Ver detalle',

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import uuid
 from datetime import date, datetime, timezone
 from decimal import Decimal
 
@@ -36,6 +37,7 @@ def compute_dedup_hash(
     amount: Decimal,
     description: str,
     detail: str | None = None,
+    disambiguator: str | None = None,
 ) -> str:
     """Return a deterministic SHA-256 hex digest for a transaction.
 
@@ -47,16 +49,22 @@ def compute_dedup_hash(
     transactions with the same core fields but different sub-line text produce
     distinct rows.  When ``detail`` is None or empty the result is byte-identical
     to the pre-detail formula, preserving all existing dedup_hash values.
+
+    When ``disambiguator`` is provided, it is included inside the hashed JSON
+    payload so an otherwise-duplicate transaction can be force-imported while
+    keeping the stored digest at the normal 64-character SHA-256 width.  With
+    ``disambiguator=None`` the payload is unchanged from the normal path.
     """
-    payload = json.dumps(
-        {
-            "account": account_ref.strip().lower(),
-            "date": str(transaction_date),
-            "amount": str(amount),
-            "description": description.strip().lower(),
-        },
-        sort_keys=True,
-    )
+    payload_data = {
+        "account": account_ref.strip().lower(),
+        "date": str(transaction_date),
+        "amount": str(amount),
+        "description": description.strip().lower(),
+    }
+    if disambiguator is not None:
+        payload_data["disambiguator"] = disambiguator
+
+    payload = json.dumps(payload_data, sort_keys=True)
     if detail and detail.strip():
         payload = payload + "|" + detail.strip().lower()
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
@@ -217,6 +225,7 @@ async def upsert_transactions(
             amount=tx.amount,
             description=tx.description,
             detail=tx.detail,
+            disambiguator=uuid.uuid4().hex if tx.allow_duplicate else None,
         )
 
         category = await _resolve_category(tx.category)
