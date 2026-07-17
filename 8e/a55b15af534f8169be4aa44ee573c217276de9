@@ -1,0 +1,49 @@
+.squad/decisions/decisions.md
+  s_72a4979abc7eab::t_4448c29e2a6cb9 3-139,142-143,146,162,166,201,205,210,225,229,234,255
+  s_72a4979abc7eab::t_e3f2a64ea5f20c 1-2
+  s_72a4979abc7eab::t_782937b0566295 140-141
+  s_72a4979abc7eab::t_f84ec0ec01b9f5 144-145
+  s_72a4979abc7eab::t_c692baf1c99f1e 147-149,159-161
+  s_72a4979abc7eab::t_df8e8c061959f2 163-165
+  s_72a4979abc7eab::t_a46573878d8115 167-169,198-200
+  s_72a4979abc7eab::t_299994032c36b8 202-204
+  s_72a4979abc7eab::t_cea637e29fcd42 206-209
+  s_72a4979abc7eab::t_0efba37a91d733 211-213,222-224
+  s_72a4979abc7eab::t_391eaa31e569a6 226-228
+  s_72a4979abc7eab::t_dc03a5fc8441dc 230-233
+  s_72a4979abc7eab::t_cdd5ec0fc8fa8d 235-237,252-254
+  s_72a4979abc7eab::t_96c417f10bde69 256-257
+  s_0c412a0ce56b83::t_c772852bb73d90 150-158,170-197,214-221,238-251
+.squad/orchestration-log/2026-07-17T11-55-00Z-vision.md
+  s_72a4979abc7eab::t_e8a4278eb1fbb8 1-13
+.squad/orchestration-log/2026-07-17T11-55-00Z-coordinator.md
+  s_72a4979abc7eab::t_ef9122e259fa56 1-9
+.squad/log/2026-07-17T11-55-00Z-backup-wizard-v2.md
+  s_72a4979abc7eab::t_1b7fec3eae5c3d 1-12
+.squad/orchestration-log/2026-07-17T11-55-00Z-shuri.md
+  s_72a4979abc7eab::t_0be302ecf6d461 1-15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "8ea55b15af534f8169be4aa44ee573c217276de9",
+  "prompts": {},
+  "sessions": {
+    "s_0c412a0ce56b83": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "0cb28098-767f-4211-ad32-dc452e94275d",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_72a4979abc7eab": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01RNkEE8APSB9m294Ucaz9K7",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    }
+  }
+}
