@@ -6,7 +6,7 @@ import type {
   Transaction, TransactionPatch, CashflowSummary, CategoryPatch,
   AuthStatus, AuthUser, BackupImportSummary,
   Rule, RuleInput, RulePatch,
-  StatementMonth, MerchantSummary, StatementOriginal, InvestmentPlugin,
+  StatementMonth, StatementReminder, MerchantSummary, StatementOriginal, InvestmentPlugin,
   InvestmentPortfolio, InvestmentConnection, ValidateAccountsResponse,
   FidelityKpis, FidelityEvolution, FidelityLots,
   FidelityImportPreview, FidelityImportConfirmResult, FidelityReminderResponse,
@@ -22,7 +22,7 @@ import {
   mockGetAuthStatus, mockSetupUser, mockLogin, mockLogout, mockGetMe,
   mockGetByMerchant, mockGetByDay, mockGetInvestmentPlugins,
   mockValidateIndexaToken, mockConnectPlugin, mockGetConnections,
-  mockDisconnectConnection, mockGetInvestmentPortfolio,
+  mockDisconnectConnection, mockGetInvestmentPortfolio, mockGetStatementReminder,
 } from './mock'
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === '1'
@@ -340,6 +340,12 @@ export async function importBackup(data: unknown): Promise<BackupImportSummary> 
 /** GET /api/statements/months?account_id={id?} → months with transactions, sorted DESC by (year, month). */
 export async function getStatementMonths(account_id?: number): Promise<StatementMonth[]> {
   return apiFetch<StatementMonth[]>(buildUrl('/api/statements/months', account_id !== undefined ? { account_id } : undefined))
+}
+
+/** GET /api/statements/reminder → previous completed month and accounts missing its statement. */
+export async function getStatementReminder(): Promise<StatementReminder> {
+  if (USE_MOCK) return mockGetStatementReminder()
+  return apiFetch<StatementReminder>(buildUrl('/api/statements/reminder'))
 }
 
 /** GET /api/statements/originals?year={y}&month={m}&account_id={id?}

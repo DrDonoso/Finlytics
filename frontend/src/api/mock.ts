@@ -6,6 +6,7 @@ import type {
   TransactionPatch, CashflowSummary, AuthStatus, AuthUser,
   MerchantSummary, DaySummary, InvestmentPlugin,
   InvestmentPortfolio, InvestmentConnection, ValidateAccountsResponse,
+  StatementReminder,
 } from './types'
 
 // ─── Static reference data ────────────────────────────────────────────────────
@@ -412,6 +413,10 @@ export function mockGetByDay(params?: MonthSummaryParams): Promise<DaySummary[]>
     result.push({ day, expense: round2(expense), income: round2(income), net: round2(income - expense) })
   }
   return delay(result.sort((a, b) => a.day.localeCompare(b.day)))
+}
+
+export function mockGetStatementReminder(): Promise<StatementReminder> {
+  return delay({ year: null, month: null, missing_account_ids: [] })
 }
 
 // ─── Simulate async latency ───────────────────────────────────────────────────

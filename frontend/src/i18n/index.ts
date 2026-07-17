@@ -402,6 +402,8 @@ export interface Dict {
   dashboardAccountsNet: string
   dashboardAccountsAvgMonthlyExpense: string
   dashboardAccountsEmpty: string
+  dashboardStatementMissingLabel: string
+  dashboardStatementMissingTooltip: (month: string) => string
   // ── Investments page ──────────────────────────────────────────────────────
   investmentsTitle: string
   investmentsKpiTotalValue: string

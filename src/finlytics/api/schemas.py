@@ -219,6 +219,13 @@ class StatementMonth(BaseModel):
     count: int
 
 
+class StatementReminderOut(BaseModel):
+    """Response from GET /statements/reminder."""
+    year: int | None
+    month: int | None
+    missing_account_ids: list[int]
+
+
 class DeleteMonthResult(BaseModel):
     """Response for DELETE /api/statements/month."""
     deleted: int

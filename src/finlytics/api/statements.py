@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+from datetime import date
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import FileResponse
@@ -9,7 +10,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from finlytics.api.deps import get_db
-from finlytics.api.schemas import DeleteMonthResult, StatementMonth, StatementOriginal
+from finlytics.api.schemas import (
+    DeleteMonthResult,
+    StatementMonth,
+    StatementOriginal,
+    StatementReminderOut,
+)
 from finlytics.config import settings
 from finlytics.db import queries
 from finlytics.db.models import ImportRun
@@ -17,6 +23,39 @@ from finlytics.db.models import ImportRun
 log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/statements", tags=["statements"])
+
+
+def _get_today() -> date:
+    """Indirection for date.today(); monkeypatched in tests for determinism."""
+    return date.today()
+
+
+def compute_statement_reminder(
+    today: date,
+    per_account_months: dict[int, list[tuple[int, int]]],
+) -> StatementReminderOut:
+    """Compute which watched accounts are missing the previous calendar month.
+
+    Accounts are watched only after they have at least one statement month on or
+    before the previous calendar month. Grace is zero: evaluate from day 1.
+    """
+    if today.month == 1:
+        previous = (today.year - 1, 12)
+    else:
+        previous = (today.year, today.month - 1)
+
+    missing_account_ids: list[int] = []
+    for account_id in sorted(per_account_months):
+        month_set = set(per_account_months[account_id])
+        watched = any(month <= previous for month in month_set)
+        if watched and previous not in month_set:
+            missing_account_ids.append(account_id)
+
+    return StatementReminderOut(
+        year=previous[0],
+        month=previous[1],
+        missing_account_ids=missing_account_ids,
+    )
 
 
 @router.get("/months", response_model=list[StatementMonth])
@@ -29,6 +68,23 @@ async def list_statement_months(
     Pass ``?account_id=<id>`` to restrict to one account; omit for all accounts.
     """
     return await queries.get_statement_months(session, account_id=account_id)
+
+
+@router.get("/reminder", response_model=StatementReminderOut)
+async def statement_reminder(
+    session: AsyncSession = Depends(get_db),
+) -> StatementReminderOut:
+    """Per-account reminder for missing previous calendar-month statements."""
+    accounts = await queries.get_accounts(session)
+    per_account_months: dict[int, list[tuple[int, int]]] = {}
+    for account in accounts:
+        account_id = int(account["id"])
+        rows = await queries.get_statement_months(session, account_id=account_id)
+        per_account_months[account_id] = [
+            (int(row["year"]), int(row["month"])) for row in rows
+        ]
+
+    return compute_statement_reminder(_get_today(), per_account_months)
 
 
 @router.delete("/month", response_model=DeleteMonthResult)

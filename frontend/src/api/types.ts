@@ -284,6 +284,12 @@ export interface StatementOriginal {
   imported_at: string
 }
 
+export interface StatementReminder {
+  year: number | null
+  month: number | null
+  missing_account_ids: number[]
+}
+
 // ─── Backup ───────────────────────────────────────────────────────────────────
 
 export interface BackupImportSummary {
