@@ -4,6 +4,30 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260717] - 2026-07-17
+
+- Appearance: 5 selectable accent palettes (Classic/Emerald/Violet/Amber/High-Contrast) via CSS custom properties, persisted in localStorage, light/dark aware.
+- Charts: income/expense semantic colors are now palette-aware (tonal variants per palette) while preserving meaning; category identity colors untouched.
+- Import: deterministic Import Quality Report on the preview (low-confidence/missing category, missing merchant, zero amount, date mismatch, duplicates) with live client-side recompute, flagged-only filter, and unified PreviewTypeahead selectors (localized category labels).
+- Inicio: removed import + view-transactions buttons and the month selector; global KPIs (Neto total = accounts net + investments, historical savings rate, average monthly net, with tooltips); clickable Accounts table (Neto + avg monthly spend) deep-linking to Finanzas by account; investments snapshot providers link to their detail screens.
+- Icons: centralized Indexa/Fidelity platform icons as bundled SVG logos.
+- Merged vision-preview-expand-typeahead.md from decisions/inbox/ into decisions.md
+- Created orchestration-log/2026-07-16T11-51-05Z-vision.md (vision spawn execution + coordinator deploy)
+- Created log/2026-07-16T11-51-05Z-preview-expand-typeahead.md (session summary)
+- Condensed banner/history.md and rocket/history.md to stubs, archived previous versions
+- Verified: decisions.md, orchestration-log, session-log created; no app source staged
+- Added decision entry recording merchant normalization feature removal per owner request
+- Merchant Normalization (Slice 1 backend + Slice 2 UI) reverted; DB downgraded 0016 -> 0015
+- Retained color palettes and palette-aware charts (Wanda's work)
+- Updated Shuri and Vision history.md with reversal notes
+- Created orchestration and session logs with verification details
+- Summarized Shuri and Vision history.md to meet size thresholds
+- Merged wanda-palette-aware-charts and vision-merchant-ui-slice2 decisions into decisions.md
+- Cleared decisions/inbox/ (2 files archived)
+- Documented with orchestration logs (wanda, vision, coordinator) and session log
+- Condensed 5 large agent history files for archival (banner, fury, rocket, shuri, vision)
+
+
 ## [20260716.02] - 2026-07-16
 
 - Rewrite README with Inicio hub, Finanzas (heatmap + drill-down) and full Investments section (Indexa live-API + Fidelity ESPP)
