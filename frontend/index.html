@@ -11,6 +11,9 @@
           var t = localStorage.getItem('finlytics_theme') || 'system'
           if (t === 'system') t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
           document.documentElement.setAttribute('data-theme', t)
+          var p = localStorage.getItem('finlytics_accent_palette') || 'classic'
+          if (['classic', 'emerald', 'violet', 'amber', 'contrast'].indexOf(p) === -1) p = 'classic'
+          document.documentElement.setAttribute('data-palette', p)
         } catch (e) { /* ignore */ }
       })()
     </script>

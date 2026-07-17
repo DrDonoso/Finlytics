@@ -21,8 +21,8 @@ function SankeyLink(props: any) {
   if (!linkWidth) return null
 
   const isIncome = payload?.source?.type === 'income'
-  const fill   = isIncome ? 'rgba(34,197,94,0.16)'  : 'rgba(239,68,68,0.12)'
-  const stroke = isIncome ? 'rgba(34,197,94,0.32)'  : 'rgba(239,68,68,0.22)'
+  const fill   = isIncome ? 'rgba(var(--income-rgb), 0.16)'  : 'rgba(var(--expense-rgb), 0.12)'
+  const stroke = isIncome ? 'rgba(var(--income-rgb), 0.32)'  : 'rgba(var(--expense-rgb), 0.22)'
   const half = linkWidth / 2
 
   return (

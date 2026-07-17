@@ -3,7 +3,7 @@ import { Outlet, NavLink, Link, useLocation, useNavigate } from 'react-router-do
 import { useT } from '../i18n'
 import { useAuth } from '../contexts/AuthContext'
 import { getConnections } from '../api/client'
-import { PLUGIN_VIEW_REGISTRY } from '../investments/registry'
+import { getPluginLogo, PLUGIN_VIEW_REGISTRY, pluginInitial } from '../investments/registry'
 import type { InvestmentConnection } from '../api/types'
 
 const LS_COLLAPSED = 'finlytics_sidebar_collapsed'
@@ -182,7 +182,11 @@ export default function Layout() {
                       to={`/investments/${conn.plugin_id}`}
                       className={navLinkClass}
                     >
-                      <span className="nav-icon">{entry.icon}</span>
+                      {getPluginLogo(conn.plugin_id) ? (
+                        <img src={getPluginLogo(conn.plugin_id) ?? ''} alt={entry.name} className="nav-icon plugin-logo nav-plugin-logo" />
+                      ) : (
+                        <span className="nav-icon plugin-logo-fallback nav-plugin-logo" aria-label={entry.name}>{pluginInitial(entry.name)}</span>
+                      )}
                       <span className="nav-label">{entry.name}</span>
                     </NavLink>
                   )
@@ -328,4 +332,3 @@ export default function Layout() {
     </div>
   )
 }
-

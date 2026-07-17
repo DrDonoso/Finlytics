@@ -141,6 +141,44 @@ export interface ImportResult {
   num_duplicates: number
 }
 
+export type ImportQualitySeverity = 'error' | 'warning' | 'info'
+
+export type ImportQualitySignalCode =
+  | 'low_confidence_category'
+  | 'missing_category'
+  | 'generic_category'
+  | 'missing_merchant'
+  | 'zero_amount'
+  | 'date_year_mismatch'
+  | 'year_undetected'
+  | 'intra_batch_duplicate'
+
+export interface ImportQualitySummary {
+  error_count: number
+  warning_count: number
+  info_count: number
+  flagged_row_count: number
+}
+
+export interface ImportQualitySignal {
+  code: ImportQualitySignalCode
+  severity: ImportQualitySeverity
+  count: number
+}
+
+export interface ImportQualityRowFlag {
+  row_index: number
+  code: ImportQualitySignalCode
+  severity: ImportQualitySeverity
+  fields: string[]
+}
+
+export interface ImportQuality {
+  summary: ImportQualitySummary
+  signals: ImportQualitySignal[]
+  row_flags: ImportQualityRowFlag[]
+}
+
 // ─── Import preview / confirm ─────────────────────────────────────────────────
 
 /** Single extracted transaction — not yet persisted. */
@@ -178,6 +216,8 @@ export interface PreviewResponse {
   matched_account_id?: number | null
   /** Name of the matched account, if any. */
   matched_account_name?: string | null
+  /** Advisory import quality report; never blocks confirm. */
+  quality: ImportQuality
 }
 
 export interface ConfirmRequest {

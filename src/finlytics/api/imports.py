@@ -30,6 +30,7 @@ from finlytics.contracts import ExtractedTransaction
 from finlytics.db.models import Account, ImportRun, Tag, Transaction
 from finlytics.db.repository import compute_dedup_hash, list_rules, upsert_transactions
 from finlytics.extraction.extractor import detect_statement_year, extract_account_number, extract_transactions
+from finlytics.extraction.import_quality import compute_import_quality
 from finlytics.extraction.prematch import pre_match_rules
 from finlytics.extraction.rules import apply_rules
 from finlytics.extraction.llm_client import LLMClient
@@ -245,6 +246,11 @@ async def preview_import(
         transactions=all_txs,
         statement_year=year,
         year_detected=(year is not None),
+        quality=compute_import_quality(
+            all_txs,
+            statement_year=year,
+            year_detected=(year is not None),
+        ),
         suggested_tags=suggested_tags,
         detected_account_masked=mask_account_number(detected_iban),
         detected_account_iban=detected_iban,

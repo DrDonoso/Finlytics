@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 import type { CombinedOverview } from '../api/types'
 import { getCombinedOverview } from '../api/client'
+import { getPluginLogo, pluginInitial } from '../investments/registry'
 import { useT } from '../i18n'
 
 const PROVIDER_COLORS: Record<string, string> = {
@@ -289,7 +290,11 @@ export default function InvestmentsLandingPage() {
               className="card inv-provider-card"
             >
               <div className="inv-provider-card__header">
-                <span className="inv-provider-card__icon" aria-hidden="true">{provider.icon}</span>
+                {getPluginLogo(provider.id) ? (
+                  <img src={getPluginLogo(provider.id) ?? ''} alt={provider.name} className="plugin-logo inv-provider-card__icon" />
+                ) : (
+                  <span className="plugin-logo-fallback inv-provider-card__icon" aria-label={provider.name}>{pluginInitial(provider.name)}</span>
+                )}
                 <span className="inv-provider-card__name">{provider.name}</span>
               </div>
               <div className="inv-provider-card__value">{provider.value_eur == null ? '—' : formatEurLocale(provider.value_eur)}</div>
@@ -311,4 +316,3 @@ export default function InvestmentsLandingPage() {
     </main>
   )
 }
-

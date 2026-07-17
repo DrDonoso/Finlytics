@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { getCombinedOverview } from '../api/client'
 import type { CombinedOverview } from '../api/types'
+import { getPluginLogo, pluginInitial } from '../investments/registry'
 import { useT } from '../i18n'
 
 function fmtEur(value: number | null): string {
@@ -50,11 +51,15 @@ export default function InvestmentSnapshotCard() {
           </div>
           <div className="inv-snapshot-providers">
             {data.providers.map(p => (
-              <div key={p.id} className="inv-snapshot-provider">
-                <span className="inv-snapshot-provider-icon" aria-hidden="true">{p.icon}</span>
+              <Link key={p.id} to={p.route} className="inv-snapshot-provider">
+                {getPluginLogo(p.id) ? (
+                  <img src={getPluginLogo(p.id) ?? ''} alt={p.name} className="plugin-logo inv-snapshot-provider-logo" />
+                ) : (
+                  <span className="plugin-logo-fallback inv-snapshot-provider-logo" aria-label={p.name}>{pluginInitial(p.name)}</span>
+                )}
                 <span className="inv-snapshot-provider-name">{p.name}</span>
                 <span className="inv-snapshot-provider-value">{fmtEur(p.value_eur)}</span>
-              </div>
+              </Link>
             ))}
           </div>
         </div>

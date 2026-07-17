@@ -2,11 +2,13 @@ import { useState, useRef, useMemo, useEffect } from 'react'
 import type {
   Account, Category, Tag,
   ImportTransaction, PreviewResponse, ConfirmRequest, ImportResult,
+  ImportQualitySignal,
 } from '../api/types'
 import { previewImport, confirmImport, checkDuplicates } from '../api/client'
 import { useT, type Dict, paletteColor } from '../i18n'
 import ImportPreviewTable, { type EditRow } from './ImportPreviewTable'
 import RuleFormModal from './RuleFormModal'
+import { computeLiveImportQuality, type LiveImportQuality } from './importQuality'
 
 const SOFT_CAP = 12
 const HARD_CAP = 24
@@ -89,6 +91,79 @@ function readFileAsBase64(file: File): Promise<string> {
   })
 }
 
+function qualitySignalLabel(t: Dict, code: string): string {
+  return t.importQualitySignalLabels[code] ?? t.importQualityUnknownSignal
+}
+
+function qualitySeverityLabel(t: Dict, severity: string): string {
+  if (severity === 'error') return t.importQualitySeverityError
+  if (severity === 'warning') return t.importQualitySeverityWarning
+  return t.importQualitySeverityInfo
+}
+
+function duplicateRowCount(liveQuality: LiveImportQuality): number {
+  return liveQuality.duplicateRowKeys.size
+}
+
+function mergedQualitySignals(liveQuality: LiveImportQuality): ImportQualitySignal[] {
+  const duplicateCount = duplicateRowCount(liveQuality)
+  const sourceSignals = liveQuality.quality.signals
+  const hasDuplicateSignal = sourceSignals.some(signal => signal.code === 'intra_batch_duplicate')
+  const signals = sourceSignals.map(signal =>
+    signal.code === 'intra_batch_duplicate' && duplicateCount > 0
+      ? { ...signal, count: duplicateCount }
+      : signal
+  )
+  if (!hasDuplicateSignal && duplicateCount > 0) {
+    signals.push({ code: 'intra_batch_duplicate', severity: 'info', count: duplicateCount })
+  }
+  return signals
+}
+
+function ImportQualityPanel({ liveQuality, t }: { liveQuality: LiveImportQuality; t: Dict }) {
+  const quality = liveQuality.quality
+
+  const duplicateCount = duplicateRowCount(liveQuality)
+  const parts = [
+    t.importQualityWarnings(quality.summary.warning_count),
+    t.importQualityErrors(quality.summary.error_count),
+    t.importQualityInfo(quality.summary.info_count),
+  ]
+  if (duplicateCount > 0) parts.push(t.importQualityDuplicates(duplicateCount))
+  const signals = mergedQualitySignals(liveQuality)
+
+  return (
+    <div
+      style={{
+        border: '1px solid var(--border)',
+        borderRadius: 8,
+        padding: '8px 10px',
+        marginBottom: 10,
+        background: 'var(--surface)',
+        fontSize: 12,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+        <strong>{t.importQualityTitle}</strong>
+        <span style={{ color: 'var(--text-muted)' }}>{parts.join(' · ')}</span>
+      </div>
+      {signals.length > 0 && (
+        <details open style={{ marginTop: 6 }}>
+          <summary style={{ cursor: 'pointer', color: 'var(--text-muted)' }}>{t.importQualityDetails}</summary>
+          <ul style={{ margin: '6px 0 0 16px', padding: 0, display: 'grid', gap: 3 }}>
+            {signals.map(signal => (
+              <li key={signal.code} title={t.importQualitySignalMessages[signal.code] ?? t.importQualityUnknownSignal}>
+                <span>{qualitySignalLabel(t, signal.code)}</span>
+                <span style={{ color: 'var(--text-muted)' }}> · {qualitySeverityLabel(t, signal.severity)} · {signal.count}</span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </div>
+  )
+}
+
 
 export default function ImportModal({ accounts, categories, allTags, onClose, onSuccess, initialFiles }: Props) {
   const { t } = useT()
@@ -119,9 +194,18 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
   const [resolveAttempted, setResolveAttempted] = useState(false)
   const [noIbanNewMode, setNoIbanNewMode] = useState<Record<number, boolean>>({})
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set())
+  const initializedOpenGroupKeys = useRef<Set<string>>(new Set())
   const [createRuleRow, setCreateRuleRow] = useState<EditRow | null>(null)
   const [ruleToast, setRuleToast] = useState<string | null>(null)
 
+  const liveQualityByFile = useMemo(
+    () => fileItems.map(fi => computeLiveImportQuality(
+      fi.rows,
+      fi.preview?.statement_year ?? null,
+      fi.preview?.year_detected ?? true,
+    )),
+    [fileItems],
+  )
 
   useEffect(() => {
     if (!ruleToast) return
@@ -153,7 +237,12 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
               ...fi,
               extractStatus: 'done',
               preview: p,
-              rows: txns.map(tx => ({ ...tx, _key: nextKey.current++ })),
+              rows: txns.map((tx, rowIdx) => ({
+                ...tx,
+                _key: nextKey.current++,
+                _originalCategory: tx.category,
+                _qualityFlags: p.quality.row_flags.filter(flag => flag.row_index === rowIdx),
+              })),
             } : fi
           ))
         } catch (e) {
@@ -265,6 +354,20 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
     return [...groups.values()]
   }, [fileItems, newIbanEntries]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    const newKeys = accountGroups
+      .map(group => group.key)
+      .filter(key => !initializedOpenGroupKeys.current.has(key))
+    if (newKeys.length === 0) return
+
+    newKeys.forEach(key => initializedOpenGroupKeys.current.add(key))
+    setOpenGroups(prev => {
+      const next = new Set(prev)
+      newKeys.forEach(key => next.add(key))
+      return next
+    })
+  }, [accountGroups])
+
   // ── Row editing ───────────────────────────────────────────────────────────
   function updateRow(fileIdx: number, key: number, patch: Partial<Omit<EditRow, '_key'>>) {
     const isDedupField = 'transaction_date' in patch || 'amount' in patch || 'description' in patch || 'detail' in patch
@@ -303,6 +406,7 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
         ? {
             ...fi, rows: [...fi.rows, {
               _key: nextKey.current++,
+              _originalCategory: 'Other',
               transaction_date: today,
               amount: -0.01,
               currency: 'EUR',
@@ -586,7 +690,7 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
           const isOpen = openGroups.has(group.key)
           const groupFiles = group.fileIndices.map(i => fileItems[i])
           const totalTxns = groupFiles.reduce((s, fi) => s + fi.rows.length, 0)
-          const dupCount = groupFiles.reduce((s, fi) => s + fi.rows.filter(r => r.isDuplicate).length, 0)
+          const dupCount = group.fileIndices.reduce((s, fileIdx) => s + duplicateRowCount(liveQualityByFile[fileIdx]), 0)
           const headerId = `group-hdr-${group.key}`
           const bodyId   = `group-body-${group.key}`
           return (
@@ -637,9 +741,9 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
                           </div>
                         )}
                         <div className="batch-accordion-file-content">
+                          <ImportQualityPanel liveQuality={liveQualityByFile[fileIdx]} t={t} />
                           <ImportPreviewTable
                             rows={fi.rows}
-                            fileKey={`file-${fileIdx}-${fi_i}`}
                             accounts={accounts}
                             categories={categories}
                             allTags={allTags}
@@ -649,6 +753,7 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
                             onAddBlankRow={() => addBlankRow(fileIdx, resolvedName)}
                             onCreateRule={row => setCreateRuleRow(row)}
                             showYearWarning={yearWarning}
+                            liveQuality={liveQualityByFile[fileIdx]}
                           />
                         </div>
                       </div>

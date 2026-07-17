@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import type { Account, Category, Tag, GlobalFilters, Overview, CategorySummary, ImportResult } from '../api/types'
 import {
   getAccounts, getCategories, getTags, getOverview, getByCategory,
@@ -31,7 +31,13 @@ function idle<T>(): AsyncState<T> { return { loading: true, error: null, data: n
 export default function FinancesOverviewPage() {
   const { t } = useT()
   const navigate = useNavigate()
-  const [filters, setFilters] = useState<GlobalFilters>(makeDefaultFilters)
+  const [searchParams] = useSearchParams()
+  const [filters, setFilters] = useState<GlobalFilters>(() => {
+    const next = makeDefaultFilters()
+    const accountId = Number(searchParams.get('account_id'))
+    if (Number.isFinite(accountId) && accountId > 0) next.account_id = accountId
+    return next
+  })
   const [accounts,   setAccounts]   = useState<Account[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [allTags,    setAllTags]    = useState<Tag[]>([])
