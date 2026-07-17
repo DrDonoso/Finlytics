@@ -195,6 +195,8 @@ export interface ImportTransaction {
   tags: string[]
   merchant: string | null
   detail?: string | null
+  /** User override: force import even when the natural dedup key matches an existing transaction. */
+  allow_duplicate?: boolean
   /** Set when a classification rule matched this line during preview. */
   matched_rule_id?: number | null
   matched_rule_name?: string | null

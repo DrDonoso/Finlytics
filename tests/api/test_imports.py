@@ -354,6 +354,7 @@ async def test_confirm_upsert_receives_submitted_transactions(client):
                         "description": "LIDL",
                         "category": "Groceries",
                         "account_ref": "BBVA",
+                        "allow_duplicate": True,
                     },
                 ],
             },
@@ -363,7 +364,9 @@ async def test_confirm_upsert_receives_submitted_transactions(client):
     passed_txs = mock_upsert.call_args[0][2]  # third positional arg: list[ExtractedTransaction]
     assert len(passed_txs) == 2
     assert passed_txs[0].category == "My Custom Category"
+    assert passed_txs[0].allow_duplicate is False
     assert passed_txs[1].description == "LIDL"
+    assert passed_txs[1].allow_duplicate is True
 
 
 # ── Preview: suggested_tags ───────────────────────────────────────────────────

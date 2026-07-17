@@ -103,6 +103,10 @@ class ExtractedTransaction(BaseModel):
         default=None,
         description="Human-readable name of the matched rule, if any",
     )
+    allow_duplicate: bool = Field(
+        default=False,
+        description="When true, confirm imports this transaction even if its natural dedup key already exists",
+    )
 
     # Ensure Decimal fields serialise as JSON numbers, not strings, so the API
     # contract ("amount: number") is honoured without lossy float arithmetic in

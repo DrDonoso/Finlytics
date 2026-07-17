@@ -9,6 +9,7 @@ import type { LiveImportQuality } from './importQuality'
 export type EditRow = ImportTransaction & {
   _key: number
   isDuplicate?: boolean
+  allow_duplicate?: boolean
   _qualityFlags?: ImportQualityRowFlag[]
   _originalCategory?: string
 }
@@ -175,7 +176,7 @@ export default function ImportPreviewTable({
             {visibleRows.map(row => {
               const rowFlags = liveQuality.rowFlagsByKey.get(row._key) ?? []
               const lowConf = rowFlags.some(flag => flag.code === 'low_confidence_category')
-              const isDuplicate = liveQuality.duplicateRowKeys.has(row._key)
+              const isDuplicate = liveQuality.duplicateRowKeys.has(row._key) && !row.allow_duplicate
               const amountColor = row.amount < 0 ? 'var(--expense)' : row.amount > 0 ? 'var(--income)' : 'inherit'
               const rowClass = [lowConf ? 'row-low-confidence' : '', isDuplicate ? 'row-duplicate' : ''].filter(Boolean).join(' ')
               return (
@@ -206,9 +207,25 @@ export default function ImportPreviewTable({
                       value={row.description}
                       onChange={e => onUpdateRow(row._key, { description: e.target.value })}
                     />
-                    {liveQuality.dbDuplicateRowKeys.has(row._key) && (
-                      <div className="import-dup-badge-wrap">
+                    {isDuplicate && (
+                      <div className="import-dup-badge-wrap" style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                         <span className="import-dup-badge">{t.importDuplicateBadge}</span>
+                        <button
+                          type="button"
+                          onClick={() => onUpdateRow(row._key, { allow_duplicate: true, isDuplicate: false })}
+                          title={t.importDuplicateOverrideTooltip}
+                          style={{
+                            border: 'none',
+                            background: 'transparent',
+                            color: 'var(--primary)',
+                            cursor: 'pointer',
+                            fontSize: 12,
+                            padding: 0,
+                            textDecoration: 'underline',
+                          }}
+                        >
+                          {t.importDuplicateOverrideLabel}
+                        </button>
                       </div>
                     )}
                     {row.detail && (

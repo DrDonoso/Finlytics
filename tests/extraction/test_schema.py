@@ -125,3 +125,14 @@ def test_detail_field_accepts_none_explicitly():
     t = ExtractedTransaction(**data)
     assert t.detail is None
 
+
+def test_allow_duplicate_defaults_to_false():
+    t = ExtractedTransaction(**_base())
+    assert t.allow_duplicate is False
+
+
+def test_allow_duplicate_accepts_true():
+    data = _base()
+    data["allow_duplicate"] = True
+    t = ExtractedTransaction(**data)
+    assert t.allow_duplicate is True
