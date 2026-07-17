@@ -31,8 +31,6 @@ export default function PreviewTypeahead({
 }: Props) {
   const [open, setOpen] = useState(false)
   const [activeIndex, setActiveIndex] = useState(0)
-  const formatValue = (next: string) => getLabel ? getLabel(next) : next
-  const [inputValue, setInputValue] = useState(() => formatValue(value))
   const [searchQuery, setSearchQuery] = useState('')
   const [dropdownStyle, setDropdownStyle] = useState<CSSProperties>({})
   const wrapRef = useRef<HTMLDivElement>(null)
@@ -51,15 +49,22 @@ export default function PreviewTypeahead({
     return result
   }, [options])
 
+  const optionLabel = (opt: PreviewTypeaheadOption) => opt.label ?? (getLabel ? getLabel(opt.value) : opt.value)
+  const formatValue = (next: string) => {
+    const match = dedupedOptions.find(opt => opt.value === next)
+    return match ? optionLabel(match) : next
+  }
+  const [inputValue, setInputValue] = useState(() => formatValue(value))
+
   useEffect(() => {
     if (document.activeElement === inputRef.current) return
     setInputValue(formatValue(value))
-  }, [value, getLabel])
+  }, [value, getLabel, dedupedOptions])
 
   const suggestions = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
     const ranked = dedupedOptions.filter(opt => {
-      const label = getLabel ? getLabel(opt.value) : (opt.label ?? opt.value)
+      const label = optionLabel(opt)
       return !query || opt.value.toLowerCase().includes(query) || label.toLowerCase().includes(query)
     })
     return ranked
@@ -133,6 +138,12 @@ export default function PreviewTypeahead({
         onKeyDown={handleKeyDown}
         onBlur={() => {
           setTimeout(() => setOpen(false), 150)
+          const currentDisplayValue = formatValue(value)
+          if (inputValue === currentDisplayValue) {
+            setInputValue(currentDisplayValue)
+            setSearchQuery('')
+            return
+          }
           const normalized = normalizeInput ? normalizeInput(inputValue, dedupedOptions) : inputValue
           if (!freeText && normalized && !dedupedOptions.some(opt => opt.value === normalized)) {
             commit('')
@@ -158,7 +169,7 @@ export default function PreviewTypeahead({
               }}
             >
               <span className="preview-typeahead-option-label">
-                {getLabel ? getLabel(suggestion.value) : (suggestion.label ?? suggestion.value)}
+                {optionLabel(suggestion)}
               </span>
             </li>
           ))}
