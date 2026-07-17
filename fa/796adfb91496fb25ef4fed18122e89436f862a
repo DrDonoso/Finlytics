@@ -1,0 +1,23 @@
+.squad/decisions.md
+  s_be6c65e4afed29::t_5fe29d19fcf382 1-27,30
+.squad/log/2026-07-17T08-20-00Z-log-timestamps.md
+  s_be6c65e4afed29::t_682213cfa0f83f 1-13
+.squad/orchestration-log/2026-07-17T08-20-00Z-rocket.md
+  s_be6c65e4afed29::t_c43c5b87abd3f7 1-20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "fa796adfb91496fb25ef4fed18122e89436f862a",
+  "prompts": {},
+  "sessions": {
+    "s_be6c65e4afed29": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_011wnVRqnnuD1uqaG7TYLAF9",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    }
+  }
+}
