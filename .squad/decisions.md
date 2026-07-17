@@ -1,3 +1,47 @@
+# Shuri — Force-import duplicate transactions
+
+**Date:** 2026-07-17T12:22:35+02:00  
+**Owner:** DrDonoso  
+**Scope:** Backend import confirmation and idempotent persistence.
+
+## Decision
+
+Users can force-import an individual transaction that was flagged as a duplicate by sending `allow_duplicate: true` on that transaction in `POST /api/imports/confirm`.
+
+## Implementation
+
+- `ExtractedTransaction` now has `allow_duplicate: bool = False`, so `ConfirmIn.transactions` carries the override without changing the preview/default path.
+- `compute_dedup_hash()` accepts `disambiguator: str | None = None`. When `None`, the hash payload is unchanged from the normal legacy path. When provided, the disambiguator is included inside the hashed JSON payload.
+- `upsert_transactions()` passes `uuid.uuid4().hex` as the disambiguator only for transactions with `allow_duplicate=True`, producing a unique 64-character SHA-256 digest that avoids the `dedup_hash` unique-index conflict and counts as inserted.
+- `/api/imports/check-duplicates` is unchanged; it still reports what would be skipped without an override.
+
+## Validation
+
+- Targeted duplicate override/hash/schema tests passed.
+- Full suite command required for handoff: `C:\Python314\python.exe -m pytest -q`.
+
+---
+# Vision decision — Import preview duplicate override
+
+Date: 2026-07-17
+Owner request: DrDonoso
+
+## Decision
+
+Add a per-row import preview override for transactions flagged as duplicates. The duplicate badge now includes a localized “No es duplicada” / “Not a duplicate” control.
+
+## Behavior
+
+- Clicking the control sets `allow_duplicate=true` on the preview row.
+- The row’s duplicate UX state is cleared immediately (`isDuplicate=false`), so the badge disappears and duplicate counts / flagged-only filtering exclude it.
+- Later duplicate re-checks preserve the override and cannot mark that row duplicate again while `allow_duplicate` remains true.
+- Confirm requests send `allow_duplicate` with each transaction, allowing the backend to generate a unique dedup hash and insert overridden rows.
+
+## Validation
+
+`cd frontend && npm run build` passes with zero TypeScript errors. Vite’s existing chunk-size warning remains.
+
+---
 # Vision — PreviewTypeahead localized label display
 
 **Date:** 2026-07-17T10:12:43+02:00
@@ -7754,6 +7798,7 @@ Normalization: uppercase, trim, collapse whitespace, strip punctuation and diacr
 
 
 ---
+
 
 
 
