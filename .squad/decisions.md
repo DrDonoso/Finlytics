@@ -1,6 +1,33 @@
+# Rocket — Application log timestamps
+
+**Date:** 2026-07-17T10:12:43+02:00  
+**Owner:** DrDonoso  
+**Scope:** Container application log readability.
+
+## Decision
+
+Every application log line emitted by the container now starts with a human-readable timestamp in this format:
+
+```text
+%Y-%m-%d %H:%M:%S
+```
+
+## Implementation
+
+- `src/finlytics/__main__.py`: uvicorn receives a deep-copied `LOGGING_CONFIG`; the `default` and `access` formatters prepend `%(asctime)s ` and use `datefmt = "%Y-%m-%d %H:%M:%S"`. The root logger uses uvicorn's `default` handler at `INFO` so app loggers propagate to the same timestamped formatter without adding module-specific handlers.
+- `alembic.ini`: Alembic's generic formatter starts with `%(asctime)s` and uses the same date format.
+- `docker-entrypoint.sh`: each `[entrypoint] ...` echo prefixes `date '+%Y-%m-%d %H:%M:%S'`.
+- `seed.py`: top-level seed output prefixes `datetime.now().strftime("%Y-%m-%d %H:%M:%S")`.
+
+## Validation
+
+Python syntax/import parsing passed for `src/finlytics/__main__.py` and `seed.py`; the uvicorn log config helper builds a `dict`.
+
+---
+
 # Vision — Inicio refinements
 
-**Date:** 2026-07-16T15:51:09+02:00  
+**Date:** 2026-07-16T15:51:09+02:00
 **Owner:** DrDonoso  
 **Scope:** Inicio dashboard frontend-only refinements.
 
