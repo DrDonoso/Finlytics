@@ -1,0 +1,60 @@
+tests/api/test_detail_persistence.py
+  s_29610feaf6a8f9::t_c6b502693fe6db 13,133-243
+tests/api/test_imports.py
+  s_29610feaf6a8f9::t_23492aeea052ae 357,367,369
+frontend/src/components/ImportPreviewTable.tsx
+  s_1352d7e88cffb9::t_99cd400d1a8385 12,179,210-211,213-228
+tests/extraction/test_schema.py
+  s_29610feaf6a8f9::t_c6b502693fe6db 128-138
+frontend/src/i18n/es.ts
+  s_1352d7e88cffb9::t_99cd400d1a8385 338-339
+frontend/src/i18n/index.ts
+  s_1352d7e88cffb9::t_99cd400d1a8385 350-351
+frontend/src/components/ImportModal.tsx
+  s_1352d7e88cffb9::t_e028194606a819 6
+  s_1352d7e88cffb9::t_99cd400d1a8385 80,128,136,143,151,160,173-175,255-260,377-380,439-443
+  s_1352d7e88cffb9::t_a48be204375bc9 125-127,129-135,137-142,144-150,152-159,161-172
+src/finlytics/db/repository.py
+  s_29610feaf6a8f9::t_8b24f31b03c00e 18,40,52-56,58-67,228
+src/finlytics/contracts.py
+  s_29610feaf6a8f9::t_8b24f31b03c00e 106-109
+tests/test_dedup_hash.py
+  s_29610feaf6a8f9::t_c6b502693fe6db 5-6,25-40,84-99
+  s_d63bcacb40abc7::t_d61fe67b85a284 100
+frontend/src/i18n/en.ts
+  s_1352d7e88cffb9::t_99cd400d1a8385 338-339
+frontend/src/api/types.ts
+  s_1352d7e88cffb9::t_99cd400d1a8385 198-199
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "02440d352fb66cb98c50f7bf7ca647ce8d9b30b3",
+  "prompts": {},
+  "sessions": {
+    "s_1352d7e88cffb9": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01ViShvjoh5AxkKYkwW9Di8g",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_29610feaf6a8f9": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01Tv8xYKM6hDupeVh4xKYRuz",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_d63bcacb40abc7": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01UNpNec1ufzTcHEFwK7ATVV",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    }
+  }
+}
