@@ -7802,3 +7802,1537 @@ Normalization: uppercase, trim, collapse whitespace, strip punctuation and diacr
 
 
 
+
+### 2026-07-17T15:04:32+02:00: Notifications + Telegram — design ratified by owner
+**By:** DrDonoso (David), via Squad coordinator
+**Context:** Fury (architecture) + Wanda (UX) produced design proposals; David validated.
+
+**Ratified decisions:**
+1. Core architecture APPROVED — hybrid `notifications` table + detectors wrapping the existing
+   `compute_statement_reminder` / `compute_espp_reminder`, upsert keyed by stable `dedup_key`;
+   new `notification_channels` table for Telegram; migration `0016` creates all 3 tables.
+2. Telegram timeliness: **background loop now** (near-real-time). The asyncio evaluation heartbeat
+   is promoted into Slice 1 (single uvicorn worker → no locking).
+3. Resolved reminder: **auto-hide** when the condition clears; keep the row (set `resolved_at`) so
+   Telegram never resends.
+4. Dismissing a notification in the bell **also hides the inline ESPP banner** (Dashboard + FidelityView).
+   Statement per-account chips stay as-is (low visual weight, per Wanda).
+
+**Defaults accepted:** read/dismiss state is backend-owned (not localStorage); notification DTOs carry
+i18n `title_key`+`args` (not pre-rendered strings); Telegram wizard sends a real test message; a single
+Telegram config for now.
+
+**Build order:** Slice 1 (core + bell + loop) → Slice 2 (Telegram + wizard) → docker verify → summary.
+Existing reminder endpoints and their inline rendering MUST remain (notifications are additive).
+
+
+---
+
+# Notifications + Telegram — Architecture Proposal
+
+**Author:** Fury (Lead / Architect)
+**Date:** 2026-07-17
+**Status:** DESIGN ONLY — awaiting David's validation before any code
+**Companion doc:** `wanda-notifications-ux.md` (bell/panel/wizard visuals — this doc defers all UI styling to Wanda and covers the backend model, API, delivery, connector, migration & sequencing).
+
+---
+
+## TL;DR (read this first)
+
+- **Model:** one `notifications` table with a **stable `dedup_key`** per condition (e.g. `statement:missing:2026-06:acct-3`). The two existing reminders become **detectors** that upsert into it. Read/dismiss = columns on the row, so they survive recompute. Future notifications = register a new detector (same idea as investment plugins). ✅
+- **Telegram forces a backend decision:** you cannot push to Telegram from the browser's localStorage. So notification read/dismiss state must live **server-side** from day one (this refines Wanda's "start with localStorage" — see §A note).
+- **Delivery:** ship **evaluate-on-request + BackgroundTasks** first (the pattern already used for Indexa cache & price top-ups — zero new infra). Add a tiny in-process interval loop later **only if** you want Telegram to fire without opening the app.
+- **Connector:** new `notification_channels` table, `{bot_token, chat_id}` encrypted as one Fernet blob (reuse existing crypto). Wizard mirrors IndexaWizard with a "send test message" validate step.
+- **One migration** `0016`, three tables. **Two demoable slices** (bell+read/dismiss, then Telegram).
+
+Grounding confirmed in code: reminders are stateless pure functions; the app has **no scheduler** (entrypoint = `alembic upgrade head` → seed → single uvicorn worker); async side-effects use FastAPI `BackgroundTasks`; tokens are Fernet-encrypted, fail-closed to 503.
+
+---
+
+## A) Notification model & persistence — THE CRUX
+
+The insight: the two existing reminders are **standing conditions**, not discrete events. "Statement missing" appears because of *absence* and vanishes the instant you upload. That single fact rules the design.
+
+**Option A — Full row per event (event log).**
+Each detector run inserts a row.
+→ Trade-off: natural for true events ("import finished"), but *wrong* for conditions — you'd insert duplicates every run and have to delete/resolve stale rows when the condition clears. Lots of reconciliation.
+
+**Option B — Computed on the fly, persist ONLY read/dismiss keyed by identity.**
+Keep the pure functions as source of truth; persist a tiny `(user_id, dedup_key) → read_at/dismissed_at` table; merge at read time.
+→ Trade-off: conditions auto-resolve for free and read/dismiss survives recompute. BUT it can't represent **event-style** future notifications (a one-off "import done" has no standing condition to recompute), and Telegram delivery still needs a durable row to record "sent". Half the model.
+
+**Option C — Hybrid: detectors upsert into a `notifications` table keyed by `dedup_key`.** ✅ **RECOMMENDED**
+A `NotificationDetector` registry (mirrors `_PROVIDERS`) runs all detectors; an orchestrator UPSERTs by `dedup_key`; condition-detectors auto-resolve rows whose key is no longer detected; event-detectors just insert once and never auto-resolve. Read/dismiss/delivery are columns on the row.
+→ Trade-off: one extra concept (the orchestrator + resolve step) vs B, but it is the ONLY option that cleanly covers **conditions AND events**, gives **idempotency** (dedup_key), **survivable read/dismiss**, a **durable row for Telegram delivery-logging**, and a **plug-in point for "future notifications you may create."**
+
+**Why C wins for you:** it unifies today's reminders and tomorrow's arbitrary alerts under one table + one DTO, and the `dedup_key` does triple duty — stable identity (read/dismiss survives), dedup (no duplicate rows), and Telegram idempotency (never double-send).
+
+**Stable identity / dedup keys (examples):**
+- `statement:missing:2026-06:acct-3` — one per missing (account × month)
+- `espp:overdue:2026-Q2` — one per overdue quarter
+- future: `import:completed:{import_run_id}`, `backup:stale:2026-07`, `price-alert:{rule_id}:2026-07-17`
+
+**Detector contract (sketch — NOT code):**
+```
+class NotificationDetector(ABC):
+    source: str            # "statement" | "espp" | ...
+    is_condition: bool     # True → auto-resolve when key stops appearing
+    async def detect(user, db) -> list[Detected]
+# Detected = {dedup_key, type, severity, title_key, title_args, body_key?, body_args?, action_link?, created_at}
+
+_DETECTORS = [StatementDetector(), EsppDetector()]   # add future detectors here
+```
+The two existing detectors **wrap the existing pure functions unchanged** (`compute_statement_reminder`, `compute_espp_reminder`) and just map their output into `Detected` items. No reminder logic is rewritten.
+
+**Orchestrator `evaluate_notifications(user, db)`:**
+1. Run all detectors → set of detected `dedup_key`s.
+2. UPSERT each detected item (insert if new; if row exists, keep it + its read/dismiss).
+3. For `is_condition` sources: any active row whose key is NOT in the detected set → set `resolved_at` (auto-clear, matches today's "disappears on upload"). Event sources are never auto-resolved.
+
+**i18n:** store `title_key` + `title_args` (JSON), **not** a rendered string — the app renders EN/ES client-side (Wanda's keys). Backend stays language-agnostic.
+
+> **Note vs Wanda (localStorage):** Wanda proposed client-only localStorage for dismiss state — perfect *if Telegram were out of scope*. But Telegram push is part of THIS feature, and the backend must own "what notifications exist + were they delivered." Driving that from browser storage is impossible, and building localStorage now means discarding it in Slice 2. So: **backend-owned state from Slice 1.** Everything else in Wanda's doc stands as-is.
+
+---
+
+## B) API surface
+
+New router `notifications`, registered exactly like the others: `include_router(..., prefix="/api", dependencies=_auth)` (auth-gated via `get_current_user`).
+
+| Method & path | Purpose |
+|---|---|
+| `GET /api/notifications?status=unread\|read\|dismissed\|all` | List (runs `evaluate_notifications` first; excludes dismissed & resolved by default), newest first |
+| `GET /api/notifications/unread-count` | `{count}` for the bell badge — reads the table directly (cheap, poll-safe) |
+| `POST /api/notifications/{id}/read` | set `read_at` |
+| `POST /api/notifications/read-all` | mark all read |
+| `POST /api/notifications/{id}/dismiss` | set `dismissed_at` |
+
+Debounce: the list endpoint evaluates detectors; cache evaluation ~60s/user (same spirit as the 24h portfolio cache) so bell polling doesn't hammer detectors. `unread-count` never triggers evaluation.
+
+**NotificationOut DTO:**
+```
+id: int
+source: str            # statement | espp | future
+type: str              # missing | overdue | ...
+severity: str          # info | warning | critical
+title_key: str; title_args: dict
+body_key: str|None; body_args: dict|None
+action_link: str|None  # "/finances?account_id=3", "/investments/fidelity-espp"
+created_at; read_at|None; dismissed_at|None
+```
+No tokens, no PII, ever.
+
+---
+
+## C) Delivery / channels — how Telegram actually fires
+
+Reality check from code: **there is no scheduler.** Entrypoint runs migrations, seeds, then one uvicorn worker. Async work = FastAPI `BackgroundTasks` (Indexa refresh, price top-ups). That single-worker fact matters: any future in-process loop needs **no distributed lock.**
+
+**Option A — Evaluate-on-request + BackgroundTasks.** ✅ **RECOMMENDED for Slice 1–2**
+When the bell loads (`GET /notifications`), evaluate → upsert; for each **newly created** row, enqueue a Telegram send as a BackgroundTask.
+→ Trade-off: zero new infra, reuses the trusted pattern. BUT Telegram only fires as timely as your next app visit. Given the reminders are monthly/quarterly, "delivered next time I open Finlytics" is usually fine.
+
+**Option B — Periodic backend job.** (B1 APScheduler in a lifespan hook · B2 a plain `asyncio` interval loop · B3 OS cron / separate compose service)
+→ Trade-off: Telegram fires regardless of app visits — which is what "push when they arrive" really implies. Cost: net-new infra. Among these, **B2 (a ~15-line async loop started in a FastAPI lifespan hook)** is lightest — no new dependency, single worker so no lock. B1 only if you want cron expressions; B3 is over-engineered for solo.
+
+**Option C — Event-driven emit at the source.**
+Call evaluate+push right where data changes (statement imported, lot added).
+→ Trade-off: great for *events*, but the existing reminders trigger on the **absence** of an upload as **time passes** — no code path fires "a statement failed to arrive." Only a clock (B) observes that. C is a complement, not a substitute.
+
+**Recommendation:** ship **A** now; add **B2** as an optional Slice 3 the day you want Telegram to beat you to the app. Prefer B2 > B1 > B3 for a solo Docker deploy.
+
+**Idempotency (never double-send):** a `notification_deliveries` table — `(notification_id, channel)` UNIQUE, with `status ∈ {pending,sent,failed}`, `sent_at`, `error`. Send flow = insert-or-find the delivery row; if already `sent`, skip. Because rows are keyed by `dedup_key`, a re-created notification won't resend, and an app-load and a scheduler racing will still send exactly once. (A `telegram_sent_at` column would be simpler but wouldn't generalize to future channels or record failures — the table is worth it.)
+
+**Channel abstraction (mirrors the provider registry):**
+```
+class NotificationChannel(ABC):
+    channel_id: str        # "telegram"
+    async def send(notification, config) -> DeliveryResult
+_CHANNELS = {"telegram": TelegramChannel()}
+```
+Future channels (email, etc.) drop in the same way.
+
+---
+
+## D) Telegram connector
+
+**Reuse `investment_connections`?** No — Telegram isn't an investment; it has `account_label_masked`/`plugin_id` semantics tied to portfolios and feeds `combined-overview`. Overloading it risks Telegram rows leaking into investment queries, and two secrets don't fit one `token_enc`.
+
+**Option 1 — New `notification_channels` table.** ✅ **RECOMMENDED**
+`config_enc` = **one Fernet ciphertext of `{bot_token, chat_id}`** (reuse `encrypt_token`/`decrypt_token` — they encrypt arbitrary strings; JSON-dump the blob first). Store only a masked `label` (e.g. chat_id `••••1234`); never store/log/return `bot_token`. Same Romanoff rules as Indexa: `EncryptionNotConfiguredError → 503`, fail-closed.
+
+**Option 2 — `.env`-only (`FINLYTICS_TELEGRAM_*`).** Simplest, no wizard/DB — but fails your explicit "configurable wizard" requirement. Keep as a fallback only if you ever want zero UI.
+
+**Wizard (mirror IndexaWizard exactly — Wanda §7):**
+1. Intro + "how to create a bot / get chat_id" link.
+2. `bot_token` (`type=password`) + `chat_id`.
+3. **Validate = "Send test message":** `POST /api/notifications/channels/telegram/test` → Telegram `getMe` (token valid?) then `sendMessage` (chat_id valid? + delivers "✅ Finlytics connected"). Stores nothing. This is the analog of Indexa's validate step and proves it works instantly.
+4. Save → `POST /api/notifications/channels` persists encrypted config; success screen.
+
+Endpoints mirror investments: `GET /channels`, `POST /channels/telegram/test`, `POST /channels`, `DELETE /channels/{id}`. Surface in **Settings**, not the investments nav.
+
+**The `sendMessage` call:** lives in `src/finlytics/notifications/channels/telegram.py`, uses `httpx.AsyncClient` (already a dep) with a short timeout (~10s). Bot token is decrypted only inside `send()`, used in the `api.telegram.org/bot<token>/sendMessage` URL, and **never logged** (log masked chat_id + HTTP status only). Failures are caught, recorded in `notification_deliveries.error`, and never raise into the request path (background context). 503 only on the interactive test/save path.
+
+---
+
+## E) Migration plan — `0016_add_notifications.py` (revises `0015`)
+
+Follows the `0015` `op.create_table` style; `alembic upgrade head` runs it on container start. Create all three tables now to avoid a second migration for Slice 2.
+
+1. **`notifications`** — `id` PK · `user_id` FK→users CASCADE · `source` · `type` · `dedup_key` · `severity` · `title_key` · `title_args` JSON · `body_key?` · `body_args?` JSON · `action_link?` · `created_at` · `read_at?` · `dismissed_at?` · `resolved_at?`. **UNIQUE(`user_id`,`dedup_key`)**; indexes on `(user_id, read_at)` and `(user_id, dismissed_at, resolved_at)`.
+2. **`notification_channels`** — `id` PK · `user_id` FK CASCADE · `channel_id` · `status` (default `active`) · `label?` (masked) · `config_enc?` Text (Fernet) · `created_at` · `last_used_at?` · `last_error?`. Optional UNIQUE(`user_id`,`channel_id`) (one Telegram config).
+3. **`notification_deliveries`** — `id` PK · `notification_id` FK→notifications CASCADE · `channel` · `status` · `sent_at?` · `error?`. **UNIQUE(`notification_id`,`channel`)**.
+
+Never edit a deployed migration.
+
+---
+
+## F) Vertical slices (each demoable)
+
+**Slice 1 — Notifications core (no Telegram).**
+`0016` migration · `NotificationDetector` registry · wrap the two existing reminders as detectors (pure functions untouched) · `evaluate_notifications` (upsert + auto-resolve) · API (list, unread-count, read, read-all, dismiss) · bell + panel + badge + read/dismiss + i18n (3 files) + mock (per Wanda). **Existing Dashboard chips & ESPP banner stay** (requirement 1); ESPP banner honors dismiss state (Wanda §5).
+→ *Demo:* bell shows the same two reminders; mark-read/dismiss persists across devices; inline alerts unchanged.
+→ **Owners:** Shuri (model/detectors/API), Vision (bell/panel/client/i18n), Wanda (visual QA), Barton (tests: detector→DTO mapping, dedup/idempotency, auto-resolve, read/dismiss).
+
+**Slice 2 — Telegram channel + wizard + delivery.**
+Wire `notification_channels` + `notification_deliveries` · channel registry + `TelegramChannel.send()` · wizard (mirror IndexaWizard, test-message step) · channel CRUD · BackgroundTask send on newly-created rows · idempotent deliveries · i18n (3 files).
+→ *Demo:* connect Telegram via wizard, get a test message, then a real reminder pushes to Telegram exactly once.
+→ **Owners:** Shuri (channels/deliveries/send), Vision (TelegramWizard + Settings entry + client + i18n), Romanoff (Fernet-at-rest for `{bot_token,chat_id}`, egress to api.telegram.org, token-never-leaks audit, test-endpoint abuse review), Wanda (wizard copy + bell states), Barton (tests: encryption round-trip, no-double-send, timeout/failure, masked responses).
+
+**Slice 3 (optional) — Timely push.**
+B2 async interval loop in a FastAPI lifespan hook → evaluate + push without an app visit (single worker, no lock).
+→ **Owners:** Rocket (lifespan/interval + ops), Shuri (reuse orchestrator), Barton (interval-eval test). **Gate:** only if "next app open" isn't timely enough.
+
+---
+
+## Questions for David (each has a default so we can proceed)
+
+1. **Telegram timeliness:** Is "fires next time I open Finlytics" OK to start (Slice 1–2), or do you want the background loop now (Slice 3)? — *Default: start on-request; add loop only if needed.*
+2. **Cleared reminders:** When you upload and a reminder clears, should it vanish from the bell (like today) or linger as a read "resolved" item? — *Default: auto-resolve → hidden, but keep the row so Telegram never re-sends.*
+3. **State location:** Confirm backend-owned read/dismiss (needed for Telegram + cross-device) over Wanda's localStorage. — *Default: backend.*
+4. **DTO i18n:** store title/body as i18n key+args (bilingual-correct) vs a pre-rendered string? — *Default: key+args.*
+5. **Test message:** wizard sends a real "✅ connected" Telegram message at the validate step? — *Default: yes.*
+6. **Channel scope:** one Telegram config total (UNIQUE user_id+channel_id)? — *Default: yes.*
+
+
+---
+
+# Notifications Center — UX Proposal
+
+**Author:** Wanda (UX/UI Designer)  
+**Date:** 2026-07-17  
+**Status:** Proposal — awaiting David's validation before implementation
+
+---
+
+## Context
+
+Two actionable alerts already exist:
+1. `StatementWarning` chip — per-account ⚠ icon in the Dashboard accounts table (missing bank statement).
+2. `.espp-reminder-banner` — amber full-width banner on Dashboard + FidelityView (overdue ESPP upload).
+
+Both are contextual but have no persistent home. David wants a global **bell button** surfacing all current (and future) notifications, with read/dismiss affordances.
+
+---
+
+## 1. Bell Placement & Unread Badge
+
+### Placement
+**Right side of `.app-topbar`**, using `margin-left: auto` on a new `.topbar-actions` wrapper (flex row). Today the topbar is `[hamburger | logo-link]` — no right-side elements. Adding one bell button fits cleanly within the 52px height on all screen widths.
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  ☰   🪙 Finlytics                          [🔔²]        │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Bell button styles** mirror `.hamburger-btn`: 36×36px, `border-radius: 8px`, `background: none`, hover `background: var(--bg)`. Icon: `🔔` or a minimal SVG bell.
+
+### Unread badge
+- Absolute pill at `top: 4px; right: 4px`.
+- Size: `min-width: 16px; height: 16px; border-radius: 8px; padding: 0 4px`.
+- Background: `var(--expense)` — already palette-aware, semantically correct (attention/danger).
+- Text: `color: #fff; font-size: 10px; font-weight: 700`.
+- Content: `1`–`9` numeric; `9+` when ≥ 10; **no badge at all** when count is 0.
+
+### States
+| State | Visual |
+|-------|--------|
+| 0 notifications | Bell only, no badge |
+| 1+ unread | Bell + red badge with count |
+| All read (none pending) | Bell only, no badge |
+
+---
+
+## 2. Panel Form Factor
+
+### Options
+
+| Option | Pros | Cons |
+|--------|------|------|
+| **A. Dropdown/popover** (anchored to bell) | Fast; no page shift; familiar pattern | Mobile: needs full-width treatment |
+| B. Slide-over drawer (top/right) | Native mobile feel | Heavy for a short alert list |
+| C. Dedicated `/notifications` page | Deep-linkable; persistent history | Overkill; breaks flow for quick dismissals |
+
+### ✅ Recommendation: Option A — dropdown panel with mobile full-width treatment
+
+**Desktop** (`>600px`):
+- `position: fixed` anchored below-right of bell button (use `getBoundingClientRect()` — same reason as TagTypeahead, escaping `.app-topbar` z-index: 400).
+- `max-width: 380px; min-width: 320px`.
+- `border-radius: var(--radius); box-shadow: var(--shadow); background: var(--surface)`.
+- Z-index: 500 (above topbar).
+
+**Mobile** (`≤600px`):
+- `position: fixed; top: var(--topbar-height); left: 0; right: 0`.
+- `max-height: calc(100dvh - var(--topbar-height) - 16px); overflow-y: auto`.
+- `border-radius: 0 0 var(--radius) var(--radius)` (rounded bottom corners only).
+
+**Dismiss panel:** Click/tap outside (semi-transparent fixed backdrop behind panel), or `Escape` key.
+
+---
+
+## 3. Notification List Item Anatomy
+
+```
+┌──────────────────────────────────────────────────────────┐
+│▌  ●  ⚠  Title of notification (bold)              [✕]   │
+│         Supporting description text (muted)              │
+│         hace 2 días · Importar ahora →                   │
+└──────────────────────────────────────────────────────────┘
+ ↑         ↑    ↑                              ↑       ↑
+ left    unread severity  body (title+text     action  dismiss
+ accent  dot    icon      +timestamp+link)     link    button
+ bar
+```
+
+### Part-by-part
+
+| Part | Style |
+|------|-------|
+| **Left accent bar** | `border-left: 3px solid var(--warning)` for warnings; `var(--primary)` for info. Mirrors `.espp-reminder-banner`'s `border-left: 4px solid`. |
+| **Unread dot** | 6×6px circle, `background: var(--primary)`, `border-radius: 50%`. Hidden when read. |
+| **Severity icon** | `⚠` for warning (`color: var(--warning-text)`), `ℹ` for info (`color: var(--primary)`). |
+| **Title** | Unread: `font-weight: 600; color: var(--text)`. Read: `font-weight: 400; color: var(--text-muted)`. |
+| **Supporting text** | `font-size: 12px; color: var(--text-muted); margin-top: 2px`. |
+| **Timestamp** | `font-size: 11px; color: var(--text-muted)` — relative, e.g. "hace 2 días". |
+| **Action link** | `font-size: 12px; font-weight: 600; color: var(--primary); text-decoration: underline`. Navigates and closes panel. |
+| **Dismiss (✕)** | `position: absolute; top: 8px; right: 8px`; 20×20px; `color: var(--text-muted)`. Hover: `var(--text)`. |
+| **Unread item background** | `rgba(var(--primary-rgb), 0.04)` — subtle tint, dynamic with palette. |
+
+---
+
+## 4. Interactions
+
+### Open
+Bell click → panel appears. Does **not** auto-mark-all-read on open. Rationale: a glance-and-close on mobile shouldn't silently clear all alerts.
+
+### Mark single as read
+Explicit — click the unread dot, OR click the action link (navigating to the target implicitly marks it read). Read = loses bold/dot/tint; item stays in list until dismissed.
+
+### Dismiss single (✕)
+Removes the item from the list entirely. Persisted in `localStorage` key `finlytics_notif_dismissed` (array of dismissed notification IDs). A dismissed notification does not return unless the underlying condition changes with a new identifier (e.g. next month's missing statement → new notification ID).
+
+### "Mark all as read"
+Small `text-button` in panel header, visible only when `unreadCount > 0`. Marks all read but does NOT dismiss — list stays, items lose unread treatment.
+
+### Panel header
+```
+  Notificaciones                [Marcar todo leído]
+```
+(The "Mark all" link is hidden when no unread items exist.)
+
+### Empty state
+```
+  🔔
+  "Sin notificaciones pendientes"
+```
+`color: var(--text-muted); text-align: center; padding: 32px 16px`.
+
+### Sorting
+Sort by: **severity first** (warnings before info) → **recency within severity**. No grouping headers needed at current volume (≤ 5 items).
+
+---
+
+## 5. Relationship to Existing Inline Alerts
+
+| Inline alert | Stays in place? | Effect of bell-dismiss |
+|---|---|---|
+| `StatementWarning` chip (table row) | ✅ Yes — low visual weight, contextual | No effect — chip is compact enough to stay |
+| `.espp-reminder-banner` (Dashboard + FidelityView) | ✅ Yes — until dismissed | **Hide banner too** when dismissed from bell |
+
+### Design rationale
+- Inline alerts = **contextual, local** ("this specific row/section has a problem")
+- Bell = **global, persistent** ("here's everything across the app that needs attention")
+
+They complement each other. Dismissing from the bell says "I'm aware" — after that, continuing to show the full amber banner is friction. The ESPP banner should respond to the dismiss state.
+
+Implementation note for Vision: a `useNotifications()` hook (or context) holding `dismissedIds: string[]` from localStorage is the clean pattern. Dashboard.tsx and FidelityView.tsx check it before rendering `.espp-reminder-banner`.
+
+**"Mark as read" (not dismiss) has no effect on inline banners** — the banner stays until dismissed or the underlying condition resolves.
+
+---
+
+## 6. Tokens & Theming
+
+### Reused tokens (no changes)
+`--primary`, `--primary-rgb`, `--expense`, `--surface`, `--border`, `--text`, `--text-muted`, `--bg`, `--shadow`, `--radius` — cover badge, dot, panel background, separators, action links.
+
+### New token: `--notif-unread-bg` (dynamic, no extra rules)
+```css
+:root { --notif-unread-bg: rgba(var(--primary-rgb), 0.04); }
+```
+Derives from `--primary-rgb` → auto-follows all 5 palette variants.
+
+### New token: `--warning` family
+The existing ESPP banner uses hardcoded amber values (`#f59e0b`, `#b45309`, `#fbbf24`). Adding a warning token fixes that debt AND drives the new notification severity colors. Two birds, one stone.
+
+```css
+/* Light */
+:root {
+  --warning:      #f59e0b;
+  --warning-rgb:  245, 158, 11;
+  --warning-bg:   rgba(245, 158, 11, 0.10);
+  --warning-text: #b45309;
+}
+
+/* Dark (explicit + prefers-color-scheme) */
+[data-theme="dark"] {
+  --warning:      #fbbf24;
+  --warning-rgb:  251, 191, 36;
+  --warning-bg:   rgba(251, 191, 36, 0.08);
+  --warning-text: #fbbf24;
+}
+```
+
+Warning tokens are **not** palette-variant — amber warning color should stay amber regardless of accent. This is intentional: warning is a semantic signal, not a brand accent.
+
+### Badge background
+`var(--expense)` — already palette-aware across all 5 palettes. No new token needed for the badge.
+
+### Token migration (recommended, not blocking)
+Migrate the existing `.espp-reminder-banner` hardcoded colors to `var(--warning)`, `var(--warning-bg)`, `var(--warning-text)` as part of the implementation, so the banner and notification items stay visually consistent.
+
+---
+
+## 7. Telegram Wizard Note (Brief)
+
+The Telegram push-channel setup wizard (owned by Fury) should visually mirror `IndexaWizard` exactly — same modal chassis (`modal-backdrop` + `modal inv-wizard`), same step-dot progress indicator (`inv-wizard__progress` + dots/separators), same button patterns.
+
+**Proposed 4 steps:**
+
+| Step | Content |
+|------|---------|
+| **1 — Intro** | 🤖 icon + brief explanation. Same `.inv-wizard__security-note` block. |
+| **2 — Bot Token** | `<input type="password" className="inv-wizard__token-input">` for `bot_token`. Label: "Bot Token". External link "Cómo crear un bot →" using `.inv-wizard__link` style. |
+| **3 — Chat ID + Test** | Text input for `chat_id`. A `btn-secondary` "Enviar mensaje de prueba" fires a test API call; shows inline spinner while pending; shows `.inv-wizard__error-banner` on failure, or a ✓ checkmark on success. This step acts as validation. |
+| **4 — Connected ✅** | `.inv-wizard__success` layout. "Notificaciones de Telegram activadas." |
+
+**No new CSS classes needed.** The entire `inv-wizard__*` stylesheet reuses as-is. `TelegramWizard` is a separate React component sharing the same styles.
+
+---
+
+## i18n Keys Needed (EN/ES)
+
+Vision wires these; proposed copy:
+
+| Key | EN | ES |
+|-----|----|----|
+| `notificationsTitle` | "Notifications" | "Notificaciones" |
+| `notificationsMarkAllRead` | "Mark all read" | "Marcar todo leído" |
+| `notificationsEmpty` | "No pending notifications" | "Sin notificaciones pendientes" |
+| `notificationsStatementMissing` | "Missing statement · {account}" | "Extracto pendiente · {account}" |
+| `notificationsEsppOverdue` | "ESPP upload overdue · {period}" | "Carga ESPP vencida · {period}" |
+| `notificationsActionImport` | "Import now" | "Importar ahora" |
+| `notificationsActionGoToAccount` | "Go to account" | "Ir a la cuenta" |
+| `notificationsMarkRead` | "Mark as read" | "Marcar como leído" (aria-label) |
+| `notificationsDismiss` | "Dismiss" | "Descartar" (aria-label on ✕) |
+| `telegramWizardTitle` | "Connect Telegram" | "Conectar Telegram" |
+| `telegramWizardStep3TestBtn` | "Send test message" | "Enviar mensaje de prueba" |
+| `telegramWizardStep3TestOk` | "Message sent ✓" | "Mensaje enviado ✓" |
+
+All three files (`i18n/index.ts`, `en.ts`, `es.ts`) must be updated.
+
+---
+
+## Open Questions for David
+
+1. **Persistence level:** localStorage (client-only) for dismissed state is the lightest path. If David wants dismiss/read state to sync across devices (he only accesses from his own devices), a backend `notifications_state` table could be added. **Recommendation: start with localStorage; add backend persistence in a v2 if needed.**
+
+2. **Future notification types:** Should the bell support notifications without inline-alert equivalents (e.g. "Portfolio data stale", "Backup is N days old")? If so, the `useNotifications()` hook should be designed as an extensible registry from the start (Vision concern, but good to decide now).
+
+3. **ESPP banner suppress-on-dismiss:** Does David agree that dismissing from bell should also hide the `.espp-reminder-banner`? (Recommended above.)
+
+
+---
+
+# Notifications Design-QA — Vision Punch-list
+
+**Author:** Wanda  
+**Date:** 2026-07-17  
+**Branch:** main  
+**Status:** Actionable — pick up at your convenience
+
+---
+
+CSS is done (index.css patched). The items below are structural/logic changes in the `.tsx` — your domain.
+
+---
+
+## 1. Unread dot has no click handler (spec §4 — "Mark single as read")
+
+**File:** `frontend/src/components/NotificationBell.tsx`  
+**Current:** `<span className="notif-item__dot" aria-hidden="true" />` — no interactivity.  
+**Spec:** "Click the unread dot marks it read."  
+
+Fix: wrap in a `<button>` (or add `role="button"` + `onClick`) that calls `onMarkRead(notif.id)`. Wire a new `onMarkRead` prop down from `NotificationBell` to `NotifItem` (same pattern as `onDismiss`/`onAction`).
+
+```tsx
+// NotifItem props — add:
+onMarkRead: (id: number) => void
+
+// Replace the dot span with:
+{isUnread && (
+  <button
+    type="button"
+    className="notif-item__dot"
+    aria-label={t.notifMarkRead}
+    onClick={() => onMarkRead(notif.id)}
+  />
+)}
+```
+
+CSS already styles `.notif-item__dot` as a non-interactive circle; converting it to a button is a zero-visual-change structural swap.
+
+---
+
+## 2. Body text not rendered (`body_key` / `body_args` fields)
+
+**File:** `frontend/src/components/NotificationBell.tsx`  
+**Current:** `NotifItem` renders title + timestamp + action_link but **ignores `body_key` / `body_args`**.  
+**Spec §3:** "Supporting description text (muted)" sits between title and timestamp.
+
+`NotificationOut` already has `body_key: string | null` and `body_args: Record<string, unknown> | null`.
+
+Add a `resolveBody()` helper parallel to `resolveTitle()`, and render it when present:
+
+```tsx
+// in NotifItem, after the title div:
+{notif.body_key && (
+  <div className="notif-item__body-text">
+    {resolveBody(notif, t)}
+  </div>
+)}
+```
+
+CSS class `.notif-item__body-text` already needed — Wanda will add it once you wire the markup:  
+`font-size: 12px; color: var(--text-muted); margin-top: 2px; line-height: 1.4;`  
+(Just add it adjacent to `.notif-item__time` in index.css — or ping Wanda and she'll do it.)
+
+Also add the body i18n key resolvers to `i18n/{index,es,en}.ts` for the two existing notification types.
+
+---
+
+## 3. Panel doesn't close when clicking outside on iOS Safari
+
+**Already fixed in CSS by Wanda** (`cursor: pointer` on `.notif-backdrop`).  
+No action needed from Vision.
+
+---
+
+## 4. `resolveTitle` default case exposes raw i18n key as text
+
+**File:** `frontend/src/components/NotificationBell.tsx` — `resolveTitle` `default` branch returns `notif.title_key` (the raw string like `"notif.statement_missing"`).  
+This only fires for future notification types that don't have a case yet, but it's a silent UX bug when a new type ships without a matching case.
+
+Recommended: fall back to a generic string:
+```tsx
+default:
+  return notif.title_key.split('.').pop() ?? notif.title_key
+```
+Or add a `t.notifTitleUnknown` fallback key.
+
+---
+
+## Notes
+
+- All items above are low-urgency polish (spec compliance, not crashes).  
+- Item 3 (iOS backdrop) is easy for Wanda to add in CSS; flagging so Vision can decide preferred fix.  
+- Wanda has already patched all CSS issues (tokens, dark mode, icon colours, mobile dismiss, badge contrast). No CSS changes needed from Vision unless adding body-text markup (item 2).
+
+
+---
+
+# Notifications Backend — API Contract & Table Schemas
+
+**Author:** Shuri (Backend)  
+**Date:** 2026-07-17  
+**Status:** IMPLEMENTED — Slice 1 backend complete, green suite (1179 passed, 2 skipped)  
+**Slice:** 1 of 2 (Telegram channel wizard is Slice 2)
+
+---
+
+## New API Endpoints
+
+All routes are under `/api/notifications`, auth-gated via `get_current_user`.
+
+| Method | Path | Purpose | Notes |
+|--------|------|---------|-------|
+| `GET` | `/api/notifications` | Evaluate detectors + return active list | Runs evaluation on every call (near-real-time state). Sort: warning→info, then newest first. |
+| `GET` | `/api/notifications/unread-count` | Badge count (cheap, no evaluation) | Poll-safe. `unread = read_at IS NULL AND dismissed_at IS NULL AND resolved_at IS NULL` |
+| `POST` | `/api/notifications/read-all` | Mark all unread active notifications read | Returns `{"updated": N}` |
+| `POST` | `/api/notifications/{id}/read` | Mark one read | HTTP 204. 404 if not owned by user. |
+| `POST` | `/api/notifications/{id}/dismiss` | Dismiss one (hides from active list) | HTTP 204. 404 if not owned by user. |
+
+---
+
+## Response DTOs
+
+### `NotificationOut`
+
+```json
+{
+  "id": 42,
+  "source": "statement",
+  "type": "missing_statement",
+  "severity": "warning",
+  "title_key": "notif.statement_missing",
+  "title_args": { "month": "2026-06", "account": "BBVA" },
+  "body_key": null,
+  "body_args": null,
+  "action_link": "/finances?account_id=3",
+  "created_at": "2026-07-17T14:00:00Z",
+  "read_at": null,
+  "dismissed_at": null
+}
+```
+
+**Field notes for Vision (i18n):**
+- `title_key` / `title_args`: render as `t(title_key, title_args)` — never a pre-rendered string.
+- `source`: `"statement"` | `"espp"` (extensible — future detectors add new values).
+- `severity`: `"info"` | `"warning"` (drives icon/colour; future: `"critical"`).
+- `action_link`: frontend route string; navigate on chip/card click. May be `null`.
+- `resolved_at` is NOT in the DTO — resolved rows are excluded from the list by default.
+
+### `UnreadCountOut`
+
+```json
+{ "count": 3 }
+```
+
+### `ReadAllOut`
+
+```json
+{ "updated": 3 }
+```
+
+---
+
+## i18n Keys (Wanda / Vision — add to `en.ts`, `es.ts`, `i18n/index.ts`)
+
+| `title_key` | `title_args` | Example EN | Example ES |
+|-------------|-------------|------------|------------|
+| `notif.statement_missing` | `{month, account}` | "Missing statement for BBVA — 2026-06" | "Estado de cuenta faltante: BBVA — 2026-06" |
+| `notif.espp_overdue` | `{period}` | "ESPP upload overdue — Q2 2026" | "Subida ESPP pendiente — Q2 2026" |
+
+---
+
+## Dedup Key Scheme
+
+These are stable identity strings stored in `notifications.dedup_key`.
+
+| Pattern | Example | When used |
+|---------|---------|-----------|
+| `statement:missing:{YYYY-MM}:acct-{id}` | `statement:missing:2026-06:acct-3` | One per (account × month) missing statement |
+| `espp:overdue:{YYYY-Q#}` | `espp:overdue:2026-Q2` | One per ESPP quarter overdue upload |
+| `import:completed:{run_id}` | `import:completed:1234` | *(future)* |
+| `backup:stale:{YYYY-MM}` | `backup:stale:2026-07` | *(future)* |
+
+---
+
+## Table Schemas
+
+### `notifications`
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | Integer PK autoincrement | |
+| `user_id` | Integer FK→users CASCADE | indexed |
+| `source` | String(50) | `"statement"` \| `"espp"` \| … |
+| `type` | String(50) | `"missing_statement"` \| `"espp_overdue"` \| … |
+| `severity` | String(20) | `"info"` \| `"warning"` · server_default `"info"` |
+| `dedup_key` | String(200) | stable identity key |
+| `title_key` | String(100) | i18n key |
+| `title_args` | JSON | args dict · server_default `{}` |
+| `body_key` | String(100) nullable | optional body i18n key |
+| `body_args` | JSON nullable | optional body args |
+| `action_link` | String(500) nullable | frontend route |
+| `created_at` | DateTime(tz) | |
+| `updated_at` | DateTime(tz) | set on every upsert |
+| `read_at` | DateTime(tz) nullable | set by POST /{id}/read |
+| `dismissed_at` | DateTime(tz) nullable | set by POST /{id}/dismiss · shields auto-resolve |
+| `resolved_at` | DateTime(tz) nullable | set by auto-resolve; row kept for Telegram dedup |
+
+Constraints: `UNIQUE(user_id, dedup_key)` · `INDEX(user_id)` · `INDEX(user_id, read_at)` · `INDEX(user_id, dismissed_at, resolved_at)`
+
+### `notification_channels`
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | Integer PK | |
+| `user_id` | Integer FK→users CASCADE | indexed |
+| `channel` | String(50) | `"telegram"` |
+| `config_enc` | Text nullable | Fernet blob of `{bot_token, chat_id}` — NEVER returned |
+| `label` | String(100) nullable | masked display name e.g. "Telegram · ••••1234" |
+| `enabled` | Boolean | default true |
+| `created_at` | DateTime(tz) | |
+| `updated_at` | DateTime(tz) | |
+
+*(Slice 2 adds CRUD endpoints: `GET /api/notifications/channels`, `POST /api/notifications/channels`, `DELETE /api/notifications/channels/{id}`, `POST /api/notifications/channels/telegram/test`)*
+
+### `notification_deliveries`
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | Integer PK | |
+| `notification_id` | Integer FK→notifications CASCADE | indexed |
+| `channel` | String(50) | `"telegram"` |
+| `status` | String(20) | `"sent"` \| `"failed"` |
+| `sent_at` | DateTime(tz) nullable | |
+| `error` | String(500) nullable | |
+| `created_at` | DateTime(tz) | |
+
+Constraints: `UNIQUE(notification_id, channel)` — idempotency guard for Telegram double-send prevention.
+
+---
+
+## Detector Registry
+
+`src/finlytics/notifications/detectors.py`
+
+| Detector class | `id` | `is_condition` | Wraps | dedup_key prefix |
+|----------------|------|----------------|-------|------------------|
+| `StatementDetector` | `"statement"` | True | `compute_statement_reminder` | `statement:missing:…` |
+| `EsppDetector` | `"espp"` | True | `compute_espp_reminder` | `espp:overdue:…` |
+
+Add a new detector → append to `REGISTRY`. No other code changes needed.
+
+---
+
+## Orchestrator Seam for Slice 2
+
+`src/finlytics/notifications/service.py` — `deliver_new(db, user_id, new_notifs)`:
+
+```
+# Currently NO-OP. Slice 2 fills this:
+# 1. Query NotificationChannel WHERE user_id=user_id AND enabled=True.
+# 2. For each channel × notification:
+#    a. INSERT INTO notification_deliveries … ON CONFLICT (notification_id, channel) DO NOTHING
+#    b. If row inserted → call channel sender (TelegramChannel.send)
+#    c. On failure → UPDATE notification_deliveries SET status='failed', error=…
+```
+
+`new_notifs` are committed Notification objects with IDs, `read_at=None`, `dismissed_at=None`.
+
+---
+
+## Background Loop
+
+Configured in `config.py`:
+- `NOTIFICATIONS_LOOP_ENABLED` (bool, default `True`) — set `false` to disable.
+- `NOTIFICATIONS_EVAL_INTERVAL_SECONDS` (int, default `300`) — seconds between cycles.
+
+Gated in `app.py`'s `lifespan` context manager:
+- Never starts inside `pytest` (`"pytest" in sys.modules` check).
+- Safely cancelled on application shutdown.
+
+---
+
+## Implementation Files
+
+| File | What changed |
+|------|-------------|
+| `alembic/versions/0016_add_notifications.py` | New migration (down_revision=0015) |
+| `src/finlytics/db/models.py` | +`Notification`, `NotificationChannel`, `NotificationDelivery` |
+| `src/finlytics/notifications/__init__.py` | New package |
+| `src/finlytics/notifications/detectors.py` | `DetectedNotification`, `Detector` protocol, `StatementDetector`, `EsppDetector`, `REGISTRY` |
+| `src/finlytics/notifications/service.py` | `evaluate_notifications`, `deliver_new` stub |
+| `src/finlytics/api/notifications.py` | New router (5 endpoints) |
+| `src/finlytics/api/schemas.py` | +`NotificationOut`, `UnreadCountOut`, `ReadAllOut` |
+| `src/finlytics/config.py` | +`notifications_loop_enabled`, `notifications_eval_interval_seconds` |
+| `src/finlytics/app.py` | +`lifespan`, +`notifications_router` |
+| `tests/notifications/test_orchestrator.py` | 8 orchestrator unit tests (all green) |
+
+**Test result:** 1179 passed, 2 skipped (pre-existing skips unrelated to notifications).
+
+
+---
+
+# Telegram Backend — Channel CRUD & Test-Endpoint Contract
+
+**Author:** Shuri (Backend)  
+**Date:** 2026-07-17  
+**Status:** IMPLEMENTED — Slice 2 backend complete, green suite (1212 passed, 2 skipped)  
+**Slice:** 2 of 2 (Telegram delivery channel)
+
+---
+
+## New Modules
+
+| File | Purpose |
+|------|---------|
+| `src/finlytics/notifications/telegram.py` | `telegram_get_me`, `telegram_send_message`, `TelegramError` |
+| `src/finlytics/notifications/messages.py` | `render_notification_text` (Spanish renderer) |
+| `tests/notifications/test_deliver_new.py` | 7 unit tests for deliver_new |
+
+---
+
+## Updated Files
+
+| File | What changed |
+|------|-------------|
+| `src/finlytics/notifications/service.py` | `deliver_new` stub → full implementation |
+| `src/finlytics/api/notifications.py` | +4 channel CRUD endpoints, updated imports |
+| `src/finlytics/api/schemas.py` | +`NotificationChannelOut`, `TelegramChannelIn`, `TelegramTestIn`, `TelegramTestOut` |
+| `src/finlytics/config.py` | +`telegram_send_enabled: bool = True` |
+
+---
+
+## Channel CRUD Endpoints
+
+All routes under `/api/notifications`, auth-gated (same router as Slice 1).
+
+### `GET /api/notifications/channels`
+
+Returns the user's configured channels.  
+**No secrets in response** — `config_enc`, `bot_token`, `chat_id` are NEVER returned.
+
+**Response** — `list[NotificationChannelOut]`:
+```json
+[
+  {
+    "id": 1,
+    "channel": "telegram",
+    "label": "Telegram · ••••6789",
+    "enabled": true,
+    "created_at": "2026-07-17T15:04:32Z"
+  }
+]
+```
+
+---
+
+### `POST /api/notifications/channels`
+
+Upsert the user's Telegram channel (one per user — replaces existing).
+
+**Request body** — `TelegramChannelIn`:
+```json
+{
+  "bot_token": "<Telegram bot token>",
+  "chat_id": "<user/group/channel chat ID>"
+}
+```
+
+**Flow:**
+1. Calls `telegram_get_me(bot_token)` to validate the token (real HTTP call).
+2. Encrypts `{bot_token, chat_id}` as a Fernet blob into `config_enc`.
+3. Computes `label = "Telegram · ••••{last4 of chat_id}"`.
+4. SELECT existing telegram channel for user → UPDATE if found, INSERT if not.
+
+**Response** — `NotificationChannelOut` (HTTP 201):
+```json
+{
+  "id": 1,
+  "channel": "telegram",
+  "label": "Telegram · ••••6789",
+  "enabled": true,
+  "created_at": "2026-07-17T15:04:32Z"
+}
+```
+
+**Error responses:**
+| Status | When |
+|--------|------|
+| 400 | `telegram_get_me` fails — bad token (safe message, no token leaked) |
+| 503 | `FINLYTICS_ENCRYPTION_KEY` not configured |
+
+---
+
+### `DELETE /api/notifications/channels/{id}`
+
+Delete a channel (scoped to current user).
+
+**Response:** HTTP 204 (no body)  
+**Error responses:**
+| Status | When |
+|--------|------|
+| 404 | Channel ID not found or not owned by current user |
+
+---
+
+### `POST /api/notifications/channels/telegram/test`
+
+Send a test message to verify Telegram is wired up. Always returns HTTP 200.
+
+**Request body** — `TelegramTestIn` (all optional):
+```json
+{
+  "bot_token": "<optional>",
+  "chat_id": "<optional>"
+}
+```
+
+**Behaviour:**
+- If **both** `bot_token` + `chat_id` provided → use those (wizard "test before save").
+- If **neither** provided → use the stored channel's decrypted config.
+- If **only one** provided → HTTP 400.
+- If stored channel not found and no creds provided → HTTP 400.
+
+**Test message sent:**  
+`"✅ Finlytics: notificaciones de Telegram configuradas correctamente."`
+
+**Response** — `TelegramTestOut` (HTTP 200 always):
+```json
+{ "ok": true }
+```
+or on failure:
+```json
+{ "ok": false, "error": "<safe error message, no token>" }
+```
+
+**Error responses (non-send failures):**
+| Status | When |
+|--------|------|
+| 400 | Only one of bot_token/chat_id provided, or no stored channel |
+| 503 | Encryption not configured (on stored-channel path) |
+
+---
+
+## deliver_new Implementation
+
+`src/finlytics/notifications/service.py`:
+
+**Algorithm:**
+1. Return immediately if `new_notifs` is empty or `settings.telegram_send_enabled` is False.
+2. Query `NotificationChannel WHERE user_id=user_id AND enabled=True`.
+3. For each `channel × notif`:
+   - SELECT from `notification_deliveries` for `(notification_id, channel)`.
+   - If row exists → skip (idempotency guard; prevents double-send on background-loop + API race).
+   - If not → INSERT delivery row with `status='pending'`.
+   - Decrypt `channel.config_enc` → call `telegram_send_message(bot_token, chat_id, text)`.
+   - On success → `status='sent'`, `sent_at=now`.
+   - On `TelegramError` / `EncryptionNotConfiguredError` / any other exception → `status='failed'`, `error=safe_msg`. NEVER raises.
+
+**Security guarantees:**
+- `bot_token` and `chat_id` never appear in log statements (only `channel.id` and `notification_id`).
+- `TelegramError` messages are manually crafted — never include the URL or token.
+- `delivery.error` field is truncated to 500 chars; no secrets interpolated.
+
+---
+
+## Message Templates (Spanish)
+
+`src/finlytics/notifications/messages.py` — `render_notification_text(notification) -> str`:
+
+| `title_key` | Example rendered text |
+|-------------|----------------------|
+| `notif.statement_missing` | `⚠️ Falta subir el extracto de BBVA — 2026-06` |
+| `notif.espp_overdue` | `⚠️ Subida ESPP pendiente — Q2 2026` |
+| *(any other key)* | `📌 Finlytics: {key}` ← safe generic fallback |
+
+---
+
+## Pydantic Schemas
+
+```python
+class NotificationChannelOut(BaseModel):
+    id: int
+    channel: str        # "telegram"
+    label: str | None   # "Telegram · ••••6789"
+    enabled: bool
+    created_at: datetime
+
+class TelegramChannelIn(BaseModel):
+    bot_token: str
+    chat_id: str        # string; accepts negative integers for groups
+
+class TelegramTestIn(BaseModel):
+    bot_token: str | None = None
+    chat_id: str | None = None
+
+class TelegramTestOut(BaseModel):
+    ok: bool
+    error: str | None = None
+```
+
+---
+
+## Config Kill-Switch
+
+`src/finlytics/config.py`:
+
+```python
+telegram_send_enabled: bool = True  # TELEGRAM_SEND_ENABLED env var
+```
+
+Set `TELEGRAM_SEND_ENABLED=false` to suppress all Telegram sends without removing channels. Useful for ops maintenance.
+
+---
+
+## Security Audit Trail
+
+- `bot_token` exists only: (1) in request body (in-transit TLS), (2) encrypted at rest in `config_enc`, (3) in memory during decryption window.
+- `bot_token` is NEVER: logged, returned in any API response, included in `TelegramError` messages, or included in `delivery.error`.
+- `label` contains only the last 4 chars of `chat_id` (no token, no full chat_id).
+- `telegram_get_me` validation URL contains the token — this URL is NEVER logged (the function raises `TelegramError` with a safe message only).
+
+---
+
+## Test Result
+
+**1212 passed, 2 skipped** (baseline: 1205 passed, 2 skipped).  
+New tests: `tests/notifications/test_deliver_new.py` (7 tests).
+
+
+---
+
+# Telegram Security Fixes — Closure Report
+
+**Author:** Shuri (Backend Engineer)  
+**Date:** 2026-07-17T15:04:32+02:00  
+**Branch:** main  
+**Audit reference:** `romanoff-telegram-audit.md` (verdict: FIX-FIRST)  
+**Test result:** 1239 passed, 2 skipped (baseline unchanged)
+
+---
+
+## M1 — UNIQUE(user_id, channel) on `notification_channels` ✅ FIXED
+
+**Risk:** Concurrent `POST /channels` requests could both see 0 rows and both INSERT,
+producing two rows for the same user+channel combination.
+
+**Changes made:**
+
+| File | Change |
+|------|--------|
+| `alembic/versions/0016_add_notifications.py` | Added `sa.UniqueConstraint("user_id", "channel", name="uq_notification_channels_user_type")` to the `create_table("notification_channels")` call |
+| `src/finlytics/db/models.py` | Added `UniqueConstraint("user_id", "channel", name="uq_notification_channels_user_type")` to `NotificationChannel.__table_args__` |
+
+**Why 0016 was amended in place:** The migration was created this session and has never
+been deployed. AGENTS.md rule: "amend 0016 IN PLACE — do NOT create 0017 for a table
+that has never existed in production."
+
+The existing SELECT-then-insert upsert logic is unaffected and continues to produce
+exactly one row per user per channel type.
+
+---
+
+## M2 — `config_enc` NOT NULL + null guard in decrypt paths ✅ FIXED
+
+**Risk:** A NULL `config_enc` would reach `decrypt_token(None)` → `None.encode()` →
+`AttributeError`, caught generically with an opaque error message.
+
+**Changes made:**
+
+| File | Change |
+|------|--------|
+| `alembic/versions/0016_add_notifications.py` | `config_enc` column: `nullable=True` → `nullable=False` |
+| `src/finlytics/db/models.py` | `config_enc` mapped column: `Mapped[str | None]` → `Mapped[str]`, `nullable=True` → `nullable=False` |
+| `src/finlytics/notifications/service.py` | Added explicit `if not channel.config_enc:` guard before the decrypt+send try/except in `deliver_new`. Records delivery as `status='failed'` with message `"Channel has no config — cannot decrypt."`. Logs `log.error(...)` with channel ID and notification ID (no token, no secret). Falls through to the existing "Persist delivery result" block. |
+| `src/finlytics/api/notifications.py` | Added `if not channel.config_enc:` guard after the stored-channel fetch in `test_telegram_channel`. Raises `HTTPException(400, "Channel config is missing — please re-configure the Telegram channel.")` before any decrypt attempt. |
+
+No existing tests required modification: all test fixtures use non-null `config_enc`
+values (`"dummy_ciphertext"`, `"dummy_encrypted_config"`).
+
+---
+
+## L1 — Explicit `verify=True, follow_redirects=False` on httpx clients ✅ FIXED
+
+**Risk:** httpx 0.20+ already defaults to `verify=True, follow_redirects=False`, but
+the omission is invisible to code reviewers and a future change or copy-paste could
+accidentally allow redirects that would forward the bot_token (embedded in the URL path)
+to another host.
+
+**Changes made:**
+
+| File | Change |
+|------|--------|
+| `src/finlytics/notifications/telegram.py` | Both `httpx.AsyncClient(timeout=10.0)` calls in `telegram_get_me` and `telegram_send_message` updated to `httpx.AsyncClient(timeout=10.0, verify=True, follow_redirects=False)` |
+
+Matches the explicit security posture already established in `src/finlytics/investments/indexa.py`.
+
+---
+
+## L3 — No token in logs ✅ CONFIRMED
+
+No logging statements referencing request URLs, bot tokens, or secrets were added by
+any of the changes above. Log calls in `service.py` reference only `channel.id`,
+`notif.id`, and safe error messages. The `url` local variable (which contains the
+bot_token in its path) is never passed to any log call in `telegram.py`.
+
+---
+
+*Shuri — 2026-07-17T15:04:32+02:00*
+
+
+---
+
+# Decision: Notifications Frontend — Vision Slice 1
+
+**Date:** 2026-07-17  
+**Author:** Vision (Frontend Engineer)  
+**Status:** Implemented ✅
+
+---
+
+## Component Files Added
+
+| File | Role |
+|------|------|
+| `frontend/src/contexts/NotificationsContext.tsx` | Context + Provider + `useNotifications()` hook — single source of truth for the full notification list, unread count, and all mutating actions. |
+| `frontend/src/components/NotificationBell.tsx` | Bell button with red-dot badge, dropdown panel (portal-rendered), notification items with dismiss/action/mark-read. |
+
+## Files Modified
+
+| File | Change |
+|------|--------|
+| `frontend/src/api/types.ts` | Added `NotificationOut` interface. |
+| `frontend/src/api/mock.ts` | Added `mockGetNotifications`, `mockGetUnreadCount`, `mockMarkNotificationRead`, `mockMarkAllNotificationsRead`, `mockDismissNotification` with two sample notifications. |
+| `frontend/src/api/client.ts` | Added `getNotifications`, `getUnreadCount`, `markNotificationRead`, `markAllNotificationsRead`, `dismissNotification`. |
+| `frontend/src/i18n/index.ts` | Added 12 new Dict entries: panel title, mark-all-read, empty state, dismiss label, relative-time functions (5), title resolver functions (2), generic action label. |
+| `frontend/src/i18n/en.ts` / `es.ts` | Implemented above in EN + ES. |
+| `frontend/src/index.css` | Added `--warning` family tokens + `--notif-unread-bg` to `:root` and dark variants. Added all notification component CSS (bell btn, badge, panel, items, mobile sheet). |
+| `frontend/src/components/Layout.tsx` | Added `<div className="topbar-actions"><NotificationBell /></div>` at right end of topbar; added import. |
+| `frontend/src/App.tsx` | Wrapped `<BrowserRouter>` in `<NotificationsProvider>` inside the authenticated `AppContent` branch. |
+| `frontend/src/pages/Dashboard.tsx` | Removed `getFidelityReminder` + `esppReminder` state; ESPP banner now driven by `notifications.find(n => n.source === 'espp')` via `useNotifications()`. |
+| `frontend/src/investments/views/FidelityView.tsx` | Same ESPP-banner change as Dashboard. |
+
+---
+
+## How the Telegram Wizard (Slice 2) Should Slot In
+
+Slice 2 will add a Telegram / push-channel connector for notifications (based on the squad ratified design). When it ships:
+
+1. **Settings page**: Add a "Telegram notifications" card under Settings → System (or a new "Alerts" sub-group). The new settings page can `useNotifications()` to show a live preview of pending notifications.
+2. **Registry pattern**: If Slice 2 introduces a channel plugin model (similar to investment connectors), add a `NOTIFICATION_CHANNEL_REGISTRY` map in e.g. `frontend/src/notifications/channelRegistry.ts`. The NotificationBell component should not need changes — it is channel-agnostic.
+3. **No panel changes needed**: The bell+panel already renders all backend-emitted notifications regardless of channel. Slice 2 only affects _delivery_ (Telegram/push), not the in-app panel.
+4. **`NotificationsProvider`** is already at the app root so any new Slice 2 settings page can consume `useNotifications()` directly without additional context setup.
+
+
+---
+
+# Vision — Telegram Frontend + Wanda punch-list
+
+**Author:** Vision  
+**Date:** 2026-07-17  
+**Branch:** main  
+**Status:** Delivered — `npm run build` green (zero TS errors)
+
+---
+
+## Files Added
+
+| File | Purpose |
+|------|---------|
+| `frontend/src/components/TelegramWizard.tsx` | 4-step wizard for configuring the Telegram notification channel. Mirrors IndexaWizard chassis (`modal-backdrop`/`inv-wizard`, `dotClass`/`sepClass`, `btn-primary`/`btn-secondary`). |
+| `frontend/src/pages/NotificationsSettingsPage.tsx` | Settings sub-page at `/settings/notifications`. Fetches `GET /api/notifications/channels`, shows Telegram card with connect/edit/disconnect actions. |
+
+---
+
+## Files Changed
+
+| File | Change |
+|------|--------|
+| `frontend/src/api/types.ts` | Added `NotificationChannelOut`, `TelegramChannelIn`, `TelegramTestIn`, `TelegramTestOut` interfaces. |
+| `frontend/src/api/client.ts` | Added `getNotificationChannels()`, `createTelegramChannel()`, `deleteNotificationChannel()`, `testTelegramChannel()`. Updated imports. |
+| `frontend/src/api/mock.ts` | Added `mockGetNotificationChannels()`, `mockCreateTelegramChannel()`, `mockDeleteNotificationChannel()`, `mockTestTelegramChannel()` with mutable `_mockChannels[]` store. Updated imports. |
+| `frontend/src/i18n/index.ts` | Added `notifMarkRead`, `notifTitleUnknown`, `notifBodyStatementMissing`, `notifBodyEsppOverdue`, all `tgWizard*` keys, all `notifSettings*` keys. |
+| `frontend/src/i18n/es.ts` | Spanish values for all new keys. |
+| `frontend/src/i18n/en.ts` | English values for all new keys. |
+| `frontend/src/components/NotificationBell.tsx` | **Wanda punch-list:** (1) Unread dot → `<button onMarkRead>`. (2) `resolveBody()` helper + `notif-item__body-text` rendering. (3) `resolveTitle` default falls back to `title_key.split('.').pop()`. Added `notifMarkRead` i18n key usage, `onMarkRead` prop threaded to NotifItem. |
+| `frontend/src/index.css` | Updated `.notif-item__dot` for button reset + cursor + focus-visible. Added `.notif-item__body-text`. Added `.inv-wizard__test-row`, `.inv-wizard__test-ok`, `.inv-wizard__field-hint`. |
+| `frontend/src/App.tsx` | Imported `NotificationsSettingsPage`; added `<Route path="notifications">` under settings. |
+| `frontend/src/components/Layout.tsx` | Added `<NavLink to="/settings/notifications">` inside the **Sistema** settings group. |
+
+---
+
+## Backend contract assumed (not changed)
+
+```
+GET  /api/notifications/channels           → NotificationChannelOut[]
+POST /api/notifications/channels           → 201 NotificationChannelOut  (400 bad token, 503 no key)
+DELETE /api/notifications/channels/{id}    → 204
+POST /api/notifications/channels/telegram/test → TelegramTestOut {ok, error?}
+```
+
+---
+
+## What was NOT touched
+
+- Backend code and tests (no changes)
+- Backup wizard WIP (`client.ts` backup exports, `BackupPage.tsx`, related types/i18n) — additive edits only
+
+
+---
+
+# Security Audit — Telegram Notification Channel
+
+**Auditor:** Romanoff (Security & Privacy Engineer)
+**Date:** 2026-07-17T17:12:48+02:00
+**Branch:** main
+**Scope:** New Telegram delivery channel — credential handling and egress.
+**Verdict:** ⚠️ **FIX-FIRST** — 2 Medium findings require a migration + a guard before
+next production deployment. No Critical or High findings. Code quality is good;
+the author clearly intended to be secure.
+
+---
+
+## Files Reviewed
+
+| File | Role |
+|------|------|
+| `src/finlytics/notifications/telegram.py` | httpx egress — `getMe`, `sendMessage`, `TelegramError` |
+| `src/finlytics/notifications/service.py` | `deliver_new` — decrypt → send → audit |
+| `src/finlytics/notifications/messages.py` | `render_notification_text` |
+| `src/finlytics/api/notifications.py` | Channel CRUD + `/channels/telegram/test` |
+| `src/finlytics/api/schemas.py` | `NotificationChannelOut`, `TelegramChannelIn`, `TelegramTestIn/Out` |
+| `src/finlytics/db/models.py` | `NotificationChannel`, `NotificationDelivery` |
+| `src/finlytics/investments/crypto.py` | Fernet helpers |
+| `src/finlytics/config.py` | Settings + `telegram_send_enabled` flag |
+| `alembic/versions/0016_add_notifications.py` | Schema migration |
+| `src/finlytics/api/investments.py` | Reference pattern for 503 handling |
+
+---
+
+## Findings by Severity
+
+### 🟡 MEDIUM — M1: Missing `UNIQUE(user_id, channel)` on `notification_channels`
+
+**File:line:** `alembic/versions/0016_add_notifications.py:54-67`,
+`src/finlytics/db/models.py:602-605`
+
+**Risk:**
+The `notification_channels` table has no unique constraint on `(user_id, channel)`.
+The upsert in `api/notifications.py:261-283` is a SELECT-then-insert pattern
+inside a single `async with db.begin()` block, which IS atomic *per request*.
+However, two concurrent `POST /channels` requests from the same user (e.g., double-tap
+in the frontend) can both see 0 rows, then both INSERT — producing two rows with the
+same `user_id="X"` + `channel="telegram"` but different `config_enc` values (different
+tokens if the user changed the token between tabs, or the same token twice).
+
+Consequence:
+- `deliver_new` will iterate both rows and attempt to send twice.
+- The `UNIQUE(notification_id, channel)` on `notification_deliveries` saves the day —
+  the second channel's delivery INSERT gets an `IntegrityError` caught by the generic
+  `except Exception` handler at `service.py:250`, which logs
+  `"Unexpected error (IntegrityError)"` and marks the second attempt "failed".
+- The notification IS delivered exactly once. But the second stale channel row lingers
+  in the DB with a potentially different `config_enc`. Future notifications will always
+  try both rows: one delivers, one errors. This is misleading in audit logs and wastes
+  a DB transaction per notification.
+
+**Recommended fix:**
+1. Add `sa.UniqueConstraint("user_id", "channel", name="uq_notification_channels_user_type")`
+   in the migration (new migration `0017_...`).
+2. Add the same to `NotificationChannel.__table_args__` in `models.py`.
+3. The existing SELECT-then-insert upsert remains correct; the DB constraint is a
+   belt-and-suspenders guard for concurrent races.
+
+---
+
+### 🟡 MEDIUM — M2: `config_enc` column is NULLABLE — silent null path in `deliver_new`
+
+**File:line:** `alembic/versions/0016_add_notifications.py:59`,
+`src/finlytics/db/models.py:614`,
+`src/finlytics/notifications/service.py:230`
+
+**Risk:**
+`config_enc` is declared `nullable=True` at the DB level. The application code
+**always** encrypts before inserting, so a NULL should never arise in production.
+However, if one ever did (direct DB edit, failed migration, future admin tooling),
+`service.py:230` passes `None` to `decrypt_token(channel.config_enc)`:
+
+```python
+config_data = json.loads(decrypt_token(channel.config_enc))
+```
+
+`decrypt_token(None)` calls `None.encode()` → `AttributeError`.
+This is caught by `except Exception as exc:` at `service.py:250`,
+logged as `"Unexpected error (AttributeError)"`, and stored in
+`delivery.error` — so it won't crash the loop.
+
+The security risk is LOW (no plaintext leakage), but the silent failure with
+`AttributeError` is opaque, and the NULL DB state represents a broken channel
+row that will fail silently on every future notification.
+
+**Recommended fix:**
+1. Change `nullable=True` → `nullable=False` in the migration (add `0017_...`).
+2. Add an explicit null guard before decrypt in `service.py`:
+   ```python
+   if not channel.config_enc:
+       log.error("Channel id=%d has no config_enc — skipping", channel.id)
+       continue
+   ```
+3. Same guard in the `test_telegram_channel` stored-channel path
+   (`api/notifications.py:320`).
+
+---
+
+### 🔵 LOW — L1: `httpx.AsyncClient` missing explicit `verify=True` and `follow_redirects=False`
+
+**File:line:** `src/finlytics/notifications/telegram.py:27, 50`
+
+**Risk:**
+Both `telegram_get_me` and `telegram_send_message` create:
+```python
+async with httpx.AsyncClient(timeout=10.0) as client:
+```
+
+httpx 0.20+ defaults: `verify=True`, `follow_redirects=False`.
+So the current behaviour is correct — TLS is verified and redirects are not
+followed. However, the Indexa client (`src/finlytics/investments/indexa.py:72-77`)
+explicitly states both flags as a documented security posture. This inconsistency
+means a future reader (or code reviewer) cannot tell whether the omission is
+intentional.
+
+The risk if httpx's defaults ever changed upstream, or if someone copy-pastes
+this pattern and adds `follow_redirects=True`, is that the bot_token (embedded
+in the URL path) would be forwarded to redirect targets.
+
+**Recommended fix:**
+```python
+async with httpx.AsyncClient(timeout=10.0, verify=True, follow_redirects=False) as client:
+```
+Apply to both functions in `telegram.py`. Make it the house style for all
+outbound httpx clients.
+
+---
+
+### 🔵 LOW — L2: Third-party `description` field from Telegram API passes through unsanitized
+
+**File:line:** `src/finlytics/notifications/telegram.py:38-39, 60-61`,
+`src/finlytics/notifications/service.py:243, 264`,
+`src/finlytics/api/notifications.py:337`
+
+**Risk:**
+When Telegram returns `ok: false`, the `description` field from Telegram's JSON
+response is embedded in a `TelegramError`:
+```python
+desc = data.get("description", "unknown error")
+raise TelegramError(f"Telegram token rejected: {desc}")
+```
+This string then flows to:
+- `delivery.error` (stored in DB, truncated at 500 chars)
+- `TelegramTestOut.error` (returned in the test endpoint HTTP response)
+- `log.warning(... exc ...)` in `service.py:248`
+
+Telegram's documented error descriptions are generic ("Unauthorized",
+"Bad Request: chat not found") and do **not** include the bot_token.
+The actual risk is very low. However, relying on a third-party API to never
+echo credentials in its error descriptions is an implicit trust assumption.
+
+**Recommended fix:**
+Cap the pass-through to a safe max length and strip control characters.
+Alternatively, replace the third-party description entirely with a fixed-format
+message using only the HTTP status code (already done for network errors and
+status-code errors — apply the same approach to `ok:false` cases):
+```python
+# Instead of embedding desc:
+raise TelegramError(f"Telegram rejected the request (ok:false, see logs).")
+# Log desc at DEBUG level where it's least likely to be shipped to a SIEM.
+```
+
+---
+
+### 🔵 LOW — L3: httpx DEBUG logging would expose bot_token in request URLs
+
+**File:line:** `src/finlytics/notifications/telegram.py:25, 48`
+
+**Risk:**
+The bot_token is embedded in the URL path:
+```python
+url = f"https://api.telegram.org/bot{bot_token}/getMe"
+url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+```
+httpx ships an `httpx` logger that, when set to DEBUG, logs outgoing request
+URLs. If a developer or ops engineer enables `logging.getLogger("httpx").setLevel(logging.DEBUG)`
+(or sets root logger to DEBUG), these URLs appear in logs with the full token.
+
+No such configuration exists in the current codebase, and the default level for
+the httpx logger is WARNING. Risk is low. Indexa uses header-based auth
+(`X-AUTH-TOKEN`) which avoids the URL-token pattern entirely.
+
+**Recommended fix:**
+Add a one-liner in the app startup or a `logging.ini`:
+```python
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+```
+This is defence-in-depth; current production code is not at risk.
+
+---
+
+## Threat Checklist Verdicts
+
+| # | Threat | Result | Notes |
+|---|--------|--------|-------|
+| 1 | **Secret at rest** — Fernet-only, fail-closed 503 | ✅ PASS | `encrypt_token` → 503 if key missing. No plaintext column or fallback. |
+| 2 | **No secret in responses** — GET/POST never return `config_enc`/token/chat_id | ✅ PASS | `NotificationChannelOut` omits all secrets; `_to_channel_out` verified. Label = `••••{last4}` — acceptable for single-user. Token never in label. |
+| 3 | **No secret in logs** | ✅ PASS | Every log call in `service.py` checked: IDs only. `TelegramError` messages contain HTTP codes or Telegram descriptions, not the token. `log.exception` (line 252) would include a traceback but not a token value (no token-containing variable escapes into exception messages). See L2/L3 for edge cases. |
+| 4 | **Egress safety** — fixed host, HTTPS, timeout, no SSRF | ✅ PASS (w/ note) | Host hardcoded as `api.telegram.org`. HTTPS via URL. 10s timeout. `chat_id` in JSON body, not URL — no SSRF. See L1 for explicit flag gap. |
+| 5 | **Failure handling / DoS** — `deliver_new` swallows errors | ✅ PASS | All exceptions caught in `service.py:236-256`. Never propagates. Bad channel can't crash the delivery loop. |
+| 6 | **AuthZ / ownership** | ✅ PASS | Router registered with `dependencies=_auth` (`app.py:156`). `list_channels`, `upsert`, `delete`, `test` all filter by `user.id`. User A cannot touch user B's channels. |
+| 7 | **Injection / templating** | ✅ PASS | `render_notification_text` uses only trusted detector args (`title_args` from detector code). No Jinja, no eval, no untrusted user input. |
+| 8 | **Idempotency guard** | ✅ PASS (w/ note) | `UNIQUE(notification_id, channel)` on `notification_deliveries` prevents double-sends. See M1 for race on `notification_channels`. |
+
+---
+
+## Positive Observations (not in the finding list because they're done right)
+
+- **`EncryptionNotConfiguredError` → 503** is handled identically to `investments.py`:
+  both `upsert_telegram_channel` (`api/notifications.py:248-253`) and
+  `test_telegram_channel` (`api/notifications.py:321-325`) raise 503 cleanly.
+  No plaintext fallback exists anywhere.
+
+- **`config_enc` not in `NotificationChannelOut`**: the schema (`schemas.py:841-852`)
+  and the `_to_channel_out` helper (`api/notifications.py:203-210`) both intentionally
+  exclude `config_enc`. Confirmed: `GET /channels`, `POST /channels` (201), and all
+  error paths never return the ciphertext or the decrypted secrets.
+
+- **Token never in label**: label is `f"Telegram · ••••{chat_id_str[-4:]}"` —
+  chat_id masking exposes at most 4 decimal digits, no token. Acceptable for a
+  personal app; a group chat with a short numeric ID (e.g., `1234`) would show
+  `••••1234` which is the full ID. Low-sensitivity data (chat IDs are not secret
+  per Telegram's model).
+
+- **`telegram_send_enabled` kill-switch** (`config.py:92`): a single env-var gate
+  can suppress all Telegram egress without changing code.
+
+- **`deliver_new` is safe to call with empty `new_notifs`**: guard at `service.py:182`
+  returns immediately. Slice 1 behaviour is preserved.
+
+- **No token in `TelegramError` messages**: all error constructors in `telegram.py`
+  use only HTTP status codes or third-party description strings, never the `bot_token`
+  variable. The `url` local variable containing the token never appears in any
+  exception message.
+
+---
+
+## Routing for Fixes
+
+| ID | Finding | Assign to | Priority |
+|----|---------|-----------|----------|
+| M1 | Add `UNIQUE(user_id, channel)` to `notification_channels` migration + model | Shuri | Before next deploy |
+| M2 | Add `NOT NULL` to `config_enc` + null guard in `deliver_new` and test path | Shuri | Before next deploy |
+| L1 | Explicit `verify=True, follow_redirects=False` in `telegram.py` | Shuri | Next sprint |
+| L2 | Cap/sanitize Telegram API `description` passthrough | Shuri | Next sprint |
+| L3 | Suppress httpx/httpcore DEBUG logging at startup | Shuri | Optional / hardening |
+
+---
+
+*Romanoff — 2026-07-17T17:12:48+02:00*
+
+
+---
+
+# rocket-notifications-docker-verify
+
+**Date:** 2026-07-17  
+**Author:** Rocket (DevOps)  
+**Branch:** main  
+**Result:** ✅ PASS — stack is UP at :7777
+
+---
+
+## What was verified
+
+End-to-end Docker verification of the Notifications + Telegram feature on `docker-compose.local.yml` (Dockerfile.local, host-prebuilt frontend).
+
+---
+
+## Steps & Evidence
+
+### 1. Preconditions
+- Docker: Client 29.4.3 / Server 29.6.1 — ✅ running.
+- `.env` present with `POSTGRES_PASSWORD`, `AUTH_SECRET`, `FINLYTICS_ENCRYPTION_KEY` — ✅ all present.
+
+### 2. Frontend prebuild
+```
+cd frontend && npm run build
+```
+- `tsc --noEmit` — ✅ no type errors.
+- `vite build` — ✅ succeeded in 8.47s. Pre-existing chunk-size warning (895 kB index bundle) — OK, not new.
+
+### 3. Docker image build
+```
+docker compose -f docker-compose.local.yml build
+```
+- All 13 Dockerfile.local stages completed — ✅.
+- `finlytics-0.1.0` wheel rebuilt with new `src/` (includes `api/notifications.py`, `notifications/` package).
+- New `alembic/versions/0016_add_notifications.py` copied into image — ✅.
+- Final image: `drdonoso/finlytics:latest` — ✅.
+
+### 4. Stack up
+```
+docker compose -f docker-compose.local.yml up -d
+```
+- `finlytics-db-1` — healthy (postgres:16-alpine).
+- `finlytics-api-1` — recreated, up, port `0.0.0.0:7777->7777/tcp` — ✅.
+
+### 5. Health check
+```
+curl http://localhost:7777/health
+```
+```json
+{"status":"ok"}
+```
+✅ HTTP 200.
+
+### 6. Notifications router check
+```
+curl -i http://localhost:7777/api/notifications/unread-count
+```
+```
+HTTP/1.1 401 Unauthorized
+{"detail":"Not authenticated"}
+```
+✅ **HTTP 401** — router registered and auth-gated. (404 would mean not wired.)
+
+### 7. Startup log analysis (`docker compose logs api --tail 120`)
+
+Key lines:
+```
+2026-07-17 15:40:16 [entrypoint] Running DB migrations...
+2026-07-17 15:40:17 INFO  [alembic.runtime.migration] Running upgrade 0015 -> 0016, Add notifications tables: notifications, notification_channels, notification_deliveries.
+2026-07-17 15:40:22 INFO:     Notification loop started (interval=300s)
+2026-07-17 15:40:22 INFO:     Application startup complete.
+2026-07-17 15:40:22 INFO:     Uvicorn running on http://0.0.0.0:7777
+```
+- ✅ Migration 0016 applied (3 tables: `notifications`, `notification_channels`, `notification_deliveries`).
+- ✅ Notifications background loop started, interval=300s (default).
+- ✅ No tracebacks, no exceptions on boot.
+
+---
+
+## Env vars for the feature
+
+All have safe defaults — none block container startup:
+
+| Var | Default | Notes |
+|-----|---------|-------|
+| `NOTIFICATIONS_LOOP_ENABLED` | `true` | Set `false` to disable background loop |
+| `NOTIFICATIONS_EVAL_INTERVAL_SECONDS` | `300` | Detector cycle cadence (seconds) |
+| `TELEGRAM_SEND_ENABLED` | `true` | Global kill-switch for Telegram sends |
+| `FINLYTICS_ENCRYPTION_KEY` | (required) | Already required; used for Telegram channel token encrypt/decrypt |
+
+`TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` are stored per-user in `notification_channels.config_enc` (encrypted at rest) — not needed as container env vars.
+
+---
+
+## Stack status
+
+**LEFT UP** at http://localhost:7777 as requested by DrDonoso.
+
+
+---
+

@@ -1,66 +1,12 @@
-# Project Context
+## Learnings (2026-07-17 Telegram Notification Channel Audit)
 
-- **Owner:** DrDonoso
-- **Project:** Finlytics — personal bank-account expense tracking. The owner uploads a monthly bank-statement PDF (will evolve to xlsx/csv/other). An OpenAI-based information extractor pulls out transactions and categorizes them; data is persisted and shown as interactive charts in a frontend.
-- **Stack:** TBD — Fury (Lead) to propose. Hard requirements from the owner: Docker, `.env`, a GitHub Actions deploy workflow, and OpenAI for extraction. Owner is stack-agnostic otherwise.
-- **Created:** 2026-07-03
-
-## Learnings
-
-<!-- Append new learnings below. Each entry is something lasting about the project. -->
-
-- **[2026-07-03 STACK]** Fury proposed Python 3.12 + FastAPI + PostgreSQL + React. Stack details + security boundaries in .squad/decisions.md. LiteLLM OpenAI SDK pattern + .env secrets wiring = critical surface.
-- I own security + privacy. Highest-risk edge is the OpenAI boundary: no secrets in prompts, minimize PII, consider what leaves the machine. Bank statements are sensitive — data minimization, redact account numbers where possible, secrets only in `.env`/CI secret stores (never repo/image/logs), encrypt sensitive data at rest. I define policy; Rocket wires the plumbing.
-- **[2026-07-03 PENDING]** Review raw-text→LLM PII boundary in extraction (Banner, Slice 2). Raw statement text sent to LLM with no pre-redaction; system prompt instructs model to omit IBANs/card numbers in description. Decide before production: accept (trust + validate) vs. pre-redact (strip sensitive fields) vs. minimize (send only transaction table pages).
-- **[2026-07-03 RESOLVED]** PII boundary review COMPLETE. Implemented `redaction.py` — IBANs, card/PAN numbers, and long account numbers are now masked (last 4 preserved) before any text is sent to the third-party LLM. Redaction is applied in `extractor.py` at the LLM boundary only; local DB retains full-fidelity data. Secrets/logging verified clean. 62 tests pass. See `.squad/decisions/inbox/romanoff-pii-review.md` for full findings.
-- **[2026-07-15 HEADS-UP: FIDELITY ESPP]** Feasibility probe complete for Fidelity ESPP statement-import connector. Findings: Banner's PDF extractor will require NEW PII redaction for **Participant Number** pattern: `I` + 8 digits (employee ID). Expand `redaction.py` regex. Also: full name, postal address must be masked before LLM. Flow MUST be: parse local → redact → LLM with sanitized text. PDF never stored in DB; only structured extracted data persists. Decision memo in `.squad/decisions.md` §2026-07-15T06:51:14Z. No real values or statement data in decision doc.
-
-## Learnings (2026-07-09 Remember-Me)
-
-- **[2026-07-09 IMPLEMENTED]** Remember-me on login. Two session modes controlled by `remember: bool` in the login body:
-  - `remember=false` (default): browser-SESSION cookie (no `max_age`/`expires`, cleared on browser close) + JWT exp = `auth_token_expire_days` (default 7 days).
-  - `remember=true`: PERSISTENT cookie (`max_age = auth_remember_expire_days * 86400`, default 30 days) + JWT exp = `auth_remember_expire_days` (default 30 days). Cookie survives browser close.
-  - Setup endpoint (`/api/auth/setup`) uses non-remember defaults (session cookie, 7-day JWT) — no `remember` field required there.
-  - All cookie security flags preserved: `httpOnly=True`, `samesite="lax"`, `secure=settings.auth_cookie_secure`, `path="/"`. No tokens or secrets are ever logged.
-- **Files changed:** `src/finlytics/config.py` (added `auth_remember_expire_days: int = 30`), `src/finlytics/auth/security.py` (`create_token` now accepts optional `expire_days: int | None`), `src/finlytics/api/auth.py` (`remember` field in `LoginIn`, `_set_session_cookie` accepts `max_age: int | None`, login endpoint branches on `body.remember`). Tests: `tests/api/test_auth.py` (+4 remember-me tests). Full suite: **741 passed, 2 skipped**.
-
-## Learnings (2026-07-03 PII Review)
-
-- **What leaves the machine:** The user prompt sent to LiteLLM/OpenAI contains the full parsed statement text (PDF→text via pdfplumber). This includes IBANs, card numbers, account holder names, balances, and merchant details. After redaction: only last-4 of identifiers leave; amounts/dates/merchants pass through for extraction accuracy.
-- **Redaction approach:** Pure-Python regex in `src/finlytics/extraction/redaction.py`. Applied in `extractor.py` line 101 (single call to `redact_pii()`) right before `build_user_prompt()`. Order: IBANs first (spaced, then compact), PAN numbers (spaced, then compact), then account numbers. Uses '•' as mask char.
-- **Key design choice:** Redact only at the LLM boundary. Local PostgreSQL retains full original data because it's the owner's own machine. The `raw_line` field persisted to DB comes from the parser output before redaction — full fidelity preserved.
-- **Secrets posture:** OPENAI_API_KEY loaded via pydantic-settings `.env` only; never logged, never in code. All logging in extraction pipeline logs metadata (account name, char count, run stats) — never raw text or API keys.
-- **Remaining risk:** Prompt injection via crafted statement text — mitigated by structured outputs + temperature 0 + single-user. If multi-user ever added, revisit with input sanitization.
-
-## Learnings (2026-07-14 Indexa Capital Token Security)
-
-- **[2026-07-14 DESIGN]** Security design complete for Phase 2 Indexa connector. Full spec in `.squad/decisions/inbox/romanoff-indexa-token-security.md`.
-- **[2026-07-14 ENCRYPTION]** Fernet confirmed for token-at-rest. Key env var: `INDEXA_ENCRYPTION_KEY`. Fail-closed: app refuses to start if key is absent or invalid — never falls back to plaintext. Column: `connections.token_enc` (TEXT, ciphertext only). Key rotation is a future ops task requiring re-encryption of all rows.
-- **[2026-07-14 STORAGE]** Connections table stores: id, user_id, plugin_id, status, account_label_masked, token_enc, created_at, last_synced_at. Nothing else. Email, document/national-ID, and plaintext token are explicitly prohibited columns.
-- **[2026-07-14 MASKING]** Account identifier masking format: first 3 chars + `•••` + last 2 chars (e.g. `PBK•••Z5`). Apply immediately on receipt from Indexa; store only the masked form.
-- **[2026-07-14 VALIDATION]** Token must be validated via `GET /users/me` before storage. 401/403 → reject, do not store. Error messages include only HTTP status codes — never echo the token.
-- **[2026-07-14 TRANSPORT]** TLS verify=True enforced — `verify=False` is a build blocker. Timeouts: 10s connect, 30s read. No redirect token leakage.
-- **[2026-07-14 LEAST-PRIVILEGE]** GET-only Indexa calls. POST /auth/authenticate must not exist. Wizard accepts token only — no email/document/password fields.
-- **[2026-07-14 ENV-TOKEN]** `INDEXA_API_TOKEN` in `.env` retained as dev-only bootstrap, commented out by default in `.env.example`. DB-stored encrypted token wins. Banned from production environments.
-- **[2026-07-14 DISCONNECT]** Disconnect = hard-delete of `token_enc` row + clear of any cached holdings data. User notified to also revoke in Indexa UI.
-- **[2026-07-14 BLOCKERS]** 7 build blockers defined (see threat model table in design doc). Key: no plaintext storage, no token in logs/API response, TLS verify=True, no POST auth path, fail-closed on missing key, hard-delete on disconnect.
-
-## Learnings (2026-07-15 Fidelity ESPP CSV Import Privacy Review)
-
-- **[2026-07-15 CSV IMPORT — VEREDICTO: PASS]** Revisión de privacidad completada sobre la ruta de importación CSV de Fidelity ESPP. Cuatro ficheros revisados: `api/fidelity.py`, `investments/fidelity_csv.py`, `investments/market_data.py`, `.gitignore`.
-- **[2026-07-15 SIN ALMACENAMIENTO DE CSV EN DISCO]** `api/fidelity.py` (preview y confirm) lee el CSV en memoria (`file_bytes = await file.read()`), nunca lo escribe a disco. Sin `UPLOAD_DIR`, sin `open()`, sin `file.write()`. El raw CSV se descarta en cuanto termina el request. Solo persisten en BD: hashes (SHA-256 del fichero, dedup hashes por lot) y datos estructurados de cada lot.
-- **[2026-07-15 SIN PII DE IDENTIDAD EN LA RUTA CSV]** El CSV de Fidelity "View open lots" no contiene nombre, dirección ni ID de empleado — solo datos de lotes (fecha, acciones, base de coste, fuente, divisa). El parser (`fidelity_csv.py`) no introduce campos de identidad; el hash SHA-256 del fichero es opaco y sin PII. Confirma lo dictaminado por Banner.
-- **[2026-07-15 FRONTERA EXTERNA LIMPIA]** `market_data.py` solo envía símbolos de ticker/FX a servicios externos (`msft.us`, `eurusd` → Stooq; `MSFT`, `EURUSD=X` → yfinance). Cero datos de usuario/posiciones salen de la máquina. Sin claves API (Stooq/yfinance son servicios sin autenticación).
-- **[2026-07-15 LOGGING LIMPIO]** El único `log.warning` en `api/fidelity.py` registra solo excepciones de backfill de precios, sin valores de lots. `market_data.py` registra únicamente símbolos, conteo de filas y fechas — jamás importes, shares ni datos de usuario.
-- **[2026-07-15 GITIGNORE CONFIRMA]** `/data/` está en `.gitignore` con comentario explícito. Coherente con el criterio de paridad de bank statements. La ruta CSV en realidad no genera fichero alguno en disco, por lo que este punto es moot pero igualmente verificado.
-- **[2026-07-15 SIN RIESGO DE SECRETOS]** No hay claves API, tokens ni credenciales en `market_data.py`. `InvestmentConnection.token_enc=None` en la ruta Fidelity/ESPP (CSV path es keyless por diseño).
-
-## Learnings (2026-07-15 ESPP PDF Storage Privacy Review)
-
-- **[2026-07-15 UPLOAD BEHAVIOR — CONFIRMED]** Bank statement PDFs **are already persisted** to disk. The one-shot endpoint (`create_import`) calls `_persist_import_run(session, ..., source_pdf=file_bytes)`, which writes the PDF to `settings.upload_dir` (`/app/data/uploads/`) on the mounted volume. The preview/confirm two-step flow discards the PDF in memory (no persistence). `parser.py` is purely in-memory. `/data/` is covered by `.gitignore` (explicit comment).
-- **[2026-07-15 ESPP PDF STORAGE — VERDICT]** Storing the ESPP PDF on the mounted volume is **parity with existing bank statement behavior** — not a new risk surface. For a self-hosted single-user deployment, the incremental risk vs. bank statements is moderate (adds employer/HR-linked data: address, employee ID). Recommendation: (a) store as-is on volume, consistent with bank statements. Gitignore covers `/data/`. Docker image does not include it.
-- **[2026-07-15 PRE-LLM REDACTION — NON-NEGOTIABLE]** Regardless of storage decision, `redact_pii()` must be extended before any ESPP LLM call to cover: (1) participant/employee number (`\b[A-Z]\d{6,9}\b`), (2) full name (header lines page 1), (3) postal address (header lines page 1). Current `redact_pii()` only covers IBANs/PANs/account numbers. This is separable from and independent of the storage decision.
-- **[2026-07-15 CSV ALTERNATIVE]** A shares-only CSV carries far less PII than the full PDF (no name, address, or employee ID). It sidesteps almost the entire privacy debate. Limitation: CSV lacks individual lot detail (purchase date, price per lot, cost basis per lot) needed for gain/loss calculations. For a "current position + value in EUR" MVP, CSV is the cleanest option.
+- **[2026-07-17 TELEGRAM CREDENTIAL MODEL]** `bot_token` + `chat_id` are stored as a single Fernet-encrypted JSON blob in `notification_channels.config_enc` (TEXT). The same `FINLYTICS_ENCRYPTION_KEY` / `crypto.py` Fernet helpers used by Indexa. Same fail-closed 503 pattern on missing key. `NotificationChannelOut` never returns `config_enc`, token, or chat_id. Label is `"Telegram · ••••{last4 of chat_id}"`.
+- **[2026-07-17 AUDIT VERDICT]** ⚠️ FIX-FIRST — No Critical or High findings. Two Medium findings require fixes before next deploy. Full report in `.squad/decisions/inbox/romanoff-telegram-audit.md`.
+- **[2026-07-17 M1 — MISSING UNIQUE CONSTRAINT]** `notification_channels` has no `UNIQUE(user_id, channel)`. Concurrent upserts can create duplicate rows. The `UNIQUE(notification_id, channel)` on `notification_deliveries` prevents double-sends (second attempt gets IntegrityError → caught by generic handler → "failed" in audit log), but stale encrypted configs linger. Fix: new migration adding the constraint.
+- **[2026-07-17 M2 — config_enc NULLABLE]** Column is `nullable=True` at DB level. A NULL `config_enc` row causes `AttributeError` caught silently by the generic exception handler — no crash, no token leak, but silent failure on every future delivery. Fix: `NOT NULL` in migration + explicit null guard before decrypt in `deliver_new` and the test path.
+- **[2026-07-17 LOW — httpx FLAGS]** `telegram.py` doesn't explicitly set `verify=True, follow_redirects=False` in its `httpx.AsyncClient` instantiation — relies on correct httpx defaults. Inconsistent with `indexa.py` which is explicit. Should be made explicit for all outbound httpx clients (house style).
+- **[2026-07-17 LOW — THIRD-PARTY ERROR PASSTHROUGH]** Telegram API `description` field is included verbatim in `TelegramError` and stored in `delivery.error` + returned from test endpoint. Telegram's documented descriptions don't include tokens; risk is very low but worth sanitizing.
+- **[2026-07-17 CONFIRMED CLEAN]** Auth-gating, ownership scoping (user_id filter on all channel operations), no token in logs, no token in responses, HTTPS enforced, 10s timeout, no SSRF (fixed host + chat_id in JSON body), delivery idempotency via DB UNIQUE constraint, templating uses trusted args only. All 8 threat checklist items pass (with the caveats above).
 
 ## Learnings (2026-07-14 Indexa Phase 2 Implementation Review)
 
@@ -69,4 +15,13 @@
 - **[2026-07-14 FAIL-CLOSED CORRECTION]** Spec said "refuse to start". Owner decided on scoped fail-closed: app starts normally; only encrypt/decrypt operations fail with HTTP 503. This is correct. Design doc updated. Scoped behavior is implemented cleanly in `crypto.py` + API layer catches `EncryptionNotConfiguredError` → 503.
 - **[2026-07-14 TRANSIENT ACCOUNT NUMBER]** `/connections/validate` returns raw `account_number` transiently to the wizard. Not a security issue: server re-validates ownership on connect, it's never stored, and account numbers are internal Indexa identifiers (not IBAN/email/DNI). Documented in code.
 - **[2026-07-14 TEST QUALITY]** Barton's security-invariant tests genuinely assert the invariants: token-not-in-body string checks, `add`/`flush`/`commit` not-called assertions, keyword checks in 503 detail messages, `verify=True`/`follow_redirects=False` kwargs inspection. Not just named — actually tested.
+
+
+---
+
+## 2026-07-17T13:04:32Z: Notifications + Telegram Feature Session Concluded
+
+**Status:** All deliverables merged into decisions.md and squad log. Test results: 1239 passed, 2 skipped. Docker E2E: PASS. Orchestration logs written.
+
+**Key outcome:** Hybrid notifications model + Telegram channel with Fernet encryption. Backend-owned state. No Critical findings.
 
