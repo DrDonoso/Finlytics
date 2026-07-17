@@ -4,6 +4,12 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260717.05] - 2026-07-17
+
+- backend: GET /api/statements/reminder returns { year, month, missing_account_ids } — accounts with prior statement history that are missing the previous completed calendar month (grace 0; established-this-month or no-history accounts are not flagged).
+- frontend: a subtle warning marker with a localized portal tooltip ("Falta subir el extracto de {month}") next to each affected account in the Home accounts table.
+
+
 ## [20260717.04] - 2026-07-17
 
 - backend: per-transaction allow_duplicate flag on ExtractedTransaction (carried through /api/imports/confirm). compute_dedup_hash() gains an optional disambiguator (None keeps existing hashes byte-identical); upsert_transactions() hashes a uuid disambiguator for allow_duplicate rows so they get a unique dedup_hash and INSERT instead of being skipped by ON CONFLICT.
