@@ -1,0 +1,27 @@
+.squad/orchestration-log/20260717T104500Z-coordinator.md
+  s_73c2a640246f02::t_013ad2a49b8369 1-28
+.squad/orchestration-log/20260717T104500Z-vision.md
+  s_73c2a640246f02::t_cddd18391165ab 1-21
+.squad/log/20260717T104500Z-db-reset-and-duplicate-override.md
+  s_73c2a640246f02::t_1790a998af3fbf 1-15
+.squad/orchestration-log/20260717T104500Z-shuri.md
+  s_73c2a640246f02::t_469c6b5a765acd 1-20
+.squad/decisions.md
+  s_73c2a640246f02::t_7f2a3c66f3336f 1-44,7804
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "1db415461bfabe5d72ba299e43768c68b5ac6e81",
+  "prompts": {},
+  "sessions": {
+    "s_73c2a640246f02": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_017SWwpfjyaGrTDagBjfmEp7",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    }
+  }
+}
