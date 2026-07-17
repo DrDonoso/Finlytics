@@ -6080,10 +6080,42 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
   flex-direction: column;
   gap: 2px;
 }
+.dashboard-account-name-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
 .dashboard-account-name {
   font-size: 13px;
   font-weight: 600;
   color: var(--text);
+}
+.dashboard-statement-warning {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(var(--expense-rgb), 0.28);
+  background: rgba(var(--expense-rgb), 0.08);
+  color: var(--expense);
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1;
+  cursor: help;
+  padding: 0;
+  flex-shrink: 0;
+}
+.dashboard-statement-warning:hover,
+.dashboard-statement-warning:focus-visible {
+  border-color: var(--expense);
+  background: rgba(var(--expense-rgb), 0.12);
+}
+.dashboard-statement-warning:focus-visible {
+  outline: 2px solid rgba(var(--expense-rgb), 0.28);
+  outline-offset: 2px;
 }
 .dashboard-account-mask {
   font-size: 11px;

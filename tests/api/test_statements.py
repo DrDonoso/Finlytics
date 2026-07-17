@@ -7,7 +7,10 @@ Covers:
 
 from __future__ import annotations
 
+from datetime import date
 from unittest.mock import AsyncMock, patch
+
+from finlytics.api.statements import compute_statement_reminder
 
 
 _MONTHS = [
@@ -78,6 +81,94 @@ async def test_list_months_empty(client):
 
     assert resp.status_code == 200
     assert resp.json() == []
+
+
+# ── GET /api/statements/reminder ─────────────────────────────────────────────
+
+def test_compute_statement_reminder_flags_history_missing_previous_month():
+    result = compute_statement_reminder(
+        date(2026, 7, 17),
+        {1: [(2026, 5), (2026, 4)]},
+    )
+
+    assert result.year == 2026
+    assert result.month == 6
+    assert result.missing_account_ids == [1]
+
+
+def test_compute_statement_reminder_does_not_flag_when_previous_month_present():
+    result = compute_statement_reminder(
+        date(2026, 7, 17),
+        {1: [(2026, 6), (2026, 5)]},
+    )
+
+    assert result.missing_account_ids == []
+
+
+def test_compute_statement_reminder_does_not_flag_account_with_no_history():
+    result = compute_statement_reminder(date(2026, 7, 17), {1: []})
+
+    assert result.missing_account_ids == []
+
+
+def test_compute_statement_reminder_does_not_flag_current_month_only_account():
+    result = compute_statement_reminder(date(2026, 7, 17), {1: [(2026, 7)]})
+
+    assert result.missing_account_ids == []
+
+
+def test_compute_statement_reminder_mixed_accounts():
+    result = compute_statement_reminder(
+        date(2026, 7, 17),
+        {
+            1: [(2026, 5)],
+            2: [(2026, 6), (2026, 5)],
+            3: [],
+            4: [(2026, 7)],
+            5: [(2025, 12), (2026, 4)],
+        },
+    )
+
+    assert result.missing_account_ids == [1, 5]
+
+
+def test_compute_statement_reminder_handles_january_previous_month():
+    result = compute_statement_reminder(
+        date(2026, 1, 1),
+        {1: [(2025, 11)], 2: [(2025, 12)]},
+    )
+
+    assert result.year == 2025
+    assert result.month == 12
+    assert result.missing_account_ids == [1]
+
+
+async def test_statement_reminder_endpoint_returns_missing_account_ids(client):
+    with (
+        patch("finlytics.db.queries.get_accounts", new_callable=AsyncMock) as get_accounts,
+        patch("finlytics.db.queries.get_statement_months", new_callable=AsyncMock) as get_months,
+        patch("finlytics.api.statements._get_today", return_value=date(2026, 7, 17)),
+    ):
+        get_accounts.return_value = [
+            {"id": 1, "name": "A"},
+            {"id": 2, "name": "B"},
+            {"id": 3, "name": "C"},
+        ]
+        get_months.side_effect = [
+            [{"year": 2026, "month": 5, "count": 1}],
+            [{"year": 2026, "month": 6, "count": 1}],
+            [],
+        ]
+
+        resp = await client.get("/api/statements/reminder")
+
+    assert resp.status_code == 200
+    assert resp.json() == {
+        "year": 2026,
+        "month": 6,
+        "missing_account_ids": [1],
+    }
+    assert get_months.await_count == 3
 
 
 # ── DELETE /api/statements/month ──────────────────────────────────────────────

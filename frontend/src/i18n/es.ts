@@ -407,6 +407,8 @@ const es: Dict = {
   dashboardAccountsNet: 'Neto histórico',
   dashboardAccountsAvgMonthlyExpense: 'Gasto medio/mes',
   dashboardAccountsEmpty: 'Sin datos de cuentas todavía',
+  dashboardStatementMissingLabel: 'Extracto pendiente',
+  dashboardStatementMissingTooltip: (month: string) => `Falta subir el extracto de ${month}`,
   // ── Investments page ──────────────────────────────────────────────────────
   investmentsTitle: 'Inversiones',
   investmentsKpiTotalValue: 'Valor total',

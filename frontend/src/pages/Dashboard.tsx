@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react'
+import type { MouseEvent, ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useNavigate } from 'react-router-dom'
-import type { Account, AccountSummary, CombinedOverview, Overview, FidelityReminderResponse } from '../api/types'
+import type { Account, AccountSummary, CombinedOverview, Overview, FidelityReminderResponse, StatementReminder } from '../api/types'
 import {
   getAccounts, getOverview, getOverviewMonths, getByAccount,
-  getCombinedOverview, getFidelityReminder,
+  getCombinedOverview, getFidelityReminder, getStatementReminder,
 } from '../api/client'
 import InvestmentSnapshotCard from '../components/InvestmentSnapshotCard'
 import { useT } from '../i18n'
+import type { Lang } from '../i18n'
 
 interface AsyncState<T> {
   loading: boolean
@@ -40,7 +42,28 @@ function accountKey(name: string): string {
   return name.trim().toLowerCase()
 }
 
-function InfoTooltip({ text }: { text: string }) {
+function formatMonthLabel(ym: string, lang: Lang): string {
+  const [year, month] = ym.split('-').map(Number)
+  const locale = lang === 'es' ? 'es-ES' : 'en-GB'
+  const monthLabel = new Intl.DateTimeFormat(locale, { month: 'long' }).format(
+    new Date(year, month - 1, 1),
+  )
+  return `${monthLabel.charAt(0).toLocaleUpperCase(locale)}${monthLabel.slice(1)} ${year}`
+}
+
+function PortalTooltipButton({
+  text,
+  className,
+  children,
+  ariaLabel,
+  onClick,
+}: {
+  text: string
+  className: string
+  children: ReactNode
+  ariaLabel?: string
+  onClick?: (event: MouseEvent<HTMLButtonElement>) => void
+}) {
   const [openTip, setOpenTip] = useState<{ text: string; x: number; y: number } | null>(null)
 
   const open = (target: HTMLElement) => {
@@ -51,15 +74,17 @@ function InfoTooltip({ text }: { text: string }) {
   return (
     <>
       <button
-        className="inv-info-tip dashboard-info-tip"
+        className={className}
         type="button"
-        aria-label={text}
+        aria-label={ariaLabel ?? text}
+        onClick={onClick}
+        onKeyDown={event => event.stopPropagation()}
         onMouseEnter={e => open(e.currentTarget)}
         onFocus={e => open(e.currentTarget)}
         onMouseLeave={() => setOpenTip(null)}
         onBlur={() => setOpenTip(null)}
       >
-        ⓘ
+        {children}
       </button>
       {openTip && createPortal(
         <div
@@ -94,8 +119,29 @@ function InfoTooltip({ text }: { text: string }) {
   )
 }
 
+function InfoTooltip({ text }: { text: string }) {
+  return (
+    <PortalTooltipButton text={text} className="inv-info-tip dashboard-info-tip">
+      ⓘ
+    </PortalTooltipButton>
+  )
+}
+
+function StatementWarning({ label, text }: { label: string; text: string }) {
+  return (
+    <PortalTooltipButton
+      text={text}
+      ariaLabel={label}
+      className="dashboard-statement-warning"
+      onClick={event => event.stopPropagation()}
+    >
+      ⚠
+    </PortalTooltipButton>
+  )
+}
+
 export default function Dashboard() {
-  const { t } = useT()
+  const { t, lang } = useT()
   const navigate = useNavigate()
 
   const [accounts, setAccounts] = useState<AsyncState<Account[]>>(idle())
@@ -104,6 +150,7 @@ export default function Dashboard() {
   const [byAccount, setByAccount] = useState<AsyncState<AccountSummary[]>>(idle())
   const [monthsCount, setMonthsCount] = useState<AsyncState<number>>(idle())
   const [refreshKey] = useState(0)
+  const [statementReminder, setStatementReminder] = useState<StatementReminder | null>(null)
 
   // ESPP upload-reminder banner
   const [esppReminder, setEsppReminder] = useState<FidelityReminderResponse | null>(null)
@@ -113,6 +160,7 @@ export default function Dashboard() {
       .then(d => setAccounts({ loading: false, error: null, data: d }))
       .catch(e => setAccounts({ loading: false, error: String(e), data: null }))
     getFidelityReminder().then(setEsppReminder).catch(() => {})
+    getStatementReminder().then(setStatementReminder).catch(() => setStatementReminder(null))
   }, [])
 
   // Fetch available months once for global monthly averages.
@@ -160,6 +208,12 @@ export default function Dashboard() {
   const accountNetTotal = byAccount.data?.reduce((sum, row) => sum + row.net, 0) ?? 0
   const investmentsValue = investmentsOverview.data?.total_value_eur ?? 0
   const totalNetWorth = accountNetTotal + investmentsValue
+  const missingStatementAccountIds = statementReminder?.year != null && statementReminder.month != null
+    ? new Set(statementReminder.missing_account_ids)
+    : new Set<number>()
+  const statementReminderMonthLabel = statementReminder?.year != null && statementReminder.month != null
+    ? formatMonthLabel(`${statementReminder.year}-${String(statementReminder.month).padStart(2, '0')}`, lang)
+    : null
 
   return (
     <main className="dashboard">
@@ -238,7 +292,15 @@ export default function Dashboard() {
                     >
                       <td className="cat-td-name">
                         <div className="dashboard-account-name-cell">
-                          <span className="dashboard-account-name">{account?.name ?? row.account}</span>
+                          <div className="dashboard-account-name-line">
+                            <span className="dashboard-account-name">{account?.name ?? row.account}</span>
+                            {account && statementReminderMonthLabel && missingStatementAccountIds.has(account.id) && (
+                              <StatementWarning
+                                label={t.dashboardStatementMissingLabel}
+                                text={t.dashboardStatementMissingTooltip(statementReminderMonthLabel)}
+                              />
+                            )}
+                          </div>
                           {account?.account_number_masked && (
                             <span className="dashboard-account-mask">{account.account_number_masked}</span>
                           )}
