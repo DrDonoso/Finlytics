@@ -697,6 +697,10 @@ export interface Dict {
   notifSettingsDeleted: string
   // ── Transaction detail modal ──────────────────────────────────────────────
   txDetailModalTitle: string
+  // ── Finances drill-down table ─────────────────────────────────────────────
+  kpisPrevPeriodLabel: string
+  drillDownActiveFilters: string
+  drillDownClearAll: string
 }
 
 const ES_LABELS: Record<string, string> = {
