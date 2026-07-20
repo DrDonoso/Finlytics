@@ -19,6 +19,7 @@ import PluginViewWrapper from './investments/PluginViewWrapper'
 import ConnectorsPage from './pages/ConnectorsPage'
 import AboutPage from './pages/AboutPage'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
+import { NotificationsProvider } from './contexts/NotificationsContext'
 import { useT } from './i18n'
 
 function AppContent() {
@@ -37,33 +38,35 @@ function AppContent() {
   if (!authenticated) return <LoginPage />
 
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Layout />}>
-          <Route index element={<Dashboard />} />
-          <Route path="finances" element={<FinancesOverviewPage />} />
-          <Route path="transactions" element={<TransactionsPage />} />
-          <Route path="analytics" element={<AnalyticsPage />} />
-          <Route path="investments">
-            <Route index element={<InvestmentsLandingPage />} />
-            <Route path=":pluginId" element={<PluginViewWrapper />} />
+    <NotificationsProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<Layout />}>
+            <Route index element={<Dashboard />} />
+            <Route path="finances" element={<FinancesOverviewPage />} />
+            <Route path="transactions" element={<TransactionsPage />} />
+            <Route path="analytics" element={<AnalyticsPage />} />
+            <Route path="investments">
+              <Route index element={<InvestmentsLandingPage />} />
+              <Route path=":pluginId" element={<PluginViewWrapper />} />
+            </Route>
+            <Route path="statements" element={<StatementsPage />} />
+            <Route path="rules" element={<Navigate to="/settings/rules" replace />} />
+            <Route path="settings" element={<SettingsLayout />}>
+              <Route index element={<Navigate to="tags" replace />} />
+              <Route path="accounts" element={<AccountsPage />} />
+              <Route path="tags" element={<SettingsPage />} />
+              <Route path="categories" element={<CategoriesPage />} />
+              <Route path="appearance" element={<AppearancePage />} />
+              <Route path="backup" element={<BackupPage />} />
+              <Route path="connectors" element={<ConnectorsPage />} />
+              <Route path="rules" element={<RulesPage />} />
+              <Route path="about" element={<AboutPage />} />
+            </Route>
           </Route>
-          <Route path="statements" element={<StatementsPage />} />
-          <Route path="rules" element={<Navigate to="/settings/rules" replace />} />
-          <Route path="settings" element={<SettingsLayout />}>
-            <Route index element={<Navigate to="tags" replace />} />
-            <Route path="accounts" element={<AccountsPage />} />
-            <Route path="tags" element={<SettingsPage />} />
-            <Route path="categories" element={<CategoriesPage />} />
-            <Route path="appearance" element={<AppearancePage />} />
-            <Route path="backup" element={<BackupPage />} />
-            <Route path="connectors" element={<ConnectorsPage />} />
-            <Route path="rules" element={<RulesPage />} />
-            <Route path="about" element={<AboutPage />} />
-          </Route>
-        </Route>
-      </Routes>
-    </BrowserRouter>
+        </Routes>
+      </BrowserRouter>
+    </NotificationsProvider>
   )
 }
 

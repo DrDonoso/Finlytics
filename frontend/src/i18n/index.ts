@@ -166,11 +166,24 @@ export interface Dict {
   backupPageTitle: string
   backupIntro: string
   backupExportTitle: string
+  backupExportSectionIntro: string
   backupExportBtn: string
   backupExporting: string
+  backupSelectAtLeastOne: string
+  backupSectionTransactions: string
+  backupSectionAccounts: string
+  backupSectionCategories: string
+  backupSectionTags: string
+  backupSectionRules: string
+  backupSectionInvestments: string
+  backupIndexaTokenNote: string
   backupImportTitle: string
+  backupImportIntro: string
   backupImportBtn: string
+  backupImportSubmitBtn: string
   backupImporting: string
+  backupImportNoFile: string
+  backupImportSelectedFile: string
   backupImportConfirm: string
   backupSummaryTitle: string
   backupSummaryAccountsCreated: string
@@ -181,6 +194,17 @@ export interface Dict {
   backupSummaryTagsUpdated: string
   backupSummaryTxInserted: string
   backupSummaryTxDuplicates: string
+  backupSummaryRulesCreated: string
+  backupSummaryRulesUpdated: string
+  backupSummaryInvestmentConnectionsCreated: string
+  backupSummaryInvestmentConnectionsUpdated: string
+  backupSummaryEsppLotsInserted: string
+  backupSummaryEsppLotsDuplicates: string
+  backupSummaryPriceHistoryInserted: string
+  backupSummaryPriceHistoryDuplicates: string
+  backupSummaryInvestmentConnections: string
+  backupSummaryEsppLots: string
+  backupSummaryPriceHistory: string
   backupErrorInvalidJson: string
   backupErrorInvalidShape: string
   // ── Import preview — merchant + tag typeahead ─────────────────────────
@@ -418,6 +442,8 @@ export interface Dict {
   // ── Connectors settings page ──────────────────────────────────────────────
   settingsSubConnectors: string
   investmentsManageConnectors: string
+  connectorsInvestmentsTitle: string
+  connectorsNotificationsTitle: string
   // ── Indexa Wizard ─────────────────────────────────────────────────────────
   wizardTitle: string
   wizardProgressLabel: string
@@ -606,6 +632,71 @@ export interface Dict {
   aboutReportIssue: string
   aboutChangelog: string
   aboutLicense: string
+  // ── Notifications ──────────────────────────────────────────────────────────
+  notifPanelTitle: string
+  notifMarkAllRead: string
+  notifEmpty: string
+  notifDismiss: string
+  notifTimeJustNow: string
+  notifTimeMinutes: (n: number) => string
+  notifTimeHours: (n: number) => string
+  notifTimeDays: (n: number) => string
+  notifTimeWeeks: (n: number) => string
+  notifTitleStatementMissing: (args: { month: string | number; account: string | number }) => string
+  notifTitleEsppOverdue: (args: { period: string | number }) => string
+  notifActionView: string
+  notifMarkRead: string
+  notifTitleUnknown: string
+  notifBodyStatementMissing: (args: { month: string | number; account: string | number }) => string
+  notifBodyEsppOverdue: (args: { period: string | number }) => string
+  // ── Telegram wizard ────────────────────────────────────────────────────────
+  tgWizardTitle: string
+  tgWizardProgressLabel: string
+  tgWizardStep1Title: string
+  tgWizardStep1Desc: string
+  tgWizardStep1Link: string
+  tgWizardSecurityNote: string
+  tgWizardBotFatherStep1: string
+  tgWizardBotFatherStep2: string
+  tgWizardBotFatherStep3: string
+  tgWizardBotFatherLink: string
+  tgWizardStep2Title: string
+  tgWizardStep2TokenLabel: string
+  tgWizardStep2TokenPlaceholder: string
+  tgWizardStep3Title: string
+  tgWizardStep3ChatIdLabel: string
+  tgWizardStep3ChatIdPlaceholder: string
+  tgWizardStep3ChatIdHint: string
+  tgWizardChatIdValidationError: string
+  tgWizardStep3TestBtn: string
+  tgWizardStep3Testing: string
+  tgWizardStep3TestOk: string
+  tgWizardStep4Title: string
+  tgWizardStep4Desc: string
+  tgWizardStep4Saving: string
+  tgWizardNext: string
+  tgWizardBack: string
+  tgWizardClose: string
+  tgWizardConnect: string
+  tgWizardRetry: string
+  tgWizardDone: string
+  tgWizardErrorBadToken: string
+  tgWizardErrorNoKey: string
+  tgWizardErrorSave: string
+  // ── Notifications settings page ────────────────────────────────────────────
+  settingsSubNotifications: string
+  notifSettingsTitle: string
+  notifSettingsNoChannels: string
+  notifSettingsTelegramLabel: string
+  notifSettingsEnabled: string
+  notifSettingsDisabled: string
+  notifSettingsConnectBtn: string
+  notifSettingsEditBtn: string
+  notifSettingsDeleteBtn: string
+  notifSettingsDeleteConfirm: string
+  notifSettingsDeleted: string
+  // ── Transaction detail modal ──────────────────────────────────────────────
+  txDetailModalTitle: string
 }
 
 const ES_LABELS: Record<string, string> = {

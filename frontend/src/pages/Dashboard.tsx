@@ -2,14 +2,15 @@ import { useState, useEffect } from 'react'
 import type { MouseEvent, ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useNavigate } from 'react-router-dom'
-import type { Account, AccountSummary, CombinedOverview, Overview, FidelityReminderResponse, StatementReminder } from '../api/types'
+import type { Account, AccountSummary, CombinedOverview, Overview, StatementReminder } from '../api/types'
 import {
   getAccounts, getOverview, getOverviewMonths, getByAccount,
-  getCombinedOverview, getFidelityReminder, getStatementReminder,
+  getCombinedOverview, getStatementReminder,
 } from '../api/client'
 import InvestmentSnapshotCard from '../components/InvestmentSnapshotCard'
 import { useT } from '../i18n'
 import type { Lang } from '../i18n'
+import { useNotifications } from '../contexts/NotificationsContext'
 
 interface AsyncState<T> {
   loading: boolean
@@ -143,6 +144,7 @@ function StatementWarning({ label, text }: { label: string; text: string }) {
 export default function Dashboard() {
   const { t, lang } = useT()
   const navigate = useNavigate()
+  const { notifications } = useNotifications()
 
   const [accounts, setAccounts] = useState<AsyncState<Account[]>>(idle())
   const [overview, setOverview] = useState<AsyncState<Overview>>(idle())
@@ -152,14 +154,10 @@ export default function Dashboard() {
   const [refreshKey] = useState(0)
   const [statementReminder, setStatementReminder] = useState<StatementReminder | null>(null)
 
-  // ESPP upload-reminder banner
-  const [esppReminder, setEsppReminder] = useState<FidelityReminderResponse | null>(null)
-
   useEffect(() => {
     getAccounts()
       .then(d => setAccounts({ loading: false, error: null, data: d }))
       .catch(e => setAccounts({ loading: false, error: String(e), data: null }))
-    getFidelityReminder().then(setEsppReminder).catch(() => {})
     getStatementReminder().then(setStatementReminder).catch(() => setStatementReminder(null))
   }, [])
 
@@ -325,14 +323,19 @@ export default function Dashboard() {
 
       <InvestmentSnapshotCard />
 
-      {esppReminder?.overdue && (
-        <div className="espp-reminder-banner" role="alert">
-          <span>⚠ {t.esppReminderBanner(esppReminder.period_label)}</span>
-          <Link to="/investments/fidelity-espp" className="espp-reminder-banner__link">
-            {t.esppReminderAction}
-          </Link>
-        </div>
-      )}
+      {(() => {
+        const activeEspp = notifications.find(n => n.source === 'espp')
+        if (!activeEspp) return null
+        const period = typeof activeEspp.title_args.period === 'string' ? activeEspp.title_args.period : null
+        return (
+          <div className="espp-reminder-banner" role="alert">
+            <span>⚠ {t.esppReminderBanner(period)}</span>
+            <Link to="/investments/fidelity-espp" className="espp-reminder-banner__link">
+              {t.esppReminderAction}
+            </Link>
+          </div>
+        )
+      })()}
     </main>
   )
 }

@@ -23,6 +23,13 @@
   --font: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --sidebar-width: 240px;
   --topbar-height: 52px;
+  /* ── Warning family ── */
+  --warning: #f59e0b;
+  --warning-rgb: 245, 158, 11;
+  --warning-bg: rgba(245, 158, 11, 0.10);
+  --warning-text: #b45309;
+  /* ── Notification unread background ── */
+  --notif-unread-bg: rgba(var(--primary-rgb), 0.04);
 }
 
 /* ─── Accent palette tokens ───────────────────────────────────────── */
@@ -140,6 +147,12 @@
   --text: #f1f5f9;
   --text-muted: #94a3b8;
   --shadow: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --warning: #fbbf24;
+  --warning-rgb: 251, 191, 36;
+  --warning-bg: rgba(251, 191, 36, 0.08);
+  --warning-text: #fbbf24;
+  /* Slightly stronger unread tint so the 7% shows on dark surfaces */
+  --notif-unread-bg: rgba(var(--primary-rgb), 0.07);
 }
 
 /* ─── Design tokens — Dark (system preference, only when explicit not set) ─ */
@@ -151,6 +164,11 @@
     --text: #f1f5f9;
     --text-muted: #94a3b8;
     --shadow: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
+    --warning: #fbbf24;
+    --warning-rgb: 251, 191, 36;
+    --warning-bg: rgba(251, 191, 36, 0.08);
+    --warning-text: #fbbf24;
+    --notif-unread-bg: rgba(var(--primary-rgb), 0.07);
   }
 }
 
@@ -807,7 +825,19 @@ a { color: var(--primary); text-decoration: none; }
   .filter-group .date-picker-trigger { width: 100%; height: 44px; }
   /* Mobile: full column stack — filters → KPIs → Import */
   .dashboard-header { flex-direction: column; align-items: stretch; }
-  .header-kpis { border-left: none; border-top: 1px solid var(--border); justify-content: flex-start; gap: 8px 16px; }
+  /* Switch compact KPI strip to a clean 2-col grid so all 6 items
+     align in equal-width cells (no orphan/dropped cell, no cramping). */
+  .header-kpis {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px 16px;
+    border-left: none;
+    border-top: 1px solid var(--border);
+    align-items: start;
+  }
+  /* Divider between constant-net and filtered KPIs is meaningless in a
+     2-col grid — hide it to avoid occupying an unwanted grid cell. */
+  .header-kpi-divider { display: none; }
   .dashboard-header-actions { align-self: center; margin: 0 12px 12px; }
   /* Single column on mobile — span 1 */
   .tx-filter-panel .date-range-wrap {
@@ -2304,10 +2334,12 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
   font-size: 11px;
 }
 
-/* Very small screens: slightly smaller donut */
+/* Mobile: keep wrap tall enough for the 232px-diameter donut and never
+   wider than the container (width: 100% handles that). The 220px cap was
+   narrower than the donut, causing left/right clipping on phones ≥360px. */
 @media (max-width: 500px) {
   .cat-donut-wrap {
-    max-width: 220px;
+    max-width: 280px;
     height: 240px;
   }
 }
@@ -2878,6 +2910,44 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
   margin: 0 0 12px;
 }
 
+.backup-section-copy {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.backup-checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.backup-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.backup-checkbox input {
+  accent-color: var(--primary);
+}
+
+.backup-note {
+  margin: 0 0 14px;
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
 /* Action row — Export (primary/solid) + Import (secondary/outline) */
 .backup-actions {
   display: flex;
@@ -2918,6 +2988,11 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
   pointer-events: none;
 }
 
+.backup-file-name {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
 /* Post-import result box — subtle success tint + left green accent */
 .backup-summary {
   margin-top: 20px;
@@ -2936,33 +3011,45 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
   margin: 0 0 12px;
 }
 
-/* 2-col grid on wider screens for the 8 count rows */
+.backup-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px 20px;
+}
+
+.backup-summary-section h5 {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+
 .backup-summary-list {
   list-style: none;
   padding: 0;
   margin: 0;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
   font-size: 13px;
   color: var(--text);
 }
 
-/* "Created" / "inserted" — odd positions (1,3,5,7) → positive green */
-.backup-summary-list li:nth-child(odd) strong {
-  color: var(--income);
+.backup-summary-count {
   font-weight: 700;
 }
-/* "Existing" / "duplicates" — even positions default → muted/neutral */
-.backup-summary-list li:nth-child(even) strong {
+
+.backup-summary-count--positive {
+  color: var(--income);
+}
+
+.backup-summary-count--neutral {
   color: var(--text-muted);
   font-weight: 600;
 }
-/* "Updated" items — positions 4 (categories) and 6 (tags) → primary blue */
-.backup-summary-list li:nth-child(4) strong,
-.backup-summary-list li:nth-child(6) strong {
+
+.backup-summary-count--update {
   color: var(--primary);
-  font-weight: 700;
 }
 
 /* ── Responsive ──────────────────────────────────────────────────────── */
@@ -3934,6 +4021,9 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 10px;
+    /* .month-header has align-items: flex-start, so children shrink to
+       content width in column-flex mode. Force full width here. */
+    width: 100%;
   }
   .month-header > .tx-totals .tx-total {
     flex: unset;
@@ -4765,6 +4855,27 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
   margin-top: 1px;
 }
 
+/* Telegram wizard — test row + hint */
+.inv-wizard__test-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.inv-wizard__test-ok {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--income);
+}
+
+.inv-wizard__field-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.4;
+  margin: 0;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
    Investments page — populated view
    ═══════════════════════════════════════════════════════════════════════ */
@@ -4812,28 +4923,14 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
   align-items: flex-start;
   gap: 10px;
   padding: 12px 16px;
-  background: rgba(251, 191, 36, 0.12);
-  border: 1px solid rgba(251, 191, 36, 0.4);
-  border-left: 4px solid #f59e0b;
+  background: var(--warning-bg);
+  border: 1px solid rgba(var(--warning-rgb), 0.35);
+  border-left: 4px solid var(--warning);
   border-radius: 8px;
-  color: #b45309;
+  color: var(--warning-text);
   font-size: 13px;
   line-height: 1.5;
   margin-bottom: 16px;
-}
-[data-theme="dark"] .espp-reminder-banner {
-  background: rgba(251, 191, 36, 0.08);
-  color: #fbbf24;
-  border-left-color: #fbbf24;
-  border-color: rgba(251, 191, 36, 0.3);
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .espp-reminder-banner {
-    background: rgba(251, 191, 36, 0.08);
-    color: #fbbf24;
-    border-left-color: #fbbf24;
-    border-color: rgba(251, 191, 36, 0.3);
-  }
 }
 .espp-reminder-banner__link {
   font-weight: 600;
@@ -4845,16 +4942,8 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
 
 /* Amber stale-price indicator inside the account header strip */
 .inv-account-header__updated--stale {
-  color: #b45309;
+  color: var(--warning-text);
   font-weight: 600;
-}
-[data-theme="dark"] .inv-account-header__updated--stale {
-  color: #fbbf24;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .inv-account-header__updated--stale {
-    color: #fbbf24;
-  }
 }
 
 /* ─── Fidelity ESPP — lot source badges (SP / DO) ───────────────────────────── */
@@ -6215,4 +6304,319 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
 .about-stack {
   font-size: 13px;
   color: var(--text-muted);
+}
+
+/* ─── Topbar actions slot (right end of topbar) ─────────────────── */
+.topbar-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* ─── Notification Bell ──────────────────────────────────────────── */
+.notif-bell-btn {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 18px;
+  cursor: pointer;
+  transition: background 0.15s;
+  font-family: inherit;
+  flex-shrink: 0;
+}
+.notif-bell-btn:hover { background: var(--bg); }
+.notif-bell-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+.notif-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: var(--expense);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 3px;
+  pointer-events: none;
+  line-height: 1;
+  /* Separation ring so the badge pops on any button bg */
+  box-shadow: 0 0 0 2px var(--surface);
+}
+/* In dark palettes where --expense is a light colour, switch to a dark text */
+[data-theme="dark"][data-palette="amber"] .notif-badge,
+[data-theme="dark"][data-palette="contrast"] .notif-badge {
+  color: var(--primary-contrast);
+}
+
+/* ─── Notification Panel ─────────────────────────────────────────── */
+.notif-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 499;
+  background: transparent;
+  cursor: pointer; /* iOS Safari: non-button elements need cursor:pointer to receive click events */
+}
+
+.notif-panel {
+  position: fixed;
+  z-index: 500;
+  width: 380px;
+  max-width: 380px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.14), 0 2px 8px rgba(0, 0, 0, 0.08);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.notif-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.notif-panel__title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.notif-panel__mark-all {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--primary);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+.notif-panel__mark-all:hover { background: rgba(var(--primary-rgb), 0.08); }
+
+.notif-panel__list {
+  flex: 1;
+  overflow-y: auto;
+  max-height: calc(100dvh - var(--topbar-height) - 80px);
+}
+
+.notif-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 40px 24px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.notif-empty__icon { font-size: 28px; }
+
+/* ─── Notification Item ──────────────────────────────────────────── */
+.notif-item {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 36px 12px 14px;
+  border-bottom: 1px solid var(--border);
+  border-left: 3px solid transparent;
+  transition: background 0.12s;
+  cursor: default;
+}
+.notif-item:last-child { border-bottom: none; }
+.notif-item--warning { border-left-color: var(--warning); }
+.notif-item--info { border-left-color: var(--primary); }
+.notif-item--unread { background: var(--notif-unread-bg); }
+/* Severity-specific icon colours */
+.notif-item--warning .notif-item__icon { color: var(--warning-text); }
+.notif-item--info    .notif-item__icon { color: var(--primary); }
+
+.notif-item__dot {
+  all: unset;
+  display: block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--primary);
+  margin-top: 5px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.notif-item__dot:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.notif-item__icon {
+  font-size: 14px;
+  margin-top: 1px;
+  flex-shrink: 0;
+  width: 18px;
+  text-align: center;
+}
+
+.notif-item__body { flex: 1; min-width: 0; }
+
+.notif-item__title {
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--text);
+  margin-bottom: 2px;
+  word-break: break-word;
+}
+.notif-item__title--unread { font-weight: 600; }
+.notif-item__title--read { font-weight: 400; color: var(--text-muted); }
+
+.notif-item__time {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.notif-item__body-text {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 2px;
+  line-height: 1.4;
+}
+
+.notif-item__action {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--primary);
+  text-decoration: underline;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+  margin-top: 2px;
+}
+.notif-item__action:hover { opacity: 0.8; }
+
+.notif-item__dismiss {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  border-radius: 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+  font-family: inherit;
+  padding: 0;
+  opacity: 0;
+}
+.notif-item:hover .notif-item__dismiss,
+.notif-item:focus-within .notif-item__dismiss {
+  opacity: 1;
+}
+.notif-item__dismiss:hover {
+  background: rgba(var(--expense-rgb), 0.12);
+  color: var(--expense);
+  opacity: 1;
+}
+
+/* ─── Mobile: full-width sheet ───────────────────────────────────── */
+@media (max-width: 600px) {
+  .notif-panel {
+    top: var(--topbar-height) !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    max-width: unset !important;
+    max-height: calc(100dvh - var(--topbar-height) - 16px);
+    overflow-y: auto;
+    border-radius: 0 0 var(--radius) var(--radius);
+  }
+  .notif-panel__list { max-height: none; }
+  /* On touch, dismiss is always visible and meets 40px tap-target */
+  .notif-item__dismiss {
+    opacity: 1;
+    width: 32px;
+    height: 40px;
+    top: 0;
+    right: 0;
+    border-radius: 0 0 0 4px;
+  }
+}
+
+/* ── Transaction Detail Modal ─────────────────────────────────────── */
+.modal-tx-detail { max-width: 520px; }
+
+.tx-detail-body { padding: 0 24px; }
+
+.tx-detail-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+.tx-detail-field:last-of-type { border-bottom: none; }
+
+.tx-detail-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.tx-detail-value {
+  font-size: 15px;
+  color: var(--text);
+}
+
+.tx-detail-field--editable .td-edit-input { width: 100%; }
+.tx-detail-field--editable .amount-cell { display: flex; gap: 6px; }
+
+.tx-detail-cat-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.tx-detail-cat-row .category-cell { flex: 1; min-width: 0; }
+
+.tx-detail-subline-note {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* Mobile: tappable row affordance */
+@media (max-width: 600px) {
+  tr.tr-mobile-tappable { cursor: pointer; }
+  tr.tr-mobile-tappable:active { background: var(--border); }
 }
