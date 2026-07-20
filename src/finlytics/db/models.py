@@ -529,3 +529,133 @@ class Rule(Base):
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"<Rule id={self.id} name={self.name!r} priority={self.priority}>"
+
+
+# ── Notifications ─────────────────────────────────────────────────────────────
+
+class Notification(Base):
+    """A detected notification for a user.
+
+    Rows are upserted by (user_id, dedup_key) — one row per standing condition.
+    read_at / dismissed_at survive detector re-evaluations (never cleared on
+    upsert). resolved_at is set when the condition is no longer detected; the
+    row is kept so Telegram never re-sends a delivered notification.
+
+    dedup_key examples:
+      statement:missing:2026-06:acct-3   — one per (account × month)
+      espp:overdue:2026-Q2               — one per ESPP quarter
+    """
+
+    __tablename__ = "notifications"
+    __table_args__ = (
+        UniqueConstraint("user_id", "dedup_key", name="uq_notifications_user_dedup"),
+        Index("ix_notifications_user_id", "user_id"),
+        Index("ix_notifications_user_read", "user_id", "read_at"),
+        Index("ix_notifications_user_status", "user_id", "dismissed_at", "resolved_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    # "statement" | "espp" | …
+    source: Mapped[str] = mapped_column(String(50), nullable=False)
+    # "missing_statement" | "espp_overdue" | …
+    type: Mapped[str] = mapped_column(String(50), nullable=False)
+    # "info" | "warning"
+    severity: Mapped[str] = mapped_column(String(20), nullable=False, server_default="info")
+    # stable identity key — never changes for the same condition instance
+    dedup_key: Mapped[str] = mapped_column(String(200), nullable=False)
+    # i18n key + args for the notification title (rendered on the frontend)
+    title_key: Mapped[str] = mapped_column(String(100), nullable=False)
+    title_args: Mapped[dict] = mapped_column(JSON, nullable=False, server_default=text("'{}'"))
+    # optional body text (i18n key + args)
+    body_key: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    body_args: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # frontend route to navigate on click (e.g. "/finances?account_id=3")
+    action_link: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    # state columns — null means unset; dismissed_at / read_at survive upserts
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    dismissed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # set by auto-resolve when the condition is no longer detected; row is kept
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return f"<Notification id={self.id} user={self.user_id} key={self.dedup_key!r}>"
+
+
+class NotificationChannel(Base):
+    """Encrypted notification delivery channel config (e.g. Telegram).
+
+    config_enc stores a Fernet-encrypted JSON blob {bot_token, chat_id}.
+    label is a human-readable masked display name (e.g. "Telegram · ••••1234").
+    NEVER log or return config_enc; never return bot_token.
+    """
+
+    __tablename__ = "notification_channels"
+    __table_args__ = (
+        UniqueConstraint("user_id", "channel", name="uq_notification_channels_user_type"),
+        Index("ix_notification_channels_user_id", "user_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    # "telegram" (extensible to future channels)
+    channel: Mapped[str] = mapped_column(String(50), nullable=False)
+    # Fernet ciphertext of JSON {bot_token, chat_id} — NEVER the plaintext
+    config_enc: Mapped[str] = mapped_column(Text, nullable=False)
+    # Masked display label for the UI (e.g. "Telegram · ••••1234")
+    label: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return f"<NotificationChannel id={self.id} user={self.user_id} channel={self.channel!r}>"
+
+
+class NotificationDelivery(Base):
+    """Delivery audit log for a single notification × channel send attempt.
+
+    UNIQUE(notification_id, channel) is the idempotency guard that prevents
+    double-sending: before sending, INSERT-or-skip on this constraint.
+    """
+
+    __tablename__ = "notification_deliveries"
+    __table_args__ = (
+        UniqueConstraint("notification_id", "channel", name="uq_notification_delivery"),
+        Index("ix_notification_deliveries_notification_id", "notification_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    notification_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("notifications.id", ondelete="CASCADE"), nullable=False
+    )
+    # "telegram" (matches NotificationChannel.channel)
+    channel: Mapped[str] = mapped_column(String(50), nullable=False)
+    # "sent" | "failed"
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    error: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return (
+            f"<NotificationDelivery id={self.id} notif={self.notification_id} "
+            f"channel={self.channel!r} status={self.status!r}>"
+        )
