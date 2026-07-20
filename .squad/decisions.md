@@ -9619,3 +9619,146 @@ Height `240px` kept (saves vertical space on mobile; 232px donut fits with 4px t
 
 `npm run build` (tsc --noEmit + vite build): **✅ 0 TS errors, 0 warnings** (pre-existing chunk-size warning only).
 
+
+
+---
+# Mobile KPI layout fixes — Finanzas & Extractos
+
+**Author:** Wanda (UX/UI)  
+**Date:** 2026-07-20T09:02:18+02:00  
+**Requested by:** DrDonoso (David)  
+**Branch:** main  
+**File changed:** `frontend/src/index.css` only
+
+---
+
+## Issue 1 — Finanzas KPI strip: cramped + misaligned on mobile
+
+### Root cause
+
+`KpiCards` in `FinancesOverviewPage` renders the `compact` variant, which outputs a `.header-kpis` flex container of 6 `.header-kpi-item` children. The mobile breakpoint (`≤600px`) left `display: flex; flex-wrap: wrap; justify-content: flex-start`. Because each item sizes to its own content (currency amounts have varying string widths), the flex packing is uneven — some rows get 3 items, some 2, and the 5th item ("Transacciones") ends up on its own line when the preceding 4 fill two rows unevenly.
+
+### Fix
+
+In `@media (max-width: 600px)`, replaced the `.header-kpis` single-line rule with:
+
+```css
+.header-kpis {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px 16px;
+  border-left: none;
+  border-top: 1px solid var(--border);
+  align-items: start;
+}
+.header-kpi-divider { display: none; }
+```
+
+- **`repeat(2, 1fr)`** — 6 items → always 3 rows × 2 columns, no orphan possible.
+- **`align-items: start`** — label/value/delta lines top-align consistently across cells even when delta badge is absent on some.
+- **`gap: 14px 16px`** — wider row gap for more vertical breathing room (was `8px`).
+- **`.header-kpi-divider { display: none }`** — the vertical rule separating the constant-net KPI from filtered ones has no meaning in a 2-col grid and would occupy a stray cell. Hidden on mobile; still visible on desktop/tablet.
+
+Desktop layout (`>600px`) untouched.
+
+---
+
+## Issue 2 — Extractos KPI cards: left-aligned with dead right-side space
+
+### Root cause
+
+`.month-header` (the container for totals in `StatementsPage`) has a base rule `align-items: flex-start`. At `≤600px` an existing rule adds `flex-direction: column`, and `.month-header > .tx-totals` is already set to `display: grid; grid-template-columns: 1fr 1fr`. However, because `align-items: flex-start` is NOT overridden at mobile, flex children in a column-direction container align to the *start* of the cross axis (left edge) and only take their *intrinsic content width* — the grid container shrinks to fit its content instead of filling the parent. This leaves dead whitespace to the right.
+
+### Fix
+
+Added `width: 100%` to `.month-header > .tx-totals` inside the existing `@media (max-width: 600px)` block:
+
+```css
+.month-header > .tx-totals {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  width: 100%;   /* ← forces grid to fill month-header width */
+}
+```
+
+This is the minimal surgical fix. It only targets the StatementsPage context (`.month-header >` child combinator) and does not affect `TransactionsPage`'s `.tx-totals` which lives outside `.month-header`.
+
+---
+
+## Verification
+
+- `cd frontend && npm run build` → ✅ zero TS errors, zero new warnings (pre-existing chunk-size warning unchanged).
+- Breakpoints checked: ≤430px (iPhone 14 Pro Max), ≤390px, ≤360px, >768px (desktop).
+- Light + dark: only layout/spacing changed — no colour tokens added or modified.
+
+---
+# Vision — Transaction detail / edit popup (mobile-only)
+
+**Date:** 2026-07-20T09:02:18+02:00
+**Owner:** DrDonoso
+**Branch:** main
+
+## Decision
+
+On mobile (≤600px), tapping any transaction row opens a full-screen bottom-sheet modal showing the complete transaction detail and allowing inline editing. On desktop the row tap does nothing; the existing inline ✎ edit remains the only edit path.
+
+## Files added
+
+| File | Purpose |
+|------|---------|
+| `frontend/src/hooks/useIsMobile.ts` | `useIsMobile()` hook — `matchMedia('(max-width: 600px)')` with live change listener. |
+| `frontend/src/components/TransactionDetailModal.tsx` | Detail + edit modal. Reuses `CategorySelect`, `TagEditor`, and the same `updateTransaction` + `signedAmount` logic as the inline editor. |
+
+## Files changed
+
+| File | Change |
+|------|--------|
+| `frontend/src/components/TransactionsTable.tsx` | Imports `useIsMobile` + `TransactionDetailModal`. Adds `detailTx` state. Read-mode `<tr>` gets `onClick` gated on `isMobile`. Action buttons get `stopPropagation`. Renders modal with `onSaved` that maps updated item into local `data`. |
+| `frontend/src/i18n/index.ts` | Added `txDetailModalTitle: string` to `Dict` interface. |
+| `frontend/src/i18n/en.ts` | Added `txDetailModalTitle: 'Transaction detail'`. |
+| `frontend/src/i18n/es.ts` | Added `txDetailModalTitle: 'Detalle de transacción'`. |
+| `frontend/src/index.css` | Added `.modal-tx-detail`, `.tx-detail-body`, `.tx-detail-field`, `.tx-detail-label`, `.tx-detail-value`, `.tx-detail-cat-row`, `.tx-detail-subline-note`, and `@media (max-width:600px) tr.tr-mobile-tappable` tap affordance rules. |
+
+## Validation
+
+`cd frontend && npm run build` — zero TypeScript errors. Pre-existing chunk-size warning only.
+
+---
+# Rocket Rebuild — Mobile-UX Round
+
+**Date:** 2026-07-20  
+**Requested by:** DrDonoso  
+**Agent:** Rocket (DevOps)
+
+## Summary
+
+Frontend-only rebuild to pick up Wanda's mobile KPI layout fixes and Vision's mobile transaction detail modal. No backend changes, no migrations.
+
+## Build Result: ✅ PASS
+
+| Step | Result |
+|------|--------|
+| `npm run build` (host) | ✅ 902 modules, 5.16s, chunk warning pre-existing/OK |
+| `docker compose build` | ✅ Clean; only `frontend/dist` layers invalidated (cache hit on all Python layers) |
+| `docker compose up -d` | ✅ api recreated; db already healthy |
+
+## Verification
+
+| Check | Result |
+|-------|--------|
+| `docker compose ps` | ✅ api + db UP; db healthy |
+| `GET /health` | ✅ `{"status":"ok"}` HTTP 200 |
+| `GET /api/notifications/unread-count` | ✅ HTTP 401 (auth-gated) |
+| `SELECT count(*) FROM notifications WHERE source='seed'` | ✅ **4** (pgdata persisted) |
+| API logs (tail 40) | ✅ Clean startup; notification loop 300s; no tracebacks |
+
+## Stack Status
+
+**UP** at `http://localhost:7777`. pgdata volume intact, seeded notifications intact.
+
+## Changes Picked Up
+
+- **Wanda:** Mobile KPI grid layout fixes in `index.css` (Finanzas KPIs + Extractos totals).
+- **Vision:** Mobile transaction detail/edit modal (`useIsMobile` hook, `TransactionDetailModal`, `TransactionsTable`), i18n strings (EN/ES), and mobile CSS.
+
