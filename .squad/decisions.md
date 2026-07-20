@@ -1,3 +1,150 @@
+# Vision — Finanzas Drill-Down Transactions Table
+
+**Date:** 2026-07-20T10:50:46+02:00  
+**Agent:** Vision (Frontend Engineer)  
+**Requested by:** DrDonoso (David)
+
+## Summary
+
+Added an interactive drill-down transactions table to the Finanzas overview page (`FinancesOverviewPage`). Clicking a category donut, merchant donut, or day/range in the spending heatmap filters the table to those transactions. An active-filter chips row appears above the table when any drill-down is active.
+
+## Files Changed
+
+| File | Change |
+|------|--------|
+| `frontend/src/pages/FinancesOverviewPage.tsx` | Added `TransactionsTable` at bottom of dashboard; fixed category toggle; added `handleClearDrillDowns`; added drill-down chips JSX; imported `useMemo`, `TransactionsTable`, `categoryLabel`, `formatDate` |
+| `frontend/src/components/TransactionsTable.tsx` | Added `day: globalFilters.day` to `getTransactions` call; added `globalFilters.day` to `useEffect` reset deps and `fetchData` callback deps |
+| `frontend/src/api/types.ts` | Added `day?: string` to `TransactionsParams` interface |
+| `frontend/src/index.css` | Added `.drill-down-chips` and `.drill-down-label` CSS classes |
+| `frontend/src/i18n/index.ts` | Added `drillDownActiveFilters` and `drillDownClearAll` to `Dict` interface |
+| `frontend/src/i18n/es.ts` | Added `drillDownActiveFilters: 'Filtros activos'` and `drillDownClearAll: 'Limpiar todo'` |
+| `frontend/src/i18n/en.ts` | Added `drillDownActiveFilters: 'Active filters'` and `drillDownClearAll: 'Clear all'` |
+
+## Design Decisions
+
+- **`merchant` prop**: `TransactionsTable` uses the `merchant` PROP (not `globalFilters.merchant`) in its API call. Explicitly pass `merchant={filters.merchant}` so TopMerchants drill-down filters the table.
+- **Category toggle**: Changed `onCategoryClick` from set-only to toggle: re-clicking the same category clears it. Matches the existing merchant toggle behavior.
+- **Heatmap drill-down**: The heatmap always zooms `from/to` via `onSelectPeriod`, never setting `filters.day`. The table reflects the zoomed period via `from/to` automatically. `preZoomFilters !== null` drives the heatmap zoom chip display.
+- **`handleClearDrillDowns`**: Restores `from/to` from `preZoomFilters` (not the full old state) to avoid overwriting GlobalFilterBar's account/tags. Clears `category_id`, `merchant`, `day`.
+- **Chip styling**: Reuses existing `.filter-chip` / `.filter-chip-remove` / `.btn-clear-filters` classes. Only two new CSS classes added (`.drill-down-chips`, `.drill-down-label`).
+- **`onEditSuccess`**: Bumps `refreshKey` → re-fetches KPIs, donuts, heatmap, category movers after inline/modal edit.
+
+## Validation
+
+`cd frontend && npm run build` — ✅ zero TS errors, vite build success.
+
+
+---
+
+# Vision: CategoryMovers → Extractos + Finanzas KPI comparison fix
+
+**Date:** 2026-07-20T11:34:19+02:00  
+**Author:** Vision (Frontend Engineer)  
+**Requested by:** DrDonoso (David) — design validated
+
+## Summary
+
+Moved `CategoryMovers` ("Mayores cambios") from Finanzas to Extractos, fixed the Finanzas KPI delta comparison to use an equal-length preceding period instead of a fixed calendar month, and added a clear "vs. periodo anterior" label near the KPIs.
+
+## Files Changed
+
+### New / extended utilities
+- **`frontend/src/utils/comparison.ts`**
+  - Added `previousEqualRange(from, to)` export: returns the preceding period of equal length (e.g., a 6-month selected range → the 6 months before it). Used in Finanzas KPI deltas.
+
+### FinancesOverviewPage (`frontend/src/pages/FinancesOverviewPage.tsx`)
+- **Removed:** `CategoryMovers` import.
+- **Removed:** `prevByCategory` state (`AsyncState<CategorySummary[]>`).
+- **Removed:** `getByCategory` fetch for the previous period (it fed `prevByCategory`).
+- **Removed:** `CategoryMovers` render block (`charts-row-full` containing it).
+- **Changed:** Previous period for `prevOverview` fetch (feeds KPI deltas) from `previousCalendarMonth(filters.from)` → `previousEqualRange(filters.from, filters.to)`. A 6-month selected range now correctly compares against the preceding 6 months.
+- **Added:** `<div className="kpi-prev-period-bar">{t.kpisPrevPeriodLabel}</div>` as the last child of `.dashboard-header` — a subtle full-width bottom bar labelling KPI deltas as "vs. periodo anterior" / "vs. previous period".
+- **Import:** Swapped `previousCalendarMonth` for `previousEqualRange` from `utils/comparison`.
+
+### StatementsPage (`frontend/src/pages/StatementsPage.tsx`)
+- **Added imports:** `CategorySummary` (type), `getByCategory` (API), `CategoryMovers` (component), `previousCalendarMonth` (util).
+- **Added state:** `selByCat`, `prevByCat`, `selByCatLoading`, `prevByCatLoading`, `byCatError`.
+- **Added `useEffect`:** Fetches `getByCategory` for the selected month and for `previousCalendarMonth(from)`. Both pass `account_id: selAccountId`. Re-runs on same deps as overview (`from`, `to`, `currentMonthHasData`, `refreshKey`, `overviewRefKey`, `selAccountId`).
+- **Added render:** `<CategoryMovers>` wrapped in `.charts-row-full.stmts-movers-wrap`, placed between the month summary header and the `TransactionsTable`. Shown only when `hasData`.
+
+### i18n
+- **`frontend/src/i18n/index.ts`** — added `kpisPrevPeriodLabel: string` to `Dict` interface (under `// ── Finances drill-down table`).
+- **`frontend/src/i18n/es.ts`** — added `kpisPrevPeriodLabel: 'vs. periodo anterior'`.
+- **`frontend/src/i18n/en.ts`** — added `kpisPrevPeriodLabel: 'vs. previous period'`.
+
+### CSS (`frontend/src/index.css`)
+- Added `.kpi-prev-period-bar` — full-width (`flex: 0 0 100%`) bottom bar inside `.dashboard-header`; 11px muted right-aligned text with a top border.
+- Added `.stmts-movers-wrap` — `margin-top: 4px` for minimal spacing above CategoryMovers in Extractos.
+
+## Behaviour After Change
+
+| | Before | After |
+|---|---|---|
+| CategoryMovers location | Finanzas (FinancesOverviewPage) | Extractos (StatementsPage) |
+| CategoryMovers comparison | Whole selected period vs single previous calendar month | Selected calendar month vs previous calendar month (always month-over-month) |
+| Finanzas KPI delta basis | Single calendar month before `filters.from` | Equal-length period immediately preceding `filters.from`…`filters.to` |
+| Finanzas comparison label | None | "vs. periodo anterior" bar at bottom of header card |
+
+## Build Validation
+
+`cd frontend && npm run build` → **0 TypeScript errors**, vite build ✓ (pre-existing chunk size warning only).
+
+
+---
+
+# Vision — Finanzas variation removed; Extractos KPI deltas added
+
+**Date:** 2026-07-20T12:06:38+02:00  
+**Author:** Vision (Frontend Engineer)  
+**Requested by:** DrDonoso
+
+---
+
+## Summary
+
+Removed month-over-month variation arrows from Finanzas KpiCards and moved the comparison to Extractos, where it is semantically correct (page is month-scoped, comparison is always vs. the previous calendar month).
+
+---
+
+## Files changed
+
+### `frontend/src/pages/FinancesOverviewPage.tsx`
+- Removed `previousOverview={prevOverview.data}` prop from `<KpiCards>` — no delta badges in Finanzas.
+- Removed `prevOverview` state (`useState<AsyncState<Overview>>`).
+- Removed `setPrevOverview(idle())` from the data-fetch `useEffect`.
+- Removed the `previousEqualRange` call and its entire `if (prevRange) { ... }` fetch block.
+- Removed `import { previousEqualRange }` statement.
+- Removed `<div className="kpi-prev-period-bar">{t.kpisPrevPeriodLabel}</div>` from the header.
+
+### `frontend/src/utils/comparison.ts`
+- Removed `previousEqualRange` export entirely (no remaining consumers after Finanzas change).
+
+### `frontend/src/pages/StatementsPage.tsx`
+- Added `computeDelta, type DeltaResult` to the import from `'../utils/comparison'`.
+- Added `prevOverview: Overview | null` state.
+- In the overview `useEffect`: also fetches `getOverview` for `previousCalendarMonth(from)` → `setPrevOverview`. Clears `prevOverview` on reset/no-data branches.
+- Added module-level `TxDeltaBadge` component (reuses `header-kpi-delta*` CSS classes).
+- Added `<TxDeltaBadge>` inside each of the four `.tx-total` KPI cards:
+  - **Transacciones** — neutral (count, no good/bad semantics).
+  - **Ingresos totales** — ↑ good.
+  - **Gastos totales** — ↑ bad (`invert`).
+  - **Neto** — ↑ good.
+
+### `frontend/src/i18n/index.ts` / `es.ts` / `en.ts`
+- Removed `kpisPrevPeriodLabel` key (was only used by the removed Finanzas caption bar).
+
+### `frontend/src/index.css`
+- Removed `.kpi-prev-period-bar` CSS rule (no longer referenced).
+
+---
+
+## Validation
+
+`cd frontend && npm run build` — exit 0, zero TypeScript errors. Pre-existing chunk-size and CSS `white-space` warnings only.
+
+
+---
+
 # Shuri — Force-import duplicate transactions
 
 **Date:** 2026-07-17T12:22:35+02:00  

@@ -5,7 +5,45 @@
 
 For full history, see `history-archive.md`
 
+## 2026-07-20T12:27:03Z: Orchestration Summary
+
+Finanzas/Extractos rework (Vision 3 deliverables) orchestrated by Scribe. Decisions merged, orchestration logs written, git stage staged for selective .squad/ commit only. No app code staging needed — changes already in HEAD (5b934c5).
+
+---
+
 ## Learnings
+
+- 2026-07-20: **Finanzas/Extractos rework commit + push (PASS).** Commit `55dee66` — `feat(finanzas/extractos): drill-down transactions table + month-over-month comparison in Extractos`. 9 files staged (types.ts, TransactionsTable.tsx, en/es/index i18n, index.css, FinancesOverviewPage.tsx, StatementsPage.tsx, comparison.ts). Non-fast-forward on push resolved with `git pull --no-rebase origin main` (merged auto-changelog `de70618`); pushed `de70618..5b934c5 main -> main`. Deploy run `29735247108` — `in_progress`. Account: DrDonoso.
+
+- 2026-07-20: **Finanzas arrow removal + Extractos MoM KPI docker rebuild (PASS).** Change: removed KPI variation arrows from Finanzas page; added month-over-month variation to Extractos KPIs — frontend-only, no backend/migration changes.
+  1. `cd frontend && npm run build` — 902 modules, 905 kB chunk warning (pre-existing/OK), CSS `white-space` warning (pre-existing/OK), built in 4.20s.
+  2. `docker compose -f docker-compose.local.yml build` — layers 12–14 (frontend/dist copy + entrypoint) invalidated; all Python/pip layers cache-hit. Clean.
+  3. `docker compose -f docker-compose.local.yml up -d` — api recreated; db already healthy (6 days), pgdata volume persisted.
+  4. `ps` — api up (10 s), db healthy (5 days).
+  5. `GET /health` → `{"status":"ok"}` (HTTP 200).
+  6. `GET /api/notifications/unread-count` (no cookie) → **HTTP 401**.
+  7. API logs — clean startup: alembic at head (no new migrations), seed 0 inserted/0 recolored, notification loop at 300s, no tracebacks.
+  - Stack left UP at :7777.
+
+- 2026-07-20: **CategoryMovers reorganization + Finanzas KPI delta fix docker rebuild (PASS).** Change: "Mayores cambios" (CategoryMovers) moved from Finanzas to Extractos; Finanzas KPI delta comparison basis fixed — frontend-only, no backend/migration changes.
+  1. `cd frontend && npm run build` — 902 modules, 905 kB chunk warning (pre-existing/OK), CSS `white-space` warning (pre-existing/OK), built in 14.34s.
+  2. `docker compose -f docker-compose.local.yml build` — layers 12–14 (frontend/dist copy + entrypoint) invalidated; all Python/pip layers cache-hit. Clean.
+  3. `docker compose -f docker-compose.local.yml up -d` — api recreated; db already healthy (6 days), pgdata volume persisted.
+  4. `ps` — api up (20 s), db healthy (5 days).
+  5. `GET /health` → `{"status":"ok"}` (HTTP 200).
+  6. `GET /api/notifications/unread-count` (no cookie) → **HTTP 401**.
+  7. API logs — clean startup: alembic at head (no new migrations), seed 0 inserted/0 recolored, notification loop at 300s, no tracebacks.
+  - Stack left UP at :7777.
+
+- 2026-07-20: **Finanzas drill-down transactions table docker rebuild (PASS).** Change: Finanzas page now has a drill-down transactions table (category/merchant/day clicks filter it) + active-filter chips — frontend-only, no backend/migration changes.
+  1. `cd frontend && npm run build` — 902 modules, 904 kB chunk warning (pre-existing/OK), CSS `white-space` warning (pre-existing/OK), built in 27.99s.
+  2. `docker compose -f docker-compose.local.yml build` — layers 12–14 (frontend/dist copy + entrypoint) invalidated; all Python/pip layers cache-hit. Clean.
+  3. `docker compose -f docker-compose.local.yml up -d` — api recreated; db already healthy (6 days), pgdata volume persisted.
+  4. `ps` — api up (10 s), db healthy (5 days).
+  5. `GET /health` → `{"status":"ok"}` (HTTP 200).
+  6. `GET /api/notifications/unread-count` (no cookie) → **HTTP 401**.
+  7. API logs — clean startup: alembic at head (no new migrations), seed 0 inserted/0 recolored, notification loop at 300s, no tracebacks.
+  - Stack left UP at :7777.
 
 - 2026-07-20: **CSS-only fix docker rebuild (PASS).** Change: nav chevron hover no longer paints a background box (`index.css`). Frontend-only, no backend/migration changes.
   1. `cd frontend && npm run build` — 902 modules, 902 kB chunk warning (pre-existing/OK), CSS `white-space` warning (pre-existing/OK), built in 4.35s.

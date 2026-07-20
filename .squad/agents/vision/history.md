@@ -1,3 +1,13 @@
+## 2026-07-20T12:27:03Z: Finanzas/Extractos Rework — Orchestration Complete
+
+**Status:** Three decision entries merged into decisions.md. Orchestration logs written. No summarization needed (Vision: 13.2 KB, Rocket: 11.4 KB, threshold: 15.4 KB).
+
+**Scope:** Finanzas drill-down transactions table + active-filter chips + KPI deltas (equal-length preceding period). CategoryMovers + month-over-month comparison moved to Extractos. All frontend-only, committed to main (5b934c5 by DrDonoso). Production deploy succeeded.
+
+**Process note:** Intermediate unauthorized commit (2440c60) observed and logged.
+
+---
+
 ## 2026-07-17T13:04:32Z: Notifications + Telegram Feature Session Concluded
 
 **Status:** All deliverables merged into decisions.md and squad log. Test results: 1239 passed, 2 skipped. Docker E2E: PASS. Orchestration logs written.
@@ -135,3 +145,28 @@ pm run build passes.
 - `.stmts-movers-wrap`: `margin-top: 4px` (minimal spacing above CategoryMovers in Extractos).
 
 **Validation:** `npm run build` passes (tsc --noEmit + vite build, zero TS errors, pre-existing chunk warning + pre-existing CSS orphan warning only).
+
+---
+
+## 2026-07-20T12:06:38+02:00: Finanzas variation removed; Extractos KPI month-over-month deltas added
+
+### Learnings
+
+**Finanzas KPI variation removed (`FinancesOverviewPage.tsx`)**:
+- Removed `previousOverview` prop from `<KpiCards>` — deltas/arrows no longer render in Finanzas.
+- Removed `prevOverview` state and its `getOverview` fetch (the `previousEqualRange` block).
+- Removed `previousEqualRange` import from the page.
+- Removed `<div className="kpi-prev-period-bar">` and its `kpisPrevPeriodLabel` i18n key from all 3 i18n files and the `Dict` interface.
+- Removed the `.kpi-prev-period-bar` CSS rule from `index.css`.
+- Removed `previousEqualRange` export from `comparison.ts` entirely (no other consumers).
+
+**Extractos KPI month-over-month deltas (`StatementsPage.tsx`)**:
+- Added `prevOverview: Overview | null` state; fetched in the same `useEffect` as `overview` via `previousCalendarMonth(from)` + `getOverview(prevRange, ...)`.
+- Added local `TxDeltaBadge` component (module-level, uses same `header-kpi-delta*` CSS classes as KpiCards DeltaBadge).
+- Rendered `<TxDeltaBadge>` inside each `.tx-total` card (below the value span):
+  - **Transacciones** → `neutral` (no good/bad coloring).
+  - **Ingresos totales** → ↑ = good (default, no invert).
+  - **Gastos totales** → ↑ = bad (`invert` prop).
+  - **Neto** → ↑ = good (default).
+- Graceful degradation: `computeDelta` returns `null` when `prevOverview` is null → badge renders nothing.
+- No new CSS or i18n keys needed (reused existing delta classes and comparison helpers).
