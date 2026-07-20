@@ -1,0 +1,130 @@
+src/finlytics/api/schemas.py
+  s_ff7cbccbbda59b::t_231e445d067656 857-872,877,879-882,884,894-900
+  s_64fc25870c3ded::t_f88aaa8d43ad03 842-856,873-876,878,883,885-893,901-908
+  s_9b94df3cd1f821::t_cfb07a22c3e80b 806-841
+  s_ff7cbccbbda59b::t_41d3f6124d377b 14-16
+  s_7d85ff56dad826::t_0e3992610ae055 282-345,347,354-355,368-375
+src/finlytics/notifications/service.py
+  s_64fc25870c3ded::t_af1956e048280d 26,34-35,37-38
+  s_41ef772a0c46b6::t_ae4d77641b2e56 229-230,232,236-264
+  s_9b94df3cd1f821::t_660ab8649d1f6e 1-25,27-33,36,39-170,181
+  s_64fc25870c3ded::t_fb155feb86fce3 171-180,182-228,231,233-235,265-272
+src/finlytics/app.py
+  s_9b94df3cd1f821::t_d0d51abd6b6dbc 25,35,37-38,52,59,63-129,134,145-157
+src/finlytics/config.py
+  s_64fc25870c3ded::t_d3240e2ba443cd 90-92
+  s_9b94df3cd1f821::t_4b6d39bb7705f9 84-89,93
+src/finlytics/db/models.py
+  s_41ef772a0c46b6::t_3bb6dc64359589 604
+  s_41ef772a0c46b6::t_a0f885e07d1f79 615
+  s_9b94df3cd1f821::t_110b3feb629422 532-603,605-614,616-661
+alembic/versions/0016_add_notifications.py
+  s_9b94df3cd1f821::t_75f47ee643a376 1-58,60-65,67-101
+  s_41ef772a0c46b6::t_ea73b56186a96b 59,66
+tests/api/test_notifications.py
+  s_afc0ad5eeef132::t_901a5a5e07de56 1-738
+scripts/seed_notifications.py
+  s_ff7cbccbbda59b::t_c2552467d93799 1-212
+src/finlytics/notifications/__init__.py
+  s_9b94df3cd1f821::t_1b20dfcbc0d7fb 1
+Dockerfile.local
+  s_00452db3645d89::t_efcffc535daac8 37
+src/finlytics/notifications/telegram.py
+  s_64fc25870c3ded::t_64f0361d3ac61f 1-26,28-49,51-61
+  s_41ef772a0c46b6::t_a4619a1363ca5a 27
+  s_41ef772a0c46b6::t_e28f4d7f49918a 50
+src/finlytics/notifications/messages.py
+  s_64fc25870c3ded::t_cbd90047498d18 1-42
+tests/notifications/test_deliver_new.py
+  s_64fc25870c3ded::t_8b74c3583c158d 1-11,13-36,39-57,65-67,69-70,73-79,82-84,86-87,90-94,98-103,105-111,113-122,124-126,135-138,145-148,150-153,155-157,166-169,171,174-176,180-182,187-192,194-195,197-202,204,206-207,215-221,227-228,231,233-234,236
+  s_64fc25870c3ded::t_5f069947786edd 12,37-38,58-64,68,71-72,80-81,85,88-89,95-97,104,112,123,127-134,139-144,149,154,158-165,170,172-173,177-179,183-186,193,196,203,205,208-214,222-226,229-230,232,235
+tests/notifications/test_orchestrator.py
+  s_9b94df3cd1f821::t_bda1351dbf95b5 140-141,143-144
+  s_9b94df3cd1f821::t_0b13e551610906 1-139,142,145-174,177-241,245-255
+  s_9b94df3cd1f821::t_c1382f10f2af5a 242-244
+  s_9b94df3cd1f821::t_f3ae3c1b7f6f5d 175-176
+tests/api/test_notification_channels.py
+  s_d92d94b1435371::t_60816b9fc5a47c 1-618
+  s_ff7cbccbbda59b::t_6122cfaa4e4f96 619-671
+src/finlytics/notifications/detectors.py
+  s_9b94df3cd1f821::t_8a660b10650a0d 1-198
+src/finlytics/api/notifications.py
+  s_64fc25870c3ded::t_a477b21ec713c2 195-318,324-362
+  s_41ef772a0c46b6::t_5994bb70235c86 319-323
+  s_64fc25870c3ded::t_b17925f3bf5eac 11-15,23,32-42,44
+  s_9b94df3cd1f821::t_44fe82cc1a6523 1-10,16-22,24-31,43,45-194
+Dockerfile
+  s_00452db3645d89::t_7c7f85f09dfee8 42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "08f3962dbf0cbfe9afd31f6c99097a71eb66ec41",
+  "prompts": {},
+  "sessions": {
+    "s_00452db3645d89": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01WAMrF5o95qYPDjXPfWWuzK",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_41ef772a0c46b6": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01ACpqzECgFuGB8oCk3BHzYj",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_64fc25870c3ded": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01HcBQKEg6RyrpgNLRd5ogw6",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_7d85ff56dad826": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01PJaGJPRUbqwmYRoxxAZTMV",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_9b94df3cd1f821": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01LejeFF44PswZWAFWtnNvrQ",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_afc0ad5eeef132": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_016bUqGVnaiTfrjYjevTZCW5",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_d92d94b1435371": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01Rs5rP9mzhxqXwcwj9wArpo",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_ff7cbccbbda59b": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01BapM5AfuJ5f4hy7SQkbCfZ",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    }
+  }
+}
