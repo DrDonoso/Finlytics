@@ -569,6 +569,21 @@ a { color: var(--primary); text-decoration: none; }
   white-space: nowrap;
 }
 
+/* Subtle comparison-period caption at the bottom of the Finanzas header card */
+.kpi-prev-period-bar {
+  flex: 0 0 100%;
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: right;
+  padding: 5px 20px 7px;
+  border-top: 1px solid var(--border);
+}
+
+/* Wrapper for CategoryMovers inside Extractos — removes extra card padding */
+.stmts-movers-wrap {
+  margin-top: 4px;
+}
+
 /* ≤900px: filter-bar wraps to its own full-width row; KPIs + Import share the row below */
 @media (max-width: 900px) {
   .dashboard-header > .filter-bar {
@@ -2166,6 +2181,22 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
 }
 .btn-clear-filters:hover { border-color: var(--expense); color: var(--expense); background: rgba(var(--expense-rgb), 0.06); }
 .btn-clear-filters:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+
+/* ─── Drill-down active filter chips (Finanzas overview) ─────────────────── */
+.drill-down-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  padding: 2px 0;
+}
+.drill-down-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 500;
+  white-space: nowrap;
+  margin-right: 2px;
+}
 
 /* ─── Tags column in transactions table ──────────────────────────────── */
 .td-tags { min-width: 120px; max-width: 200px; }

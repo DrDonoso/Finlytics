@@ -1,8 +1,7 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import type { Account, Category, Tag, GlobalFilters, Overview, CategorySummary, ImportResult } from '../api/types'
-import {
-  getAccounts, getCategories, getTags, getOverview, getByCategory,
+import { getAccounts, getCategories, getTags, getOverview, getByCategory,
   getByAccount, formatEur,
 } from '../api/client'
 import GlobalFilterBar from '../components/GlobalFilterBar'
@@ -10,12 +9,12 @@ import KpiCards from '../components/KpiCards'
 import SpendingByCategory from '../components/SpendingByCategory'
 import TopMerchants from '../components/TopMerchants'
 import SpendingHeatmap from '../components/SpendingHeatmap'
-import CategoryMovers from '../components/CategoryMovers'
 import ImportModal from '../components/ImportModal'
 import ImportLauncher, { type ImportLauncherHandle } from '../components/ImportLauncher'
-import { useT } from '../i18n'
+import TransactionsTable from '../components/TransactionsTable'
+import { useT, categoryLabel, formatDate } from '../i18n'
 import { defaultRange } from '../utils'
-import { previousCalendarMonth } from '../utils/comparison'
+import { previousEqualRange } from '../utils/comparison'
 
 function makeDefaultFilters(): GlobalFilters {
   return { ...defaultRange(), tags: [] }
@@ -30,7 +29,7 @@ interface AsyncState<T> {
 function idle<T>(): AsyncState<T> { return { loading: true, error: null, data: null } }
 
 export default function FinancesOverviewPage() {
-  const { t } = useT()
+  const { t, lang } = useT()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const [filters, setFilters] = useState<GlobalFilters>(() => {
@@ -46,7 +45,6 @@ export default function FinancesOverviewPage() {
   const [overview,      setOverview]      = useState<AsyncState<Overview>>(idle())
   const [byCategory,    setByCategory]    = useState<AsyncState<CategorySummary[]>>(idle())
   const [prevOverview,   setPrevOverview]   = useState<AsyncState<Overview>>(idle())
-  const [prevByCategory, setPrevByCategory] = useState<AsyncState<CategorySummary[]>>(idle())
 
   const [importFiles, setImportFiles] = useState<File[] | null>(null)
   const launcherRef = useRef<ImportLauncherHandle>(null)
@@ -74,6 +72,29 @@ export default function FinancesOverviewPage() {
     }
   }
 
+  // Computed label map for category names (ES translations)
+  const dynamicEs = useMemo(
+    () => Object.fromEntries(categories.filter(c => c.name_es).map(c => [c.name, c.name_es!])),
+    [categories],
+  )
+
+  // Clears only chart-driven drill-downs; preserves GlobalFilterBar's period/account/tags
+  function handleClearDrillDowns() {
+    if (preZoomFilters) {
+      setFilters(f => ({
+        ...f,
+        from: preZoomFilters.from,
+        to:   preZoomFilters.to,
+        category_id: undefined,
+        merchant:    undefined,
+        day:         undefined,
+      }))
+      setPreZoomFilters(null)
+    } else {
+      setFilters(f => ({ ...f, category_id: undefined, merchant: undefined, day: undefined }))
+    }
+  }
+
   useEffect(() => {
     getAccounts().then(setAccounts).catch(() => {})
     getCategories().then(setCategories).catch(() => {})
@@ -98,7 +119,6 @@ export default function FinancesOverviewPage() {
     setOverview(idle())
     setByCategory(idle())
     setPrevOverview(idle())
-    setPrevByCategory(idle())
 
     getOverview(params)
       .then(d  => setOverview({ loading: false, error: null,     data: d }))
@@ -108,18 +128,14 @@ export default function FinancesOverviewPage() {
       .then(d  => setByCategory({ loading: false, error: null,     data: d }))
       .catch(e => setByCategory({ loading: false, error: String(e), data: null }))
 
-    const prevRange = previousCalendarMonth(filters.from)
+    const prevRange = previousEqualRange(filters.from, filters.to)
     if (prevRange) {
       const prevParams = { ...params, from: prevRange.from, to: prevRange.to, day: undefined }
       getOverview(prevParams)
         .then(d  => setPrevOverview({ loading: false, error: null, data: d }))
         .catch(() => setPrevOverview({ loading: false, error: null, data: null }))
-      getByCategory({ from: prevRange.from, to: prevRange.to, account_id: params.account_id, tags: params.tags, flow: params.flow, merchant: params.merchant })
-        .then(d  => setPrevByCategory({ loading: false, error: null, data: d }))
-        .catch(() => setPrevByCategory({ loading: false, error: null, data: null }))
     } else {
       setPrevOverview({ loading: false, error: null, data: null })
-      setPrevByCategory({ loading: false, error: null, data: null })
     }
   }, [filters, refreshKey])
 
@@ -162,6 +178,7 @@ export default function FinancesOverviewPage() {
               {t.btnImport}
             </button>
           </div>
+          <div className="kpi-prev-period-bar">{t.kpisPrevPeriodLabel}</div>
         </div>
 
         <div className="charts-row-category">
@@ -171,7 +188,7 @@ export default function FinancesOverviewPage() {
             loading={byCategory.loading}
             error={byCategory.error}
             selectedCategoryId={filters.category_id}
-            onCategoryClick={(id) => setFilters(f => ({ ...f, category_id: id }))}
+            onCategoryClick={(id) => setFilters(f => ({ ...f, category_id: f.category_id === id ? undefined : id }))}
           />
           <TopMerchants
             globalFilters={filters}
@@ -192,15 +209,83 @@ export default function FinancesOverviewPage() {
           />
         </div>
 
-        {/* Full-width: category movers */}
+        {/* Active drill-down filter chips */}
+        {(filters.category_id || filters.merchant || filters.day || preZoomFilters) && (
+          <div className="charts-row-full">
+            <div className="drill-down-chips">
+              <span className="drill-down-label">{t.drillDownActiveFilters}:</span>
+
+              {filters.category_id !== undefined && (() => {
+                const cat = categories.find(c => c.id === filters.category_id)
+                return (
+                  <span className="filter-chip">
+                    {t.tableColCategory}: {cat ? categoryLabel(cat.name, lang, dynamicEs) : filters.category_id}
+                    <button
+                      type="button"
+                      className="filter-chip-remove"
+                      onClick={() => setFilters(f => ({ ...f, category_id: undefined }))}
+                      aria-label={t.filterClearChip}
+                    >✕</button>
+                  </span>
+                )
+              })()}
+
+              {filters.merchant && (
+                <span className="filter-chip">
+                  {t.colMerchant}: {filters.merchant}
+                  <button
+                    type="button"
+                    className="filter-chip-remove"
+                    onClick={() => setFilters(f => ({ ...f, merchant: undefined }))}
+                    aria-label={t.filterClearChip}
+                  >✕</button>
+                </span>
+              )}
+
+              {preZoomFilters && (
+                <span className="filter-chip">
+                  {filters.from === filters.to
+                    ? `${t.filterChipDay}: ${formatDate(filters.from || '', lang)}`
+                    : `${formatDate(filters.from || '', lang)} – ${formatDate(filters.to || '', lang)}`}
+                  <button
+                    type="button"
+                    className="filter-chip-remove"
+                    onClick={handleResetPeriod}
+                    aria-label={t.filterClearChip}
+                  >✕</button>
+                </span>
+              )}
+
+              {filters.day && !preZoomFilters && (
+                <span className="filter-chip">
+                  {t.filterChipDay}: {formatDate(filters.day, lang)}
+                  <button
+                    type="button"
+                    className="filter-chip-remove"
+                    onClick={() => setFilters(f => ({ ...f, day: undefined }))}
+                    aria-label={t.filterClearChip}
+                  >✕</button>
+                </span>
+              )}
+
+              <button
+                type="button"
+                className="btn-clear-filters"
+                onClick={handleClearDrillDowns}
+              >{t.drillDownClearAll}</button>
+            </div>
+          </div>
+        )}
+
+        {/* Full-width: drill-down transactions table */}
         <div className="charts-row-full">
-          <CategoryMovers
-            current={byCategory.data ?? []}
-            previous={prevByCategory.data ?? []}
+          <TransactionsTable
+            globalFilters={filters}
             categories={categories}
-            loading={byCategory.loading}
-            prevLoading={prevByCategory.loading}
-            error={byCategory.error}
+            allTags={allTags}
+            merchant={filters.merchant}
+            hideInternalFilters
+            onEditSuccess={() => setRefreshKey(k => k + 1)}
           />
         </div>
       </main>

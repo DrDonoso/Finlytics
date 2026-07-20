@@ -1,18 +1,21 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import type { Overview, Account, Category, Tag, GlobalFilters, ImportResult } from '../api/types'
+import type { Overview, Account, Category, Tag, GlobalFilters, ImportResult, CategorySummary } from '../api/types'
 import type { StatementMonth, StatementOriginal } from '../api/types'
 import {
   getStatementMonths, deleteStatementMonth, getOverview,
   getAccounts, getCategories, getTags,
   getStatementOriginals, downloadStatementOriginal,
+  getByCategory,
 } from '../api/client'
 import { useT } from '../i18n'
 import type { Lang } from '../i18n'
 import TransactionsTable from '../components/TransactionsTable'
+import CategoryMovers from '../components/CategoryMovers'
 import StatementsDeleteModal from '../components/StatementsDeleteModal'
 import ImportModal from '../components/ImportModal'
 import ImportLauncher, { type ImportLauncherHandle } from '../components/ImportLauncher'
 import MonthPicker from '../components/MonthPicker'
+import { previousCalendarMonth } from '../utils/comparison'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -57,6 +60,13 @@ export default function StatementsPage() {
   const [overview,        setOverview]        = useState<Overview | null>(null)
   const [overviewLoading, setOverviewLoading] = useState(false)
   const [overviewRefKey,  setOverviewRefKey]  = useState(0)
+
+  // Category breakdown for CategoryMovers (selected month vs previous month)
+  const [selByCat,         setSelByCat]         = useState<CategorySummary[]>([])
+  const [selByCatLoading,  setSelByCatLoading]  = useState(false)
+  const [prevByCat,        setPrevByCat]        = useState<CategorySummary[]>([])
+  const [prevByCatLoading, setPrevByCatLoading] = useState(false)
+  const [byCatError,       setByCatError]       = useState<string | null>(null)
 
   // Reference data for TransactionsTable / ImportModal
   const [accounts,   setAccounts]   = useState<Account[]>([])
@@ -136,6 +146,33 @@ export default function StatementsPage() {
     getOverview({ from, to, account_id: selAccountId })
       .then(d  => { if (!cancelled) { setOverview(d);  setOverviewLoading(false) } })
       .catch(() => { if (!cancelled) { setOverviewLoading(false) } })
+    return () => { cancelled = true }
+  }, [from, to, currentMonthHasData, refreshKey, overviewRefKey, selAccountId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Fetch category breakdown for CategoryMovers ──────────────────────────────
+  useEffect(() => {
+    if (!from || !to || !currentMonthHasData) {
+      setSelByCat([])
+      setPrevByCat([])
+      setByCatError(null)
+      return
+    }
+    let cancelled = false
+    setSelByCatLoading(true)
+    setPrevByCatLoading(true)
+    setByCatError(null)
+    getByCategory({ from, to, account_id: selAccountId })
+      .then(d  => { if (!cancelled) { setSelByCat(d);  setSelByCatLoading(false) } })
+      .catch(e => { if (!cancelled) { setByCatError(String(e)); setSelByCatLoading(false) } })
+    const prevRange = previousCalendarMonth(from)
+    if (prevRange) {
+      getByCategory({ from: prevRange.from, to: prevRange.to, account_id: selAccountId })
+        .then(d  => { if (!cancelled) { setPrevByCat(d);  setPrevByCatLoading(false) } })
+        .catch(() => { if (!cancelled) { setPrevByCat([]); setPrevByCatLoading(false) } })
+    } else {
+      setPrevByCat([])
+      setPrevByCatLoading(false)
+    }
     return () => { cancelled = true }
   }, [from, to, currentMonthHasData, refreshKey, overviewRefKey, selAccountId]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -402,6 +439,20 @@ export default function StatementsPage() {
           >
             {t.stmtsImportBtn}
           </button>
+        </div>
+      )}
+
+      {/* ── Category movers (selected month vs previous month) ── */}
+      {hasData && (
+        <div className="charts-row-full stmts-movers-wrap">
+          <CategoryMovers
+            current={selByCat}
+            previous={prevByCat}
+            categories={categories}
+            loading={selByCatLoading}
+            prevLoading={prevByCatLoading}
+            error={byCatError}
+          />
         </div>
       )}
 

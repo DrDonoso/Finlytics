@@ -65,3 +65,73 @@
 pm run build passes.
 
 **Merged to:** decisions.md (Vision — Inicio euro decimals, all-time net, nav chevron split).
+
+---
+
+## 2026-07-20T10:50:46+02:00: Finanzas Drill-Down Transactions Table + Active-Filter Chips
+
+### Learnings
+
+**Drill-down table wiring** (`FinancesOverviewPage.tsx`):
+- Added `<TransactionsTable globalFilters={filters} categories={categories} allTags={allTags} merchant={filters.merchant} hideInternalFilters onEditSuccess={() => setRefreshKey(k => k + 1)} />` at the bottom of `<main className="dashboard">`, inside a `.charts-row-full` wrapper.
+- `merchant={filters.merchant}` must be passed explicitly — `TransactionsTable.fetchData` uses the `merchant` PROP (not `globalFilters.merchant`) in its `getTransactions` call. Omitting it would cause merchant drill-downs to silently not filter the table.
+- `onEditSuccess` bumps `refreshKey`, which re-fetches all KPIs/donuts/heatmap on the page (they depend on `[filters, refreshKey]`).
+- `hideInternalFilters` suppresses the table's own category dropdown since the page donuts/heatmap drive the filtering.
+
+**Three drill-down paths:**
+1. **Category donut** → `filters.category_id`. Fixed `onCategoryClick` to TOGGLE (re-clicking the same category clears it): `(id) => setFilters(f => ({ ...f, category_id: f.category_id === id ? undefined : id }))`. Merchant already toggled the same way.
+2. **Merchant donut** → `filters.merchant` (already toggled — unchanged).
+3. **Heatmap** → calls `onSelectPeriod(date, date)` for a day or `onSelectPeriod(firstDay, lastDay)` for a month. This updates `filters.from/to` (NOT `filters.day`). `handleSelectPeriod` saves `preZoomFilters` and clears `day`. The table reflects the zoomed `from/to` automatically.
+
+**`day` param addition to `TransactionsTable`**:
+- Added `day?: string` to `TransactionsParams` (types.ts).
+- TransactionsTable now passes `day: globalFilters.day || undefined` to `getTransactions`, and `globalFilters.day` to both the page-reset `useEffect` deps and `fetchData` callback deps.
+- Currently `filters.day` is always `undefined` on the Finances page (heatmap always uses `from/to`), but the wiring is correct for future use.
+
+**Active-filter chips row** (above the table):
+- Rendered only when at least one drill-down is active: `filters.category_id || filters.merchant || filters.day || preZoomFilters`.
+- Wrapped in `.charts-row-full` to match page layout.
+- CSS: added `.drill-down-chips` (flex row, gap 6px) and `.drill-down-label` (muted 12px label) to `index.css`. "Limpiar todo" button reuses existing `.btn-clear-filters` class.
+- Category chip: looks up category name from the `categories` array via `categoryLabel()`, using a local `dynamicEs` memo.
+- Heatmap zoom chip: shows `Día: 15 ene` when `from === to`, or `1 ene – 31 ene` date range otherwise. ✕ calls `handleResetPeriod`.
+- `filters.day` chip (future-proofed): shown only when `preZoomFilters` is absent.
+- `handleClearDrillDowns`: clears `category_id`, `merchant`, `day`; if `preZoomFilters` exists, restores original `from/to` from it (not the full old state) and clears `preZoomFilters`.
+
+**i18n additions:**
+- `drillDownActiveFilters`: "Filtros activos" / "Active filters"
+- `drillDownClearAll`: "Limpiar todo" / "Clear all"
+- Reused existing keys: `tableColCategory`, `colMerchant`, `filterChipDay`, `filterClearChip`, `filterChipMerchant`.
+
+**Validation:** `npm run build` passes (tsc --noEmit + vite build, zero TS errors, pre-existing chunk warning only).
+
+---
+
+## 2026-07-20T11:34:19+02:00: CategoryMovers → Extractos + Finanzas KPI comparison fix
+
+### Learnings
+
+**CategoryMovers moved to Extractos (`StatementsPage.tsx`)**:
+- Removed from `FinancesOverviewPage.tsx` entirely (import + render block + `prevByCategory` state + its `getByCategory` fetch).
+- Added to `StatementsPage.tsx` with proper month-over-month comparison: `getByCategory` for selected month (`from`/`to`) AND for `previousCalendarMonth(from)`. Both fetches pass `account_id: selAccountId` so the movers respect the active account filter.
+- State: `selByCat`, `prevByCat`, `selByCatLoading`, `prevByCatLoading`, `byCatError` — all independent from the overview state, re-fetched on the same deps as overview (`from`, `to`, `currentMonthHasData`, `refreshKey`, `overviewRefKey`, `selAccountId`).
+- Rendered between the month summary header and the `TransactionsTable`, wrapped in `.charts-row-full.stmts-movers-wrap`.
+- `t.moversTitle` ("Mayores cambios · vs mes anterior") is now literally correct in Extractos because the comparison IS the previous calendar month.
+
+**`previousEqualRange` helper (`frontend/src/utils/comparison.ts`)**:
+- New export: `previousEqualRange(from: string, to: string): { from: string; to: string } | null`.
+- Computes preceding period of equal length: `diffDays = (to - from) + 1`; `prevTo = from − 1 day`; `prevFrom = prevTo − (diffDays − 1) days`.
+- Parses dates as local Date objects (year/month/day constructor — avoids UTC midnight offset issues).
+- Returns `null` when `diffDays <= 0` or input is invalid.
+- Used in `FinancesOverviewPage.tsx` to correctly compare the KPI deltas against a preceding equal-length period (e.g., a 6-month range compared to the 6 months before it, not just December).
+
+**Finanzas KPI comparison fix + label**:
+- `FinancesOverviewPage.tsx` now calls `previousEqualRange(filters.from, filters.to)` instead of `previousCalendarMonth(filters.from)` for the `prevOverview` fetch that feeds `KpiCards`.
+- The `prevByCategory` state + fetch was removed entirely (CategoryMovers is no longer in Finanzas).
+- Added `<div className="kpi-prev-period-bar">{t.kpisPrevPeriodLabel}</div>` as the last child of `.dashboard-header` (full-width bottom bar via `flex: 0 0 100%` CSS, with a top border and right-aligned muted 11px text).
+- New i18n key `kpisPrevPeriodLabel`: "vs. periodo anterior" (ES) / "vs. previous period" (EN) — added to all three i18n files (`index.ts` Dict interface, `es.ts`, `en.ts`).
+
+**CSS additions (`frontend/src/index.css`)**:
+- `.kpi-prev-period-bar`: `flex: 0 0 100%; font-size: 11px; color: var(--text-muted); text-align: right; padding: 5px 20px 7px; border-top: 1px solid var(--border)`.
+- `.stmts-movers-wrap`: `margin-top: 4px` (minimal spacing above CategoryMovers in Extractos).
+
+**Validation:** `npm run build` passes (tsc --noEmit + vite build, zero TS errors, pre-existing chunk warning + pre-existing CSS orphan warning only).
