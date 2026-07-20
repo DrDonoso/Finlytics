@@ -1,0 +1,188 @@
+frontend/src/pages/ConnectorsPage.tsx
+  s_924027ecd2c883::t_ff02d0c14e648f 3-4,8,30-31,64-89,171-218,221,223,255-274,281-285
+  s_0c412a0ce56b83::t_3ffbd1a3e079e3 286-287
+frontend/src/App.tsx
+  s_02b6f4c7d2d704::t_4807bcaaeb07eb 22
+  s_02b6f4c7d2d704::t_d150e031a8ddd0 41-65,67-69
+frontend/src/pages/Dashboard.tsx
+  s_02b6f4c7d2d704::t_4ee377b58eecbb 147
+  s_02b6f4c7d2d704::t_93392e7005b2da 326-338
+  s_02b6f4c7d2d704::t_be0356a0a6556c 5,8,13
+frontend/src/api/mock.ts
+  s_f746e30c841701::t_5780f324157ada 766-798
+  s_02b6f4c7d2d704::t_12aedb5348d60c 700-765
+  s_f746e30c841701::t_b929ca46cb9159 10
+  s_02b6f4c7d2d704::t_33dccfedf504da 9
+frontend/src/investments/views/FidelityView.tsx
+  s_02b6f4c7d2d704::t_655ab83b540f67 63
+  s_02b6f4c7d2d704::t_422e854332e8e0 347-359
+  s_02b6f4c7d2d704::t_a2ec72c9f78e1f 9,17
+frontend/src/index.css
+  s_f746e30c841701::t_e29658d19c4bce 6492-6502
+  s_eb0d66d074f33b::t_f8cc8b9c67a6e4 168,171
+  s_b2b2eb65346a36::t_8eb750391ba01b 2913-2950,2991-2995,3014-3026,3031-3033,3038,3041-3046,3050-3051
+  s_e6d31ab31b24f4::t_6dfe10e09328c0 828-840
+  s_02b6f4c7d2d704::t_d5b36fab0d4bb7 26-32
+  s_02b6f4c7d2d704::t_4d1a124d1ede6a 167,169-170
+  s_f65114ca3dfe99::t_30065933933ae2 2337-2339,2342
+  s_4fd179d002ae1a::t_daf0f1b2af23e1 4877,6572-6622
+  s_eb0d66d074f33b::t_a475e5a473b84e 6418-6421
+  s_eb0d66d074f33b::t_27bf4ec0ed0004 6367-6372
+  s_f746e30c841701::t_f89e13a982a00b 6456-6469
+  s_e6d31ab31b24f4::t_f4746001d71932 4024-4026
+  s_eb0d66d074f33b::t_173838fedfe2e4 4926-4928,4930,4945
+  s_eb0d66d074f33b::t_fec3b4c21858c5 6550-6571
+  s_eb0d66d074f33b::t_6ae6669f5eb2c9 6448-6454
+  s_02b6f4c7d2d704::t_a0f72931d34ddf 6308-6339,6364-6366,6373-6417,6422-6447,6455,6470-6491,6503-6549
+  s_eb0d66d074f33b::t_d1ac906e103097 6340-6363
+  s_eb0d66d074f33b::t_55cf2ed992002a 151,154-155
+  s_02b6f4c7d2d704::t_ca0f1b36dfc48d 150,152-153
+  s_f746e30c841701::t_ad508554562255 4858-4876
+  s_9ddfb77862652c::t_ff1e8d812d8f84 4878
+frontend/src/components/TransactionDetailModal.tsx
+  s_4fd179d002ae1a::t_13bce0ed3e781f 1-237
+frontend/src/api/client.ts
+  s_02b6f4c7d2d704::t_85bdb34625af78 13,27-28
+  s_f746e30c841701::t_aa011cc9394701 14
+  s_b2b2eb65346a36::t_f4c86ffbd311e1 335
+  s_f746e30c841701::t_6a907cdbea980d 604-647
+  s_f746e30c841701::t_9a48f42b0895ec 29-30
+  s_02b6f4c7d2d704::t_100a5edbc791b6 566-603
+  s_b2b2eb65346a36::t_156e9e88abdc91 7,329-334,336,340
+frontend/src/components/NotificationBell.tsx
+  s_02b6f4c7d2d704::t_7941d80a568f33 111
+  s_f746e30c841701::t_4cd478fadaf100 28-45,59
+  s_f746e30c841701::t_b20ccac7b0f890 239
+  s_02b6f4c7d2d704::t_e96a1b50009951 1-27,46-58,60-68,70-72,74-75,77-85,94-100,104-110,112-157,162-238,240-251
+  s_f746e30c841701::t_1a9321032f830c 158-161
+  s_f746e30c841701::t_05be82795c3d1d 69,73,76,86-93,101-103
+frontend/src/components/TransactionsTable.tsx
+  s_4fd179d002ae1a::t_202d29930d5acb 384-388
+  s_4fd179d002ae1a::t_fe851f03d39550 9-10
+  s_4fd179d002ae1a::t_f51853f0c9d99e 56-57
+  s_4fd179d002ae1a::t_49291f2c37053d 429,434
+  s_4fd179d002ae1a::t_6ed2fd5f86b0d0 476-492
+frontend/src/components/Layout.tsx
+  s_02b6f4c7d2d704::t_233d8d2254accc 8
+  s_02b6f4c7d2d704::t_f8dc68e53c8306 100-102
+frontend/src/i18n/en.ts
+  s_02b6f4c7d2d704::t_f17a3e52ca41e8 655
+  s_b2b2eb65346a36::t_3dd114a92ddd33 156,158-159,161-168,170,172,174-175,186-196
+  s_4fd179d002ae1a::t_69db40b2a2d2ab 706
+  s_f746e30c841701::t_71a06b18c28af3 656-662,664-666,671-675,679-705
+  s_924027ecd2c883::t_eab9939ee91903 449-450,663,667-670,676-678
+  s_02b6f4c7d2d704::t_f1107f16ef9641 643-654
+frontend/src/hooks/useIsMobile.ts
+  s_4fd179d002ae1a::t_e4be26e7ebaab7 1-17
+frontend/src/contexts/NotificationsContext.tsx
+  s_02b6f4c7d2d704::t_190065e7d09482 1-100
+frontend/src/i18n/es.ts
+  s_02b6f4c7d2d704::t_5425ec9f4c71d7 655
+  s_4fd179d002ae1a::t_3e4f0134d30f30 706
+  s_b2b2eb65346a36::t_aa049299ca8220 156,158-159,161-168,170,172,174-175,186-196
+  s_924027ecd2c883::t_721cb5bc1f3b01 449-450,663,667-670,676-678
+  s_f746e30c841701::t_be06226a7f0b12 656-662,664-666,671-675,679-705
+  s_02b6f4c7d2d704::t_5540f831146c1f 643-654
+frontend/src/api/types.ts
+  s_02b6f4c7d2d704::t_004efd64d35589 740-756
+  s_b2b2eb65346a36::t_3241e43a614660 295-401,411-418
+  s_f746e30c841701::t_79143f8dc2f65f 757-781
+frontend/src/i18n/index.ts
+  s_02b6f4c7d2d704::t_e5c59a71a017ad 647
+  s_924027ecd2c883::t_12e51101d3ff7a 445-446,659-662,670
+  s_f746e30c841701::t_0908360b1783ad 648-658,663-669,671-697
+  s_b2b2eb65346a36::t_55dadb6f238bf0 169,172-179,181,183,185-186,197-207
+  s_4fd179d002ae1a::t_362c0a3ce66423 698-699
+  s_02b6f4c7d2d704::t_2b40bbd13632d8 635-646
+frontend/src/components/TelegramWizard.tsx
+  s_924027ecd2c883::t_7b0df6680f7cb0 5,13-14,18,21,27,30-286
+  s_f746e30c841701::t_bdc7f9beaf3340 1-4,6-12,15-17,19-20,22-26,28-29,287
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "acc34b10c5a185334996b9516896800771c442ef",
+  "prompts": {},
+  "sessions": {
+    "s_02b6f4c7d2d704": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01Mxg2iRzhTpms7ASYjbfcN9",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_0c412a0ce56b83": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "0cb28098-767f-4211-ad32-dc452e94275d",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_4fd179d002ae1a": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01PzxWjFR5QXKqCDHikpw8jH",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_924027ecd2c883": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01LgnR814n5pKKWvJYuJ69Mu",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_9ddfb77862652c": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01DEzcWmV5h6jtqbmVXqXphk",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_b2b2eb65346a36": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_018zKJXYDaJQ717Rc4tRGLCr",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_e6d31ab31b24f4": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01EjxJeSWy598nifaGKsLPuW",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_eb0d66d074f33b": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_017oEJVG7KFNwiEBCDdbMuz8",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_f65114ca3dfe99": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_019JtN22m8jHGwUBiQpKfhCc",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_f746e30c841701": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_0122iqE7waBBJwwPNcz5wBoY",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    }
+  }
+}
