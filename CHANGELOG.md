@@ -4,6 +4,21 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260720] - 2026-07-20
+
+- feat(backup): backup wizard v2
+- feat(frontend): notifications center, Telegram wizard, mobile responsive fixes
+- feat(notifications): backend — detectors, orchestrator, API, Telegram channel
+- Vision: Conectores restructured (Inversiones/Notificaciones categories), TelegramWizard 4→3 steps, @BotFather link, chat_id validation UI
+- Shuri: chat_id integer validator (^-?\d+$, HTTP 422), scripts/seed_notifications.py reusable tool (--push/--clear)
+- Rocket (seed): 4 sample notifications seeded to live DB
+- Rocket (rebuild): Docker images rebuilt with both Dockerfiles now COPY scripts/ (Ops fix for seed script availability)
+- Wanda: Mobile donut CSS fix (max-width 220px→280px at ≤500px, fixes clipping on iPhone 14+ etc.)
+- 5 orchestration logs (ISO 8601 UTC timestamps): Vision, Shuri, Rocket×2 (seed+rebuild), Wanda
+- 1 session log: notifications-feedback-round summary
+- docs: scribe archive backup-wizard-v2 spawn
+
+
 ## [20260717.05] - 2026-07-17
 
 - backend: GET /api/statements/reminder returns { year, month, missing_account_ids } — accounts with prior statement history that are missing the previous completed calendar month (grace 0; established-this-month or no-history accounts are not flagged).
