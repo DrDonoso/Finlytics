@@ -13,7 +13,7 @@ Strategy
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -62,6 +62,15 @@ def _rows_all(*rows):
     return m
 
 
+def _empty_v2_export_tail():
+    """Empty rules + investments query results for default v2 export."""
+    return [
+        _scalars_all(),   # rules
+        _scalars_all(),   # investment connections
+        _scalars_all(),   # price history
+    ]
+
+
 # ── Session fixture with auto-incrementing IDs on flush ───────────────────────
 
 
@@ -82,8 +91,10 @@ def _make_autoincrement_session():
 
     def _add(obj):
         _pending.append(obj)
+        session.added_objects.append(obj)
 
     session.add = _add
+    session.added_objects = []
 
     async def _flush():
         for obj in _pending:
@@ -172,6 +183,7 @@ async def test_export_returns_200(client, mock_session):
         _scalars_all(tag),          # tags
         _mappings_all(tx_row),      # transactions
         _rows_all((1, "food")),     # tag map
+        *_empty_v2_export_tail(),
     ]
 
     resp = await client.get("/api/backup/export")
@@ -184,7 +196,7 @@ async def test_export_has_required_top_level_keys(client, mock_session):
         _scalars_all(),   # categories: empty
         _scalars_all(),   # tags: empty
         _mappings_all(),  # transactions: empty
-        # no tag-map query (tx_ids is empty)
+        *_empty_v2_export_tail(),
     ]
 
     resp = await client.get("/api/backup/export")
@@ -192,9 +204,9 @@ async def test_export_has_required_top_level_keys(client, mock_session):
 
     assert set(body.keys()) == {
         "finlytics_backup_version", "exported_at",
-        "accounts", "categories", "tags", "transactions",
+        "accounts", "categories", "tags", "transactions", "rules", "investments",
     }
-    assert body["finlytics_backup_version"] == 1
+    assert body["finlytics_backup_version"] == 2
     assert body["exported_at"]  # non-empty ISO string
 
 
@@ -206,6 +218,7 @@ async def test_export_account_fields(client, mock_session):
         _scalars_all(),
         _scalars_all(),
         _mappings_all(),
+        *_empty_v2_export_tail(),
     ]
 
     body = (await client.get("/api/backup/export")).json()
@@ -222,6 +235,7 @@ async def test_export_category_fields(client, mock_session):
         _scalars_all(cat),
         _scalars_all(),
         _mappings_all(),
+        *_empty_v2_export_tail(),
     ]
 
     body = (await client.get("/api/backup/export")).json()
@@ -238,6 +252,7 @@ async def test_export_tag_fields(client, mock_session):
         _scalars_all(),
         _scalars_all(tag),
         _mappings_all(),
+        *_empty_v2_export_tail(),
     ]
 
     body = (await client.get("/api/backup/export")).json()
@@ -264,6 +279,7 @@ async def test_export_transaction_fields(client, mock_session):
         _scalars_all(),
         _mappings_all(tx_row),
         _rows_all(),   # no tags
+        *_empty_v2_export_tail(),
     ]
 
     body = (await client.get("/api/backup/export")).json()
@@ -298,6 +314,7 @@ async def test_export_transaction_tags_resolved(client, mock_session):
         _scalars_all(),
         _mappings_all(tx_row),
         _rows_all((10, "alfa"), (10, "beta")),
+        *_empty_v2_export_tail(),
     ]
 
     body = (await client.get("/api/backup/export")).json()
@@ -307,6 +324,7 @@ async def test_export_transaction_tags_resolved(client, mock_session):
 async def test_export_content_disposition_header(client, mock_session):
     mock_session.execute.side_effect = [
         _scalars_all(), _scalars_all(), _scalars_all(), _mappings_all(),
+        *_empty_v2_export_tail(),
     ]
     resp = await client.get("/api/backup/export")
     cd = resp.headers.get("content-disposition", "")
@@ -318,12 +336,113 @@ async def test_export_content_disposition_header(client, mock_session):
 async def test_export_handles_empty_db(client, mock_session):
     mock_session.execute.side_effect = [
         _scalars_all(), _scalars_all(), _scalars_all(), _mappings_all(),
+        *_empty_v2_export_tail(),
     ]
     body = (await client.get("/api/backup/export")).json()
     assert body["accounts"] == []
     assert body["categories"] == []
     assert body["tags"] == []
     assert body["transactions"] == []
+    assert body["rules"] == []
+    assert body["investments"] == {"connections": [], "espp_lots": [], "price_history": []}
+
+
+async def test_export_selected_sections_only(client, mock_session):
+    """Explicit section flags export only the selected sections."""
+    rule = MagicMock()
+    rule.name = "Mercadona"
+    rule.priority = 10
+    rule.enabled = True
+    rule.description_mode = "contains"
+    rule.description_value = "MERCADONA"
+    rule.amount_sign = "negative"
+    rule.amount_min = Decimal("1.00")
+    rule.amount_max = None
+    rule.account_ref = None
+    rule.currency = "EUR"
+    rule.detail_mode = None
+    rule.detail_value = None
+    rule.set_category = "Groceries"
+    rule.set_merchant = "Mercadona"
+    rule.add_tags = ["food"]
+    rule.skip_ai = True
+
+    mock_session.execute.side_effect = [_scalars_all(rule)]
+
+    body = (await client.get("/api/backup/export?rules=true")).json()
+
+    assert set(body.keys()) == {"finlytics_backup_version", "exported_at", "rules"}
+    assert body["rules"][0]["name"] == "Mercadona"
+    assert body["rules"][0]["amount_min"] == pytest.approx(1.0)
+
+
+async def test_export_default_includes_rules_and_investments(client, mock_session):
+    """Default export includes every v2 section, including encrypted tokens as-is."""
+    rule = MagicMock()
+    rule.name = "Salary"
+    rule.priority = 5
+    rule.enabled = True
+    rule.description_mode = "starts_with"
+    rule.description_value = "PAYROLL"
+    rule.amount_sign = "positive"
+    rule.amount_min = None
+    rule.amount_max = None
+    rule.account_ref = "BBVA"
+    rule.currency = "EUR"
+    rule.detail_mode = None
+    rule.detail_value = None
+    rule.set_category = "Income"
+    rule.set_merchant = "Employer"
+    rule.add_tags = []
+    rule.skip_ai = True
+
+    conn = MagicMock()
+    conn.id = 11
+    conn.plugin_id = "indexa-capital"
+    conn.status = "active"
+    conn.account_label_masked = "PBK•••Z5"
+    conn.token_enc = "gAAAA-encrypted-token"
+    conn.last_synced_at = datetime(2026, 1, 2, 3, 4, 5, tzinfo=timezone.utc)
+
+    lot = MagicMock()
+    lot.id = 21
+    lot.connection_id = 11
+    lot.ticker = "MSFT"
+    lot.purchase_date = date(2024, 1, 2)
+    lot.grant_date = None
+    lot.shares = Decimal("1.25000000")
+    lot.cost_basis = Decimal("100.00")
+    lot.cost_basis_per_share = Decimal("80.000000")
+    lot.source_currency = "EUR"
+    lot.share_source = "SP"
+    lot.holding_period = None
+    lot.dedup_hash = "h" * 64
+
+    price = MagicMock()
+    price.ticker = "MSFT"
+    price.price_date = date(2024, 1, 2)
+    price.close_usd = Decimal("400.000000")
+    price.fx_eur_usd = Decimal("0.920000")
+    price.close_eur = Decimal("368.000000")
+
+    mock_session.execute.side_effect = [
+        _scalars_all(),   # accounts
+        _scalars_all(),   # categories
+        _scalars_all(),   # tags
+        _mappings_all(),  # transactions
+        _scalars_all(rule),
+        _scalars_all(conn),
+        _scalars_all(lot),
+        _scalars_all(price),
+    ]
+
+    body = (await client.get("/api/backup/export")).json()
+
+    assert body["finlytics_backup_version"] == 2
+    assert body["rules"][0]["name"] == "Salary"
+    assert body["investments"]["connections"][0]["token_enc"] == "gAAAA-encrypted-token"
+    assert body["investments"]["espp_lots"][0]["dedup_hash"] == "h" * 64
+    assert body["investments"]["price_history"][0]["close_eur"] == pytest.approx(368.0)
 
 
 # ── Import — validation ───────────────────────────────────────────────────────
@@ -362,6 +481,10 @@ async def test_import_response_shape(import_client):
         "categories_created", "categories_updated",
         "tags_created", "tags_updated",
         "transactions_inserted", "transactions_duplicates",
+        "rules_created", "rules_updated",
+        "investment_connections_created", "investment_connections_updated",
+        "espp_lots_inserted", "espp_lots_duplicates",
+        "price_history_inserted", "price_history_duplicates",
     }
 
 
@@ -533,6 +656,163 @@ async def test_import_empty_backup_returns_zeros(import_client):
     assert all(v == 0 for v in body.values())
 
 
+async def test_import_restores_rules_and_investments(import_client):
+    """Rules and investments are restored, including verbatim encrypted token text."""
+    client, session = import_client
+    payload = {
+        "finlytics_backup_version": 2,
+        "exported_at": "2026-01-01T00:00:00+00:00",
+        "rules": [
+            {
+                "name": "Mercadona",
+                "priority": 10,
+                "enabled": True,
+                "description_mode": "contains",
+                "description_value": "MERCADONA",
+                "amount_sign": "negative",
+                "amount_min": 1.0,
+                "amount_max": 100.0,
+                "account_ref": "BBVA",
+                "currency": "EUR",
+                "detail_mode": None,
+                "detail_value": None,
+                "set_category": "Groceries",
+                "set_merchant": "Mercadona",
+                "add_tags": ["food"],
+                "skip_ai": True,
+            }
+        ],
+        "investments": {
+            "connections": [
+                {
+                    "plugin_id": "indexa-capital",
+                    "status": "active",
+                    "account_label_masked": "PBK•••Z5",
+                    "token_enc": "gAAAA-encrypted-token",
+                    "last_synced_at": "2026-01-02T03:04:05+00:00",
+                }
+            ],
+            "espp_lots": [
+                {
+                    "connection_plugin_id": "indexa-capital",
+                    "ticker": "MSFT",
+                    "purchase_date": "2024-01-02",
+                    "grant_date": None,
+                    "shares": 1.25,
+                    "cost_basis": 100.0,
+                    "cost_basis_per_share": 80.0,
+                    "source_currency": "EUR",
+                    "share_source": "SP",
+                    "holding_period": None,
+                    "dedup_hash": "h" * 64,
+                }
+            ],
+            "price_history": [
+                {
+                    "ticker": "MSFT",
+                    "price_date": "2024-01-02",
+                    "close_usd": 400.0,
+                    "fx_eur_usd": 0.92,
+                    "close_eur": 368.0,
+                }
+            ],
+        },
+    }
+    session.execute.side_effect = [
+        _scalar_none(),      # rule lookup
+        _scalar_none(),      # connection lookup
+        _scalar_value(100),  # espp lot insert
+        _scalar_none(),      # price lookup
+    ]
+
+    resp = await client.post("/api/backup/import", json=payload)
+    body = resp.json()
+
+    assert resp.status_code == 200
+    assert body["rules_created"] == 1
+    assert body["investment_connections_created"] == 1
+    assert body["espp_lots_inserted"] == 1
+    assert body["price_history_inserted"] == 1
+    assert any(
+        getattr(obj, "token_enc", None) == "gAAAA-encrypted-token"
+        for obj in session.added_objects
+    )
+
+
+async def test_import_rules_and_investments_idempotent(import_client):
+    """Re-import updates natural-key rows and counts ESPP/price duplicates."""
+    client, session = import_client
+    payload = {
+        "finlytics_backup_version": 2,
+        "exported_at": "2026-01-01T00:00:00+00:00",
+        "rules": [
+            {
+                "name": "Mercadona",
+                "priority": 10,
+                "enabled": False,
+                "description_mode": "contains",
+                "description_value": "MERCADONA",
+                "set_category": "Groceries",
+            }
+        ],
+        "investments": {
+            "connections": [
+                {
+                    "plugin_id": "indexa-capital",
+                    "status": "active",
+                    "account_label_masked": "PBK•••Z5",
+                    "token_enc": "gAAAA-new-encrypted-token",
+                }
+            ],
+            "espp_lots": [
+                {
+                    "connection_plugin_id": "indexa-capital",
+                    "ticker": "MSFT",
+                    "purchase_date": "2024-01-02",
+                    "shares": 1.25,
+                    "cost_basis": 100.0,
+                    "cost_basis_per_share": 80.0,
+                    "source_currency": "EUR",
+                    "share_source": "SP",
+                    "dedup_hash": "h" * 64,
+                }
+            ],
+            "price_history": [
+                {
+                    "ticker": "MSFT",
+                    "price_date": "2024-01-02",
+                    "close_usd": 401.0,
+                    "fx_eur_usd": 0.91,
+                    "close_eur": 364.91,
+                }
+            ],
+        },
+    }
+    existing_rule = MagicMock()
+    existing_rule.id = 1
+    existing_conn = MagicMock()
+    existing_conn.id = 2
+    existing_price = MagicMock()
+    session.execute.side_effect = [
+        _scalar_value(existing_rule),
+        _scalar_value(existing_conn),
+        _scalar_value(None),       # espp lot conflict
+        _scalar_value(existing_price),
+    ]
+
+    resp = await client.post("/api/backup/import", json=payload)
+    body = resp.json()
+
+    assert resp.status_code == 200
+    assert body["rules_updated"] == 1
+    assert body["investment_connections_updated"] == 1
+    assert body["espp_lots_duplicates"] == 1
+    assert body["price_history_duplicates"] == 1
+    assert existing_rule.enabled is False
+    assert existing_conn.token_enc == "gAAAA-new-encrypted-token"
+    assert existing_price.close_usd == Decimal("401.0")
+
+
 async def test_import_multiple_accounts(import_client):
     """Multiple accounts in a backup are all created."""
     client, session = import_client
@@ -573,6 +853,56 @@ async def test_roundtrip_export_then_import(client, mock_session):
     cat = MagicMock(); cat.name = "Groceries"; cat.is_base = True
     cat.color = "#22c55e"; cat.name_es = "Compras"
     tag = MagicMock(); tag.name = "food"; tag.color = "#ff0000"; tag.emoji = "🍎"
+    rule = MagicMock()
+    rule.name = "Mercadona"
+    rule.priority = 10
+    rule.enabled = True
+    rule.description_mode = "contains"
+    rule.description_value = "MERCADONA"
+    rule.amount_sign = "negative"
+    rule.amount_min = None
+    rule.amount_max = None
+    rule.account_ref = None
+    rule.currency = "EUR"
+    rule.detail_mode = None
+    rule.detail_value = None
+    rule.set_category = "Groceries"
+    rule.set_merchant = "Mercadona"
+    rule.add_tags = ["food"]
+    rule.skip_ai = True
+    indexa_conn = MagicMock()
+    indexa_conn.id = 200
+    indexa_conn.plugin_id = "indexa-capital"
+    indexa_conn.status = "active"
+    indexa_conn.account_label_masked = "PBK•••Z5"
+    indexa_conn.token_enc = "gAAAA-encrypted-token"
+    indexa_conn.last_synced_at = None
+    fidelity_conn = MagicMock()
+    fidelity_conn.id = 201
+    fidelity_conn.plugin_id = "fidelity-espp"
+    fidelity_conn.status = "active"
+    fidelity_conn.account_label_masked = None
+    fidelity_conn.token_enc = None
+    fidelity_conn.last_synced_at = None
+    lot = MagicMock()
+    lot.id = 300
+    lot.connection_id = 201
+    lot.ticker = "MSFT"
+    lot.purchase_date = date(2024, 1, 2)
+    lot.grant_date = None
+    lot.shares = Decimal("1.25000000")
+    lot.cost_basis = Decimal("100.00")
+    lot.cost_basis_per_share = Decimal("80.000000")
+    lot.source_currency = "EUR"
+    lot.share_source = "SP"
+    lot.holding_period = None
+    lot.dedup_hash = "h" * 64
+    price = MagicMock()
+    price.ticker = "MSFT"
+    price.price_date = date(2024, 1, 2)
+    price.close_usd = Decimal("400.000000")
+    price.fx_eur_usd = Decimal("0.920000")
+    price.close_eur = Decimal("368.000000")
     tx_row = {
         "id": 100,
         "transaction_date": date(2024, 6, 1),
@@ -592,6 +922,10 @@ async def test_roundtrip_export_then_import(client, mock_session):
         _scalars_all(tag),
         _mappings_all(tx_row),
         _rows_all((100, "food")),
+        _scalars_all(rule),
+        _scalars_all(indexa_conn, fidelity_conn),
+        _scalars_all(lot),
+        _scalars_all(price),
     ]
 
     export_resp = await client.get("/api/backup/export")
@@ -599,11 +933,16 @@ async def test_roundtrip_export_then_import(client, mock_session):
     backup_json = export_resp.json()
 
     # Verify the exported payload matches the spec contract
-    assert backup_json["finlytics_backup_version"] == 1
+    assert backup_json["finlytics_backup_version"] == 2
     assert len(backup_json["accounts"]) == 1
     assert len(backup_json["categories"]) == 1
     assert len(backup_json["tags"]) == 1
     assert len(backup_json["transactions"]) == 1
+    assert len(backup_json["rules"]) == 1
+    assert len(backup_json["investments"]["connections"]) == 2
+    assert len(backup_json["investments"]["espp_lots"]) == 1
+    assert len(backup_json["investments"]["price_history"]) == 1
+    assert backup_json["investments"]["connections"][0]["token_enc"] == "gAAAA-encrypted-token"
     assert backup_json["transactions"][0]["tags"] == ["food"]
 
     # ── Phase 2: import the export JSON into a fresh (empty) DB ──────────────
@@ -614,6 +953,11 @@ async def test_roundtrip_export_then_import(client, mock_session):
         _scalar_none(),     # tag lookup
         _scalar_value(42),  # transaction insert → new
         MagicMock(),        # transaction_tags
+        _scalar_none(),     # rule lookup
+        _scalar_none(),     # indexa connection lookup
+        _scalar_none(),     # fidelity connection lookup
+        _scalar_value(300), # espp lot insert
+        _scalar_none(),     # price lookup
     ]
 
     async def _fresh_db():
@@ -640,3 +984,7 @@ async def test_roundtrip_export_then_import(client, mock_session):
     assert summary["tags_created"] == 1
     assert summary["transactions_inserted"] == 1
     assert summary["transactions_duplicates"] == 0
+    assert summary["rules_created"] == 1
+    assert summary["investment_connections_created"] == 2
+    assert summary["espp_lots_inserted"] == 1
+    assert summary["price_history_inserted"] == 1
