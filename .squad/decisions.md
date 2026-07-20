@@ -9336,3 +9336,286 @@ All have safe defaults — none block container startup:
 
 ---
 
+
+
+# Vision — Conectores two-category + Telegram wizard polish
+
+**Date:** 2026-07-20T08:25:04+02:00  
+**Author:** Vision (Frontend Engineer)  
+**Requested by:** DrDonoso
+
+---
+
+## Summary
+
+Three frontend changes applied based on owner feedback after testing the notifications feature.
+
+---
+
+## ① Telegram connector moved into Conectores page
+
+**Files changed:**
+- `frontend/src/pages/ConnectorsPage.tsx` — restructured into two `settings-card` sections:
+  - **Inversiones** (`t.connectorsInvestmentsTitle`) — existing investment plugin catalog unchanged.
+  - **Notificaciones** (`t.connectorsNotificationsTitle`) — new section with Telegram card. Reads state from `getNotificationChannels()`; shows connected state (masked label, `connected-badge`, Reconfigurar / Desconectar) or "Conectar" button that opens `TelegramWizard`. Uses same card pattern as `renderIndexaCard`.
+- `frontend/src/App.tsx` — removed `import NotificationsSettingsPage` and `<Route path="notifications">`.
+- `frontend/src/components/Layout.tsx` — removed `<NavLink to="/settings/notifications">` entry from Sistema group.
+
+**Files deleted:**
+- `frontend/src/pages/NotificationsSettingsPage.tsx`
+
+---
+
+## ② Wizard step 1: token first, @BotFather instructions
+
+**File changed:** `frontend/src/components/TelegramWizard.tsx`
+
+- Wizard restructured from **4 steps → 3 steps** (progress indicator reduced to 3 dots + 2 separators).
+- **Step 1** (new): `@BotFather` numbered instructions in `inv-wizard__security-note` callout:
+  1. `tgWizardBotFatherStep1`
+  2. `tgWizardBotFatherStep2`
+  3. `tgWizardBotFatherStep3`
+  - Link "Abrir @BotFather →" to `https://t.me/BotFather` (class `inv-wizard__link`).
+  - Bot token input (`type="password"`) directly below.
+  - Encryption security note retained below the input.
+- Old standalone intro step (no input) removed.
+- **Step 2**: Chat ID + test (formerly step 3).
+- **Step 3**: Confirm/connect (formerly step 4).
+
+---
+
+## ③ Chat ID integer validation
+
+**File changed:** `frontend/src/components/TelegramWizard.tsx`
+
+- Placeholder changed to `123456789` (numeric, no @usuario).
+- `inputMode="numeric"` on the chat_id input.
+- Regex `^-?\d+$` validated on change and blur.
+- Inline `inv-wizard__error-banner` shown when touched + non-empty + invalid — uses `tgWizardChatIdValidationError`.
+- Test button and "Next" button both disabled until `chatIdValid`.
+- Hint text updated: explicitly states @usuario is not supported, points to @userinfobot.
+- Backend 422 responses now map to `tgWizardErrorBadToken` (alongside 400).
+
+---
+
+## i18n keys added/updated
+
+| Key | ES | EN |
+|-----|----|----|
+| `connectorsInvestmentsTitle` | Inversiones | Investments |
+| `connectorsNotificationsTitle` | Notificaciones | Notifications |
+| `tgWizardStep1Title` | Token del bot | Bot token |
+| `tgWizardBotFatherStep1` | Abre @BotFather en Telegram. | Open @BotFather in Telegram. |
+| `tgWizardBotFatherStep2` | Envía /newbot y sigue los pasos. | Send /newbot and follow the steps. |
+| `tgWizardBotFatherStep3` | Copia el token que te da y pégalo aquí abajo. | Copy the token it gives you and paste it below. |
+| `tgWizardBotFatherLink` | Abrir @BotFather → | Open @BotFather → |
+| `tgWizardStep3ChatIdPlaceholder` | 123456789 | 123456789 |
+| `tgWizardStep3ChatIdHint` | (numeric, no @usuario, @userinfobot tip) | (numeric, no @username, @userinfobot tip) |
+| `tgWizardChatIdValidationError` | El Chat ID debe ser un número entero… | Chat ID must be an integer… |
+
+**Files changed:** `frontend/src/i18n/index.ts`, `frontend/src/i18n/es.ts`, `frontend/src/i18n/en.ts`
+
+---
+
+## Build result
+
+`cd frontend && npm run build` — **PASS** (0 TS errors, pre-existing chunk-size warning only).
+
+
+# Decision: chat_id validation + notifications seed script
+
+**Date:** 2026-07-20  
+**Author:** Shuri (backend)  
+**Status:** implemented, tests green (1244 passed, 2 skipped)
+
+---
+
+## ① chat_id validation rule
+
+**Rule:** `TelegramChannelIn.chat_id` and `TelegramTestIn.chat_id` must match `^-?\d+$`.
+
+- Accepts: `123456789`, `-1001234567890` (groups/supergroups with negative IDs).
+- Rejects: `@username`, empty string, letters, decimals, anything non-numeric.
+- Storage: chat_id remains a **string** (Telegram IDs may exceed 32 bits — never cast to int).
+- HTTP status on violation: **422 Unprocessable Entity** (Pydantic validation error).
+- Implementation: `src/finlytics/api/schemas.py` — `_CHAT_ID_RE`, `_validate_chat_id()`, `@field_validator("chat_id")` on both `TelegramChannelIn` and `TelegramTestIn`.
+
+---
+
+## ② Seed notifications script
+
+**File:** `scripts/seed_notifications.py`
+
+### Run inside Docker
+
+```bash
+# Insert 4 demo notifications for the first user (bell-only):
+docker exec -it <container_name> python scripts/seed_notifications.py
+
+# Explicit user:
+docker exec -it <container_name> python scripts/seed_notifications.py --user-id 1
+
+# Also trigger Telegram delivery (tests full pipeline):
+docker exec -it <container_name> python scripts/seed_notifications.py --push
+
+# Clean up seed rows:
+docker exec -it <container_name> python scripts/seed_notifications.py --clear
+```
+
+### Why source='seed' persists
+
+The orchestrator's auto-resolve step is scoped to `Notification.source == detector.id`
+(service.py). Since `'seed'` is not registered in the detector REGISTRY, seeded rows are
+**never auto-resolved** — they persist through the background loop and appear in
+`GET /notifications` until explicitly dismissed or cleared with `--clear`.
+
+### Seeded rows
+
+| dedup_key   | type               | severity | title_key                  | action_link                  |
+|-------------|--------------------|----------|----------------------------|------------------------------|
+| seed:demo:1 | missing_statement  | warning  | notif.statement_missing    | /finances                    |
+| seed:demo:2 | missing_statement  | warning  | notif.statement_missing    | /finances                    |
+| seed:demo:3 | espp_overdue       | warning  | notif.espp_overdue         | /investments/fidelity-espp   |
+| seed:demo:4 | espp_overdue       | info     | notif.espp_overdue         | /investments/fidelity-espp   |
+
+
+# Seed Notifications — Result
+
+**Date:** 2026-07-20T08:25:04+02:00  
+**Requested by:** DrDonoso  
+**Agent:** Rocket
+
+## Outcome
+
+✅ **4 rows inserted** into `notifications` for user id `1`.
+
+| id | source | type                  | severity | dedup_key   | title_key               | action_link                  |
+|----|--------|-----------------------|----------|-------------|-------------------------|------------------------------|
+| 1  | seed   | missing_statement     | warning  | seed:demo:1 | notif.statement_missing | /finances                    |
+| 2  | seed   | missing_statement     | warning  | seed:demo:2 | notif.statement_missing | /finances                    |
+| 3  | seed   | espp_overdue          | warning  | seed:demo:3 | notif.espp_overdue      | /investments/fidelity-espp   |
+| 4  | seed   | espp_overdue          | info     | seed:demo:4 | notif.espp_overdue      | /investments/fidelity-espp   |
+
+## Notes
+
+- `source='seed'` — rows will NOT be auto-resolved by the notification loop (no detector owns that source).
+- Insert was idempotent (`ON CONFLICT (user_id, dedup_key) DO NOTHING`); safe to re-run.
+- Stack left UP at :7777. Bell should show 4 notifications immediately.
+
+
+# Rocket — Rebuild Round 2 Result
+
+**Date:** 2026-07-20  
+**Requested by:** DrDonoso  
+**Round changes picked up:** Telegram connector wizard UI (Vision), chat_id integer validation + `scripts/seed_notifications.py` (Shuri), donut mobile CSS fix (Wanda).
+
+---
+
+## Result: ✅ PASS — Stack UP at :7777
+
+### Steps
+
+| Step | Result |
+|------|--------|
+| `cd frontend && npm run build` | ✅ 900 modules, 896 kB chunk warning (pre-existing/OK), built in 6.6 s |
+| `docker compose -f docker-compose.local.yml build` | ✅ 14-stage build; all dep layers cached; `scripts/` stage new |
+| `docker compose -f docker-compose.local.yml up -d` | ✅ api recreated; db untouched (pgdata volume persisted) |
+
+### Ops fix (DevOps layer)
+
+Both `Dockerfile.local` and `Dockerfile` were missing `COPY scripts/ ./scripts/`. Added after `COPY alembic/ ./alembic/` in both files. This ensures `scripts/seed_notifications.py` (and future utility scripts) are available at `/app/scripts/` inside the container.
+
+### Verification checks
+
+| Check | Expected | Actual |
+|-------|----------|--------|
+| `docker compose ps` | api + db Up, db healthy | ✅ api Up 14 s · db Up 4 days (healthy) |
+| `GET /health` | `{"status":"ok"}` 200 | ✅ `{"status":"ok"}` |
+| `GET /api/notifications/unread-count` | HTTP 401 | ✅ 401 Unauthorized |
+| `SELECT count(*) WHERE source='seed'` | 4 | ✅ 4 rows survived rebuild |
+| `ls scripts/seed_notifications.py` in api | found | ✅ `scripts/seed_notifications.py` |
+
+### Boot log summary
+
+```
+2026-07-20 06:53:46 [entrypoint] Running DB migrations...
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+[no upgrade line — head already at 0016]
+2026-07-20 06:53:47 [entrypoint] Seeding base categories...
+Seed complete — categories: 0 inserted, 0 recolored, 20 already had correct color
+2026-07-20 06:53:49 [entrypoint] Starting Finlytics...
+INFO:  Notification loop started (interval=300s)
+INFO:  Application startup complete.
+INFO:  Uvicorn running on http://0.0.0.0:7777
+```
+
+No tracebacks. Alembic at head (0016). Notification loop started.
+
+---
+
+**Stack status:** UP. No app code modified. No secrets printed.
+
+
+# Decision: Mobile donut clipping fix — SpendingByCategory & TopMerchants
+
+**Author:** Wanda (UX/UI)  
+**Date:** 2026-07-20T08:38:58+02:00  
+**Requested by:** DrDonoso (David)
+
+---
+
+## Problem
+
+On iPhone 14 Pro Max (and any phone ≥360px), the two donut charts — "Gastos totales" (`SpendingByCategory`) and "Top comercios" (`TopMerchants`) — were clipped on their left and right edges.
+
+## Root cause
+
+`frontend/src/index.css`, `@media (max-width: 500px)`:
+```css
+.cat-donut-wrap {
+  max-width: 220px;   /* ← culprit */
+  height: 240px;
+}
+```
+
+The recharts `<Pie>` uses fixed radii `innerRadius={84} outerRadius={116}` → donut diameter = **232px**. A 232px donut inside a 220px-wide SVG overflows 6px on each side.
+
+## Fix
+
+Single-line CSS change in `frontend/src/index.css` (line ~2327):
+
+```css
+/* before */
+max-width: 220px;
+
+/* after */
+max-width: 280px;
+```
+
+`width: 100%` on `.cat-donut-wrap` ensures it never exceeds the card's actual inner width, so the cap is a ceiling, not a forced size. Across all target breakpoints:
+
+| Phone | Card inner width | Wrap width | Donut dia. | Fits? |
+|-------|-----------------|------------|------------|-------|
+| 430px (iPhone 14 Pro Max) | ~366px | 280px | 232px | ✅ |
+| 390px (typical) | ~326px | 280px | 232px | ✅ |
+| 360px (small) | ~296px | 280px | 232px | ✅ |
+
+Height `240px` kept (saves vertical space on mobile; 232px donut fits with 4px top/bottom).
+
+## Files changed
+
+| File | Change |
+|------|--------|
+| `frontend/src/index.css` | `max-width: 220px` → `max-width: 280px` in `@media (max-width: 500px)` block for `.cat-donut-wrap` |
+
+## Files NOT changed
+
+- `frontend/src/components/SpendingByCategory.tsx` — no radii changes needed
+- `frontend/src/components/TopMerchants.tsx` — no radii changes needed
+- All other files untouched
+
+## Build result
+
+`npm run build` (tsc --noEmit + vite build): **✅ 0 TS errors, 0 warnings** (pre-existing chunk-size warning only).
+
