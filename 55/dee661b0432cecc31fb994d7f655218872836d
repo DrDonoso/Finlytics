@@ -1,0 +1,36 @@
+frontend/src/api/types.ts
+  s_871804ef7de8bd::t_6ae18536d56e60 66
+frontend/src/components/TransactionsTable.tsx
+  s_871804ef7de8bd::t_74fb4ea373999e 136
+  s_871804ef7de8bd::t_312287e767f19c 110,127
+frontend/src/pages/StatementsPage.tsx
+  s_920acec8fedb82::t_3ee991ce0f1b0a 18
+  s_920acec8fedb82::t_689cc452359666 400,405,410,415
+  s_920acec8fedb82::t_eb898c150af93c 42-56
+  s_920acec8fedb82::t_dded3f9debb20c 157,164,168-173
+  s_920acec8fedb82::t_ae0653585ec8a0 78-79
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "55dee661b0432cecc31fb994d7f655218872836d",
+  "prompts": {},
+  "sessions": {
+    "s_871804ef7de8bd": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01JudVebGrqmtPWf8WF1MGfd",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_920acec8fedb82": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01KSfSaDWgtN5enq1WRAHwSj",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    }
+  }
+}
