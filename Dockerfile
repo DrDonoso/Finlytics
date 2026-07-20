@@ -39,6 +39,7 @@ RUN pip install --no-cache-dir --no-deps .
 # Copy migration + seed artefacts (needed by the entrypoint)
 COPY alembic.ini seed.py ./
 COPY alembic/ ./alembic/
+COPY scripts/ ./scripts/
 
 # Copy the compiled React SPA from the frontend stage
 COPY --from=frontend-builder /frontend/dist ./frontend/dist

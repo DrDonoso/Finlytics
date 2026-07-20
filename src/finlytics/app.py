@@ -22,6 +22,7 @@ Route layout:
   DELETE /api/statements/month?year&month   — hard-delete a month's transactions
   POST /api/imports       — upload statement → parse → LLM extract → persist
   GET  /api/version       — app version + optional build metadata (PROTECTED)
+  /api/notifications      — notification list, badge count, read/dismiss
 
   /{full_path:path}       — React SPA catch-all (GET only; registered AFTER /api)
                             Serves frontend/dist/<path> when the file exists;
@@ -31,7 +32,10 @@ Route layout:
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import sys
+from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 
 from fastapi import Depends, FastAPI
@@ -45,19 +49,89 @@ from finlytics.api.deps import get_current_user
 from finlytics.api.fidelity import router as fidelity_router
 from finlytics.api.imports import router as imports_router
 from finlytics.api.investments import router as investments_router
+from finlytics.api.notifications import router as notifications_router
 from finlytics.api.rules import router as rules_router
 from finlytics.api.statements import router as statements_router
 from finlytics.api.summary import router as summary_router
 from finlytics.api.tags import router as tags_router
 from finlytics.api.transactions import router as transactions_router
 from finlytics.api.version import router as version_router
+from finlytics.config import settings
 
 log = logging.getLogger(__name__)
+
+
+# ── Background notifications loop ─────────────────────────────────────────────
+
+async def _notifications_loop() -> None:
+    """Periodically evaluate detectors and upsert notifications for all users.
+
+    Runs as a background asyncio.Task started in the lifespan hook.
+    Wraps each iteration in try/except so a single failure never kills the
+    loop.  Cancelled cleanly on application shutdown.
+    """
+    from datetime import date
+
+    from sqlalchemy import select
+
+    from finlytics.db.models import User
+    from finlytics.db.session import async_session_factory
+    from finlytics.notifications.service import evaluate_notifications
+
+    interval = settings.notifications_eval_interval_seconds
+    log.info("Notification loop started (interval=%ds)", interval)
+
+    while True:
+        try:
+            # Fetch all users in a short-lived session
+            async with async_session_factory() as db:
+                result = await db.execute(select(User))
+                users = result.scalars().all()
+
+            today = date.today()
+            for user in users:
+                try:
+                    async with async_session_factory() as db:
+                        await evaluate_notifications(db, user.id, today=today)
+                except Exception:
+                    log.exception(
+                        "Notification evaluation failed for user_id=%d", user.id
+                    )
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            log.exception("Notification loop iteration failed (non-fatal)")
+
+        await asyncio.sleep(interval)
+
+
+@asynccontextmanager
+async def lifespan(app_: FastAPI):
+    """Application lifespan: start/stop the background notifications loop."""
+    _task: asyncio.Task | None = None
+
+    # Guard: never run the loop inside pytest (no real DB; httpx may trigger
+    # lifespan in newer versions).  Also respect the explicit setting.
+    _in_test = "pytest" in sys.modules
+    if settings.notifications_loop_enabled and not _in_test:
+        _task = asyncio.create_task(_notifications_loop())
+
+    yield  # ← application is running here
+
+    if _task is not None:
+        _task.cancel()
+        with suppress(asyncio.CancelledError):
+            await _task
+        log.info("Notification loop stopped")
+
+
+# ── Application factory ───────────────────────────────────────────────────────
 
 app = FastAPI(
     title="Finlytics",
     version="0.1.0",
     description="Personal bank-account expense tracking with AI-powered extraction",
+    lifespan=lifespan,
 )
 
 # ── Auth router (PUBLIC — no auth dependency) ─────────────────────────────────
@@ -68,18 +142,19 @@ app.include_router(auth_router, prefix="/api")
 # ── Protected data routers ────────────────────────────────────────────────────
 _auth = [Depends(get_current_user)]
 
-app.include_router(accounts_router,     prefix="/api", dependencies=_auth)
-app.include_router(backup_router,       prefix="/api", dependencies=_auth)
-app.include_router(categories_router,   prefix="/api", dependencies=_auth)
-app.include_router(rules_router,        prefix="/api", dependencies=_auth)
-app.include_router(statements_router,   prefix="/api", dependencies=_auth)
-app.include_router(tags_router,         prefix="/api", dependencies=_auth)
-app.include_router(transactions_router, prefix="/api", dependencies=_auth)
-app.include_router(summary_router,      prefix="/api", dependencies=_auth)
-app.include_router(imports_router,      prefix="/api", dependencies=_auth)
-app.include_router(investments_router,  prefix="/api", dependencies=_auth)
-app.include_router(fidelity_router,     prefix="/api", dependencies=_auth)
-app.include_router(version_router,      prefix="/api", dependencies=_auth)
+app.include_router(accounts_router,      prefix="/api", dependencies=_auth)
+app.include_router(backup_router,        prefix="/api", dependencies=_auth)
+app.include_router(categories_router,    prefix="/api", dependencies=_auth)
+app.include_router(rules_router,         prefix="/api", dependencies=_auth)
+app.include_router(statements_router,    prefix="/api", dependencies=_auth)
+app.include_router(tags_router,          prefix="/api", dependencies=_auth)
+app.include_router(transactions_router,  prefix="/api", dependencies=_auth)
+app.include_router(summary_router,       prefix="/api", dependencies=_auth)
+app.include_router(imports_router,       prefix="/api", dependencies=_auth)
+app.include_router(investments_router,   prefix="/api", dependencies=_auth)
+app.include_router(fidelity_router,      prefix="/api", dependencies=_auth)
+app.include_router(notifications_router, prefix="/api", dependencies=_auth)
+app.include_router(version_router,       prefix="/api", dependencies=_auth)
 
 
 @app.get("/health", tags=["health"])

@@ -11,7 +11,9 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel
+import re
+
+from pydantic import BaseModel, field_validator
 
 from finlytics.contracts import ExtractedTransaction  # pydantic-only, no circular dep
 
@@ -277,14 +279,80 @@ class BackupTransactionIn(BaseModel):
     tags: list[str] = []          # tag names
 
 
+class BackupRuleIn(BaseModel):
+    """Rule entry inside a backup document."""
+    name: str
+    priority: int = 100
+    enabled: bool = True
+    description_mode: str
+    description_value: str
+    amount_sign: str | None = None
+    amount_min: float | None = None
+    amount_max: float | None = None
+    account_ref: str | None = None
+    currency: str | None = None
+    detail_mode: str | None = None
+    detail_value: str | None = None
+    set_category: str | None = None
+    set_merchant: str | None = None
+    add_tags: list[str] = []
+    skip_ai: bool = False
+
+
+class BackupInvestmentConnectionIn(BaseModel):
+    """Investment connection entry inside a backup document.
+
+    token_enc is the already-encrypted DB ciphertext and is never decrypted by
+    backup export/import.
+    """
+    plugin_id: str
+    status: str = "active"
+    account_label_masked: str | None = None
+    token_enc: str | None = None
+    last_synced_at: datetime | None = None
+
+
+class BackupEsppLotIn(BaseModel):
+    """Fidelity ESPP lot entry inside a backup document."""
+    connection_plugin_id: str = "fidelity-espp"
+    ticker: str = "MSFT"
+    purchase_date: date
+    grant_date: date | None = None
+    shares: float
+    cost_basis: float
+    cost_basis_per_share: float
+    source_currency: str
+    share_source: str
+    holding_period: str | None = None
+    dedup_hash: str
+
+
+class BackupPriceHistoryIn(BaseModel):
+    """Market price row entry inside a backup document."""
+    ticker: str
+    price_date: date
+    close_usd: float
+    fx_eur_usd: float
+    close_eur: float
+
+
+class BackupInvestmentsIn(BaseModel):
+    """Investment section inside a backup document."""
+    connections: list[BackupInvestmentConnectionIn] = []
+    espp_lots: list[BackupEsppLotIn] = []
+    price_history: list[BackupPriceHistoryIn] = []
+
+
 class BackupDocument(BaseModel):
-    """Full backup payload — version 1 schema."""
+    """Backup payload — version-aware schema (v1 and v2)."""
     finlytics_backup_version: int
     exported_at: str
     accounts: list[BackupAccountIn] = []
     categories: list[BackupCategoryIn] = []
     tags: list[BackupTagIn] = []
     transactions: list[BackupTransactionIn] = []
+    rules: list[BackupRuleIn] = []
+    investments: BackupInvestmentsIn | None = None
 
 
 class ImportSummary(BaseModel):
@@ -297,6 +365,14 @@ class ImportSummary(BaseModel):
     tags_updated: int
     transactions_inserted: int
     transactions_duplicates: int
+    rules_created: int = 0
+    rules_updated: int = 0
+    investment_connections_created: int = 0
+    investment_connections_updated: int = 0
+    espp_lots_inserted: int = 0
+    espp_lots_duplicates: int = 0
+    price_history_inserted: int = 0
+    price_history_duplicates: int = 0
 
 
 # ── Imports ───────────────────────────────────────────────────────────────────
@@ -727,3 +803,106 @@ class CombinedOverviewOut(BaseModel):
     by_provider: list[ProviderAllocationItem]
     by_asset_class: list[AssetClassAllocationItem]
     providers: list[ProviderCardOut]
+
+
+# ── Notifications ─────────────────────────────────────────────────────────────
+
+class NotificationOut(BaseModel):
+    """Response DTO for a single notification.
+
+    title_key / title_args are i18n keys + args — rendered client-side in EN/ES.
+    No PII, no tokens, no rendered strings from the backend.
+    """
+
+    id: int
+    source: str            # "statement" | "espp" | …
+    type: str              # "missing_statement" | "espp_overdue" | …
+    severity: str          # "info" | "warning"
+    title_key: str
+    title_args: dict
+    body_key: str | None = None
+    body_args: dict | None = None
+    action_link: str | None = None
+    created_at: datetime
+    read_at: datetime | None = None
+    dismissed_at: datetime | None = None
+
+
+class UnreadCountOut(BaseModel):
+    """Response for GET /api/notifications/unread-count."""
+
+    count: int
+
+
+class ReadAllOut(BaseModel):
+    """Response for POST /api/notifications/read-all."""
+
+    updated: int
+
+
+class NotificationChannelOut(BaseModel):
+    """Safe channel record returned to the frontend.
+
+    config_enc, bot_token, and chat_id are NEVER included.
+    label is a masked display string (e.g. "Telegram · ••••6789").
+    """
+
+    id: int
+    channel: str           # "telegram"
+    label: str | None = None
+    enabled: bool
+    created_at: datetime
+
+
+_CHAT_ID_RE = re.compile(r"^-?\d+$")
+
+
+def _validate_chat_id(value: str) -> str:
+    """Require a numeric Telegram chat ID (e.g. -1001234567890 or 123456789).
+
+    @username handles and any non-numeric strings are rejected.
+    """
+    if not _CHAT_ID_RE.match(value):
+        raise ValueError(
+            "chat_id must be a numeric Telegram ID (e.g. 123456789 or -1001234567890). "
+            "@username handles are not supported."
+        )
+    return value
+
+
+class TelegramChannelIn(BaseModel):
+    """Request body for POST /api/notifications/channels."""
+
+    bot_token: str
+    chat_id: str           # stored as string; must be a numeric Telegram ID
+
+    @field_validator("chat_id")
+    @classmethod
+    def validate_chat_id(cls, v: str) -> str:
+        return _validate_chat_id(v)
+
+
+class TelegramTestIn(BaseModel):
+    """Request body for POST /api/notifications/channels/telegram/test.
+
+    If both bot_token and chat_id are provided, use them (wizard preview).
+    If neither is provided, use the stored channel.
+    """
+
+    bot_token: str | None = None
+    chat_id: str | None = None
+
+    @field_validator("chat_id")
+    @classmethod
+    def validate_chat_id(cls, v: str | None) -> str | None:
+        if v is not None:
+            return _validate_chat_id(v)
+        return v
+
+
+class TelegramTestOut(BaseModel):
+    """Response for POST /api/notifications/channels/telegram/test."""
+
+    ok: bool
+    error: str | None = None
+

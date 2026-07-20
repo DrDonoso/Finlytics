@@ -81,6 +81,16 @@ class Settings(BaseSettings):
     # Generate: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
     finlytics_encryption_key: str | None = None
 
+    # ── Notifications background loop ─────────────────────────────────────────
+    # Set NOTIFICATIONS_LOOP_ENABLED=false to suppress the loop (e.g. in
+    # local dev or when running tests that don't need a live DB).
+    notifications_loop_enabled: bool = True
+    # Seconds between detector evaluation cycles.
+    notifications_eval_interval_seconds: int = 300
+    # Set TELEGRAM_SEND_ENABLED=false to suppress all Telegram sends globally
+    # (useful for ops maintenance or test environments with real channels).
+    telegram_send_enabled: bool = True
+
     @model_validator(mode="after")
     def _ensure_auth_secret(self) -> "Settings":
         """Auto-generate an ephemeral secret when AUTH_SECRET is not configured."""
