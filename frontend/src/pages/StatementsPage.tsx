@@ -15,7 +15,7 @@ import StatementsDeleteModal from '../components/StatementsDeleteModal'
 import ImportModal from '../components/ImportModal'
 import ImportLauncher, { type ImportLauncherHandle } from '../components/ImportLauncher'
 import MonthPicker from '../components/MonthPicker'
-import { previousCalendarMonth } from '../utils/comparison'
+import { previousCalendarMonth, computeDelta, type DeltaResult } from '../utils/comparison'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -39,6 +39,21 @@ function todayYM(): { y: number; m: number } {
   return { y: d.getFullYear(), m: d.getMonth() + 1 }
 }
 
+// ─── KPI delta badge for month-over-month comparison ─────────────────────────
+
+function TxDeltaBadge({ delta, invert, neutral }: { delta: DeltaResult | null; invert?: boolean; neutral?: boolean }) {
+  if (!delta) return null
+  if (delta.isNew) return <span className="header-kpi-delta header-kpi-delta-neutral">NUEVO</span>
+  if (delta.pct === null) return null
+  const isUp   = delta.abs > 0
+  const cls = neutral || delta.abs === 0
+    ? 'header-kpi-delta-neutral'
+    : (invert ? !isUp : isUp) ? 'header-kpi-delta-good' : 'header-kpi-delta-bad'
+  const arrow = isUp ? '↑' : delta.abs < 0 ? '↓' : '→'
+  const sign  = isUp ? '+' : ''
+  return <span className={`header-kpi-delta ${cls}`}>{arrow} {sign}{delta.pct.toFixed(1)}%</span>
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function StatementsPage() {
@@ -60,6 +75,8 @@ export default function StatementsPage() {
   const [overview,        setOverview]        = useState<Overview | null>(null)
   const [overviewLoading, setOverviewLoading] = useState(false)
   const [overviewRefKey,  setOverviewRefKey]  = useState(0)
+  // Previous calendar month's overview for KPI deltas
+  const [prevOverview,    setPrevOverview]    = useState<Overview | null>(null)
 
   // Category breakdown for CategoryMovers (selected month vs previous month)
   const [selByCat,         setSelByCat]         = useState<CategorySummary[]>([])
@@ -137,15 +154,23 @@ export default function StatementsPage() {
   useEffect(() => {
     if (!from || !to || !currentMonthHasData) {
       setOverview(null)
+      setPrevOverview(null)
       setOverviewLoading(false)
       return
     }
     let cancelled = false
     setOverviewLoading(true)
     setOverview(null)
+    setPrevOverview(null)
     getOverview({ from, to, account_id: selAccountId })
       .then(d  => { if (!cancelled) { setOverview(d);  setOverviewLoading(false) } })
       .catch(() => { if (!cancelled) { setOverviewLoading(false) } })
+    const prevRange = previousCalendarMonth(from)
+    if (prevRange) {
+      getOverview({ from: prevRange.from, to: prevRange.to, account_id: selAccountId })
+        .then(d  => { if (!cancelled) setPrevOverview(d) })
+        .catch(() => { if (!cancelled) setPrevOverview(null) })
+    }
     return () => { cancelled = true }
   }, [from, to, currentMonthHasData, refreshKey, overviewRefKey, selAccountId]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -372,18 +397,22 @@ export default function StatementsPage() {
           <div className="tx-total">
             <span className="tx-total-label">{t.kpiTransactions}</span>
             <span className="tx-total-value">{overview.num_transactions}</span>
+            <TxDeltaBadge delta={computeDelta(overview.num_transactions, prevOverview?.num_transactions)} neutral />
           </div>
           <div className="tx-total tx-total--income">
             <span className="tx-total-label">{t.kpiTotalIncome}</span>
             <span className="tx-total-value">+{formatCurrency(overview.total_income)}</span>
+            <TxDeltaBadge delta={computeDelta(overview.total_income, prevOverview?.total_income)} />
           </div>
           <div className="tx-total tx-total--expense">
             <span className="tx-total-label">{t.kpiTotalExpense}</span>
             <span className="tx-total-value">−{formatCurrency(overview.total_expense)}</span>
+            <TxDeltaBadge delta={computeDelta(overview.total_expense, prevOverview?.total_expense)} invert />
           </div>
           <div className={`tx-total tx-total--${overview.net >= 0 ? 'income' : 'expense'}`}>
             <span className="tx-total-label">{t.kpiNet}</span>
             <span className="tx-total-value">{formatCurrency(overview.net)}</span>
+            <TxDeltaBadge delta={computeDelta(overview.net, prevOverview?.net)} />
           </div>
         </div>
         {originals.length > 0 && (

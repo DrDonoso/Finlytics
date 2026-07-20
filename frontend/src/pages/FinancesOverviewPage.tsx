@@ -14,7 +14,6 @@ import ImportLauncher, { type ImportLauncherHandle } from '../components/ImportL
 import TransactionsTable from '../components/TransactionsTable'
 import { useT, categoryLabel, formatDate } from '../i18n'
 import { defaultRange } from '../utils'
-import { previousEqualRange } from '../utils/comparison'
 
 function makeDefaultFilters(): GlobalFilters {
   return { ...defaultRange(), tags: [] }
@@ -44,7 +43,6 @@ export default function FinancesOverviewPage() {
 
   const [overview,      setOverview]      = useState<AsyncState<Overview>>(idle())
   const [byCategory,    setByCategory]    = useState<AsyncState<CategorySummary[]>>(idle())
-  const [prevOverview,   setPrevOverview]   = useState<AsyncState<Overview>>(idle())
 
   const [importFiles, setImportFiles] = useState<File[] | null>(null)
   const launcherRef = useRef<ImportLauncherHandle>(null)
@@ -118,7 +116,6 @@ export default function FinancesOverviewPage() {
 
     setOverview(idle())
     setByCategory(idle())
-    setPrevOverview(idle())
 
     getOverview(params)
       .then(d  => setOverview({ loading: false, error: null,     data: d }))
@@ -127,16 +124,6 @@ export default function FinancesOverviewPage() {
     getByCategory({ from: params.from, to: params.to, account_id: params.account_id, tags: params.tags, flow: params.flow, merchant: params.merchant, day: params.day })
       .then(d  => setByCategory({ loading: false, error: null,     data: d }))
       .catch(e => setByCategory({ loading: false, error: String(e), data: null }))
-
-    const prevRange = previousEqualRange(filters.from, filters.to)
-    if (prevRange) {
-      const prevParams = { ...params, from: prevRange.from, to: prevRange.to, day: undefined }
-      getOverview(prevParams)
-        .then(d  => setPrevOverview({ loading: false, error: null, data: d }))
-        .catch(() => setPrevOverview({ loading: false, error: null, data: null }))
-    } else {
-      setPrevOverview({ loading: false, error: null, data: null })
-    }
   }, [filters, refreshKey])
 
   return (
@@ -156,7 +143,6 @@ export default function FinancesOverviewPage() {
             loading={overview.loading}
             error={overview.error}
             compact
-            previousOverview={prevOverview.data}
           />
           <div className="dashboard-header-actions">
             <div className="finances-historic-net-kpi">
@@ -178,7 +164,6 @@ export default function FinancesOverviewPage() {
               {t.btnImport}
             </button>
           </div>
-          <div className="kpi-prev-period-bar">{t.kpisPrevPeriodLabel}</div>
         </div>
 
         <div className="charts-row-category">

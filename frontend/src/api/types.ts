@@ -63,6 +63,7 @@ export interface TransactionsParams {
   amount_min?: number
   amount_max?: number
   merchant?: string
+  day?: string
   sort?: string
   order?: 'asc' | 'desc'
 }
