@@ -9762,3 +9762,79 @@ Frontend-only rebuild to pick up Wanda's mobile KPI layout fixes and Vision's mo
 - **Wanda:** Mobile KPI grid layout fixes in `index.css` (Finanzas KPIs + Extractos totals).
 - **Vision:** Mobile transaction detail/edit modal (`useIsMobile` hook, `TransactionDetailModal`, `TransactionsTable`), i18n strings (EN/ES), and mobile CSS.
 
+# Vision — Inicio euro decimals, all-time net, nav chevron split
+
+**Date:** 2026-07-20T10:11:41+02:00  
+**Owner:** DrDonoso  
+**Branch:** main
+
+## Summary
+
+Three surgical frontend fixes.
+
+## Item 1 — Euro decimals on Inicio
+
+- InvestmentSnapshotCard.tsx local mtEur: changed maximumFractionDigits: 0 to minimumFractionDigits: 2, maximumFractionDigits: 2.
+- Dashboard.tsx local ormatEur: same change.
+- ormatEur from client.ts (used elsewhere) already defaulted to 2 decimals; unchanged.
+
+## Item 2 — Finanzas "Neto histórico" (all-time)
+
+- getByAccount() called on mount with no params (period-independent, all-time aggregate).
+- Sum of ow.net stored in historicNet state.
+- Displayed with label 	.dashboardAccountsNet in dashboard-header-actions, left-aligned via margin-right: auto.
+- Reuses existing i18n key dashboardAccountsNet ('Neto histórico' / 'Historical net').
+
+## Item 3 — Nav chevron button split
+
+- **Before:** Single <button> performed both navigation AND toggle on every click.
+- **After:** .sidebar-section-header <div> wraps two sibling buttons:
+  - .sidebar-section-btn → navigate only (icon + label).
+  - .sidebar-section-arrow-btn → toggle only; ria-expanded on this button.
+- HTML now valid (no nested buttons).
+- Active state preserved on both buttons when on active route.
+- Ajustes section (toggle-only) unchanged.
+
+## Files changed
+
+| File | Change |
+|------|--------|
+| rontend/src/components/InvestmentSnapshotCard.tsx | Local mtEur: 0 → 2 decimals |
+| rontend/src/pages/Dashboard.tsx | Local ormatEur: 0 → 2 decimals |
+| rontend/src/pages/FinancesOverviewPage.tsx | Added historicNet fetch + state; displayed in dashboard-header-actions |
+| rontend/src/components/Layout.tsx | Split nav+toggle button into two sibling buttons |
+| rontend/src/index.css | Added .sidebar-section-header, .sidebar-section-arrow-btn, .finances-historic-net-kpi* rules |
+
+## Validation
+
+cd frontend && npm run build passes with zero TypeScript errors.
+
+---
+# Wanda — Nav arrow hover background removal
+
+**Date:** 2026-07-20T10:35:19+02:00  
+**Owner:** DrDonoso  
+**Scope:** CSS polish — remove stray background box on sidebar arrow button.
+
+## Problem
+
+When hovering only the chevron (.sidebar-section-arrow-btn) in Finanzas/Inversiones headers, a small highlighted box appeared behind the arrow due to ackground: var(--bg) hover rule.
+
+## Change
+
+**File:** rontend/src/index.css
+
+- Removed ackground: var(--bg) from .sidebar-section-arrow-btn:hover.
+- Changed hover to color: var(--primary); opacity: 0.8.
+- Updated base 	ransition to color 0.15s, opacity 0.15s (removed ackground).
+
+## Result
+
+- No background box on arrow hover.
+- Arrow now highlights in primary color with opacity — clearly interactive.
+- .sidebar-section-btn (icon + label) hover background untouched.
+- Works in light and dark themes.
+- 
+pm run build passes.
+
+---

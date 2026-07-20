@@ -7,6 +7,25 @@ For full history, see `history-archive.md`
 
 ## Learnings
 
+- 2026-07-20: **CSS-only fix docker rebuild (PASS).** Change: nav chevron hover no longer paints a background box (`index.css`). Frontend-only, no backend/migration changes.
+  1. `cd frontend && npm run build` — 902 modules, 902 kB chunk warning (pre-existing/OK), CSS `white-space` warning (pre-existing/OK), built in 4.35s.
+  2. `docker compose -f docker-compose.local.yml build` — layers 12/14 (frontend/dist copy) + 13-14 invalidated; rest from cache. Clean.
+  3. `docker compose -f docker-compose.local.yml up -d` — api recreated (9 s); db already healthy (5 days), pgdata volume persisted.
+  4. `ps` — api up (7 s), db healthy.
+  5. `GET /health` → `{"status":"ok"}` (HTTP 200).
+  6. `GET /api/notifications/unread-count` (no cookie) → **HTTP 401**.
+  - Stack left UP at :7777.
+
+- 2026-07-20: **Frontend formatting fixes docker rebuild (PASS).** Picked up three frontend-only changes: euro amounts showing 2 decimals (Dashboard + InvestmentSnapshotCard formatters), FinancesOverviewPage all-time "Neto histórico", and nav Finanzas/Inversiones chevron toggle-only split. No backend/migration changes.
+  1. `cd frontend && npm run build` — 902 modules, 902 kB chunk warning (pre-existing/OK), built in 4.71s.
+  2. `docker compose -f docker-compose.local.yml build` — only layers 12/14 (frontend/dist copy) + 13-14 invalidated; rest from cache. Clean.
+  3. `docker compose -f docker-compose.local.yml up -d` — api recreated; db already healthy (5 days), pgdata volume persisted.
+  4. `ps` — api up (seconds), db healthy.
+  5. `GET /health` → `{"status":"ok"}` (HTTP 200).
+  6. `GET /api/notifications/unread-count` (no cookie) → **HTTP 401**.
+  7. API logs — clean startup (`alembic upgrade head` at head, no new migrations), notification loop at 300s, no tracebacks.
+  - Stack left UP at :7777.
+
 - 2026-07-17: App log timestamps use a deep-copied uvicorn `LOGGING_CONFIG` with `%(asctime)s ` prepended to `default` and `access` formatters, `datefmt = %Y-%m-%d %H:%M:%S`, and the root logger routed through uvicorn's `default` handler so `finlytics.*` loggers propagate without duplicate lines. Alembic timestamps are configured in `alembic.ini` `[formatter_generic]`; entrypoint messages prefix `date '+%Y-%m-%d %H:%M:%S'`; `seed.py` prepends the same `datetime.now().strftime(...)` value to its top-level print.
 
 - 2026-07-17: **Notifications + Telegram docker verify (PASS).** Local stack (docker-compose.local.yml) builds and boots cleanly with the notifications feature. Verified sequence:
@@ -37,8 +56,50 @@ For full history, see `history-archive.md`
 
 ---
 
+## 2026-07-20T10:41:54+02:00: UI fixes commit + push — euro decimals, historic net, nav chevron
+
+**Commit:** `8c049ef` — `fix(ui): euro decimals on Inicio, historic net on Finanzas, nav chevron`  
+**Files:** `InvestmentSnapshotCard.tsx`, `Dashboard.tsx`, `FinancesOverviewPage.tsx`, `Layout.tsx`, `index.css` (5 files, +98/-27)  
+**Push result:** SUCCESS — non-fast-forward resolved with `git pull --no-rebase origin main` (merged auto-changelog `6ab9ea5`); pushed `6ab9ea5..92ac3ec main -> main`.  
+**Account:** DrDonoso (active via `gh auth switch`).  
+**Deploy run:** `29728964427` — `in_progress` at push time.  
+**`.squad/` files:** left uncommitted for Scribe (3 history.md files modified).
+
+---
+
+## 2026-07-20T09:55:40+02:00: Full feature push — notifications + Telegram + mobile UX + backup-wizard-v2
+
+**Status:** 3 thematic commits pushed to `main`. Deploy workflow triggered (run 29726359341, in_progress).
+
+**Commit SHAs:**
+- `08f3962` — `feat(notifications): backend — detectors, orchestrator, API, Telegram channel` (20 files, +3559/-14)
+- `acc34b1` — `feat(frontend): notifications center, Telegram wizard, mobile responsive fixes` (18 files, +2172/-114)
+- `86340c8` — `feat(backup): backup wizard v2` (3 files, +899/-118)
+- `875abd0` — merge commit integrating CI changelog (`0429011 docs: update changelog for 20260717.05 [skip ci]`) that the remote gained after our local commits were made.
+
+**Push result:** SUCCESS — `0429011..875abd0 main -> main`. Branch up to date with `origin/main`.
+
+**Account:** DrDonoso (active via `gh auth switch`). `git config user.name` = `drdonoso`.
+
+**Note:** Remote was 1 commit ahead (auto-changelog [skip ci]) at push time. Resolved with `git merge origin/main --no-edit` (no rebase, no force-push).
+
+---
+
 ## 2026-07-17T13:04:32Z: Notifications + Telegram Feature Session Concluded
 
 **Status:** All deliverables merged into decisions.md and squad log. Test results: 1239 passed, 2 skipped. Docker E2E: PASS. Orchestration logs written.
 
 **Key outcome:** Hybrid notifications model + Telegram channel with Fernet encryption. Backend-owned state. No Critical findings.
+
+---
+
+## 2026-07-20T08:41:54Z: Docker rebuild — UI polish round
+
+**Changes:** Rebuilt with Vision's (euro decimals, all-time net, nav split) + Wanda's (arrow hover) frontend fixes.
+
+**Build:** 
+pm run build 902 modules, 5.16s. docker compose build clean; Python layers cache-hit. Stack verified UP.
+
+**Deployed:** Commit 8c049ef (fix(ui)) to main as DrDonoso. CI triggered.
+
+**Merged to:** decisions.md (Rocket Rebuild — Mobile-UX Round).
