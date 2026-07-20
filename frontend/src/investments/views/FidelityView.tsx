@@ -6,15 +6,15 @@ import {
 } from 'recharts'
 import type {
   FidelityKpis, FidelityEvolution, FidelityLot,
-  FidelityImportPreview, FidelityImportConfirmResult, FidelityReminderResponse,
+  FidelityImportPreview, FidelityImportConfirmResult,
 } from '../../api/types'
 import {
   getFidelityKpis, getFidelityEvolution, getFidelityLots,
   fidelityImportPreview as callImportPreview,
   fidelityImportConfirm as callImportConfirm,
-  getFidelityReminder,
 } from '../../api/client'
 import { useT, langLocale } from '../../i18n'
+import { useNotifications } from '../../contexts/NotificationsContext'
 
 // ── Date helpers (mirrored from IndexaView) ────────────────────────────────────
 
@@ -60,6 +60,7 @@ const LOTS_PAGE_SIZE = 15
 export default function FidelityView() {
   const { t, lang, formatCurrency } = useT()
   const locale = langLocale(lang)
+  const { notifications } = useNotifications()
 
   // ── Data state ─────────────────────────────────────────────────────────────
   const [loading, setLoading]     = useState(true)
@@ -67,9 +68,6 @@ export default function FidelityView() {
   const [kpis, setKpis]           = useState<FidelityKpis | null>(null)
   const [evolution, setEvolution] = useState<FidelityEvolution | null>(null)
   const [lots, setLots]           = useState<FidelityLot[]>([])
-
-  // ── ESPP upload-reminder banner ───────────────────────────────────────────
-  const [esppReminder, setEsppReminder] = useState<FidelityReminderResponse | null>(null)
 
   // ── Lots table: sort + pagination ─────────────────────────────────────────
   const [lotsSortCol, setLotsSortCol] = useState<LotsSortCol>('date')
@@ -115,7 +113,6 @@ export default function FidelityView() {
 
   useEffect(() => {
     loadAll()
-    getFidelityReminder().then(setEsppReminder).catch(() => {})
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Dynamic year buttons from first lot to current year ───────────────────
@@ -347,14 +344,19 @@ export default function FidelityView() {
         </button>
       </div>
 
-      {esppReminder?.overdue && (
-        <div className="espp-reminder-banner" role="alert">
-          <span>⚠ {t.esppReminderBanner(esppReminder.period_label)}</span>
-          <Link to="/investments/fidelity-espp" className="espp-reminder-banner__link">
-            {t.esppReminderAction}
-          </Link>
-        </div>
-      )}
+      {(() => {
+        const activeEspp = notifications.find(n => n.source === 'espp')
+        if (!activeEspp) return null
+        const period = typeof activeEspp.title_args.period === 'string' ? activeEspp.title_args.period : null
+        return (
+          <div className="espp-reminder-banner" role="alert">
+            <span>⚠ {t.esppReminderBanner(period)}</span>
+            <Link to="/investments/fidelity-espp" className="espp-reminder-banner__link">
+              {t.esppReminderAction}
+            </Link>
+          </div>
+        )
+      })()}
 
       {isEmpty ? (
 

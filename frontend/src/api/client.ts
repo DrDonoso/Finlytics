@@ -4,13 +4,14 @@ import type {
   ImportTransaction, PreviewResponse, ConfirmRequest,
   TransactionsParams, SummaryParams, MonthSummaryParams,
   Transaction, TransactionPatch, CashflowSummary, CategoryPatch,
-  AuthStatus, AuthUser, BackupImportSummary,
+  AuthStatus, AuthUser, BackupDocument, BackupExportSelection, BackupImportSummary,
   Rule, RuleInput, RulePatch,
   StatementMonth, StatementReminder, MerchantSummary, StatementOriginal, InvestmentPlugin,
   InvestmentPortfolio, InvestmentConnection, ValidateAccountsResponse,
   FidelityKpis, FidelityEvolution, FidelityLots,
   FidelityImportPreview, FidelityImportConfirmResult, FidelityReminderResponse,
-  CombinedOverview, SummaryMonths, AppVersion,
+  CombinedOverview, SummaryMonths, AppVersion, NotificationOut,
+  NotificationChannelOut, TelegramChannelIn, TelegramTestIn, TelegramTestOut,
 } from './types'
 import {
   mockGetAccounts, mockGetCategories, mockGetTags, mockGetTransactions,
@@ -23,6 +24,10 @@ import {
   mockGetByMerchant, mockGetByDay, mockGetInvestmentPlugins,
   mockValidateIndexaToken, mockConnectPlugin, mockGetConnections,
   mockDisconnectConnection, mockGetInvestmentPortfolio, mockGetStatementReminder,
+  mockGetNotifications, mockGetUnreadCount,
+  mockMarkNotificationRead, mockMarkAllNotificationsRead, mockDismissNotification,
+  mockGetNotificationChannels, mockCreateTelegramChannel,
+  mockDeleteNotificationChannel, mockTestTelegramChannel,
 } from './mock'
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === '1'
@@ -321,13 +326,18 @@ export async function deleteRule(id: number): Promise<void> {
 
 // ─── Backup ───────────────────────────────────────────────────────────────────
 
-/** GET /api/backup/export — returns full backup JSON. Does NOT fall back to mock. */
-export async function exportBackup(): Promise<unknown> {
-  return apiFetch<unknown>('/api/backup/export')
+/** GET /api/backup/export — returns backup JSON. Does NOT fall back to mock. */
+export async function exportBackup(selection?: BackupExportSelection): Promise<BackupDocument> {
+  const allSelected = selection
+    ? Object.values(selection).every(Boolean)
+    : true
+  return apiFetch<BackupDocument>(
+    buildUrl('/api/backup/export', selection && !allSelected ? selection as unknown as Record<string, unknown> : undefined),
+  )
 }
 
 /** POST /api/backup/import — restores a backup. Does NOT fall back to mock. */
-export async function importBackup(data: unknown): Promise<BackupImportSummary> {
+export async function importBackup(data: BackupDocument): Promise<BackupImportSummary> {
   return apiFetch<BackupImportSummary>('/api/backup/import', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -552,4 +562,86 @@ export async function getOverviewMonths(): Promise<SummaryMonths> {
  *  Fails silently — callers fall back to the frontend build version. */
 export async function getAppVersion(): Promise<AppVersion> {
   return apiFetch<AppVersion>('/api/version')
+}
+
+// ─── Notifications ────────────────────────────────────────────────────────────
+
+/** GET /api/notifications — full notification list (excludes dismissed+resolved; sorted warning→info, newest first). */
+export async function getNotifications(): Promise<NotificationOut[]> {
+  if (USE_MOCK) return mockGetNotifications()
+  try { return await apiFetch<NotificationOut[]>('/api/notifications') }
+  catch { return mockGetNotifications() }
+}
+
+/** GET /api/notifications/unread-count — cheap, poll-safe badge count. */
+export async function getUnreadCount(): Promise<{ count: number }> {
+  if (USE_MOCK) return mockGetUnreadCount()
+  return apiFetch<{ count: number }>('/api/notifications/unread-count')
+}
+
+/** POST /api/notifications/{id}/read — mark one notification read (204). */
+export async function markNotificationRead(id: number): Promise<void> {
+  if (USE_MOCK) return mockMarkNotificationRead(id)
+  const res = await fetch(`/api/notifications/${id}/read`, { method: 'POST', credentials: 'same-origin' })
+  if (res.status === 401) { _on401?.(); throw new Error('HTTP 401 Unauthorized') }
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+}
+
+/** POST /api/notifications/read-all — mark all unread notifications read. */
+export async function markAllNotificationsRead(): Promise<{ updated: number }> {
+  if (USE_MOCK) return mockMarkAllNotificationsRead()
+  return apiFetch<{ updated: number }>('/api/notifications/read-all', { method: 'POST' })
+}
+
+/** POST /api/notifications/{id}/dismiss — dismiss one notification (204). */
+export async function dismissNotification(id: number): Promise<void> {
+  if (USE_MOCK) return mockDismissNotification(id)
+  const res = await fetch(`/api/notifications/${id}/dismiss`, { method: 'POST', credentials: 'same-origin' })
+  if (res.status === 401) { _on401?.(); throw new Error('HTTP 401 Unauthorized') }
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+}
+
+// ─── Notification channels ────────────────────────────────────────────────────
+
+/** GET /api/notifications/channels → list of configured notification channels (no secrets). */
+export async function getNotificationChannels(): Promise<NotificationChannelOut[]> {
+  if (USE_MOCK) return mockGetNotificationChannels()
+  return apiFetch<NotificationChannelOut[]>('/api/notifications/channels')
+}
+
+/** POST /api/notifications/channels (body TelegramChannelIn) → 201 NotificationChannelOut.
+ *  400 = bad token (server Telegram getMe failed); 503 = encryption key not configured. */
+export async function createTelegramChannel(body: TelegramChannelIn): Promise<NotificationChannelOut> {
+  if (USE_MOCK) return mockCreateTelegramChannel(body)
+  const res = await fetch('/api/notifications/channels', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (res.status === 401) { _on401?.(); throw new Error('HTTP 401 Unauthorized') }
+  if (!res.ok) {
+    const data: { detail?: string } = await res.json().catch(() => ({}))
+    throw Object.assign(new Error(data.detail ?? `HTTP ${res.status}`), { status: res.status })
+  }
+  return res.json() as Promise<NotificationChannelOut>
+}
+
+/** DELETE /api/notifications/channels/{id} → 204 (404 if not owned). */
+export async function deleteNotificationChannel(id: number): Promise<void> {
+  if (USE_MOCK) return mockDeleteNotificationChannel(id)
+  const res = await fetch(`/api/notifications/channels/${id}`, { method: 'DELETE', credentials: 'same-origin' })
+  if (res.status === 401) { _on401?.(); throw new Error('HTTP 401 Unauthorized') }
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+}
+
+/** POST /api/notifications/channels/telegram/test (body TelegramTestIn) → TelegramTestOut.
+ *  Both creds → tests those creds; neither → tests stored channel; only one → 400. */
+export async function testTelegramChannel(body: TelegramTestIn): Promise<TelegramTestOut> {
+  if (USE_MOCK) return mockTestTelegramChannel(body)
+  return apiFetch<TelegramTestOut>('/api/notifications/channels/telegram/test', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
 }

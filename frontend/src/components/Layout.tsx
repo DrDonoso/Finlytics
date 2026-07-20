@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { getConnections } from '../api/client'
 import { getPluginLogo, PLUGIN_VIEW_REGISTRY, pluginInitial } from '../investments/registry'
 import type { InvestmentConnection } from '../api/types'
+import NotificationBell from './NotificationBell'
 
 const LS_COLLAPSED = 'finlytics_sidebar_collapsed'
 
@@ -96,6 +97,9 @@ export default function Layout() {
           <img src="/logo.png" alt="Finlytics" className="topbar-logo-img" />
           <span className="topbar-logo">Finlytics</span>
         </Link>
+        <div className="topbar-actions">
+          <NotificationBell />
+        </div>
       </header>
 
       {/* ── Mobile overlay ───────────────────────────────────── */}

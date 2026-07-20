@@ -292,6 +292,113 @@ export interface StatementReminder {
 
 // ─── Backup ───────────────────────────────────────────────────────────────────
 
+export interface BackupExportSelection {
+  accounts: boolean
+  categories: boolean
+  tags: boolean
+  transactions: boolean
+  rules: boolean
+  investments: boolean
+}
+
+export interface BackupAccountIn {
+  name: string
+  type: string
+  currency: string
+}
+
+export interface BackupCategoryIn {
+  name: string
+  is_base: boolean
+  color: string
+  name_es?: string | null
+}
+
+export interface BackupTagIn {
+  name: string
+  color: string
+  emoji?: string | null
+}
+
+export interface BackupTransactionIn {
+  transaction_date: string
+  amount: number
+  currency: string
+  description: string
+  merchant?: string | null
+  category?: string | null
+  account: string
+  category_confidence?: number | null
+  balance_after?: number | null
+  tags?: string[]
+}
+
+export interface BackupRuleIn {
+  name: string
+  priority?: number
+  enabled?: boolean
+  description_mode: string
+  description_value: string
+  amount_sign?: string | null
+  amount_min?: number | null
+  amount_max?: number | null
+  account_ref?: string | null
+  currency?: string | null
+  detail_mode?: string | null
+  detail_value?: string | null
+  set_category?: string | null
+  set_merchant?: string | null
+  add_tags?: string[]
+  skip_ai?: boolean
+}
+
+export interface BackupInvestmentConnectionIn {
+  plugin_id: string
+  status?: string
+  account_label_masked?: string | null
+  token_enc?: string | null
+  last_synced_at?: string | null
+}
+
+export interface BackupEsppLotIn {
+  connection_plugin_id?: string
+  ticker?: string
+  purchase_date: string
+  grant_date?: string | null
+  shares: number
+  cost_basis: number
+  cost_basis_per_share: number
+  source_currency: string
+  share_source: string
+  holding_period?: string | null
+  dedup_hash: string
+}
+
+export interface BackupPriceHistoryIn {
+  ticker: string
+  price_date: string
+  close_usd: number
+  fx_eur_usd: number
+  close_eur: number
+}
+
+export interface BackupInvestmentsIn {
+  connections?: BackupInvestmentConnectionIn[]
+  espp_lots?: BackupEsppLotIn[]
+  price_history?: BackupPriceHistoryIn[]
+}
+
+export interface BackupDocument {
+  finlytics_backup_version: number
+  exported_at: string
+  accounts?: BackupAccountIn[]
+  categories?: BackupCategoryIn[]
+  tags?: BackupTagIn[]
+  transactions?: BackupTransactionIn[]
+  rules?: BackupRuleIn[]
+  investments?: BackupInvestmentsIn | null
+}
+
 export interface BackupImportSummary {
   accounts_created: number
   accounts_existing: number
@@ -301,6 +408,14 @@ export interface BackupImportSummary {
   tags_updated: number
   transactions_inserted: number
   transactions_duplicates: number
+  rules_created: number
+  rules_updated: number
+  investment_connections_created: number
+  investment_connections_updated: number
+  espp_lots_inserted: number
+  espp_lots_duplicates: number
+  price_history_inserted: number
+  price_history_duplicates: number
 }
 
 // ─── Auth types ───────────────────────────────────────────────────────────────
@@ -621,4 +736,46 @@ export interface CombinedOverview {
   by_provider: CombinedOverviewProviderSlice[]
   by_asset_class: CombinedOverviewAssetClassSlice[]
   providers: CombinedOverviewProvider[]
+}
+
+// ─── Notifications ────────────────────────────────────────────────────────────
+
+export interface NotificationOut {
+  id: number
+  source: string
+  type: string
+  severity: 'info' | 'warning'
+  title_key: string
+  title_args: Record<string, string | number>
+  body_key: string | null
+  body_args: Record<string, unknown> | null
+  action_link: string | null
+  created_at: string
+  read_at: string | null
+  dismissed_at: string | null
+}
+
+// ─── Notification channels ────────────────────────────────────────────────────
+
+export interface NotificationChannelOut {
+  id: number
+  channel: string
+  label: string | null
+  enabled: boolean
+  created_at: string
+}
+
+export interface TelegramChannelIn {
+  bot_token: string
+  chat_id: string
+}
+
+export interface TelegramTestIn {
+  bot_token?: string
+  chat_id?: string
+}
+
+export interface TelegramTestOut {
+  ok: boolean
+  error?: string
 }

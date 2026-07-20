@@ -6,7 +6,8 @@ import type {
   TransactionPatch, CashflowSummary, AuthStatus, AuthUser,
   MerchantSummary, DaySummary, InvestmentPlugin,
   InvestmentPortfolio, InvestmentConnection, ValidateAccountsResponse,
-  StatementReminder,
+  StatementReminder, NotificationOut,
+  NotificationChannelOut, TelegramChannelIn, TelegramTestIn, TelegramTestOut,
 } from './types'
 
 // ─── Static reference data ────────────────────────────────────────────────────
@@ -696,3 +697,102 @@ export function mockGetInvestmentPortfolio(): Promise<InvestmentPortfolio> {
     ],
   })
 }
+
+// ─── Notifications ────────────────────────────────────────────────────────────
+
+const MOCK_NOTIFICATIONS_INITIAL: NotificationOut[] = [
+  {
+    id: 1,
+    source: 'espp',
+    type: 'espp_overdue',
+    severity: 'warning',
+    title_key: 'notif.espp_overdue',
+    title_args: { period: 'Q2 2026' },
+    body_key: null,
+    body_args: null,
+    action_link: '/investments/fidelity-espp',
+    created_at: '2026-07-15T10:00:00+02:00',
+    read_at: null,
+    dismissed_at: null,
+  },
+  {
+    id: 2,
+    source: 'statement',
+    type: 'statement_missing',
+    severity: 'info',
+    title_key: 'notif.statement_missing',
+    title_args: { month: 'Junio 2026', account: 'BBVA' },
+    body_key: null,
+    body_args: null,
+    action_link: '/finances?account_id=1',
+    created_at: '2026-07-16T08:00:00+02:00',
+    read_at: null,
+    dismissed_at: null,
+  },
+]
+
+let _mockNotifications: NotificationOut[] = [...MOCK_NOTIFICATIONS_INITIAL]
+
+export function mockGetNotifications(): Promise<NotificationOut[]> {
+  return delay(_mockNotifications.filter(n => !n.dismissed_at))
+}
+
+export function mockGetUnreadCount(): Promise<{ count: number }> {
+  return delay({ count: _mockNotifications.filter(n => !n.dismissed_at && !n.read_at).length })
+}
+
+export function mockMarkNotificationRead(id: number): Promise<void> {
+  _mockNotifications = _mockNotifications.map(n =>
+    n.id === id ? { ...n, read_at: new Date().toISOString() } : n,
+  )
+  return delay(undefined as void)
+}
+
+export function mockMarkAllNotificationsRead(): Promise<{ updated: number }> {
+  let count = 0
+  _mockNotifications = _mockNotifications.map(n => {
+    if (!n.read_at && !n.dismissed_at) { count++; return { ...n, read_at: new Date().toISOString() } }
+    return n
+  })
+  return delay({ updated: count })
+}
+
+export function mockDismissNotification(id: number): Promise<void> {
+  _mockNotifications = _mockNotifications.map(n =>
+    n.id === id ? { ...n, dismissed_at: new Date().toISOString() } : n,
+  )
+  return delay(undefined as void)
+}
+
+// ─── Notification channels ────────────────────────────────────────────────────
+
+let _mockChannels: NotificationChannelOut[] = []
+let _nextChannelId = 1
+
+export function mockGetNotificationChannels(): Promise<NotificationChannelOut[]> {
+  return delay([..._mockChannels])
+}
+
+export function mockCreateTelegramChannel(body: TelegramChannelIn): Promise<NotificationChannelOut> {
+  _mockChannels = _mockChannels.filter(c => c.channel !== 'telegram')
+  const masked = body.chat_id.replace(/./g, '*').slice(0, -3) + body.chat_id.slice(-3)
+  const channel: NotificationChannelOut = {
+    id: _nextChannelId++,
+    channel: 'telegram',
+    label: masked,
+    enabled: true,
+    created_at: new Date().toISOString(),
+  }
+  _mockChannels.push(channel)
+  return delay(channel)
+}
+
+export function mockDeleteNotificationChannel(id: number): Promise<void> {
+  _mockChannels = _mockChannels.filter(c => c.id !== id)
+  return delay(undefined as void)
+}
+
+export function mockTestTelegramChannel(_body: TelegramTestIn): Promise<TelegramTestOut> {
+  return delay({ ok: true })
+}
+

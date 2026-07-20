@@ -6,6 +6,8 @@ import { useT, categoryLabel, formatDate, DEFAULT_TAG_COLOR, tagTextColor } from
 import CategorySelect from './CategorySelect'
 import TagEditor from './TagEditor'
 import RuleFormModal from './RuleFormModal'
+import TransactionDetailModal from './TransactionDetailModal'
+import { useIsMobile } from '../hooks/useIsMobile'
 
 interface Props {
   globalFilters: GlobalFilters
@@ -51,6 +53,8 @@ export default function TransactionsTable({ globalFilters, categories, allTags, 
 
   const [createRuleFor, setCreateRuleFor] = useState<Transaction | null>(null)
   const [ruleToast,     setRuleToast]     = useState<string | null>(null)
+  const [detailTx,      setDetailTx]      = useState<Transaction | null>(null)
+  const isMobile = useIsMobile()
 
   useEffect(() => {
     if (!ruleToast) return
@@ -377,7 +381,11 @@ export default function TransactionsTable({ globalFilters, categories, allTags, 
                   }
 
                   return (
-                    <tr key={tx.id}>
+                    <tr
+                      key={tx.id}
+                      className={isMobile ? 'tr-mobile-tappable' : undefined}
+                      onClick={() => { if (isMobile) setDetailTx(tx) }}
+                    >
                       <td className="td-date">{formatDate(tx.transaction_date, lang)}</td>
                       <td style={{ color: 'var(--text-muted)', fontSize: 13 }}>{tx.account}</td>
                       <td title={tx.description}>
@@ -418,12 +426,12 @@ export default function TransactionsTable({ globalFilters, categories, allTags, 
                         <div className="td-actions">
                           <button
                             className="btn-row-icon btn-create-rule"
-                            onClick={() => setCreateRuleFor(tx)}
+                            onClick={e => { e.stopPropagation(); setCreateRuleFor(tx) }}
                             title={t.createRuleBtn}
                           >⚙+</button>
                           <button
                             className="btn-row-icon btn-row-edit"
-                            onClick={() => startEdit(tx)}
+                            onClick={e => { e.stopPropagation(); startEdit(tx) }}
                             title={t.tableEditRow}
                           >✎</button>
                         </div>
@@ -465,6 +473,23 @@ export default function TransactionsTable({ globalFilters, categories, allTags, 
       )}
 
       {ruleToast && <div className="rule-toast">{ruleToast}</div>}
+
+      {detailTx && (
+        <TransactionDetailModal
+          tx={detailTx}
+          sortedBaseCategories={sortedBaseCategories}
+          dbExtraCategories={dbExtraCategories}
+          allTags={allTags}
+          categoryColorMap={categoryColorMap}
+          dynamicEs={dynamicEs}
+          onClose={() => setDetailTx(null)}
+          onSaved={updated => {
+            setData(d => d ? { ...d, items: d.items.map(item => item.id === updated.id ? updated : item) } : null)
+            setDetailTx(null)
+            onEditSuccess?.()
+          }}
+        />
+      )}
     </>
   )
 }
