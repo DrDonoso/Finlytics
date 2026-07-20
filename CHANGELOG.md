@@ -4,6 +4,22 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260720.03] - 2026-07-20
+
+- feat(finanzas/extractos): drill-down transactions table + month-over-month comparison in Extractos
+- Remove CategoryMovers from FinancesOverviewPage (was comparing whole multi-month range vs a single previous calendar month — meaningless).
+- Add previousEqualRange(from, to) helper in utils/comparison.ts: preceding period of identical day-count, immediately before the range.
+- FinancesOverviewPage KPI deltas now use previousEqualRange so a 6-month range compares against the 6 months before it, not just December.
+- Add 'vs. periodo anterior' / 'vs. previous period' caption bar at the bottom of the Finanzas header card (kpisPrevPeriodLabel i18n key).
+- Add CategoryMovers to StatementsPage (Extractos) with true month-over- month comparison: selected month vs previousCalendarMonth, both scoped to selAccountId. Refetches on month/account/import changes.
+- Merged 2 inbox decisions into decisions.md
+- Captured Vision fixes (euro decimals, all-time net, nav chevron split)
+- Captured Wanda polish (arrow hover background removal)
+- Wrote orchestration logs for Vision, Wanda, Rocket
+- Updated agent histories
+- No history summarization needed (all <15360 bytes)
+
+
 ## [20260720.02] - 2026-07-20
 
 - fix(ui): euro decimals on Inicio, historic net on Finanzas, nav chevron
