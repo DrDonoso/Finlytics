@@ -24,6 +24,17 @@ For full history, see `history-archive.md`
     - `FINLYTICS_ENCRYPTION_KEY` (already required) — used by Telegram channel token encrypt/decrypt.
   - Stack left UP at :7777 as requested.
 
+- 2026-07-20: **Mobile-UX round docker rebuild (PASS).** Picked up Wanda (mobile KPI layout CSS) + Vision (mobile transaction detail modal, `useIsMobile` hook, i18n) — frontend-only changes, no backend/migration changes.
+  1. `cd frontend && npm run build` — 902 modules, 901 kB chunk warning (pre-existing/OK), built in 5.16s.
+  2. `docker compose -f docker-compose.local.yml build` — only layers 12/14 (frontend/dist copy) + 13-14 invalidated; rest from cache. Clean.
+  3. `docker compose -f docker-compose.local.yml up -d` — api recreated; db already healthy, pgdata volume persisted.
+  4. `ps` — api + db up; db healthy.
+  5. `GET /health` → `{"status":"ok"}` (HTTP 200).
+  6. `GET /api/notifications/unread-count` (no cookie) → **HTTP 401**.
+  7. `SELECT count(*) FROM notifications WHERE source='seed'` → **4** (pgdata survived).
+  8. API logs — clean startup, no tracebacks, notification loop at 300s running.
+  - Stack left UP at :7777.
+
 ---
 
 ## 2026-07-17T13:04:32Z: Notifications + Telegram Feature Session Concluded
