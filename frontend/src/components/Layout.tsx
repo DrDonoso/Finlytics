@@ -128,18 +128,25 @@ export default function Layout() {
 
           {/* Finanzas expandable section */}
           <div className="sidebar-section">
-            <button
-              type="button"
-              className={`sidebar-section-btn${isOnFinances ? ' active' : ''}`}
-              onClick={() => {
-                setFinancesExpanded(v => !v)
-                navigate('/finances')
-              }}
-            >
-              <span className="nav-icon">💳</span>
-              <span className="nav-label">{t.navFinances}</span>
-              <span className={`sidebar-arrow${financesExpanded ? ' open' : ''}`}>▾</span>
-            </button>
+            <div className="sidebar-section-header">
+              <button
+                type="button"
+                className={`sidebar-section-btn${isOnFinances ? ' active' : ''}`}
+                onClick={() => navigate('/finances')}
+              >
+                <span className="nav-icon">💳</span>
+                <span className="nav-label">{t.navFinances}</span>
+              </button>
+              <button
+                type="button"
+                className={`sidebar-section-arrow-btn${isOnFinances ? ' active' : ''}`}
+                onClick={() => setFinancesExpanded(v => !v)}
+                aria-expanded={financesExpanded}
+                aria-label={t.navFinances}
+              >
+                <span className={`sidebar-arrow${financesExpanded ? ' open' : ''}`}>▾</span>
+              </button>
+            </div>
             {financesExpanded && (
               <div className="sidebar-subnav">
                 <NavLink to="/transactions" className={navLinkClass}>
@@ -160,21 +167,27 @@ export default function Layout() {
 
           {/* Inversiones expandable section */}
           <div className="sidebar-section">
-            <button
-              type="button"
-              className={`sidebar-section-btn${isOnInvestments ? ' active' : ''}`}
-              onClick={() => {
-                setInvestmentsExpanded(v => !v)
-                navigate('/investments')
-              }}
-              aria-expanded={investmentsExpanded}
-            >
-              <span className="nav-icon">💰</span>
-              <span className="nav-label">{t.navInvestments}</span>
+            <div className="sidebar-section-header">
+              <button
+                type="button"
+                className={`sidebar-section-btn${isOnInvestments ? ' active' : ''}`}
+                onClick={() => navigate('/investments')}
+              >
+                <span className="nav-icon">💰</span>
+                <span className="nav-label">{t.navInvestments}</span>
+              </button>
               {connectedPlugins.length > 0 && (
-                <span className={`sidebar-arrow${investmentsExpanded ? ' open' : ''}`}>▾</span>
+                <button
+                  type="button"
+                  className={`sidebar-section-arrow-btn${isOnInvestments ? ' active' : ''}`}
+                  onClick={() => setInvestmentsExpanded(v => !v)}
+                  aria-expanded={investmentsExpanded}
+                  aria-label={t.navInvestments}
+                >
+                  <span className={`sidebar-arrow${investmentsExpanded ? ' open' : ''}`}>▾</span>
+                </button>
               )}
-            </button>
+            </div>
             {investmentsExpanded && connectedPlugins.length > 0 && (
               <div className="sidebar-subnav">
                 {connectedPlugins.map(conn => {

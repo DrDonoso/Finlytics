@@ -25,7 +25,8 @@ function formatEur(value: number | null | undefined): string {
   return value.toLocaleString('es-ES', {
     style: 'currency',
     currency: 'EUR',
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   })
 }
 

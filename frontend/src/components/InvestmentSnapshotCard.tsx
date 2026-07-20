@@ -10,7 +10,8 @@ function fmtEur(value: number | null): string {
   return value.toLocaleString('es-ES', {
     style: 'currency',
     currency: 'EUR',
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   })
 }
 
