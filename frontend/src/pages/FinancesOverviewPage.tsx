@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import type { Account, Category, Tag, GlobalFilters, Overview, CategorySummary, ImportResult } from '../api/types'
 import {
   getAccounts, getCategories, getTags, getOverview, getByCategory,
+  getByAccount, formatEur,
 } from '../api/client'
 import GlobalFilterBar from '../components/GlobalFilterBar'
 import KpiCards from '../components/KpiCards'
@@ -52,6 +53,7 @@ export default function FinancesOverviewPage() {
   const [refreshKey, setRefreshKey]   = useState(0)
   const [toast,      setToast]        = useState<string | null>(null)
   const [preZoomFilters, setPreZoomFilters] = useState<GlobalFilters | null>(null)
+  const [historicNet, setHistoricNet] = useState<number | null>(null)
 
   function handleImportSuccess(result: ImportResult) {
     setImportFiles(null)
@@ -76,6 +78,9 @@ export default function FinancesOverviewPage() {
     getAccounts().then(setAccounts).catch(() => {})
     getCategories().then(setCategories).catch(() => {})
     getTags().then(setAllTags).catch(() => {})
+    getByAccount()
+      .then(rows => setHistoricNet(rows.reduce((s, r) => s + r.net, 0)))
+      .catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -138,6 +143,12 @@ export default function FinancesOverviewPage() {
             previousOverview={prevOverview.data}
           />
           <div className="dashboard-header-actions">
+            <div className="finances-historic-net-kpi">
+              <div className="finances-historic-net-kpi__label">{t.dashboardAccountsNet}</div>
+              <div className={`finances-historic-net-kpi__value${historicNet !== null ? historicNet >= 0 ? ' inv-kpi-card__value--pos' : ' inv-kpi-card__value--neg' : ''}`}>
+                {historicNet === null ? '—' : formatEur(historicNet)}
+              </div>
+            </div>
             <button
               className="btn-secondary"
               onClick={() => navigate('/transactions')}
