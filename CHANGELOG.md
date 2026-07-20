@@ -4,6 +4,11 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260720.02] - 2026-07-20
+
+- fix(ui): euro decimals on Inicio, historic net on Finanzas, nav chevron
+
+
 ## [20260720] - 2026-07-20
 
 - feat(backup): backup wizard v2
