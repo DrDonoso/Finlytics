@@ -1,0 +1,41 @@
+frontend/src/pages/Dashboard.tsx
+  s_8bc3092b4c9b02::t_f86693b4faa623 28-29
+frontend/src/components/InvestmentSnapshotCard.tsx
+  s_8bc3092b4c9b02::t_ed80e8c5872afd 13-14
+frontend/src/index.css
+  s_8bc3092b4c9b02::t_27656fc7e7af05 547-568
+  s_8bc3092b4c9b02::t_67f9a21f7ac340 309-326,328,330-331
+  s_fd7339a00632f3::t_a45286fd41091e 327,329
+frontend/src/pages/FinancesOverviewPage.tsx
+  s_8bc3092b4c9b02::t_34bd96145dfbc3 56
+  s_8bc3092b4c9b02::t_d70ba9cdc3177e 81-83
+  s_8bc3092b4c9b02::t_bd8a30eeecec22 146-151
+  s_8bc3092b4c9b02::t_5ad164492dc32b 6
+frontend/src/components/Layout.tsx
+  s_8bc3092b4c9b02::t_3419327456d3c7 131-149
+  s_8bc3092b4c9b02::t_bbb6eeca17e4b2 170-178,180-188,190
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "8c049eff69c4597a9f6d2af48921f86ae9807717",
+  "prompts": {},
+  "sessions": {
+    "s_8bc3092b4c9b02": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01DETq1traefum5uNapvaX7c",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_fd7339a00632f3": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01B3NZbQRTMvd7h9AZHpWnBN",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    }
+  }
+}
