@@ -704,7 +704,6 @@ const es: Dict = {
   notifSettingsDeleteConfirm: '¿Desconectar el canal de Telegram? Dejarás de recibir notificaciones.',
   notifSettingsDeleted: 'Canal desconectado',
   txDetailModalTitle: 'Detalle de transacción',
-  kpisPrevPeriodLabel: 'vs. periodo anterior',
   drillDownActiveFilters: 'Filtros activos',
   drillDownClearAll: 'Limpiar todo',
 }

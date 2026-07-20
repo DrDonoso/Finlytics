@@ -698,7 +698,6 @@ export interface Dict {
   // ── Transaction detail modal ──────────────────────────────────────────────
   txDetailModalTitle: string
   // ── Finances drill-down table ─────────────────────────────────────────────
-  kpisPrevPeriodLabel: string
   drillDownActiveFilters: string
   drillDownClearAll: string
 }

@@ -107,7 +107,7 @@ export default function TransactionsTable({ globalFilters, categories, allTags, 
     return map
   }, [categories])
 
-  useEffect(() => { setPage(0) }, [globalFilters.from, globalFilters.to, globalFilters.account_id, globalFilters.category_id, globalFilters.tags, globalFilters.flow, categoryId, description, amountMin, amountMax, merchant, sortCol, sortOrder])
+  useEffect(() => { setPage(0) }, [globalFilters.from, globalFilters.to, globalFilters.account_id, globalFilters.category_id, globalFilters.tags, globalFilters.flow, globalFilters.day, categoryId, description, amountMin, amountMax, merchant, sortCol, sortOrder])
 
   const fetchData = useCallback(() => {
     let cancelled = false
@@ -124,6 +124,7 @@ export default function TransactionsTable({ globalFilters, categories, allTags, 
       amount_min:  amountMin,
       amount_max:  amountMax,
       merchant:    merchant,
+      day:         globalFilters.day || undefined,
       limit:       limit,
       offset:      page * limit,
       sort:        sortCol,
@@ -132,7 +133,7 @@ export default function TransactionsTable({ globalFilters, categories, allTags, 
       .then(d  => { if (!cancelled) { setData(d); setLoading(false) } })
       .catch(e => { if (!cancelled) { setError(String(e)); setLoading(false) } })
     return () => { cancelled = true }
-  }, [globalFilters.from, globalFilters.to, globalFilters.account_id, globalFilters.category_id, globalFilters.tags, globalFilters.flow, categoryId, page, refreshKey, description, amountMin, amountMax, merchant, limit, sortCol, sortOrder]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [globalFilters.from, globalFilters.to, globalFilters.account_id, globalFilters.category_id, globalFilters.tags, globalFilters.flow, globalFilters.day, categoryId, page, refreshKey, description, amountMin, amountMax, merchant, limit, sortCol, sortOrder]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(fetchData, [fetchData])
 

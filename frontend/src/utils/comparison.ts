@@ -25,31 +25,6 @@ export function previousCalendarMonth(from: string): { from: string; to: string 
   }
 }
 
-/**
- * Returns the preceding period of equal length immediately before from..to.
- * Length = inclusive days between from..to; prev = [from − length … from − 1 day].
- * E.g. from="2026-07-01", to="2026-07-31" (31 days) → { from: "2026-05-31", to: "2026-06-30" }.
- * Returns null for missing/invalid input or when from > to.
- */
-export function previousEqualRange(from: string, to: string): { from: string; to: string } | null {
-  if (!from || !to) return null
-  try {
-    const fp = from.split('-').map(Number)
-    const tp = to.split('-').map(Number)
-    if (fp.length !== 3 || tp.length !== 3) return null
-    const fromDate = new Date(fp[0], fp[1] - 1, fp[2])
-    const toDate   = new Date(tp[0], tp[1] - 1, tp[2])
-    if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) return null
-    const diffDays = Math.round((toDate.getTime() - fromDate.getTime()) / 86400000) + 1
-    if (diffDays <= 0) return null
-    const prevTo   = new Date(fromDate.getTime() - 86400000)
-    const prevFrom = new Date(prevTo.getTime()  - (diffDays - 1) * 86400000)
-    return { from: ymd(prevFrom), to: ymd(prevTo) }
-  } catch {
-    return null
-  }
-}
-
 /** Signed difference + percentage change between two values. */
 export interface DeltaResult {
   /** current − previous (signed; positive = increase). */
