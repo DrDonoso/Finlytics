@@ -90,3 +90,63 @@
 - **C (transacción de apertura sintética + extractos selectivos) — RECOMENDADA:** respeta el modelo actual, cero migraciones, el owner elige granularidad. Necesita categoría excluible para no contaminar gráficos de ingreso.
 
 **Propuesta entregada:** `.squad/decisions/inbox/fury-old-account-onboarding.md` — pendiente validación del owner.
+
+---
+
+### Revisión slice "Old Account Onboarding" — Opción C (2026-07-21)
+
+**Veredicto: ✅ APROBADO** — Backend (Shuri), Frontend (Vision), Tests (Barton+Shuri).
+
+**Hallazgos clave:**
+- Atomicidad correcta: todo dentro de `session.begin()`, rollback automático en fallo.
+- Dedup sólido: `compute_dedup_hash` determinista + `ON CONFLICT DO NOTHING` previene doble conteo en retry. Hash usa nombre de cuenta (no ID) + fecha + monto + descripción fija.
+- ImportRun metadata correcta: `source_filename="manual:saldo-inicial"`, period ISO, contadores de insert/duplicates.
+- Frontend `createAccount` usa raw fetch (no `apiFetch`): aceptable, sigue precedente de `authPost` — necesario para exponer status code al caller (409/422). `apiFetch` pierde el status en el throw.
+- Mock tiene inconsistencia menor (opening_balance=0 → tx_count=1 en mock vs 0 en backend). Solo afecta modo mock, no bloqueante.
+- 41 tests pasan (0.28s). Cobertura de happy path, errores, edge cases, determinismo de hash, metadata ImportRun.
+- Sin migración Alembic. ✅
+
+**Follow-up `is_system`:** Recomendado DESPUÉS, no ahora. Cuando el owner quiera excluir saldo de apertura de KPIs → migración 0016 con boolean + index parcial. No meter migración por tema cosmético.
+
+**Veredicto completo:** `.squad/decisions/inbox/fury-old-account-review.md`
+
+---
+
+## 2026-07-21: Design Review — Old Account Onboarding (Slice: Fury Option C) — APPROVED
+
+**Status:** ✅ APPROVED — No blocking defects.
+
+**Summary:** Reviewed complete slice (Shuri backend + Vision frontend + Barton QA) against Fury's original Option C proposal. Verdict: fully implemented as designed; ready for merge.
+
+**Review Findings:**
+
+**Backend (Shuri):** ✅
+- Atomicity: single transaction, full rollback on error
+- Dedup: SHA-256 hash, ON CONFLICT DO NOTHING
+- ImportRun metadata: source_filename, period, counters correct
+- Guard: opening_balance=0 creates no synthetic transaction
+- Semantics: 201/409/422 responses correct
+- No migration required
+
+**Frontend (Vision):** ✅
+- Raw fetch justified for 409/422 error handling
+- Modal pattern consistent with existing dialogs
+- i18n complete (18 keys, EN/ES)
+- Accessibility: aria-modal, aria-labelledby, Escape handling
+- Minor (non-blocking): mock had opening_balance=0 tx_count=1 inconsistency (fixed)
+
+**Tests (Barton):** ✅
+- 669 tests all pass
+- Good edge-case coverage
+- No bugs detected
+
+**Key Decision: KPI Skew Follow-up (is_system flag + migration 0016)**
+
+Recommendation: **Defer to later task.**
+- KPI skew (opening_balance appears as income) is intentional per Option C
+- Owner already approved this behavior
+- Backfill when needed is simple and safe
+- No need to block this slice on cosmetic exclusion logic
+- Future implementation: is_system boolean + partial index + WHERE NOT is_system in KPI queries (simple, explicit, safe)
+
+**Related:** Orchestration log: .squad/orchestration-log/2026-07-21T09-23-28Z-fury.md
