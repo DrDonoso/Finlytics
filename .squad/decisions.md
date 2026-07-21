@@ -10262,3 +10262,160 @@ Botón "Nueva cuenta" en `.settings-add-form` (bajo el `h2`), igual que `RulesPa
 
 
 ---
+
+
+---
+
+# ✅ APPROVED: Shuri, Vision, Barton, Fury — is_system flag + KPI exclusion (OPTION B)
+
+> **Estado:** IMPLEMENTED + APPROVED  
+> **Fecha entrada:** 2026-07-21T16:59:22+02:00  
+> **Slice:** is_system / KPI-exclusion follow-up  
+
+---
+
+## Overview
+
+Complete implementation of `is_system` flag for opening balance transactions ("Saldo inicial"). Excludes these synthetic rows from **all KPIs and aggregations**, but **INCLUDES them in the ledger with a subtle "Sistema" badge** (OPTION B — per owner decision).
+
+- **Migration 0017:** `ADD COLUMN is_system BOOLEAN NOT NULL DEFAULT false` + backfill via `import_runs.source_filename = 'manual:saldo-inicial'`
+- **Backend:** `_apply_filters(exclude_system=True)` by default (7 aggregations exclude); `get_transactions` explicitly passes `exclude_system=False` → ledger shows opening rows
+- **Frontend:** `TransactionOut.is_system: bool` field + `.tx-system-badge` "Sistema" pill + i18n (EN/ES)
+- **Tests:** 15 dedicated tests + full suite 1290 passed, 2 skipped, 0 failed
+
+**Final Status:** Full suite green. OpenAPI exposed. Docker deployment clean (0015→0016→0017 migration chain). No defects.
+
+---
+
+## Architecture: OPTION B (Ledger-visible, KPI-excluded)
+
+**Decision:** Owner chose **OPTION B**:
+- Rows with `is_system=True` are **VISIBLE in the ledger** with a badge → visual transparency.
+- Rows with `is_system=True` are **EXCLUDED from all KPIs and dashboard totals** → no inflation.
+- `get_transactions` calls `_apply_filters(..., exclude_system=False)` → opening rows appear.
+- `get_overview`, `get_by_category`, `get_by_merchant`, `get_by_month`, `get_by_day`, `get_by_account`, `get_cashflow` inherit `exclude_system=True` by default → exclude.
+
+**Reconciliation:** The earlier proposal `shuri-is-system.md` suggested ledger should ALSO exclude (`exclude_system=True` everywhere). This was **SUPERSEDED** by owner direction and Option B contract in `shuri-is-system-ledger.md`. The Option B design is now authoritative.
+
+---
+
+## Backend Implementation (Shuri)
+
+**Files:** `alembic/versions/0017_add_transaction_is_system.py`, `src/finlytics/db/queries.py`, `src/finlytics/db/models.py`, `src/finlytics/api/schemas.py`, `src/finlytics/db/repository.py`
+
+1. **Migration 0017:**
+   - `upgrade`: `ALTER TABLE transactions ADD COLUMN is_system BOOLEAN NOT NULL DEFAULT false`
+   - Backfill: `UPDATE transactions SET is_system = true WHERE import_run_id IN (SELECT id FROM import_runs WHERE source_filename = 'manual:saldo-inicial')`
+   - `downgrade`: `DROP COLUMN is_system`
+   - Down-revision correctly set to `0016_add_notifications.py`
+
+2. **Transaction model:** `is_system: bool` field added.
+
+3. **`_apply_filters` enhancement:** Parameter `exclude_system: bool = True`. All 9 aggregation calls inherit default (exclude).
+
+4. **`get_transactions` (ledger):** Explicitly passes `exclude_system=False` → opening rows appear in response.
+
+5. **`TransactionOut` schema:** `is_system: bool = False` (default for retrocompatibility).
+
+6. **`create_opening_balance_tx` helper:** Sets `is_system=True` on new opening transactions.
+
+---
+
+## Frontend Implementation (Vision)
+
+**Files:** `frontend/src/api/types.ts`, `frontend/src/api/mock.ts`, `frontend/src/components/TransactionsTable.tsx`, `frontend/src/index.css`, `frontend/src/i18n/{index,en,es}.ts`
+
+1. **`Transaction.is_system?: boolean`** in types — optional for retrocompat.
+
+2. **Mock data:** Updated to include `is_system: true` on opening balance rows; 4 summary endpoints filter `!t.is_system`.
+
+3. **Badge `.tx-system-badge`:** CSS pill with dashed border, muted text, small size (10px). Positioned as `.td-desc` sibling.
+
+4. **`TransactionsTable.tsx`:** Badge rendered when `is_system === true`.
+
+5. **i18n:** 2 keys added per language (EN/ES):
+   - `systemTxBadge`: "System" / "Sistema"
+   - `systemTxBadgeTooltip`: "Opening balance — informational row, excluded from totals" / "Saldo inicial — fila informativa, no computable en totales"
+
+6. **KPI totals:** Come from `getOverview()` (backend-excluded), NOT client-side sum. No client-side change needed.
+
+**Build:** `npm run build` → 0 TS errors.
+
+---
+
+## QA Implementation (Barton)
+
+**File:** `tests/api/test_is_system.py`
+
+15 tests covering:
+- `_apply_filters` SQL compilation (exclude default, skip when disabled)
+- All 7 aggregations exclude `is_system`
+- Ledger includes `is_system=True` rows (OPTION B)
+- Integration: overview vs. ledger coherence
+- Regression: no bypass paths
+
+**Result:** 15 pass. Full suite: **1290 passed, 2 skipped, 0 failed.**
+
+---
+
+## Review Verdict (Fury)
+
+**Status:** ✅ **APPROVED** — No blocking defects. Slice coherent and complete.
+
+**Verified:**
+- Migration chain: 0015 → 0016 → 0017 ✓ (down_revision correct)
+- All 7 KPI queries exclude `is_system` ✓
+- Ledger includes `is_system=True` with badge (OPTION B) ✓
+- No client-side inflation of totals ✓
+- Backfill signal (`source_filename = 'manual:saldo-inicial'`) stable ✓
+- create_opening_balance_tx sets `is_system=True` ✓
+- Tests: 1290 suite pass, 15 dedicated tests, 217 subset all green ✓
+
+**Non-blocking note:** The earlier `shuri-is-system.md` contained Option A (ledger-excludes), now superseded. For clarity, Shuri marked it as ⚠️ SUPERSEDED BY OPTION B in the document header.
+
+---
+
+## Contract: API Changes
+
+**`GET /api/transactions`**
+```json
+{
+  "items": [
+    {
+      "id": 42,
+      "is_system": true,
+      "description": "Saldo inicial",
+      ...
+    }
+  ],
+  "total": 3
+}
+```
+
+**`GET /api/summary/*`** (overview, by_category, by_merchant, etc.)
+```json
+{
+  "total_income": 1000.00,  // excludes is_system rows
+  ...
+}
+```
+
+---
+
+## Pre-commit Checklist (Coordinator Verified)
+
+- [x] Migration 0017 chain correct (0015 → 0016 → 0017)
+- [x] 7 KPI aggregations exclude is_system ✓
+- [x] Ledger includes is_system=True (OPTION B) ✓
+- [x] Frontend badge renders ✓
+- [x] i18n 2 keys × 3 files ✓
+- [x] Backfill signal fiable ✓
+- [x] create_opening_balance_tx inserts is_system=True ✓
+- [x] Tests: 1290 suite, 15 dedicated all pass ✓
+- [x] Docker deploy: migration chain runs cleanly ✓
+- [x] OpenAPI updated (TransactionOut.is_system exposed) ✓
+
+**Ready to merge. ✅**
+
+---
+
