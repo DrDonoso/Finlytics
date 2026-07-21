@@ -4,6 +4,22 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260721.02] - 2026-07-21
+
+- Migration 0017: add transactions.is_system (default false) and backfill existing opening rows (import_runs.source_filename='manual:saldo-inicial').
+- create_opening_balance_tx flags new opening transactions as is_system.
+- Aggregations (overview, by category/merchant/month/day/account, cashflow) exclude is_system via a shared _apply_filters(exclude_system=True) parameter.
+- The ledger (GET /api/transactions) keeps showing opening rows and exposes is_system; the frontend marks them with a subtle "Sistema" badge. Page totals come from the summary endpoint, so they stay consistent.
+- Tests: 15 is_system tests (aggregations excluded, ledger includes, backfill flag); full suite 1290 passing.
+- decisions.md: merged 4 inbox files (fury-is-system-review, shuri-is-system-ledger, shuri-is-system, vision-is-system-badge)
+- Reconciled Option A (ledger-excludes) superseded by Option B (ledger-includes + badge)
+- Marked is_system/KPI-exclusion as IMPLEMENTED + APPROVED (removed pending status)
+- Created orchestration-log entries for Shuri, Vision, Barton, Fury (2026-07-21T16-59-22Z)
+- Updated agent history files with cross-agent session references
+- Summarized Fury history (15804 bytes -> condensed)
+- Created session log: .squad/log/2026-07-21T16-59-22Z-is-system-kpi-exclusion.md
+
+
 ## [20260721] - 2026-07-21
 
 - POST /api/accounts: create an account manually with an optional opening balance (creates a synthetic "Saldo inicial" transaction; no migration).
