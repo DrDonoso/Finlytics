@@ -728,5 +728,7 @@ const en: Dict = {
   txDetailModalTitle: 'Transaction detail',
   drillDownActiveFilters: 'Active filters',
   drillDownClearAll: 'Clear all',
+  systemTxBadge: 'System',
+  systemTxBadgeTooltip: 'Opening balance — informational row, excluded from totals',
 }
 export default en

@@ -150,6 +150,7 @@ class TransactionOut(BaseModel):
     tags: list[str] = []   # tag names; empty when no tags are attached
     merchant: str | None = None
     detail: str | None = None
+    is_system: bool = False
 
 
 class TransactionPage(BaseModel):

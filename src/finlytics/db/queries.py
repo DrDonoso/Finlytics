@@ -85,6 +85,7 @@ def _apply_filters(
     amount_min: float | None = None,
     amount_max: float | None = None,
     merchant: str | None = None,
+    exclude_system: bool = True,
 ):
     """Append WHERE clauses for the common optional filters.
 
@@ -110,6 +111,12 @@ def _apply_filters(
     ``transaction_date``).  Intended for cross-filter drill-down from a
     heatmap click; takes precedence over any overlapping ``from_date`` /
     ``to_date`` range when combined.
+
+    ``exclude_system`` (default ``True``) drops rows where
+    ``Transaction.is_system`` is true — i.e. synthetic entries such as
+    opening-balance ("Saldo inicial") transactions.  Pass ``False`` only
+    when the caller explicitly needs to expose system rows (e.g. a future
+    admin audit endpoint).
     """
     if from_date is not None:
         stmt = stmt.where(Transaction.transaction_date >= from_date)
@@ -150,6 +157,8 @@ def _apply_filters(
         if term:
             term = term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
             stmt = stmt.where(Transaction.merchant.ilike(f"%{term}%", escape="\\"))
+    if exclude_system:
+        stmt = stmt.where(Transaction.is_system == False)  # noqa: E712
     return stmt
 
 
@@ -488,6 +497,7 @@ async def get_transactions(
             Transaction.balance_after,
             Transaction.merchant,
             Transaction.detail,
+            Transaction.is_system,
             Category.name.label("category_name"),
             Account.name.label("account_name"),
         )
@@ -507,6 +517,7 @@ async def get_transactions(
         amount_min=amount_min,
         amount_max=amount_max,
         merchant=merchant,
+        exclude_system=False,
     )
 
     total: int = (
@@ -553,6 +564,7 @@ async def get_transactions(
             "tags": tag_map.get(row["id"], []),
             "merchant": row["merchant"],
             "detail": row["detail"],
+            "is_system": bool(row["is_system"]),
         }
         for row in rows
     ]

@@ -384,6 +384,7 @@ async def create_opening_balance_tx(
             category_id=None,
             balance_after=amount,
             dedup_hash=dedup_hash,
+            is_system=True,
         )
         .on_conflict_do_nothing(index_elements=["dedup_hash"])
         .returning(Transaction.id)

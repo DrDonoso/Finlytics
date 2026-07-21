@@ -933,6 +933,22 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
 .tx-detail-subline { display: block; font-size: 11px; color: var(--text-muted); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 260px; }
 /* In import preview the description is an <input> with padding: 0 8px — indent sub-line to match the text start */
 .tx-detail-subline--input-aligned { padding-left: 8px; }
+/* System transaction badge (is_system=true — "Saldo inicial") — subtle, informational, not interactive */
+.tx-system-badge {
+  display: inline-block;
+  margin-top: 3px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  background: var(--bg);
+  color: var(--text-muted);
+  border: 1px dashed var(--border);
+  cursor: default;
+  user-select: none;
+  opacity: 0.85;
+}
 /* Comercio column — dedicated column, secondary but readable */
 .th-merchant { min-width: 100px; }
 .td-merchant {
