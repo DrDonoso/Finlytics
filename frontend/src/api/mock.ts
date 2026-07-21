@@ -65,6 +65,9 @@ let _nextAccountId = MOCK_ACCOUNTS.length + 1
 // amount < 0 → expense   |   amount > 0 → income
 
 const RAW: Transaction[] = [
+  // ── Synthetic opening-balance rows (is_system=true) ───────────────────────
+  { id: 100, transaction_date: '2026-04-30', amount:  3200.00, currency: 'EUR', description: 'Saldo inicial', category: 'Other', account: 'BBVA',           category_confidence: null, balance_after: 3200.00, tags: [], merchant: null, is_system: true },
+  { id: 101, transaction_date: '2026-04-30', amount: 12450.00, currency: 'EUR', description: 'Saldo inicial', category: 'Other', account: 'Indexa Capital', category_confidence: null, balance_after: 12450.00, tags: [], merchant: null, is_system: true },
   // ── BBVA — May 2026 ──────────────────────────────────────────────────────
   { id: 1,  transaction_date: '2026-05-01', amount:  2500.00, currency: 'EUR', description: 'Nómina Mayo',                  category: 'Income',        account: 'BBVA',           category_confidence: 0.99, balance_after: 3200.00,  tags: [],             merchant: null },
   { id: 2,  transaction_date: '2026-05-02', amount:   -87.50, currency: 'EUR', description: 'Mercadona',                    category: 'Groceries',     account: 'BBVA',           category_confidence: 0.97, balance_after: 3112.50,  tags: [],             merchant: 'Mercadona' },
@@ -229,7 +232,7 @@ export function mockGetTransactions(params?: TransactionsParams): Promise<Transa
 }
 
 export function mockGetOverview(params?: SummaryParams): Promise<Overview> {
-  const txns = filterTxns(params)
+  const txns = filterTxns(params).filter(t => !t.is_system)
   const total_expense = txns.filter(t => t.amount < 0)
     .reduce((s, t) => s + Math.abs(t.amount), 0)
   const total_income = txns.filter(t => t.amount > 0)
@@ -256,7 +259,7 @@ export function mockGetOverview(params?: SummaryParams): Promise<Overview> {
 
 export function mockGetByCategory(params?: SummaryParams): Promise<CategorySummary[]> {
   const catMap = new Map<string, { amount: number; count: number }>()
-  for (const t of filterTxns(params).filter(t => t.amount < 0)) {
+  for (const t of filterTxns(params).filter(t => !t.is_system && t.amount < 0)) {
     const prev = catMap.get(t.category) ?? { amount: 0, count: 0 }
     catMap.set(t.category, { amount: prev.amount + Math.abs(t.amount), count: prev.count + 1 })
   }
@@ -270,7 +273,7 @@ export function mockGetByCategory(params?: SummaryParams): Promise<CategorySumma
 
 export function mockGetByMonth(params?: MonthSummaryParams): Promise<MonthSummary[]> {
   const monthMap = new Map<string, { expense: number; income: number }>()
-  for (const t of filterTxns(params)) {
+  for (const t of filterTxns(params).filter(t => !t.is_system)) {
     const month = t.transaction_date.slice(0, 7)
     const prev = monthMap.get(month) ?? { expense: 0, income: 0 }
     if (t.amount < 0) prev.expense += Math.abs(t.amount)
@@ -286,7 +289,7 @@ export function mockGetByMonth(params?: MonthSummaryParams): Promise<MonthSummar
 
 export function mockGetByAccount(params?: SummaryParams): Promise<AccountSummary[]> {
   const accMap = new Map<string, { expense: number; income: number }>()
-  for (const t of filterTxns(params)) {
+  for (const t of filterTxns(params).filter(t => !t.is_system)) {
     const prev = accMap.get(t.account) ?? { expense: 0, income: 0 }
     if (t.amount < 0) prev.expense += Math.abs(t.amount)
     else prev.income += t.amount

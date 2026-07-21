@@ -256,6 +256,14 @@ class Transaction(Base):
         String(64), nullable=False, unique=True
     )
 
+    # ── System flag ───────────────────────────────────────────────────────────
+    # True for synthetic rows created by Finlytics itself (e.g. opening-balance
+    # "Saldo inicial" entries).  Excluded from all KPI / flow aggregations so
+    # they never distort income or expense totals.
+    is_system: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="false"
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

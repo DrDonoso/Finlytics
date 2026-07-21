@@ -728,5 +728,7 @@ const es: Dict = {
   txDetailModalTitle: 'Detalle de transacción',
   drillDownActiveFilters: 'Filtros activos',
   drillDownClearAll: 'Limpiar todo',
+  systemTxBadge: 'Sistema',
+  systemTxBadgeTooltip: 'Saldo inicial — fila informativa, no computable en totales',
 }
 export default es

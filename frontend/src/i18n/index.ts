@@ -722,6 +722,9 @@ export interface Dict {
   // ── Finances drill-down table ─────────────────────────────────────────────
   drillDownActiveFilters: string
   drillDownClearAll: string
+  // ── System transaction badge (is_system=true, "Saldo inicial") ────────────
+  systemTxBadge: string
+  systemTxBadgeTooltip: string
 }
 
 const ES_LABELS: Record<string, string> = {
