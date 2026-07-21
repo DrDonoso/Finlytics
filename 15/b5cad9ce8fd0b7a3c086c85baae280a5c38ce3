@@ -1,0 +1,64 @@
+.squad/agents/fury/history.md
+  s_74e0cf4d3e7275::t_308881a876b200 9,11-13,17,19-28,32-61,65,67-68,70-71,73-74,76-77,79-80,82-83,87,89-91,95,97-98,102,104-107,109,111-114
+  s_99f900dd05e8b5::t_a852d7568e843d 115
+.squad/agents/shuri/history.md
+  s_6fe03a6ac6eee4::t_b1416bd79ef5fb 69-91,104
+  s_6cda40a31c6cde::t_224c19986c6447 18,20
+  s_6cda40a31c6cde::t_a91992d6225034 92-103
+  s_6fe03a6ac6eee4::t_239e40d3ef0f0d 17
+  s_6fe03a6ac6eee4::t_0fe1e5d3e3911b 32-33
+  s_74e0cf4d3e7275::t_a8d010c019b0ae 116-132
+.squad/agents/vision/history.md
+  s_c5896c3b3c2301::t_b494e1469f7e3f 6,8,21-40
+  s_74e0cf4d3e7275::t_1a54384d131b16 41,93-109
+.squad/decisions.md
+  s_74e0cf4d3e7275::t_f7395671a22668 10265-10421
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "15b5cad9ce8fd0b7a3c086c85baae280a5c38ce3",
+  "prompts": {},
+  "sessions": {
+    "s_6cda40a31c6cde": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_018XafaJ3uCLFhM398TZArAd",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_6fe03a6ac6eee4": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01LwwXPZjpxmkaRVpuEH8KBM",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_74e0cf4d3e7275": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01H5vXZm4yZx8cQrxdu3kPcz",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_99f900dd05e8b5": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "6c62ca70-eee1-42c7-8e78-244fd542323c",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_c5896c3b3c2301": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_019WSo2gj9PdkHag3K4v3g7v",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    }
+  }
+}
