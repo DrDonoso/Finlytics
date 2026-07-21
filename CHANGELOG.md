@@ -4,6 +4,18 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260721] - 2026-07-21
+
+- POST /api/accounts: create an account manually with an optional opening balance (creates a synthetic "Saldo inicial" transaction; no migration).
+- Import flow: when a statement creates a NEW account, optionally capture the balance just before that statement. The opening date is inferred as the day before the earliest transaction in the statement.
+- Merged 3 inbox decisions into decisions.md (Vision drill-down table, CategoryMovers redistribution, Finanzas variation removal)
+- Deleted inbox files (decisions/inbox/*.md)
+- Wrote orchestration logs for Vision (3 deliverables) and Rocket (rebuild + deploy verification)
+- Wrote session log (Finanzas/Extractos rework overview)
+- Updated agent history files with orchestration entry
+- No summarization needed (Vision: 13.2 KB, Rocket: 11.4 KB, threshold: 15.4 KB)
+
+
 ## [20260720.03] - 2026-07-20
 
 - feat(finanzas/extractos): drill-down transactions table + month-over-month comparison in Extractos
