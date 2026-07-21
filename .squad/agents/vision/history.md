@@ -3,8 +3,9 @@
 ## Summary of Sessions (2026-07-20 to 2026-07-21)
 
 **Major outcomes:**
+- **is_system badge en ledger** (2026-07-21): Badge "Sistema"/"System" en filas `is_system=true` del ledger. Totales de página ya vienen del backend (overview) — no había suma cliente que corregir. ✅ Build green.
 - **Import-time opening balance** (2026-07-21): Campo "Saldo anterior" opcional en la fase resolve del ImportModal, para cuentas nuevas (IBAN y manual). 3 keys i18n, `opening_balance` en `ConfirmRequest`. ✅ Build green.
-- **Old Account Onboarding** (2026-07-21): AccountCreateModal with opening-balance modal; 18 i18n keys; raw fetch for 409/422 handling; mutable mock store. ✅ Build green.
+- **Old Account Onboarding** (2026-07-21): AccountCreateModal with collapsible opening-balance section; 18 i18n keys; raw fetch for 409/422 handling; mutable mock store. ✅ Build green.
 - **Finanzas/Extractos refactor** (2026-07-20): Drill-down transactions table + active-filter chips; CategoryMovers moved to Extractos; KPI comparison fix (equal-length preceding period).
 - **Mobile transaction detail** (2026-07-20): Mobile-only transaction edit modal; useIsMobile hook; TransactionsTable integration.
 - **UI polish** (2026-07-20): Euro decimal fixes (2 places); all-time net KPI; nav chevron split (finance/investments).
@@ -16,6 +17,27 @@
 - Mutable store patterns for mock consistency
 
 ---
+
+## 2026-07-21T17:01:22+02:00: Badge "Sistema" en filas is_system=true
+
+**Summary:** Marcado visual de filas sintéticas "Saldo inicial" (`is_system=true`) en TransactionsTable. Badge sutil `.tx-system-badge` (dashed border, text-muted, 10px) aparece debajo del texto de descripción. Totales de la página (`tx-totals`) ya vienen del endpoint `GET /api/summary/overview` que excluye `is_system` — no había suma cliente que corregir. Mock actualizado: 2 entradas `is_system: true` en RAW; `mockGetOverview`, `mockGetByCategory`, `mockGetByMonth`, `mockGetByAccount` filtran `!t.is_system`. npm run build ✅ 0 errores TS.
+
+**Key files:** TransactionsTable.tsx, api/types.ts, api/mock.ts, i18n/{index,es,en}.ts, index.css.
+
+**Pattern notes:**
+- `Transaction.is_system?: boolean` — opcional para retrocompatibilidad con mocks sin la clave.
+- Badge colocado FUERA de `.td-desc` (que tiene `overflow: hidden; text-overflow: ellipsis; white-space: nowrap`) para no quedar clippeado.
+- Regla Shuri: "Badge visual → ledger row; Importe total → overview endpoint." — los totales de página NUNCA deben sumarse del cliente sobre filas visibles.
+- Los 4 endpoints de resumen mock excluyen `is_system: true` para simular el comportamiento real del backend.
+
+---
+
+## Learnings
+
+- **tx-totals usan overview endpoint** — Los bloques `.tx-totals` en TransactionsPage y FinancesOverviewPage obtienen sus cifras de `getOverview()` (backend), no de suma cliente. Esto significa que cualquier cambio en qué filas aparecen en el ledger no afecta los totales de página automáticamente — el backend ya maneja la exclusión.
+- **td-desc tiene overflow:hidden** — Nunca añadir badges dentro de `.td-desc`: tienen `white-space: nowrap; overflow: hidden; text-overflow: ellipsis`. Los sub-elementos (badges, sublines) deben ser hermanos, no hijos del div.
+- **is_system: optional en el tipo** — Hacer el campo `is_system?: boolean` en vez de requerido evita actualizar los ~43 objetos del array RAW en mock.ts.
+
 
 ## 2026-07-21T13:31:05+02:00: Campo "Saldo anterior" en ImportModal
 
@@ -67,4 +89,21 @@
 
 *Original learnings and detailed notes for 2026-07-20 sessions (drill-down table, CategoryMovers, mobile detail modal, UI polish, navigation splits) are available in git history or on request. Key learnings documented in summary above.*
 
+
+
+
+## Session: 2026-07-21 — is_system implementation (slice complete)
+
+**Collaborators:** Shuri, Vision, Barton, Fury  
+**Status:** ✅ IMPLEMENTED + APPROVED  
+**Decisions:** .squad/decisions.md (merged from inbox), .squad/orchestration-log/  
+**Session Log:** .squad/log/2026-07-21T16-59-22Z-is-system-kpi-exclusion.md
+
+**Summary:** Full squad execution: migration 0017 (Shuri), frontend badge (Vision), 15 tests (Barton), architecture review (Fury). Owner approved OPTION B (ledger-visible, KPI-excluded). No defects. Ready for merge.
+
+**Cross-agent refs:**
+- Shuri: orchestration-log/2026-07-21T16-59-22Z-shuri.md
+- Vision: orchestration-log/2026-07-21T16-59-22Z-vision.md
+- Barton: orchestration-log/2026-07-21T16-59-22Z-barton.md
+- Fury: orchestration-log/2026-07-21T16-59-22Z-fury.md
 
