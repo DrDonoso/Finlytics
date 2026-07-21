@@ -3,6 +3,7 @@
 ## Summary of Sessions (2026-07-20 to 2026-07-21)
 
 **Major outcomes:**
+- **Import-time opening balance** (2026-07-21): Campo "Saldo anterior" opcional en la fase resolve del ImportModal, para cuentas nuevas (IBAN y manual). 3 keys i18n, `opening_balance` en `ConfirmRequest`. ✅ Build green.
 - **Old Account Onboarding** (2026-07-21): AccountCreateModal with opening-balance modal; 18 i18n keys; raw fetch for 409/422 handling; mutable mock store. ✅ Build green.
 - **Finanzas/Extractos refactor** (2026-07-20): Drill-down transactions table + active-filter chips; CategoryMovers moved to Extractos; KPI comparison fix (equal-length preceding period).
 - **Mobile transaction detail** (2026-07-20): Mobile-only transaction edit modal; useIsMobile hook; TransactionsTable integration.
@@ -13,6 +14,22 @@
 - i18n in all three files (Dict, en.ts, es.ts)
 - Raw fetch for status-dependent error handling (409/422)
 - Mutable store patterns for mock consistency
+
+---
+
+## 2026-07-21T13:31:05+02:00: Campo "Saldo anterior" en ImportModal
+
+**Summary:** Added optional "Saldo anterior" field in the `resolve` phase of ImportModal for new accounts. Field renders below the account name input for both IBAN-detected new accounts (`newIbanEntries`) and manual new accounts (`noIbanNewMode`). Opening balance is sent as `opening_balance` in the `ConfirmRequest` payload; omitted for existing/matched accounts. Added 3 i18n keys. npm run build: ✅ 0 TS errors.
+
+**Key files:** ImportModal.tsx, api/types.ts, i18n/index.ts, i18n/es.ts, i18n/en.ts.
+
+**Pattern notes:**
+- `NewIbanEntry` interface gained `openingBalance: string` (empty = omit).
+- New state `noIbanOpeningBalance: Record<number, string>` for per-file manual accounts.
+- `handleConfirmAll` reads opening balance from respective state; parses to float; omits when empty/NaN.
+- `ConfirmRequest.opening_balance?: number | null` — only sent when new account + non-empty value.
+- No mock changes needed: `mockConfirmImport` ignores extra fields gracefully.
+- Hint/copy follows Fury's proposal: one field, no date asked, server infers date from first tx.
 
 ---
 

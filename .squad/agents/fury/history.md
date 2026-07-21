@@ -150,3 +150,49 @@ Recommendation: **Defer to later task.**
 - Future implementation: is_system boolean + partial index + WHERE NOT is_system in KPI queries (simple, explicit, safe)
 
 **Related:** Orchestration log: .squad/orchestration-log/2026-07-21T09-23-28Z-fury.md
+
+---
+
+### Saldo anterior en import flow — consulta de diseño (2026-07-21)
+
+**Problema del owner:** la creación manual de cuenta con saldo está demasiado oculta en Settings; quiere capturarlo durante la importación.
+
+**Decisión clave:** el import flow ya detecta cuentas nuevas (`matched_account_id == null`) en la fase `resolve` del `ImportModal`. Aprovechar esa señal para mostrar un campo opcional de saldo anterior — reutilizando el mecanismo exacto de `POST /api/accounts` (ImportRun + tx sintética "Saldo inicial", dedup hash, atómico).
+
+**Aprendizajes:**
+- La fase `resolve` en `ImportModal.tsx` ya tiene dos paths de cuenta nueva: `newIbanEntries` (IBAN detectado, usuario pone nombre) y `noIbanFiles` (sin IBAN, selecciona o crea cuenta). Ambos necesitan el campo de saldo.
+- Inferir `opening_date` como `min(tx_dates) - 1 día` es suficiente — preguntar la fecha añade fricción sin valor.
+- `balance_after` no es fiable para inferir saldo automáticamente (nullable, LLM noise).
+- Dos puntos de creación de tx sintéticas refuerzan la necesidad del follow-up `is_system`, aunque no lo bloquean.
+- Extensión de `ConfirmIn` es mínima (un campo optional), sin migración, sin breaking change.
+
+**Propuesta entregada:** `.squad/decisions/inbox/fury-import-time-opening-balance.md` — pendiente validación del owner.
+
+---
+
+### Revisión slice "Import-time Opening Balance" — APROBADO (2026-07-21)
+
+**Veredicto: ✅ APROBADO** — Backend (Shuri), Frontend (Vision), Tests (Barton+Shuri).
+
+**Hallazgos clave:**
+- **Atomicidad:** todo dentro de `async with session.begin()` — apertura + import principal son atómicos.
+- **Detección `was_created`:** ambos paths correctos. IBAN: `account is None` tras SELECT. Nombre: pre-check `select(Account.id).where(name=...)` antes de `_resolve_account`. Sin falsos positivos/negativos.
+- **Date inference:** `min(tx.transaction_date) - timedelta(days=1)` — correcto incluso con txs desordenadas.
+- **Guard vacío:** `and body.transactions` evita `min()` sobre lista vacía. ✅
+- **Existing accounts:** `was_created=False` → bloque opening ignorado. ✅
+- **Idempotencia doble capa:** (1) re-confirm → cuenta existe → `was_created=False`; (2) incluso si se llamara, `ON CONFLICT DO NOTHING` absorbe duplicado. ✅
+- **Refactor DRY:** `create_opening_balance_tx` en `repository.py` compartido por ambos endpoints. `accounts.py` usa el helper, comportamiento idéntico al inline anterior. 41 tests accounts pasan. ✅
+- **Frontend:** campo solo en cuentas nuevas (ambos paths IBAN/nombre), `parseFloat` + `isNaN` guard, i18n 3 keys EN/ES. ✅
+- **Tests:** 11 edge-cases cubren todos los paths + idempotencia DB/call + dedup conflict + negativos + vacío. ✅
+- **Sin migración Alembic.** ✅
+- **172 tests pasan** (scope import/confirm/opening/account), 0 fallos.
+
+**RuntimeWarning (non-blocking):**
+- Causa: `pre_check.scalar_one_or_none()` en línea 326 es sync (correcto en producción), pero `AsyncMock` auto-genera hijos async → coroutine no-awaited en tests de `test_statements_originals.py`.
+- El código de producción es **correcto**. El problema es configuración de mocks preexistentes.
+- **Decisión:** aceptable as-is (tests pasan, no es bug real). Recomiendo limpieza trivial (~2 líneas por test) para evitar que enmascare warnings futuros.
+- **Asignado a:** Vision (ni Shuri ni Barton, por lockout de autoría).
+
+**Follow-up `is_system` / KPI-skew:** Status sin cambio — pendiente decisión del owner. Recomendación mantiene: diferir hasta que se necesite excluir la apertura de KPIs.
+
+**Veredicto completo:** `.squad/decisions/inbox/fury-import-opening-review.md`

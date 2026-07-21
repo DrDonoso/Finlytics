@@ -1,5 +1,68 @@
 ---
 
+# ✅ APPROVED: Shuri, Vision, Barton, Fury — Import-time opening balance
+
+> **Estado:** IMPLEMENTED + APPROVED  
+> **Fecha entrada:** 2026-07-21T13:31:05+02:00  
+> **Scope:** Capture "saldo anterior" when importing a statement for a NEW account  
+
+---
+
+## Overview
+
+Squad slice completed for capture of opening balance (saldo anterior) during statement import. When a new account is detected, the user can optionally provide an opening balance which is recorded as a synthetic "Saldo inicial" transaction dated one day before the first transaction in the statement.
+
+**Final Status:** Full suite 1275 passed, 2 skipped, 0 failed. Frontend build green. OpenAPI ConfirmIn exposes opening_balance. Clean startup.
+
+**Contract:** `ConfirmIn.opening_balance: float | None = None`. Ignored for existing accounts. Detects account creation via IBAN (SELECT) or name (pre-SELECT). Date automatically inferred as min(transaction_date) − 1 day. All operations atomic in session.begin(). Guards: empty transactions, zero/null balance, existing accounts.
+
+---
+
+## Backend Implementation (Shuri)
+
+**Files:** repository.py (helper), imports.py (confirm), accounts.py (refactor), schemas.py (ConfirmIn)
+
+Helper `create_opening_balance_tx` extracted to repository.py for DRY (reutilizado by both POST /accounts and confirm). Creates ImportRun "manual:saldo-inicial" + synthetic Transaction. Account creation detection: IBAN path via SELECT Account (None = new); name path via pre-SELECT before _resolve_account. Opening date = min(confirmed tx date) − 1 day. Idempotence: was_created flag (call-level) + ON CONFLICT DO NOTHING (DB-level). All within atomic session.begin().
+
+Tests: 3 new happy-path tests in test_imports.py. Patches updated in test_accounts.py for new helper location.
+
+---
+
+## Frontend Implementation (Vision)
+
+**Files:** ImportModal.tsx, types.ts, client.ts, mock.ts, i18n (index/es/en)
+
+Optional "Saldo anterior" field in ImportModal resolve phase. Visible only when matched_account_id == null (new accounts). Covers IBAN-detected path (newIbanEntries) and name-only path (noIbanFiles). Modal supports multiple accounts. Types: ConfirmRequest += opening_balance. i18n: 3 keys added (label, help text, hint). parseFloat + isNaN guard before payload inclusion.
+
+---
+
+## QA Implementation (Barton)
+
+**File:** tests/api/test_import_opening_balance.py
+
+11 edge cases: new account IBAN/name, existing account ignored, zero/null balance, negative (overdraft), date inference from out-of-order transactions, DB dedup ON CONFLICT, idempotence (2nd call), empty transactions guard, response contract validation.
+
+Result: **All 11 pass** against Shuri's implementation. Full suite: 1275 passed, 2 skipped, 0 failed.
+
+---
+
+## Review Verdict (Fury)
+
+**Status:** ✅ APPROVED — No blocking defects.
+
+**Correctness verified:** was_created detection (both paths), date inference, guards (empty/zero/null/existing), idempotence (dual-layer), atomicity, DRY refactor, frontend field logic, i18n.
+
+**Known acceptable issue:** RuntimeWarning in test_statements_originals.py (mock not awaited) — test noise, not prod bug. Optional 2-line cleanup available.
+
+---
+
+## Known deferral
+
+**is_system flag + migration 0016:** Excluded from this slice. Opening balances currently count as "income" in their month (by design). Owner decides when/if to exclude them from KPI queries. No architectural blocker; can be added later without touching this slice.
+
+---
+---
+
 # 🟡 PROPOSAL: Fury — Onboarding de cuentas antiguas
 
 > **Estado:** PROPOSAL — PENDIENTE VALIDACIÓN DEL OWNER  
