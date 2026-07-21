@@ -1,3 +1,88 @@
+---
+
+# 🟡 PROPOSAL: Fury — Onboarding de cuentas antiguas
+
+> **Estado:** PROPOSAL — PENDIENTE VALIDACIÓN DEL OWNER  
+> **Fecha entrada:** 2026-07-21T10:31:35+02:00  
+
+# Propuesta: Onboarding de cuentas antiguas
+
+**Fecha:** 2026-07-21T10:25:08+02:00  
+**Autor:** Fury  
+**Estado:** 🟡 Pendiente validación del owner  
+**Scope:** Modelo de datos Account + ingesta de cuentas históricas
+
+---
+
+## Contexto
+
+El owner quiere dar de alta una cuenta con +5 años de antigüedad. Hoy la app mide **flujos** (gasto/ingreso por periodo), NO patrimonio/saldo. Los KPIs suman `Transaction.amount` — no existe concepto de "saldo de apertura" en el esquema.
+
+## Opciones evaluadas
+
+### Opción A — Subir todos los extractos históricos (+5 años)
+
+| Pro | Contra |
+|-----|--------|
+| Histórico completo: tendencias, categorías, merchants, heatmaps retroactivos | Coste OpenAI (×60+ extractos) |
+| Sin cambios de esquema | Tiempo de procesamiento |
+| Dedup protege contra re-imports | Formatos antiguos parsean peor (riesgo de calidad) |
+
+### Opción B — Saldo inicial como campo de Account
+
+| Pro | Contra |
+|-----|--------|
+| Rápido y barato (0 extractos) | Charts vacíos antes de la fecha de corte |
+| | Requiere nuevo campo `initial_balance` + `balance_as_of_date` en Account |
+| | Los KPIs ignoran el saldo (suman transacciones) — hay que decidir si se expone un "patrimonio" o no |
+| | Riesgo de incoherencia: ¿el saldo cuenta como ingreso? ¿como transacción sintética? |
+
+### Opción C (Recomendada) — Transacción de apertura sintética + extractos selectivos
+
+Insertar una **transacción sintética de apertura** (`description="Saldo inicial"`, `amount=X`, `transaction_date=fecha_corte`) en la cuenta. A partir de ahí, subir extractos solo del periodo que interese analizar.
+
+| Pro | Contra |
+|-----|--------|
+| Cero cambios de esquema — es una transacción normal | El saldo inicial suma como "ingreso" en el periodo de la fecha de corte |
+| `balance_after` del primer extracto real cuadra automáticamente | Requiere categoría especial (e.g. "Apertura") excluible de análisis de gasto |
+| Dedup lo protege igual que cualquier otra transacción | Si luego sube extractos más antiguos, hay que borrar/ajustar la sintética |
+| Permite subir N meses de historia granular sin subir TODO | |
+| El owner decide la granularidad: solo 2 años detallados + saldo para el resto | |
+
+---
+
+## Recomendación
+
+**Opción C** — transacción de apertura sintética con categoría excluible.
+
+**Por qué:**
+1. Respeta el modelo actual (todo son transacciones, los KPIs siguen funcionando).
+2. No requiere migración de esquema.
+3. El owner decide cuánta historia granular le interesa vs. cuánto agrupa como saldo.
+4. Si en el futuro se añade un dashboard de "patrimonio/saldo por cuenta", solo hay que sumar `balance_after` del último movimiento o sumar todas las transacciones desde la apertura — funciona en ambos casos.
+
+**Categoría especial:** Crear una categoría `"Apertura / Opening Balance"` con un flag `is_system=true` o simplemente excluirla en los KPIs por nombre/tipo. Decisión menor, depende de si el owner quiere que aparezca o no en los gráficos de ingresos.
+
+---
+
+## Preguntas para el owner (bloquean siguiente paso)
+
+1. ¿Te importa el detalle histórico (categorías, merchants, tendencias) de los +5 años, o solo necesitas el punto de partida del saldo?
+2. ¿Desde qué fecha quieres análisis granular? (e.g. "últimos 2 años con detalle, el resto como saldo")
+3. ¿Quieres ver "patrimonio / saldo actual por cuenta" como métrica además de gasto/ingreso? (hoy no existe — añadirlo es factible pero es scope nuevo)
+
+---
+
+## Dependencias técnicas (si se aprueba)
+
+- **Shuri:** Si se opta por categoría de sistema, valorar si se añade `Category.is_system` (migración) o si basta con filtrar por nombre reservado.
+- **Banner:** Si se suben extractos antiguos, evaluar calidad de parseo de formatos pre-2022.
+- **Vision:** UX del flujo "crear cuenta con saldo inicial" en el frontend.
+
+---
+
+---
+
 # Vision — Finanzas Drill-Down Transactions Table
 
 **Date:** 2026-07-20T10:50:46+02:00  
@@ -9985,3 +10070,4 @@ When hovering only the chevron (.sidebar-section-arrow-btn) in Finanzas/Inversio
 pm run build passes.
 
 ---
+

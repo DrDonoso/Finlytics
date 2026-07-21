@@ -170,3 +170,7 @@ pm run build passes.
   - **Neto** → ↑ = good (default).
 - Graceful degradation: `computeDelta` returns `null` when `prevOverview` is null → badge renders nothing.
 - No new CSS or i18n keys needed (reused existing delta classes and comparison helpers).
+---
+
+*2026-07-21T08:31:35Z:* Fury proposal on old account onboarding awaits owner validation — may require UX for 'create account with initial balance' flow (\decisions.md\ PROPOSAL section).
+

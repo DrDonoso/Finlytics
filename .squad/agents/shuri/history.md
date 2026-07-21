@@ -84,3 +84,7 @@ Merchant Normalization Slice 1 was fully implemented (1156 tests passing) but re
 **Status:** All deliverables merged into decisions.md and squad log. Test results: 1239 passed, 2 skipped. Docker E2E: PASS. Orchestration logs written.
 
 **Key outcome:** Hybrid notifications model + Telegram channel with Fernet encryption. Backend-owned state. No Critical findings.
+
+---
+
+*2026-07-21T08:31:35Z:* Fury proposal on old account onboarding awaits owner validation — may require category system flag or reserved-name filter (`decisions.md` PROPOSAL section).
