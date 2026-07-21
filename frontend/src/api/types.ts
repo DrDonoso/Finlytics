@@ -9,6 +9,15 @@ export interface Account {
   account_number_masked?: string | null
 }
 
+export interface AccountCreatePayload {
+  name: string
+  type?: string
+  currency?: string
+  account_number?: string | null
+  opening_balance?: number | null
+  opening_date?: string | null
+}
+
 export interface Category {
   id: number
   name: string
@@ -233,6 +242,8 @@ export interface ConfirmRequest {
   account_number?: string | null
   /** Original PDF as base64 (data URL prefix stripped) — stored server-side for re-download. */
   source_pdf_base64?: string
+  /** Opening balance for new accounts only. Server infers opening_date = day before first tx. */
+  opening_balance?: number | null
 }
 
 // ─── Transaction update ───────────────────────────────────────────────────────

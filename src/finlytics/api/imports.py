@@ -18,6 +18,7 @@ import logging
 import os
 import re
 import unicodedata
+from datetime import timedelta
 
 from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -28,7 +29,7 @@ from finlytics.api.schemas import CheckDuplicatesIn, CheckDuplicatesOut, Confirm
 from finlytics.config import settings
 from finlytics.contracts import ExtractedTransaction
 from finlytics.db.models import Account, ImportRun, Tag, Transaction
-from finlytics.db.repository import compute_dedup_hash, list_rules, upsert_transactions
+from finlytics.db.repository import compute_dedup_hash, create_opening_balance_tx, list_rules, upsert_transactions
 from finlytics.extraction.extractor import detect_statement_year, extract_account_number, extract_transactions
 from finlytics.extraction.import_quality import compute_import_quality
 from finlytics.extraction.prematch import pre_match_rules
@@ -277,13 +278,22 @@ async def confirm_import(
     CRITICAL: ``account_ref`` inside each ExtractedTransaction stays the account NAME
     throughout. It must NOT be replaced with the IBAN so that ``compute_dedup_hash``
     behaviour is unchanged and re-imports remain idempotent.
+
+    Opening balance (new accounts only):
+    When ``opening_balance`` is provided and the account was just created by this
+    confirm call, a synthetic "Saldo inicial" transaction is inserted with
+    ``opening_date = min(transaction_date) − 1 day``, identical to the logic in
+    ``POST /api/accounts``.  If the account already existed the field is silently
+    ignored — the UI must only send it for new accounts.
     """
     async with session.begin():
+        was_created = False
+
         if body.account_number is not None:
-            result = await session.execute(
+            iban_result = await session.execute(
                 select(Account).where(Account.account_number == body.account_number)
             )
-            account = result.scalar_one_or_none()
+            account = iban_result.scalar_one_or_none()
             if account is None:
                 if not body.account_name:
                     raise HTTPException(
@@ -298,6 +308,7 @@ async def confirm_import(
                 )
                 session.add(account)
                 await session.flush()
+                was_created = True
                 log.info(
                     "Auto-created account %r with IBAN %r",
                     body.account_name, body.account_number,
@@ -308,6 +319,11 @@ async def confirm_import(
                     status_code=422,
                     detail="Provide account_name or account_number.",
                 )
+            # Pre-check: detect whether _resolve_account will create a new account.
+            pre_check = await session.execute(
+                select(Account.id).where(Account.name == body.account_name)
+            )
+            was_created = pre_check.scalar_one_or_none() is None
             account = await _resolve_account(session, None, body.account_name)
 
         result = await _persist_import_run(
@@ -316,6 +332,29 @@ async def confirm_import(
             account_name=account.name,
             source_pdf=_decode_pdf_base64(body.source_pdf_base64),
         )
+
+        # Synthetic opening-balance transaction for accounts created by this import.
+        # Ignored when account already existed (was_created=False) or when there are
+        # no transactions to infer the opening date from.
+        if (
+            was_created
+            and body.opening_balance is not None
+            and body.opening_balance != 0
+            and body.transactions
+        ):
+            opening_date = (
+                min(tx.transaction_date for tx in body.transactions)
+                - timedelta(days=1)
+            )
+            await create_opening_balance_tx(
+                session,
+                account_id=account.id,
+                account_name=account.name,
+                account_currency=account.currency,
+                opening_balance=body.opening_balance,
+                opening_date=opening_date,
+            )
+
     return result
 
 

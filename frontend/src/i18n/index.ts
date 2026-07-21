@@ -348,6 +348,25 @@ export interface Dict {
   accountsEditSave: string
   accountsEditToast: (name: string) => string
   accountsEditNameRequired: string
+  // ── Accounts — create ─────────────────────────────────────────────────────────
+  accountsCreateBtn: string
+  accountsCreateTitle: string
+  accountsCreateLabelName: string
+  accountsCreateLabelType: string
+  accountsCreateTypeBank: string
+  accountsCreateTypeBroker: string
+  accountsCreateTypeSavings: string
+  accountsCreateLabelCurrency: string
+  accountsCreateLabelIban: string
+  accountsCreateOpeningTitle: string
+  accountsCreateOpeningHint: string
+  accountsCreateLabelAmount: string
+  accountsCreateLabelDate: string
+  accountsCreateErrName: string
+  accountsCreateErrDate: string
+  accountsCreateErr409: string
+  accountsCreateSubmit: string
+  accountsCreateToast: (name: string) => string
   // ── Batch import ─────────────────────────────────────────────────────────────
   batchCapWarning:        (count: number) => string
   batchCapBlocked:        (count: number) => string
@@ -356,6 +375,9 @@ export interface Dict {
   batchResolveTitle:      string
   batchResolveNewIbanName: string
   batchResolveManualFile: (filename: string) => string
+  importOpeningBalanceLabel: string
+  importOpeningBalanceHelpText: string
+  importOpeningBalanceHint: string
   batchPreviewTitle:      string
   batchPreviewGroup:      (files: number, txns: number) => string
   batchPreviewFileSep:    (filename: string) => string

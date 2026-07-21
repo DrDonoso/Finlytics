@@ -561,6 +561,153 @@ async def test_confirm_tag_colors_none_when_omitted(client):
     assert mock_upsert.call_args.kwargs.get("tag_colors") is None
 
 
+# ── Confirm: opening_balance para cuentas nuevas ──────────────────────────────
+
+async def test_confirm_new_account_via_iban_creates_opening_balance_tx(client, mock_session):
+    """New account created by confirm (IBAN path) + opening_balance → helper called.
+
+    Happy path: opening_date inferred as min(transaction_date) − 1 day.
+    """
+    _IBAN = "ES7921000813610123456789"
+
+    mock_iban_result = MagicMock()
+    mock_iban_result.scalar_one_or_none.return_value = None  # account not found → new
+    mock_session.execute = AsyncMock(return_value=mock_iban_result)
+
+    fake_run = MagicMock()
+    fake_run.id = 77
+
+    with (
+        patch("finlytics.api.imports.ImportRun", return_value=fake_run),
+        patch("finlytics.api.imports.upsert_transactions", new_callable=AsyncMock,
+              return_value=(2, 0)),
+        patch("finlytics.api.imports.create_opening_balance_tx",
+              new_callable=AsyncMock) as mock_opening_tx,
+    ):
+        resp = await client.post(
+            "/api/imports/confirm",
+            json={
+                "account_name": "Mi BBVA",
+                "account_number": _IBAN,
+                "source_filename": "june2024.pdf",
+                "opening_balance": 1500.0,
+                "transactions": [
+                    {
+                        "transaction_date": "2024-06-15",
+                        "amount": -42.5,
+                        "currency": "EUR",
+                        "description": "MERCADONA",
+                        "category": "Groceries",
+                        "account_ref": "Mi BBVA",
+                    },
+                    {
+                        "transaction_date": "2024-06-10",
+                        "amount": -20.0,
+                        "currency": "EUR",
+                        "description": "LIDL",
+                        "category": "Groceries",
+                        "account_ref": "Mi BBVA",
+                    },
+                ],
+            },
+        )
+
+    assert resp.status_code == 200
+    mock_opening_tx.assert_called_once()
+    kwargs = mock_opening_tx.call_args.kwargs
+    assert kwargs["opening_balance"] == 1500.0
+    # opening_date = min(2024-06-10, 2024-06-15) − 1 day = 2024-06-09
+    assert kwargs["opening_date"] == date(2024, 6, 9)
+    assert kwargs["account_name"] == "Mi BBVA"
+
+
+async def test_confirm_existing_account_ignores_opening_balance(client, mock_session):
+    """opening_balance is silently ignored when the account already exists."""
+    _IBAN = "ES7921000813610123456789"
+
+    fake_account = MagicMock()
+    fake_account.id = 7
+    fake_account.name = "BBVA Existente"
+    mock_iban_result = MagicMock()
+    mock_iban_result.scalar_one_or_none.return_value = fake_account  # already exists
+    mock_session.execute = AsyncMock(return_value=mock_iban_result)
+
+    fake_run = MagicMock()
+    fake_run.id = 88
+
+    with (
+        patch("finlytics.api.imports.ImportRun", return_value=fake_run),
+        patch("finlytics.api.imports.upsert_transactions", new_callable=AsyncMock,
+              return_value=(1, 0)),
+        patch("finlytics.api.imports.create_opening_balance_tx",
+              new_callable=AsyncMock) as mock_opening_tx,
+    ):
+        resp = await client.post(
+            "/api/imports/confirm",
+            json={
+                "account_name": "BBVA Existente",
+                "account_number": _IBAN,
+                "source_filename": "bank.pdf",
+                "opening_balance": 999.0,
+                "transactions": [
+                    {
+                        "transaction_date": "2024-06-01",
+                        "amount": -10.0,
+                        "currency": "EUR",
+                        "description": "ZARA",
+                        "category": "Ropa",
+                        "account_ref": "BBVA Existente",
+                    }
+                ],
+            },
+        )
+
+    assert resp.status_code == 200
+    mock_opening_tx.assert_not_called()
+
+
+async def test_confirm_opening_balance_zero_no_tx(client, mock_session):
+    """opening_balance=0 never triggers the helper, even for new accounts."""
+    _IBAN = "ES7921000813610123456789"
+
+    mock_iban_result = MagicMock()
+    mock_iban_result.scalar_one_or_none.return_value = None  # new account
+    mock_session.execute = AsyncMock(return_value=mock_iban_result)
+
+    fake_run = MagicMock()
+    fake_run.id = 55
+
+    with (
+        patch("finlytics.api.imports.ImportRun", return_value=fake_run),
+        patch("finlytics.api.imports.upsert_transactions", new_callable=AsyncMock,
+              return_value=(1, 0)),
+        patch("finlytics.api.imports.create_opening_balance_tx",
+              new_callable=AsyncMock) as mock_opening_tx,
+    ):
+        resp = await client.post(
+            "/api/imports/confirm",
+            json={
+                "account_name": "Nueva",
+                "account_number": _IBAN,
+                "source_filename": "bank.pdf",
+                "opening_balance": 0.0,
+                "transactions": [
+                    {
+                        "transaction_date": "2024-06-01",
+                        "amount": -5.0,
+                        "currency": "EUR",
+                        "description": "CAFE",
+                        "category": "Otros",
+                        "account_ref": "Nueva",
+                    }
+                ],
+            },
+        )
+
+    assert resp.status_code == 200
+    mock_opening_tx.assert_not_called()
+
+
 # ── get_or_create_tag: color-on-create only ───────────────────────────────────
 
 async def test_get_or_create_tag_applies_color_on_creation():
