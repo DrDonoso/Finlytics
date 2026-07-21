@@ -1,0 +1,107 @@
+frontend/src/index.css
+  s_c5896c3b3c2301::t_1481b2c22f0cae 936-951
+frontend/src/components/TransactionsTable.tsx
+  s_c5896c3b3c2301::t_b472633490cc71 394-398
+frontend/src/i18n/es.ts
+  s_c5896c3b3c2301::t_6657f09b9b55d4 731-732
+src/finlytics/db/queries.py
+  s_6fe03a6ac6eee4::t_bb2c6431641a3f 114-119
+  s_6cda40a31c6cde::t_9c56413119ff02 500,520
+  s_6fe03a6ac6eee4::t_b6b0dd34d9f01b 160-161
+  s_6cda40a31c6cde::t_1007403d0b7625 567
+  s_6fe03a6ac6eee4::t_f28c913ffdc3c8 88
+src/finlytics/api/schemas.py
+  s_6cda40a31c6cde::t_3b15e7df042073 153
+src/finlytics/db/repository.py
+  s_6fe03a6ac6eee4::t_309144dea61eb6 387
+frontend/src/api/types.ts
+  s_6cda40a31c6cde::t_cb5fb065964502 51-53
+frontend/src/i18n/index.ts
+  s_c5896c3b3c2301::t_ee86a412cef180 725-727
+tests/api/test_is_system.py
+  s_bd083f74db371e::t_cde1c07b4edd40 485
+  s_6cda40a31c6cde::t_9ab61407c7b463 545,552-554
+  s_bd083f74db371e::t_47a7186693b3ad 488
+  s_000cf74cbf5dd1::t_7842bf0359c71f 241,249,259
+  s_000cf74cbf5dd1::t_9aea1dc3c079e5 86,90,101,130,139,142,144-240,242-248,250-258,260-484,486-487,495-503,507,510,519-544,546-551,555
+  s_bd083f74db371e::t_4c9e09f023ab98 1-8,20-23,32,36-39
+  s_000cf74cbf5dd1::t_9e454eea5774bc 9-19,24-31,33-35,44-67
+  s_6cda40a31c6cde::t_8b91a683c072c8 119,489-494,504-506,508-509,511-518
+  s_000cf74cbf5dd1::t_1fe188884138c1 68-70,83-85
+  s_000cf74cbf5dd1::t_da47e8b4c060c7 87-89
+  s_000cf74cbf5dd1::t_ffd149084571ad 91-93,98-100
+  s_000cf74cbf5dd1::t_76b892a25a81cf 131-133,136-138
+  s_000cf74cbf5dd1::t_a760879222ccbc 140-141
+  s_000cf74cbf5dd1::t_0221d15375dbae 143
+  s_99f900dd05e8b5::t_e4334a13eab9ed 40-43,71-82,94-97,102-118,120-129,134-135
+alembic/versions/0017_add_transaction_is_system.py
+  s_6fe03a6ac6eee4::t_30702494d10355 1-56
+src/finlytics/db/models.py
+  s_6fe03a6ac6eee4::t_08446d84c2e7ee 259-266
+tests/api/test_transactions.py
+  s_6cda40a31c6cde::t_04cbd73861dd4c 22,46,188
+frontend/src/api/mock.ts
+  s_c5896c3b3c2301::t_a4f64cba919d4c 68-70
+  s_c5896c3b3c2301::t_b63cc41da1ec58 276
+  s_c5896c3b3c2301::t_66abad1ddc5532 262
+  s_c5896c3b3c2301::t_70955d1d247449 292
+  s_c5896c3b3c2301::t_d1edcf6fc8db53 235
+frontend/src/i18n/en.ts
+  s_c5896c3b3c2301::t_f44da73b427ec3 731-732
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "8dd7f1fbc17941f5060c08914ac1ff1b89403f50",
+  "prompts": {},
+  "sessions": {
+    "s_000cf74cbf5dd1": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01XRgxZHvpH5UkzN5mTWNfcF",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_6cda40a31c6cde": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_018XafaJ3uCLFhM398TZArAd",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_6fe03a6ac6eee4": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01LwwXPZjpxmkaRVpuEH8KBM",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_99f900dd05e8b5": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "6c62ca70-eee1-42c7-8e78-244fd542323c",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_bd083f74db371e": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01WdYh8h52Jyyg74sYnLh913",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_c5896c3b3c2301": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_019WSo2gj9PdkHag3K4v3g7v",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    }
+  }
+}
