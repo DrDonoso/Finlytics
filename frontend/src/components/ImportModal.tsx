@@ -35,6 +35,7 @@ interface NewIbanEntry {
   masked: string
   name: string
   touched: boolean
+  openingBalance: string
 }
 
 interface AccountGroup {
@@ -246,6 +247,7 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
   const [newIbanEntries, setNewIbanEntries] = useState<NewIbanEntry[]>([])
   const [resolveAttempted, setResolveAttempted] = useState(false)
   const [noIbanNewMode, setNoIbanNewMode] = useState<Record<number, boolean>>({})
+  const [noIbanOpeningBalance, setNoIbanOpeningBalance] = useState<Record<number, string>>({})
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set())
   const initializedOpenGroupKeys = useRef<Set<string>>(new Set())
   const [createRuleRow, setCreateRuleRow] = useState<EditRow | null>(null)
@@ -318,7 +320,7 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
         const iban = p.detected_account_iban
         if (!iban || p.matched_account_id != null) continue
         if (!ibanMap.has(iban)) {
-          ibanMap.set(iban, { iban, masked: p.detected_account_masked ?? iban, name: '', touched: false })
+          ibanMap.set(iban, { iban, masked: p.detected_account_masked ?? iban, name: '', touched: false, openingBalance: '' })
         }
       }
       setNewIbanEntries([...ibanMap.values()])
@@ -519,6 +521,19 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
         let source_pdf_base64: string | undefined
         try { source_pdf_base64 = await readFileAsBase64(fi.file) } catch { /* degrade gracefully */ }
 
+        // Resolve opening_balance for new accounts only
+        let opening_balance: number | null = null
+        if (fi.preview!.matched_account_id == null) {
+          if (fi.preview!.detected_account_iban) {
+            const ibanEntry = newIbanEntries.find(e => e.iban === fi.preview!.detected_account_iban)
+            const raw = ibanEntry?.openingBalance.trim() ?? ''
+            if (raw !== '') opening_balance = parseFloat(raw)
+          } else if (noIbanNewMode[i]) {
+            const raw = (noIbanOpeningBalance[i] ?? '').trim()
+            if (raw !== '') opening_balance = parseFloat(raw)
+          }
+        }
+
         const payload: ConfirmRequest = {
           account_name: accountName,
           source_filename: fi.file.name,
@@ -526,6 +541,7 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
           ...(Object.keys(tag_colors).length > 0 ? { tag_colors } : {}),
           ...(accountNumber ? { account_number: accountNumber } : {}),
           ...(source_pdf_base64 ? { source_pdf_base64 } : {}),
+          ...(opening_balance != null && !isNaN(opening_balance) ? { opening_balance } : {}),
         }
 
         const result = await confirmImport(payload)
@@ -678,6 +694,26 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
                     <span className="form-field-error">{t.modalAccountRequired}</span>
                   )}
                 </div>
+                <div className="form-group" style={{ marginTop: 8 }}>
+                  <label htmlFor={`iban-opening-${i}`}>{t.importOpeningBalanceLabel}</label>
+                  <input
+                    id={`iban-opening-${i}`}
+                    type="number"
+                    step="0.01"
+                    className="form-input"
+                    placeholder="0.00"
+                    value={entry.openingBalance}
+                    onChange={e => setNewIbanEntries(prev =>
+                      prev.map((en, j) => j === i ? { ...en, openingBalance: e.target.value } : en)
+                    )}
+                  />
+                  <span className="form-field-hint" style={{ display: 'block', marginTop: 4, fontSize: 12, color: 'var(--text-muted)' }}>
+                    {t.importOpeningBalanceHelpText}
+                  </span>
+                  <span style={{ display: 'block', marginTop: 4, fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                    {t.importOpeningBalanceHint}
+                  </span>
+                </div>
               </div>
             )
           })}
@@ -702,6 +738,25 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
                       )}
                     />
                     {showErr && <span className="form-field-error">{t.modalAccountRequired}</span>}
+                    <div style={{ marginTop: 8 }}>
+                      <label htmlFor={`noiban-opening-${idx}`} style={{ fontSize: 13 }}>{t.importOpeningBalanceLabel}</label>
+                      <input
+                        id={`noiban-opening-${idx}`}
+                        type="number"
+                        step="0.01"
+                        className="form-input"
+                        placeholder="0.00"
+                        style={{ marginTop: 4 }}
+                        value={noIbanOpeningBalance[idx] ?? ''}
+                        onChange={e => setNoIbanOpeningBalance(prev => ({ ...prev, [idx]: e.target.value }))}
+                      />
+                      <span style={{ display: 'block', marginTop: 4, fontSize: 12, color: 'var(--text-muted)' }}>
+                        {t.importOpeningBalanceHelpText}
+                      </span>
+                      <span style={{ display: 'block', marginTop: 2, fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                        {t.importOpeningBalanceHint}
+                      </span>
+                    </div>
                   </div>
                 ) : (
                   <div className="form-group">
@@ -723,17 +778,38 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
                       <option value="__new__">{t.modalAccountNew}</option>
                     </select>
                     {isNew && (
-                      <input
-                        type="text"
-                        className={`form-input${showErr ? ' form-input--error' : ''}`}
-                        style={{ marginTop: 4 }}
-                        placeholder={t.modalAccountPlaceholder}
-                        value={fi.resolvedAccountName}
-                        onChange={e => setFileItems(prev =>
-                          prev.map((item, i) => i === idx ? { ...item, resolvedAccountName: e.target.value } : item)
-                        )}
-                        autoFocus
-                      />
+                      <>
+                        <input
+                          type="text"
+                          className={`form-input${showErr ? ' form-input--error' : ''}`}
+                          style={{ marginTop: 4 }}
+                          placeholder={t.modalAccountPlaceholder}
+                          value={fi.resolvedAccountName}
+                          onChange={e => setFileItems(prev =>
+                            prev.map((item, i) => i === idx ? { ...item, resolvedAccountName: e.target.value } : item)
+                          )}
+                          autoFocus
+                        />
+                        <div style={{ marginTop: 8 }}>
+                          <label htmlFor={`noiban-opening-${idx}`} style={{ fontSize: 13 }}>{t.importOpeningBalanceLabel}</label>
+                          <input
+                            id={`noiban-opening-${idx}`}
+                            type="number"
+                            step="0.01"
+                            className="form-input"
+                            placeholder="0.00"
+                            style={{ marginTop: 4 }}
+                            value={noIbanOpeningBalance[idx] ?? ''}
+                            onChange={e => setNoIbanOpeningBalance(prev => ({ ...prev, [idx]: e.target.value }))}
+                          />
+                          <span style={{ display: 'block', marginTop: 4, fontSize: 12, color: 'var(--text-muted)' }}>
+                            {t.importOpeningBalanceHelpText}
+                          </span>
+                          <span style={{ display: 'block', marginTop: 2, fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                            {t.importOpeningBalanceHint}
+                          </span>
+                        </div>
+                      </>
                     )}
                     {showErr && <span className="form-field-error">{t.modalAccountRequired}</span>}
                   </div>

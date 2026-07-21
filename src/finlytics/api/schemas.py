@@ -13,7 +13,7 @@ from typing import Literal
 
 import re
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 
 from finlytics.contracts import ExtractedTransaction  # pydantic-only, no circular dep
 
@@ -79,6 +79,33 @@ class AccountPatch(BaseModel):
     Account number is immutable and may not be updated through this endpoint.
     """
     name: str
+
+
+class AccountCreate(BaseModel):
+    """Request body for POST /api/accounts.
+
+    ``opening_date`` is REQUIRED when ``opening_balance`` is provided (422 otherwise).
+    An ``opening_balance`` of 0 is accepted but does NOT create a synthetic transaction.
+    A non-zero ``opening_balance`` creates exactly one ImportRun + Transaction
+    (description="Saldo inicial") so the account registers a valid starting point.
+
+    ⚠️ KPI note: a positive opening_balance counts as "income" in summary/KPI queries
+    because those aggregate all Transaction.amount values. This is intentional in the
+    current slice; a follow-up proposal (is_system flag + KPI exclusion) exists in
+    decisions/inbox/shuri-post-accounts-contract.md.
+    """
+    name: str
+    type: str = "bank"
+    currency: str = "EUR"
+    account_number: str | None = None
+    opening_balance: float | None = None
+    opening_date: date | None = None
+
+    @model_validator(mode="after")
+    def _require_opening_date_with_balance(self) -> "AccountCreate":
+        if self.opening_balance is not None and self.opening_date is None:
+            raise ValueError("opening_date is required when opening_balance is provided")
+        return self
 
 
 class DeleteAccountResult(BaseModel):
@@ -440,6 +467,9 @@ class ConfirmIn(BaseModel):
     tag_colors: dict[str, str] | None = None
     account_number: str | None = None  # full IBAN; when provided, account resolved by number
     source_pdf_base64: str | None = None  # raw base64 of the uploaded PDF (no data-URL prefix)
+    # Opening balance for NEW accounts only. The server infers opening_date as
+    # (earliest transaction_date − 1 day). Ignored when the account already exists.
+    opening_balance: float | None = None
 
 
 class CheckDuplicatesItem(BaseModel):

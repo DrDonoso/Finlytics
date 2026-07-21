@@ -8,6 +8,7 @@ import type {
   InvestmentPortfolio, InvestmentConnection, ValidateAccountsResponse,
   StatementReminder, NotificationOut,
   NotificationChannelOut, TelegramChannelIn, TelegramTestIn, TelegramTestOut,
+  AccountCreatePayload,
 } from './types'
 
 // ─── Static reference data ────────────────────────────────────────────────────
@@ -55,6 +56,10 @@ let _nextTagId = MOCK_TAGS.length + 1
 // Mutable category store — persists within the browser session for mock CRUD
 let _mockCategories: Category[] = [...MOCK_CATEGORIES]
 let _nextCategoryId = MOCK_CATEGORIES.length + 1
+
+// Mutable account store — persists within the browser session for mock CRUD
+let _mockAccounts: Account[] = [...MOCK_ACCOUNTS]
+let _nextAccountId = MOCK_ACCOUNTS.length + 1
 
 // ─── Raw signed transactions ──────────────────────────────────────────────────
 // amount < 0 → expense   |   amount > 0 → income
@@ -149,7 +154,20 @@ function round2(n: number) { return Math.round(n * 100) / 100 }
 // ─── Mock API functions ───────────────────────────────────────────────────────
 
 export function mockGetAccounts(): Promise<Account[]> {
-  return delay(MOCK_ACCOUNTS)
+  return delay([..._mockAccounts])
+}
+
+export function mockCreateAccount(payload: AccountCreatePayload): Promise<Account> {
+  const account: Account = {
+    id: _nextAccountId++,
+    name: payload.name,
+    type: payload.type ?? 'bank',
+    currency: payload.currency ?? 'EUR',
+    tx_count: (payload.opening_balance != null && payload.opening_balance !== 0) ? 1 : 0,
+    account_number_masked: null,
+  }
+  _mockAccounts.push(account)
+  return delay({ ...account })
 }
 
 export function mockGetCategories(): Promise<Category[]> {

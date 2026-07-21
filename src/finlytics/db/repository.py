@@ -332,3 +332,63 @@ async def delete_rule(session: AsyncSession, rule_id: int) -> bool:
     await session.delete(rule)
     await session.flush()
     return True
+
+
+# ── Opening-balance helper ─────────────────────────────────────────────────────
+
+async def create_opening_balance_tx(
+    session: AsyncSession,
+    account_id: int,
+    account_name: str,
+    account_currency: str,
+    opening_balance: float,
+    opening_date: date,
+) -> None:
+    """Create a synthetic ImportRun + 'Saldo inicial' Transaction for an account.
+
+    Must be called inside ``session.begin()`` — the caller owns the transaction.
+
+    Uses ``ON CONFLICT DO NOTHING`` on ``dedup_hash`` so calling this multiple
+    times with identical inputs (e.g. re-confirming the same statement) is
+    idempotent: the second call silently skips the insert and does not raise.
+
+    Shared by ``POST /api/accounts`` (manual onboarding) and
+    ``POST /api/imports/confirm`` (import-time onboarding).
+    """
+    amount = Decimal(str(opening_balance))
+
+    import_run = ImportRun(
+        account_id=account_id,
+        source_filename="manual:saldo-inicial",
+        period=opening_date.strftime("%Y-%m"),
+        num_parsed=1,
+    )
+    session.add(import_run)
+    await session.flush()  # materialise import_run.id
+
+    dedup_hash = compute_dedup_hash(
+        account_ref=account_name,
+        transaction_date=opening_date,
+        amount=amount,
+        description="Saldo inicial",
+    )
+    tx_stmt = (
+        pg_insert(Transaction)
+        .values(
+            account_id=account_id,
+            import_run_id=import_run.id,
+            transaction_date=opening_date,
+            amount=amount,
+            currency=account_currency,
+            description="Saldo inicial",
+            category_id=None,
+            balance_after=amount,
+            dedup_hash=dedup_hash,
+        )
+        .on_conflict_do_nothing(index_elements=["dedup_hash"])
+        .returning(Transaction.id)
+    )
+    result = await session.execute(tx_stmt)
+    inserted = result.scalar_one_or_none() is not None
+    import_run.num_inserted = 1 if inserted else 0
+    import_run.num_duplicates = 0 if inserted else 1

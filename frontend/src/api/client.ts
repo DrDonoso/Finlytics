@@ -12,6 +12,7 @@ import type {
   FidelityImportPreview, FidelityImportConfirmResult, FidelityReminderResponse,
   CombinedOverview, SummaryMonths, AppVersion, NotificationOut,
   NotificationChannelOut, TelegramChannelIn, TelegramTestIn, TelegramTestOut,
+  AccountCreatePayload,
 } from './types'
 import {
   mockGetAccounts, mockGetCategories, mockGetTags, mockGetTransactions,
@@ -28,6 +29,7 @@ import {
   mockMarkNotificationRead, mockMarkAllNotificationsRead, mockDismissNotification,
   mockGetNotificationChannels, mockCreateTelegramChannel,
   mockDeleteNotificationChannel, mockTestTelegramChannel,
+  mockCreateAccount,
 } from './mock'
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === '1'
@@ -107,6 +109,24 @@ export async function patchAccount(id: number, name: string): Promise<Account> {
 /** DELETE /api/accounts/{id} → { deleted: number }. Returns 404 if account not found. */
 export async function deleteAccount(id: number): Promise<{ deleted: number }> {
   return apiFetch<{ deleted: number }>(`/api/accounts/${id}`, { method: 'DELETE' })
+}
+
+/** POST /api/accounts → 201, returns new Account.
+ *  Uses raw fetch to surface 409 (duplicate name/IBAN) and 422 (balance without date). */
+export async function createAccount(payload: AccountCreatePayload): Promise<Account> {
+  if (USE_MOCK) return mockCreateAccount(payload)
+  const res = await fetch('/api/accounts', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  if (res.status === 401) { _on401?.(); throw new Error('HTTP 401 Unauthorized') }
+  if (!res.ok) {
+    const data: { detail?: string } = await res.json().catch(() => ({}))
+    throw Object.assign(new Error(data.detail ?? `HTTP ${res.status}`), { status: res.status })
+  }
+  return res.json() as Promise<Account>
 }
 
 export async function getCategories(): Promise<Category[]> {
