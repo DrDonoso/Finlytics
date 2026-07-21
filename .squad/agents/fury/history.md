@@ -77,3 +77,16 @@
 **Status:** All deliverables merged into decisions.md and squad log. Test results: 1239 passed, 2 skipped. Docker E2E: PASS. Orchestration logs written.
 
 **Key outcome:** Hybrid notifications model + Telegram channel with Fernet encryption. Backend-owned state. No Critical findings.
+
+---
+
+### Onboarding cuentas antiguas — Flows vs Balance (2026-07-21)
+
+**Framing clave:** Finlytics mide *flujos* (gasto/ingreso por periodo sumando `Transaction.amount`), NO patrimonio/saldo por cuenta. No existe `Account.initial_balance` ni concepto de saldo de apertura. `balance_after` es nullable, per-row, y no se agrega en ningún KPI.
+
+**Opciones evaluadas:**
+- **A (subir +5 años de extractos):** histórico completo pero costoso en OpenAI/tiempo y formatos antiguos parsean peor.
+- **B (campo saldo inicial en Account):** rápido, pero rompe el modelo de flujos — los KPIs ignoran un campo nuevo, y genera incoherencia conceptual.
+- **C (transacción de apertura sintética + extractos selectivos) — RECOMENDADA:** respeta el modelo actual, cero migraciones, el owner elige granularidad. Necesita categoría excluible para no contaminar gráficos de ingreso.
+
+**Propuesta entregada:** `.squad/decisions/inbox/fury-old-account-onboarding.md` — pendiente validación del owner.
