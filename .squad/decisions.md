@@ -81,8 +81,6 @@ Insertar una **transacción sintética de apertura** (`description="Saldo inicia
 
 ---
 
----
-
 # Vision — Finanzas Drill-Down Transactions Table
 
 **Date:** 2026-07-20T10:50:46+02:00  
@@ -4839,78 +4837,11 @@ For uncommitted feature code: **Always use `docker-compose.local.yml` with `--bu
 
 ---
 
-
-
----
-
 # Shuri — Evolución de la Cuenta: Live Probe Findings
 **Date:** 2026-07-14  
 **Requested by:** DrDonoso (owner)  
 **Status:** FRONTEND BUG — backend returns full data  
 **Account probed:** mask `96E•••BH` (read-only, owner's real account)
-
----
-
-## Verdict
-
-**The backend is NOT the culprit.** `value_series` is populated with 709 data points covering 2024-08-04 → 2026-07-13. The "Evolución de la cuenta" chart loading issue is a **frontend bug**.
-
----
-
-## Probe Results (Live, Real Account)
-
-### `value_series` — 709 points ✅
-
-| Position | Date | Value (EUR) |
-|---|---|---|
-| first | 2024-08-04 | 0.00 |
-| 2nd | 2024-08-05 | 2,600.00 |
-| 2nd-to-last | 2026-07-12 | 20,528.36 |
-| last | 2026-07-13 | 20,559.52 |
-
-Source in code: `data["return"]["total_amounts"]` (YYYYMMDD keys → reformatted to YYYY-MM-DD).  
-**Top-level `data["total_amounts"]` = `None`** — correct, the fix is working.
-
-### `contributions_series` — 716 points ✅
-
-| Position | Date | Value (EUR) |
-|---|---|---|
-| first | 2024-07-28 | 0.00 |
-| 2nd | 2024-07-29 | 0.00 |
-| 2nd-to-last | 2026-07-12 | 17,999.99 |
-| last | 2026-07-13 | 17,999.99 |
-
-Source: `data["net_amounts"]` (YYYYMMDD keys → YYYY-MM-DD). Step-function shape — values stay flat between deposits.
-
-### `data["return"]["total_amounts"]` ✅
-
-- Present at correct nested path: **709 keys**
-- Key format: `YYYYMMDD` (e.g. `"20240804"` → `"20260713"`)
-- Correctly reformatted to `YYYY-MM-DD` by `_fmt_date()`
-- Top-level `total_amounts` field: **absent** (`None`) — confirms the path fix is correct
-
-### `monthly_returns` — 3 rows ✅
-
-3 annual rows (2024, 2025, 2026), each with monthly sub-entries. Populated correctly.
-
-### `drawdown` — populated ✅
-
-- `max_drawdown` = -10.05%  
-- `max_drawdown_eur` = -€1,356.93  
-- Period: 2025-02-20 → 2025-04-08
-
-### Box Numbers — all non-null ✅
-
-| Field | Value |
-|---|---|
-| `total_value` | €20,559.52 |
-| `aportaciones` | €18,000.00 |
-| `retenciones` | €0.01 *(positive — UI should negate for display)* |
-| `rentabilidad_eur` | €2,559.53 |
-| `rentabilidad_pct` | 0.2133 (21.33%) |
-| `sharpe_ratio` | 1.325 |
-
-Reconciliation: 18,000.00 − 0.01 + 2,559.53 = **20,559.52** ✓
 
 ---
 
@@ -4927,42 +4858,6 @@ data = {
   # ...
 }
 ```
-
----
-
-## For Vision: Reproducing the Chart
-
-The `/api/investments/portfolio` response (field `value_series`) looks like:
-
-```json
-[
-  { "date": "2024-08-04", "value": 0.00 },
-  { "date": "2024-08-05", "value": 2600.00 },
-  ...
-  { "date": "2026-07-12", "value": 20528.36 },
-  { "date": "2026-07-13", "value": 20559.52 }
-]
-```
-
-`contributions_series`:
-
-```json
-[
-  { "date": "2024-07-28", "value": 0.00 },
-  { "date": "2024-07-29", "value": 0.00 },
-  ...
-  { "date": "2026-07-12", "value": 17999.99 },
-  { "date": "2026-07-13", "value": 17999.99 }
-]
-```
-
-Both arrays are sorted ascending by date. The chart should receive these from the API and render them. If the chart shows no data, check:
-
-1. Whether the frontend is correctly reading `portfolio.value_series` (not `portfolio.performance.value_series` or a different nesting)
-2. Whether the chart library is parsing `"2024-08-04"` date strings vs expecting numeric timestamps
-3. Whether an empty-array guard (`if (!valueSeries.length) return`) fires incorrectly
-4. Whether the first point `value=0.00` on `2024-08-04` confuses the chart's zero-filtering logic
-5. Network: confirm the API response actually includes `value_series` (not stripped by a serialiser)
 
 ---
 
@@ -5005,23 +4900,6 @@ Fix: `latest = portfolios[0]`.
 
 ---
 
-## Feature Availability Matrix
-
-### 1 — Portfolio Value Daily Series
-
-| Item | Status |
-|---|---|
-| Available? | ✅ YES — two sources |
-| **Preferred source** | `portfolios[]` — 716 daily entries, keys at `date` (YYYY-MM-DD), value at `total_amount` (float). Sorted **newest-first**; reverse before building series. |
-| **Alternative source** | `data["return"]["total_amounts"]` — 709 entries, YYYYMMDD keys (reformat needed), same values. |
-| Date range | 2024-08-04 → 2026-07-13 (approx 23.5 months) |
-| Sample | `2026-07-13 = 20559.52`, `2025-07-20 = 13382.93`, `2024-08-04 = 0.00` |
-| Gotchas | YYYYMMDD vs YYYY-MM-DD; `portfolios[-1]` = oldest (all zeros), NOT latest |
-
-Also available: `data["return"]["index"]` — 709 entries, YYYYMMDD keys, daily TWR index normalized to 1.0 at account open (last = 1.2373). Useful for computing per-day returns and max drawdown from scratch.
-
----
-
 ### 2 — Aportaciones (Cumulative Contributions) Daily/Stepwise Series
 
 | Item | Status |
@@ -5031,46 +4909,6 @@ Also available: `data["return"]["index"]` — 709 entries, YYYYMMDD keys, daily 
 | **Alternative: `portfolios[].inflows`** | Each portfolio entry has a daily `inflows` float (0.0 on non-deposit days). Cumulatively sum over sorted entries. |
 | **Alternative: cash-transactions** | Filter `operation_type = "TRANSFERENCIA SEPA"` (9 entries) for actual user wire transfers. Fields: `date` (YYYY-MM-DD), `amount` (float, positive for deposits). Cumsum gives deposit step-line. |
 | Gotchas | `net_amounts` values = `inflows - tax_outflows` (not raw inflows). Use `return.inflows` for gross; use `net_amounts` for net-of-retenciones. TRANSFERENCIA SEPA are user deposits; the 38 SUSCRIPCIÓN entries are fund purchases (not user cash). |
-
----
-
-### 3 — Monthly Returns Matrix (month × year)
-
-| Item | Status |
-|---|---|
-| Available? | ✅ YES |
-| Source | `data["history"]` — dict, **23 end-of-month entries** (2024-08-31 → 2026-06-30), keys are **YYYY-MM-DD**, values are **cumulative TWR multipliers** from inception (1.0 = start). |
-| Derive monthly return | `history[month] / history[prev_month] − 1.0`. For the first month: `history[first] − 1.0`. |
-| Sample | `2024-08-31 = 1.034754` (+3.47%), `2024-09-30 = 1.049695`, `2024-12-31 = 1.072171`, `2026-06-30 = 1.236281` |
-| Gotchas | Values are NOT monthly returns directly — they're cumulative multipliers. Division between consecutive months is required. Current month (July 2026) not present in `history` yet (incomplete month). |
-
----
-
-### 4 — Benchmark Comparison
-
-| Item | Status |
-|---|---|
-| Available? | ✅ YES |
-| Source | `data["benchmark"]` — dict, **23 entries** (2024-08-31 → 2026-06-30), same date keys as `history` |
-| Per-entry shape | `{"date": "YYYY-MM-DD", "benchmark_id": "2", "benchmark": <float>, "benchmark_percentage_return": <string or 0 int>}` |
-| Cumulative value | `benchmark` field — starts at 100.0 (not 1.0 like `history`). E.g. `2024-08-31 = 100.0`, `2024-09-30 = 100.9512`. |
-| Monthly return | `benchmark_percentage_return` — **string** (except first month = integer `0`). Must `float(v.get("benchmark_percentage_return", 0))` to parse. |
-| Samples | `2024-08-31: 0.0`, `2024-09-30: "0.009511..."`, `2024-10-31: "-0.007513..."` |
-| Gotchas | First-month value is integer `0`, not string. Parse defensively: `float(val)` handles both. Align on same month keys as `history`; both have identical date ranges. |
-
----
-
-### 5 — Max Drawdown
-
-| Item | Status |
-|---|---|
-| Available? | ✅ YES — directly provided |
-| Source | `data["drawdowns"]` — top-level object |
-| Fields | `max_drawdown` (float, e.g. `-0.10050`), `max_drawdown_EUR` (float, e.g. `-1356.93`), `start_date_max_drawdown` (YYYYMMDD int, `20250220`), `end_date_max_drawdown` (YYYYMMDD int, `20250408`) |
-| Real values | −10.05%, −€1,356.93, from 2025-02-20 to 2025-04-08 |
-| Gotchas | Dates are **integers** in YYYYMMDD format. Parse with `str(int)` → `datetime.strptime(str(v), "%Y%m%d")`. No computation needed — use directly. |
-
-Also available: `data["sharpe_ratio"]` = 1.325 (float, top-level).
 
 ---
 
@@ -5286,17 +5124,6 @@ All fields `float | null`. New fields marked ★.
 
 ---
 
-### `ValuePoint` (used in `value_series` and `contributions_series`)
-
-```json
-{ "date": "YYYY-MM-DD", "value": 20559.52 }
-```
-
-- **`value_series`**: daily portfolio total value (≈ 700 points, 2024-08-04 → today)
-- **`contributions_series`**: daily cumulative net contributions (`net_amounts`). Step-line aligned by date with `value_series`. Last value ≈ 17999.99 (net of tax). Use this to draw the "Aportaciones" comparison line.
-
----
-
 ### `MonthlyReturnRow` (elements of `monthly_returns` list)
 
 One object per calendar year. `months_pct` / `months_eur` only contain keys for months that have data (absent months → render as blank in table).
@@ -5337,28 +5164,6 @@ One object per calendar year. `months_pct` / `months_eur` only contain keys for 
 
 ---
 
-### `DrawdownOut` (on `drawdown` key)
-
-```json
-{
-  "max_drawdown": -0.1005,
-  "max_drawdown_eur": -1356.93,
-  "start_date": "2025-02-20",
-  "end_date": "2025-04-08"
-}
-```
-
-| Field | Type | Description |
-|---|---|---|
-| `max_drawdown` | float | Fraction, negative (e.g. −0.1005 = −10.05%) |
-| `max_drawdown_eur` | float | EUR amount, negative |
-| `start_date` | str | YYYY-MM-DD — start of max drawdown period |
-| `end_date` | str | YYYY-MM-DD — end (trough) of max drawdown period |
-
-`drawdown` is `null` for multi-account and when `drawdowns` key is absent in the Indexa response.
-
----
-
 ### `CashInvestedSplit` (on `cash_invested` key)
 
 ```json
@@ -5371,27 +5176,6 @@ One object per calendar year. `months_pct` / `months_eur` only contain keys for 
 ```
 
 Reflects `portfolios[0]` (newest daily snapshot — Indexa returns newest-first).
-
----
-
-## Live Values (owner account, 2026-07-13)
-
-| Field | Value |
-|---|---|
-| `total_value` | 20,559.52 € |
-| `aportaciones` | 18,000.00 € |
-| `retenciones` | −0.01 € |
-| `rentabilidad_eur` | +2,559.53 € |
-| `rentabilidad_pct` | 0.2133 (money-weighted, ~21.33%) |
-| `twr_total` | 0.2373 (+23.73%) |
-| `twr_annual` | 0.1162 (annualised TWR) |
-| `xirr` | 0.1050 |
-| `sharpe_ratio` | 1.325 |
-| `value_series` length | ≈ 709 points |
-| `contributions_series` length | ≈ 716 points |
-| `monthly_returns` length | 3 years (2024, 2025, 2026) |
-| `drawdown.max_drawdown` | −10.05% |
-| `drawdown` period | 2025-02-20 → 2025-04-08 |
 
 ---
 
@@ -10013,7 +9797,8 @@ Three surgical frontend fixes.
 ## Item 2 — Finanzas "Neto histórico" (all-time)
 
 - getByAccount() called on mount with no params (period-independent, all-time aggregate).
-- Sum of ow.net stored in historicNet state.
+- Sum of 
+ow.net stored in historicNet state.
 - Displayed with label 	.dashboardAccountsNet in dashboard-header-actions, left-aligned via margin-right: auto.
 - Reuses existing i18n key dashboardAccountsNet ('Neto histórico' / 'Historical net').
 
@@ -10069,5 +9854,348 @@ When hovering only the chevron (.sidebar-section-arrow-btn) in Finanzas/Inversio
 - 
 pm run build passes.
 
+# ✅ IMPLEMENTED: Barton — QA Report: POST /api/accounts edge-case tests
+
+# Barton — QA Report: POST /api/accounts edge-case tests
+**Date:** 2026-07-21T11:30:13+02:00
+**Agent:** Barton (Tester / QA)
+
 ---
 
+## Summary
+
+Reviewed Shuri's implementation of `POST /api/accounts` (accounts.py + schemas.py) and added **11 edge-case tests** to `tests/api/test_accounts.py`.
+
+**Result:** 669 tests, all pass, 0 failures.
+
+---
+
+## Tests Added
+
+| Test | Case | Result |
+|------|------|--------|
+| `test_create_account_negative_opening_balance_201` | Overdraft balance → 201, dedup amount is negative | ✅ PASS |
+| `test_create_account_opening_transaction_fields` | description="Saldo inicial", correct date, correct amount | ✅ PASS |
+| `test_create_account_opening_transaction_dedup_hash_deterministic` | SHA-256 is 64 hex chars, same inputs → same hash | ✅ PASS |
+| `test_create_account_opening_import_run_metadata` | ImportRun.source_filename="manual:saldo-inicial", period="YYYY-MM" | ✅ PASS |
+| `test_create_account_zero_opening_balance_no_import_run` | balance=0 → no ImportRun, exactly 1 Account in session | ✅ PASS |
+| `test_create_account_currency_stored_on_account_object` | EUR default stored on Account ORM object | ✅ PASS |
+| `test_create_account_usd_currency_stored_on_account_object` | Custom USD currency forwarded to Account ORM | ✅ PASS |
+
+Plus two helpers added (shared by my tests):
+- `_pg_insert_ok()` — mock execute result simulating real pg_insert success
+- `_track_session_adds(mock_session)` — captures session.add() calls by type
+
+---
+
+## Shuri's Tests (Already Covered — Not Duplicated)
+
+Shuri's existing POST tests cover: minimal 201, custom type/currency, opening_balance with tx_count=1, zero balance (call_count check), duplicate name 409, duplicate IBAN 409, missing opening_date 422, empty name 422, whitespace name 422, IBAN masking in response.
+
+---
+
+## QA Decisions & Observations
+
+### 1. NO BUGS FOUND
+Shuri's implementation is correct against all contract points. Tests confirm:
+- `opening_balance != 0` creates exactly one ImportRun + one pg_insert Transaction.
+- `opening_balance == 0` (or absent) → no ImportRun, no Transaction.
+- Negative balances produce a negative amount (overdraft supported).
+- dedup_hash is deterministic (SHA-256 of account_ref/date/amount/description).
+- Duplicate detection via SELECT-first → 409 for both name and account_number.
+
+### 2. Design observation: pg_insert not inspectable via session.add
+Transaction is inserted via `pg_insert(...).on_conflict_do_nothing()` — executed via `session.execute()`, NOT `session.add()`. Tests verify transaction creation indirectly via:
+  a) The ImportRun object (added via session.add) as a proxy.
+  b) Patching `compute_dedup_hash` with `wraps=` to capture the values that would be hashed.
+
+This approach is robust and doesn't tie tests to internal SQLAlchemy statement structure.
+
+### 3. KPI skew: documented in code, not a bug
+A positive `opening_balance` will count as "income" in summary/KPI queries. This is intentional per decisions.md (Option C) and documented in the endpoint docstring. A follow-up `is_system` flag was proposed for future KPI exclusion.
+
+### 4. `_make_no_conflict_session` limitation
+Shuri's helper uses `return_value=` (one mock for all execute calls). For tests requiring distinct pg_insert behavior (e.g., simulate real insert success), `side_effect=[no_conflict_mock, _pg_insert_ok()]` is required. My tests use this pattern.
+
+---
+
+## Files Changed
+
+| File | Change |
+|------|--------|
+| `tests/api/test_accounts.py` | Added `_date`, `Decimal`, `Account`, `ImportRun`, `compute_dedup_hash` imports; added `_pg_insert_ok()`, `_track_session_adds()` helpers; added 11 edge-case tests for POST |
+| `.squad/agents/barton/history.md` | Appended learnings |
+
+
+---
+# ✅ APPROVED: Revisión: Slice "Old Account Onboarding" — Opción C
+
+# Revisión: Slice "Old Account Onboarding" — Opción C
+
+**Revisor:** Fury (Lead / Architect)  
+**Fecha:** 2026-07-21T11:23:28+02:00  
+**Estado:** ✅ APPROVED
+
+---
+
+## Veredicto: APROBADO
+
+El slice cumple con todos los requisitos de la Opción C aprobada por el owner: creación manual de cuentas con transacción de apertura sintética "Saldo inicial", sin migración Alembic.
+
+---
+
+## Hallazgos de la revisión
+
+### Backend (Shuri) — ✅ APROBADO
+
+- **Atomicidad:** Todo dentro de un único `async with session.begin()`. Si falla cualquier paso (flush, insert), se revierte completo. La cuenta no queda a medias en la DB.
+- **Dedup:** `compute_dedup_hash(account_ref=name, date, amount, "Saldo inicial")` + `ON CONFLICT DO NOTHING` impide transacciones duplicadas. Usa la misma función de hash que las importaciones normales. Hash determinista (SHA-256, 64 chars hex).
+- **ImportRun metadata:** `source_filename="manual:saldo-inicial"`, `period` en formato `YYYY-MM`, `num_inserted`/`num_duplicates` actualizados según resultado real del insert.
+- **Semántica REST:** 201 Created, 409 Conflict (nombre o IBAN duplicado), 422 Unprocessable Entity (balance sin fecha, nombre vacío). Correcto.
+- **Guard opening_balance=0:** No crea ImportRun ni Transaction. Solo la cuenta. ✅
+- **balance_after = amount:** Correcto para una transacción de apertura.
+- **model_validator:** Valida que `opening_date` esté presente cuando `opening_balance` no es null. ✅
+- **Sin migración:** Confirmado. ✅
+
+**Nota menor (no bloqueante):** Los checks de unicidad son SELECT-first dentro de la transacción. En un sistema multi-usuario con alta concurrencia habría un window de race condition, pero para esta app single-user es perfectamente aceptable y da mensajes de error limpios (409 con detalle legible).
+
+### Frontend (Vision) — ✅ APROBADO
+
+- **Raw fetch vs apiFetch:** ACEPTABLE. La razón es legítima: `apiFetch` no adjunta el status code al error (`throw new Error(`HTTP ${res.status}...`)`), así que el caller no puede distinguir 409 de 500. El raw fetch de `createAccount` sigue el mismo patrón que `authPost` (client.ts:78-90), que existe por la misma razón. No es una desviación, es consistente con el precedente existente.
+- **Modal:** Bien estructurado. Accesibilidad correcta (aria-modal, aria-labelledby, manejo de Escape, foco automático). Validación cliente coincide con servidor. Estados disabled durante guardado.
+- **i18n:** 18 claves añadidas en los 3 ficheros (index.ts, en.ts, es.ts). ✅
+- **CSS:** 3 clases nuevas, usando tokens del design system (--primary, --border). ✅
+- **types.ts / mock.ts:** Correctos. Nota menor: el mock trata `opening_balance: 0` como si creara tx (tx_count=1), pero el backend no lo hace. Solo afecta al modo mock local, no es un bug real.
+
+### Tests (Barton + Shuri) — ✅ APROBADO
+
+- 41 tests pasan (incluyendo los pre-existentes de GET/PATCH/DELETE).
+- Tests nuevos de POST cubren: happy path, tipo/moneda custom, saldo de apertura, saldo cero, nombre duplicado (409), IBAN duplicado (409), balance sin fecha (422), nombre vacío (422), IBAN enmascarado, saldo negativo, campos de transacción, determinismo del hash dedup, metadata del ImportRun, guard de saldo cero a nivel tipo, pass-through de moneda.
+- Buena cobertura de las invariantes de integridad de datos.
+
+---
+
+## Recomendación follow-up: `is_system` + migración 0016
+
+**Recomendación: HACERLO DESPUÉS, no ahora.**
+
+Razones:
+1. Este slice acepta deliberadamente el KPI skew (un saldo de apertura positivo aparece como "ingreso" en ese mes). El owner lo aprobó así.
+2. La propuesta `is_system` es la opción correcta cuando se haga — es explícita, consultable, y no depende de naming magic. La alternativa de categoría reservada `__apertura__` es frágil.
+3. No hay que meter una migración por un tema cosmético hasta que el owner confirme que le molesta. "La cosa más pequeña que funciona" = este slice sin migración.
+4. Cuando se decida, el backfill de transacciones existentes con `description='Saldo inicial'` es sencillo y seguro.
+
+**Próximo paso:** El owner decide si y cuándo quiere excluir el saldo de apertura de los KPIs. Si sí → migración 0016 con `is_system` boolean + index parcial + `WHERE NOT is_system` en queries de summary.
+
+
+---
+# ✅ IMPLEMENTED: POST /api/accounts — Contrato final e informe de implementación
+
+# POST /api/accounts — Contrato final e informe de implementación
+
+**Autor:** Shuri (Backend Engineer)  
+**Fecha:** 2026-07-21T11:30:12+02:00  
+**Estado:** ✅ Implementado — pendiente revisión de Vision (frontend) y Barton (QA)
+
+---
+
+## Contrato final de la API
+
+### `POST /api/accounts`
+
+| Campo | Valor |
+|-------|-------|
+| **Método** | `POST` |
+| **Ruta** | `/api/accounts` |
+| **Auth** | Requerida (igual que el resto de `/api/*`) |
+| **Status éxito** | `201 Created` |
+| **Respuesta** | `AccountOut` (mismo schema que `GET /api/accounts` list items) |
+
+#### Request body — `AccountCreate`
+
+```json
+{
+  "name": "BBVA Personal",           // string, required; trimmed; único → 409 si duplicado
+  "type": "bank",                     // string, opcional (default "bank")
+  "currency": "EUR",                  // ISO 4217, opcional (default "EUR")
+  "account_number": "ES79...",        // IBAN / null, opcional; único cuando non-null → 409
+  "opening_balance": 1500.00,         // float / null; si != 0 crea transacción sintética
+  "opening_date": "2026-01-01"        // date / null; REQUIRED cuando opening_balance != null → 422
+}
+```
+
+#### Response — `AccountOut`
+
+```json
+{
+  "id": 1,
+  "name": "BBVA Personal",
+  "type": "bank",
+  "currency": "EUR",
+  "tx_count": 1,
+  "account_number_masked": "ES******************6789"   // null si sin IBAN
+}
+```
+
+#### Códigos de error
+
+| HTTP | Condición |
+|------|-----------|
+| `409 Conflict` | `name` ya existe en otra cuenta |
+| `409 Conflict` | `account_number` ya existe en otra cuenta (cuando non-null) |
+| `422 Unprocessable Entity` | `opening_balance` proporcionado sin `opening_date` |
+| `422 Unprocessable Entity` | `name` vacío o solo espacios |
+
+---
+
+## Comportamiento interno
+
+### 1. Creación de Account
+
+Se crea la fila en `accounts`. Los checks de unicidad sobre `name` y `account_number` se realizan DENTRO del mismo `async with session.begin()` para garantizar atomicidad completa (si el insert final falla, todo se revierte).
+
+### 2. Transacción de apertura sintética
+
+Condición: `opening_balance is not None AND opening_balance != 0`
+
+Se crean **dentro del mismo transaction**:
+
+```
+ImportRun
+  account_id      = account.id
+  source_filename = "manual:saldo-inicial"
+  period          = opening_date[:7]          # "YYYY-MM"
+  num_parsed      = 1
+  num_inserted    = 1 (o 0 si dedup choca)
+  num_duplicates  = 0 (o 1 si dedup choca)
+
+Transaction
+  account_id      = account.id
+  import_run_id   = import_run.id
+  transaction_date = opening_date
+  amount          = Decimal(str(opening_balance))  # SIGNED como se recibe
+  currency        = body.currency
+  description     = "Saldo inicial"
+  category_id     = NULL  (sin categoría — no se inventan)
+  balance_after   = amount
+  dedup_hash      = compute_dedup_hash(name, opening_date, amount, "Saldo inicial")
+```
+
+El `dedup_hash` sigue la misma fórmula que las importaciones normales. Si se llama dos veces con los mismos datos (e.g. cuenta borrada y recreada con misma fecha/saldo), el `ON CONFLICT DO NOTHING` impide duplicar la transacción. La cuenta sí se volvería a crear (si el nombre no choca).
+
+### 3. Caso `opening_balance = 0`
+
+Crea la cuenta pero **NO** genera ImportRun ni Transaction. Cero sintéticas.
+
+### 4. Atomicidad
+
+Todo ocurre en un único `async with session.begin()`. Si cualquier paso falla (flush, insert de Transaction, etc.), toda la operación se revierte — la cuenta no queda en la DB a medias.
+
+---
+
+## ⚠️ KPI Skew — comportamiento documentado
+
+Un `opening_balance` positivo creará una transacción con `amount > 0`. Las consultas de KPIs (summary/months, totales de ingresos) **agregan `Transaction.amount` sin filtros adicionales**. Por tanto:
+
+> Una apertura de cuenta con saldo positivo (e.g. 1.500 €) **aparecerá como "Ingreso" en el mes correspondiente a `opening_date`**.
+
+Esto es **intencional en este slice** (Fury's Option C). No es un bug, es un compromiso aceptado a cambio de cero cambios de esquema.
+
+---
+
+## FOLLOW-UP PROPOSAL — Exclusión KPI por flag `is_system` (requiere migración 0016+)
+
+> **Estado:** Propuesta pendiente de aprobación del owner.  
+> **Requires:** Nueva migración Alembic (la primera desde el revert de Merchant).
+
+Para excluir las transacciones de apertura de los KPIs sin contaminar el historial real, se propone:
+
+### Opción recomendada — Campo `is_system` en `Transaction`
+
+```sql
+-- Migración 0016_add_transaction_is_system.py
+ALTER TABLE transactions ADD COLUMN is_system BOOLEAN NOT NULL DEFAULT false;
+CREATE INDEX ix_transactions_is_system ON transactions(is_system) WHERE is_system = true;
+```
+
+- La transacción "Saldo inicial" se crearía con `is_system=True`.
+- Las queries de KPIs (`/api/summary/months`, `/api/summary/categories`, etc.) añadirían `WHERE is_system = false` (o `AND NOT is_system`).
+- El backfill de transacciones existentes con `description='Saldo inicial'` es sencillo y seguro.
+- Las transacciones `is_system` **sí** aparecerían en `/api/accounts/{id}/transactions` (el extracto completo) pero podrían filtrarse en la UI con un toggle "Mostrar solo movimientos reales".
+
+### Alternativa ligera — Categoría reservada `"__apertura__"`
+
+Crear una categoría con `name="__apertura__"` y `is_base=True`, excluirla en KPIs por nombre. No requiere migración de `transactions`. Más frágil (depende de naming magic).
+
+### Decisión pendiente del owner
+
+1. ¿Quieres que el saldo inicial aparezca en los gráficos de ingresos/gastos?  
+   - **Sí** → no hace falta nada más (comportamiento actual).  
+   - **No** → aprueba la migración `0016_add_transaction_is_system`.
+
+---
+
+## Archivos modificados
+
+| Archivo | Cambio |
+|---------|--------|
+| `src/finlytics/api/accounts.py` | Endpoint `POST /api/accounts` añadido |
+| `src/finlytics/api/schemas.py` | `AccountCreate` + `model_validator` añadidos; import `model_validator` |
+| `tests/api/test_accounts.py` | 10 tests nuevos para `POST /api/accounts` |
+
+**Sin migración Alembic.** La opción C de Fury no requiere cambios de esquema.
+
+
+---
+# ✅ IMPLEMENTED: Vision Decision — Formulario "Nueva cuenta"
+
+# Vision Decision — Formulario "Nueva cuenta"
+**Fecha:** 2026-07-21T11:30:13+02:00
+**Autor:** Vision (Frontend Engineer)
+
+## Contexto
+Shuri construye el endpoint `POST /api/accounts` (201 → AccountOut) con saldo inicial opcional modelado como movimiento "Saldo inicial". Vision añade el flujo de creación en el frontend.
+
+**Nota:** `shuri-post-accounts-contract.md` no estaba disponible en inbox. Se usó el contrato del briefing directamente.
+
+## Decisiones de implementación
+
+### 1. Patrón modal (AccountCreateModal)
+Se sigue exactamente el mismo patrón que `AccountEditModal` y `AccountDeleteModal` existentes en `AccountsPage.tsx`:
+- Misma estructura `.modal-backdrop` / `.modal` / `.modal-header` / `.modal-body` / `.modal-footer`
+- Tecla Escape cierra el modal
+- `aria-modal="true"` + `aria-labelledby`
+
+### 2. Sección "Saldo inicial" colapsable
+Toggle tipo disclosure button (▶/▼) que muestra u oculta los campos `opening_balance` + `opening_date`. Borde izquierdo visual (`.acct-opening-section`) para diferenciarlo del formulario principal. Se eligió este patrón sobre un checkbox porque hace más visible la ayuda textual.
+
+### 3. Manejo de errores 409 / 422
+`createAccount` usa `raw fetch` (no `apiFetch`) para adjuntar `.status` al error lanzado, igual que `createRule` y `authPost`. La página lee `err.status` y muestra el string i18n apropiado dentro del modal (encima de los campos). El 422 del servidor no debería alcanzarse en condiciones normales (la validación cliente lo previene), pero se maneja como fallback.
+
+### 4. Tipos
+`AccountCreatePayload` añadido a `types.ts`. El tipo de retorno reutiliza `Account` existente (coincide con `AccountOut` del backend).
+
+### 5. Mock
+`mockGetAccounts` migrado a store mutable (`_mockAccounts`). `mockCreateAccount` añade la nueva cuenta al store, siendo visible en recargas mock subsiguientes dentro de la misma sesión.
+
+### 6. Estado en página
+Al crear con éxito, la cuenta se añade directamente al array local `accounts` desde la respuesta del servidor (sin re-fetch). Patrón consistente con `patchAccount`. El toast de éxito usa `t.accountsCreateToast(account.name)`.
+
+### 7. Colocación del botón
+Botón "Nueva cuenta" en `.settings-add-form` (bajo el `h2`), igual que `RulesPage.tsx`. Aparece siempre, también en estado vacío y cargando.
+
+## Archivos modificados
+- `frontend/src/api/types.ts` — `AccountCreatePayload` interface
+- `frontend/src/api/mock.ts` — store mutable + `mockCreateAccount`
+- `frontend/src/api/client.ts` — `createAccount` con raw fetch
+- `frontend/src/i18n/index.ts` — 18 nuevas claves en Dict
+- `frontend/src/i18n/es.ts` — traducciones ES
+- `frontend/src/i18n/en.ts` — traducciones EN
+- `frontend/src/index.css` — CSS `.acct-create-form`, `.acct-opening-toggle-btn`, `.acct-opening-section`
+- `frontend/src/pages/AccountsPage.tsx` — botón + `AccountCreateModal` component
+
+## Build
+`npm run build` (tsc --noEmit + vite build) → ✅ 0 errores TypeScript.
+
+
+---

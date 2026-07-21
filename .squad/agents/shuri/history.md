@@ -88,3 +88,57 @@ Merchant Normalization Slice 1 was fully implemented (1156 tests passing) but re
 ---
 
 *2026-07-21T08:31:35Z:* Fury proposal on old account onboarding awaits owner validation — may require category system flag or reserved-name filter (`decisions.md` PROPOSAL section).
+
+---
+
+## 2026-07-21T11:30:12+02:00 — POST /api/accounts (onboarding de cuentas antiguas)
+
+**Contexto:** Owner aprobó Fury's Option C para onboarding de cuentas sin extractos históricos.
+
+**Entregables:**
+- `POST /api/accounts` → 201, `AccountOut`. Sin migración Alembic.
+- Schema `AccountCreate` con `model_validator` que exige `opening_date` cuando `opening_balance` es not-null.
+- Transacción sintética "Saldo inicial" creada via `pg_insert` + `ON CONFLICT DO NOTHING` (mismo dedup que importaciones).
+- `ImportRun` sintético con `source_filename="manual:saldo-inicial"` para no violar el NOT NULL de `Transaction.import_run_id`.
+- 10 nuevos tests en `tests/api/test_accounts.py`; 78 tests de accounts pasan.
+
+**Learnings clave:**
+
+- **ImportRun obligatorio para transacciones manuales:** `Transaction.import_run_id` es NOT NULL. Para cualquier transacción insertada fuera del flujo de importación (ej: saldo inicial, ajustes manuales futuros), hay que crear un `ImportRun` sintético con `source_filename` descriptivo (patrón: `"manual:<tipo>"`). El modelo no permite rutas sin ImportRun.
+
+- **Patrón de dedup para transacciones de apertura:** `compute_dedup_hash(account_ref=account_name, transaction_date=opening_date, amount=Decimal(str(val)), description="Saldo inicial")`. El `account_ref` usa el nombre de cuenta, consistente con el path de importación. Si el mismo account name + fecha + importe + "Saldo inicial" se vuelve a insertar, el `ON CONFLICT DO NOTHING` protege idempotencia.
+
+- **KPI Skew es intencional en este slice:** Un `opening_balance > 0` cuenta como "ingreso" en el mes de apertura porque las queries KPI suman `Transaction.amount` sin filtros. Documentado explícitamente. El follow-up (`is_system` flag + migración 0016) está propuesto en `decisions/inbox/shuri-post-accounts-contract.md`.
+
+- **`pg_insert` directo vs `upsert_transactions`:** Cuando `category_id=None` (no se quiere inventar categoría), es preferible el `pg_insert` directo. `upsert_transactions` siempre resuelve/crea una categoría vía `_resolve_category`, incompatible con transacciones que deliberadamente no tienen categoría.
+
+- **Atomicidad account+transaction:** `async with session.begin()` único envuelve todos los pasos (Account, ImportRun, Transaction insert). Si falla cualquier flush/insert, toda la operación se revierte — la cuenta no queda a medias.
+
+**Contrato canónico:** `.squad/decisions/inbox/shuri-post-accounts-contract.md`
+
+**Tests:** 78 passed (78 related), 0 failed.
+
+
+---
+
+## 2026-07-21: Old Account Onboarding — POST /api/accounts (Slice: Fury Option C)
+
+**Status:** ✅ Implemented — APPROVED by Fury, 10 tests pass (total 669).
+
+**Summary:** Implemented POST /api/accounts endpoint for manual account creation with optional opening balance as synthetic "Saldo inicial" transaction. No schema migration required.
+
+**Key Implementation:**
+- Atomicity: single transaction; full rollback on error
+- Synthetic transaction created only when opening_balance != 0; uses dedup_hash for collision detection
+- Error handling: 409 Conflict (duplicate name/IBAN), 422 Unprocessable Entity (balance without date, empty name)
+- ImportRun metadata: source_filename="manual:saldo-inicial", period in YYYY-MM format
+- Guard: opening_balance=0 creates no ImportRun or Transaction
+
+**Files modified:**
+- src/finlytics/api/accounts.py — POST endpoint
+- src/finlytics/api/schemas.py — AccountCreate + model_validator
+- tests/api/test_accounts.py — 10 new tests
+
+**KPI Skew note:** Positive opening_balance appears as "income" in its month. Intentional per Option C. Follow-up: is_system flag + migration 0016 (deferred per Fury recommendation).
+
+**Related:** Orchestration log: .squad/orchestration-log/2026-07-21T09-23-28Z-shuri.md
