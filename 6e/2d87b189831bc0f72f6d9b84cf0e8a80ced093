@@ -1,0 +1,44 @@
+tests/investments/test_market_data.py
+  s_d1e8183bb405d2::t_86d0683e1889d7 570-576,584,586-594
+src/finlytics/investments/market_data.py
+  s_123c1e37d712dd::t_100edfb32d85f0 152-154,160
+  s_123c1e37d712dd::t_b43c21bbc7300e 429-435,449-450,453-458,460-462,465-466,468-471,476,480-481
+  s_123c1e37d712dd::t_0a55102a878703 278-281,283-287,296-298,301,306-309,314-317,320-321,327-328,331-346,349,351-355,360,364-366,382-383
+  s_123c1e37d712dd::t_583421fe5e1fd3 492-508
+  s_123c1e37d712dd::t_ebc61623561301 482
+tests/api/test_fidelity.py
+  s_123c1e37d712dd::t_48490b617d8032 923-1050
+  s_123c1e37d712dd::t_8d213dcb4ba2cd 661-664,675-678,691-694,706-709,725-728,745-748
+  s_123c1e37d712dd::t_b9571a10842994 44
+tests/api/test_fx_decouple.py
+  s_d1e8183bb405d2::t_c762b3c6c85d98 222-230
+  s_d1e8183bb405d2::t_4da145bccce6cc 522-554,576-581
+  s_d1e8183bb405d2::t_4e8fb6d35cf76b 1-221,231-521,555-575,582-789
+src/finlytics/api/fidelity.py
+  s_123c1e37d712dd::t_6b9998ed4c82b7 493-498,539-554,559,562-573,575
+  s_123c1e37d712dd::t_24c289539761c2 39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "6e2d87b189831bc0f72f6d9b84cf0e8a80ced093",
+  "prompts": {},
+  "sessions": {
+    "s_123c1e37d712dd": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_015d2VwYZUJt1uahrSjFCYGD",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_d1e8183bb405d2": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01SK4UadkAdm3LbN68gRGV2X",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    }
+  }
+}
