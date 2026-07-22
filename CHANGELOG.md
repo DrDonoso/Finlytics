@@ -4,6 +4,20 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260722] - 2026-07-22
+
+- Store MSFT close_usd for every trading day, independent of FX (drop the msft-intersect-fx logic in topup and backfill; forward-fill FX).
+- Convert the series to EUR at read time using a single latest EURUSD rate (live snapshot, fallback to last stored). Contributions are already EUR-native.
+- period2 = today + 1 day so the current day''s bar is included.
+- Auto gap-recovery: backfill when recent Fridays are missing; 90-day lookback.
+- decisions.md: merged 3 inbox files (shuri, barton, fury FX-decouple entries)
+- orchestration-log: 3 agent logs (shuri backend, barton QA, fury review)
+- log: session summary
+- cross-agent-pointers: coordination refs
+- agent histories: updated with slice work
+- deleted inbox files: shuri-fx-decouple.md, barton-fx-decouple-tests.md, fury-fx-decouple-review.md
+
+
 ## [20260721.02] - 2026-07-21
 
 - Migration 0017: add transactions.is_system (default false) and backfill existing opening rows (import_runs.source_filename='manual:saldo-inicial').
