@@ -41,6 +41,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from finlytics.api.deps import get_current_user, get_db
+from finlytics.api.fidelity import compute_evolution_series
 from finlytics.app import app
 from finlytics.investments.fidelity import _compute_dedup_hash
 from finlytics.investments.market_data import LatestPriceRow, topup_recent_prices
@@ -657,7 +658,10 @@ class TestFidelityEvolution:
             _result(scalars_all=[_LOT1]),
             _result(scalars_all=[ph]),
         ])
-        with patch("finlytics.api.fidelity.topup_recent_prices", new=AsyncMock()):
+        with (
+            patch("finlytics.api.fidelity.topup_recent_prices", new=AsyncMock()),
+            patch("finlytics.api.fidelity.get_current_fx_rate", new=AsyncMock(return_value=None)),
+        ):
             resp = await client.get("/api/investments/fidelity/evolution")
         assert resp.status_code == 200
 
@@ -668,7 +672,10 @@ class TestFidelityEvolution:
             _result(scalars_all=[_LOT1]),
             _result(scalars_all=[ph]),
         ])
-        with patch("finlytics.api.fidelity.topup_recent_prices", new=AsyncMock()):
+        with (
+            patch("finlytics.api.fidelity.topup_recent_prices", new=AsyncMock()),
+            patch("finlytics.api.fidelity.get_current_fx_rate", new=AsyncMock(return_value=None)),
+        ):
             resp = await client.get("/api/investments/fidelity/evolution")
         data = resp.json()
         assert "value_series" in data
@@ -681,7 +688,10 @@ class TestFidelityEvolution:
             _result(scalars_all=[_LOT1]),
             _result(scalars_all=[ph]),
         ])
-        with patch("finlytics.api.fidelity.topup_recent_prices", new=AsyncMock()):
+        with (
+            patch("finlytics.api.fidelity.topup_recent_prices", new=AsyncMock()),
+            patch("finlytics.api.fidelity.get_current_fx_rate", new=AsyncMock(return_value=None)),
+        ):
             resp = await client.get("/api/investments/fidelity/evolution")
         data = resp.json()
         assert len(data["contributions_series"]) >= 1
@@ -693,7 +703,10 @@ class TestFidelityEvolution:
             _result(scalars_all=[_LOT1]),
             _result(scalars_all=[ph]),
         ])
-        with patch("finlytics.api.fidelity.topup_recent_prices", new=AsyncMock()):
+        with (
+            patch("finlytics.api.fidelity.topup_recent_prices", new=AsyncMock()),
+            patch("finlytics.api.fidelity.get_current_fx_rate", new=AsyncMock(return_value=None)),
+        ):
             resp = await client.get("/api/investments/fidelity/evolution")
         data = resp.json()
         for pt in data["contributions_series"][:3]:  # check first few
@@ -709,7 +722,10 @@ class TestFidelityEvolution:
             _result(scalars_all=[ph]),
         ])
         mock_topup = AsyncMock()
-        with patch("finlytics.api.fidelity.topup_recent_prices", new=mock_topup):
+        with (
+            patch("finlytics.api.fidelity.topup_recent_prices", new=mock_topup),
+            patch("finlytics.api.fidelity.get_current_fx_rate", new=AsyncMock(return_value=None)),
+        ):
             await client.get("/api/investments/fidelity/evolution")
 
         mock_topup.assert_awaited_once()
@@ -726,7 +742,10 @@ class TestFidelityEvolution:
         async def _raise_topup(db):
             raise RuntimeError("network error")
 
-        with patch("finlytics.api.fidelity.topup_recent_prices", new=_raise_topup):
+        with (
+            patch("finlytics.api.fidelity.topup_recent_prices", new=_raise_topup),
+            patch("finlytics.api.fidelity.get_current_fx_rate", new=AsyncMock(return_value=None)),
+        ):
             resp = await client.get("/api/investments/fidelity/evolution")
 
         assert resp.status_code == 200
@@ -901,3 +920,131 @@ class TestFidelityReminder:
         assert data["overdue"] is False
         assert data["expected_date"] is None
         assert data["period_label"] is None
+
+
+# ===========================================================================
+# 8. FX-decouple happy-path tests (Model-A)
+# ===========================================================================
+
+class TestFxDecoupleHappyPath:
+    """Verify that Fridays and null-FX days produce price points after Model-A fix.
+
+    Root cause: Yahoo EURUSD=X never returns Friday bars → old intersection
+    logic dropped every Friday.  These tests confirm the fix is effective.
+    """
+
+    # ── compute_evolution_series (pure function) ──────────────────────────
+
+    def test_friday_in_price_map_produces_value_point(self):
+        """Friday date in price_map must appear in value_series."""
+        friday = date(2026, 7, 17)   # July 17, 2026 is a Friday
+        thursday = date(2026, 7, 16)
+        fx = 1.0 / 1.083  # EUR per USD
+
+        price_map = {
+            thursday: (450.0, fx),
+            friday:   (455.0, fx),  # Friday — was dropped pre-fix
+        }
+        lot = _make_lot(99, thursday, Decimal("10.0000"), Decimal("3000.00"), Decimal("300.000000"))
+
+        value_series, _ = compute_evolution_series([lot], price_map, thursday, friday)
+
+        dates_in_series = {pt.date for pt in value_series}
+        assert friday.isoformat() in dates_in_series, \
+            "Friday must produce a value point after the FX-decouple fix"
+
+    def test_null_fx_day_via_fallback_still_produces_point(self):
+        """A day whose FX is filled by fallback still appears in value_series.
+
+        Simulates a day where Yahoo returned close=null for EURUSD — the
+        stored row uses the latest available FX, which compute_evolution_series
+        accepts transparently.
+        """
+        monday = date(2026, 7, 21)
+        fx_fallback = 1.0 / 1.085  # EUR per USD — filled-forward at write time
+
+        price_map = {monday: (460.0, fx_fallback)}
+        lot = _make_lot(99, monday, Decimal("10.0000"), Decimal("3000.00"), Decimal("300.000000"))
+
+        value_series, _ = compute_evolution_series([lot], price_map, monday, monday)
+
+        assert len(value_series) == 1
+        assert value_series[0].date == monday.isoformat()
+
+    def test_single_fx_applied_uniformly_across_all_dates(self):
+        """value_series uses the same FX rate for all dates (Model-A).
+
+        When a caller builds price_map with the same fx for every entry,
+        compute_evolution_series returns a coherent series with no per-day
+        FX divergence.
+        """
+        thursday = date(2026, 7, 16)
+        friday = date(2026, 7, 17)
+        latest_fx = 1.0 / 1.083  # single rate applied to all dates
+
+        price_map = {
+            thursday: (450.0, latest_fx),
+            friday:   (455.0, latest_fx),  # same FX as Thursday
+        }
+        lot = _make_lot(99, thursday, Decimal("5.0000"), Decimal("1500.00"), Decimal("300.000000"))
+
+        value_series, _ = compute_evolution_series([lot], price_map, thursday, friday)
+
+        # Both dates present
+        assert len(value_series) == 2
+        # Thursday: 5 × 450 × latest_fx
+        assert value_series[0].value == pytest.approx(5 * 450.0 * latest_fx, abs=0.01)
+        # Friday: 5 × 455 × same latest_fx
+        assert value_series[1].value == pytest.approx(5 * 455.0 * latest_fx, abs=0.01)
+
+    # ── backfill_price_history (unit) ────────────────────────────────────
+
+    async def test_backfill_stores_friday_when_fx_has_no_friday_entry(self):
+        """backfill stores a Friday row even when EURUSD returns no Friday bar."""
+        from finlytics.investments.market_data import backfill_price_history
+
+        thursday = date(2026, 7, 16)
+        friday = date(2026, 7, 17)
+
+        msft_rows = [
+            {"date": thursday, "close": 450.0},
+            {"date": friday,   "close": 455.0},   # Friday — no matching FX entry
+        ]
+        fx_rows = [
+            {"date": thursday, "close": 1.083},   # Thursday FX only (no Friday)
+        ]
+
+        mock_db = MagicMock()
+        begin_cm = AsyncMock()
+        mock_db.begin = MagicMock(return_value=begin_cm)
+        mock_db.execute = AsyncMock()
+
+        with patch(
+            "finlytics.investments.market_data._fetch_with_fallback",
+            side_effect=[msft_rows, fx_rows],
+        ):
+            count = await backfill_price_history(thursday, mock_db)
+
+        # Both Thursday AND Friday must be stored
+        assert count == 2, f"Expected 2 rows (Thu+Fri), got {count}"
+
+    async def test_backfill_returns_zero_when_fx_completely_missing(self):
+        """backfill returns 0 gracefully when all FX data is unavailable."""
+        from finlytics.investments.market_data import backfill_price_history
+
+        thursday = date(2026, 7, 16)
+        msft_rows = [{"date": thursday, "close": 450.0}]
+        fx_rows: list = []  # no FX at all
+
+        mock_db = MagicMock()
+        begin_cm = AsyncMock()
+        mock_db.begin = MagicMock(return_value=begin_cm)
+        mock_db.execute = AsyncMock()
+
+        with patch(
+            "finlytics.investments.market_data._fetch_with_fallback",
+            side_effect=[msft_rows, fx_rows],
+        ):
+            count = await backfill_price_history(thursday, mock_db)
+
+        assert count == 0

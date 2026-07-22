@@ -567,16 +567,31 @@ class TestEvolutionSeries:
 def _make_db_session(
     max_date_row: date | None = None,
 ) -> MagicMock:
-    """Return a mock AsyncSession for topup/get_latest_price tests."""
+    """Return a mock AsyncSession for topup/get_latest_price tests.
+
+    Updated for Model-A: topup_recent_prices now queries
+    ``(price_date, fx_eur_usd)`` via ``result.first()`` (not
+    ``scalar_one_or_none``). This helper configures both interfaces so
+    pre-existing tests keep passing.
+    """
     session = MagicMock()
     session.commit = AsyncMock()
 
     begin_cm = AsyncMock()
     session.begin = MagicMock(return_value=begin_cm)
 
-    # First execute returns max_date scalar; subsequent ones return a generic mock
     max_date_result = MagicMock()
+    # Legacy interface used by get_latest_price tests
     max_date_result.scalar_one_or_none.return_value = max_date_row
+    # Model-A interface: topup_recent_prices uses result.first()
+    if max_date_row is None:
+        max_date_result.first.return_value = None
+    else:
+        row = MagicMock()
+        row.__getitem__ = MagicMock(
+            side_effect=lambda idx: max_date_row if idx == 0 else 0.925926
+        )
+        max_date_result.first.return_value = row
 
     session.execute = AsyncMock(return_value=max_date_result)
     return session

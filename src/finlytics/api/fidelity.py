@@ -36,7 +36,7 @@ from finlytics.api.schemas import (
 from finlytics.db.models import EsppLot, InvestmentConnection, InvestmentImportRun, PriceHistory
 from finlytics.investments.fidelity import FidelityESPPProvider, _compute_dedup_hash
 from finlytics.investments.fidelity_csv import parse_open_lots_csv
-from finlytics.investments.market_data import LatestPriceRow, backfill_price_history, get_latest_price, topup_recent_prices
+from finlytics.investments.market_data import LatestPriceRow, backfill_price_history, get_current_fx_rate, get_latest_price, topup_recent_prices
 from finlytics.investments.service import _PROVIDERS
 
 log = logging.getLogger(__name__)
@@ -490,6 +490,12 @@ async def fidelity_evolution(
     Range: from the earliest lot purchase_date to today.
     Granularity: one point per actual MSFT trading day (daily market-day
     resolution).  Weekly only for extreme ranges > 6 years (~2200 days).
+
+    EUR conversion uses a SINGLE latest EUR/USD rate applied to all historical
+    dates (owner-approved Model-A).  The rate is fetched live from the Yahoo
+    EURUSD=X snapshot; fallback: most recent stored fx_eur_usd.  This removes
+    any dependency on per-day FX availability (Fridays, null bars are no longer
+    dropped).
     """
     conn = await _get_fidelity_connection(user.id, db)
     if conn is None:
@@ -530,17 +536,43 @@ async def fidelity_evolution(
 
     prices = (await db.execute(_price_query())).scalars().all()
 
-    # Lazy full backfill: if price_history is completely empty, populate from network.
-    if not prices:
+    # Backfill trigger:
+    # (a) Empty: first import, populate from network.
+    # (b) Friday gap: < 50 % of expected Fridays present → intersection bug recovery.
+    #     Minimum sample of 30 rows avoids false-positives on tiny test fixtures.
+    needs_backfill = not prices
+    if not needs_backfill and len(prices) >= 30:
+        expected_fridays = max(1, (max_date - min_date).days // 7)
+        actual_fridays = sum(1 for p in prices if p.price_date.weekday() == 4)
+        if actual_fridays < expected_fridays // 2:
+            log.info(
+                "fidelity_evolution: Friday gap detected (%d/%d) — triggering gap-recovery backfill",
+                actual_fridays, expected_fridays,
+            )
+            needs_backfill = True
+
+    if needs_backfill:
         await db.commit()
         try:
             await backfill_price_history(min_date, db)
         except Exception as exc:
-            log.warning("Lazy backfill failed (non-fatal): %s", exc)
+            log.warning("Backfill failed (non-fatal): %s", exc)
         prices = (await db.execute(_price_query())).scalars().all()
 
+    # Single latest EUR/USD rate for all historical conversions (Model-A).
+    # Try Yahoo live snapshot first; fall back to latest stored fx_eur_usd.
+    latest_fx_eur_usd: float | None = None
+    if prices:
+        latest_fx_eur_usd = float(max(prices, key=lambda p: p.price_date).fx_eur_usd)
+    try:
+        live_fx = await get_current_fx_rate()
+        if live_fx is not None:
+            latest_fx_eur_usd = live_fx
+    except Exception as exc:
+        log.warning("get_current_fx_rate failed (using stored FX): %s", exc)
+
     price_map: dict[date, tuple[float, float]] = {
-        p.price_date: (float(p.close_usd), float(p.fx_eur_usd))
+        p.price_date: (float(p.close_usd), latest_fx_eur_usd or float(p.fx_eur_usd))
         for p in prices
     }
 
