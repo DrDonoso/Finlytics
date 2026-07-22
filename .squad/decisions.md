@@ -10419,3 +10419,108 @@ Complete implementation of `is_system` flag for opening balance transactions ("S
 
 ---
 
+# ✅ IMPLEMENTED + APPROVED: Shuri, Barton, Fury — FX Decouple (Model A)
+
+> **Estado:** IMPLEMENTED + APPROVED  
+> **Fecha entrada:** 2026-07-22T17:04:25+02:00  
+> **Scope:** Desacoplar almacenamiento MSFT-USD de disponibilidad diaria FX; Friday/null-FX/current-day recovery  
+
+---
+
+## Root Cause (diagnosed via live Yahoo probes)
+
+ESPP Evolution chart dropped Fridays, null-FX days, and current day. **Causa raíz:**
+1. **Viernes**: Yahoo EURUSD=X daily nunca devuelve barras los viernes (rollover FX de fin de semana).
+2. **Intersección (bug-1)**: `topup_recent_prices` y `backfill_price_history` almacenaban PriceHistory SÓLO para `common = MSFT ∩ EURUSD` → todos los viernes caídos.
+3. **Null FX (bug-2)**: a veces EURUSD devolvía `close=null` para ciertos días → descartaba ese día.
+4. **Día actual (bug-3)**: `period2 = _to_unix(date.today())` medianoche UTC → excluía la barra in-progress del día actual.
+
+---
+
+## Decision: Model-A (Decoupled FX)
+
+Desacoplar equity de la disponibilidad diaria FX:
+
+1. **Almacenar MSFT USD para TODOS los días de trading** — independiente de si EURUSD tiene barra ese día.
+2. **FX forward-fill**: si no hay FX exacto para ese día (viernes, null), usar FX más reciente disponible en batch o DB.
+3. **Single FX en read-time**: `fidelity_evolution` aplica UN ÚNICO tipo de cambio (get_current_fx_rate live snapshot, fallback a almacenado) a TODAS las fechas históricas.
+4. **Auto gap-recovery**: si `len(prices) >= 30` y viernes presentes < 50% esperados → dispara `backfill_price_history` automático en primer request post-deploy.
+5. **No migración**: columnas `fx_eur_usd` y `close_eur` siguen NOT NULL, rellenadas con FX más reciente. Head sigue **0017**.
+
+**Trade-off aceptado por owner:** puntos históricos usan FX del día de hoy (no histórico exacto). Elimina completamente dependencia de serie FX diaria Yahoo.
+
+---
+
+## Backend Implementation (Shuri)
+
+**Archivo principal:** `src/finlytics/investments/market_data.py`, `src/finlytics/api/fidelity.py`
+
+### market_data.py
+
+- `_fetch_yahoo_history`: period2 cambia `date.today()` → `date.today() + 1 day` (incluye barra in-progress).
+- `topup_recent_prices`: 
+  - Lookback ampliado a 90 días (antes solo desde max_date) → recupera viernes históricos automáticamente.
+  - Elimina intersección: almacena TODOS los días MSFT.
+  - FX forward-fill: usa FX exacto si existe ese día, sino FX más reciente del batch, sino FX almacenado en DB.
+- `backfill_price_history`: mismo patrón (store-all, forward-fill FX).
+- `get_current_fx_rate()` (nueva): obtiene live EURUSD snapshot de Yahoo.
+
+### fidelity.py
+
+- `fidelity_evolution`:
+  - Gap recovery: si `len >= 30` y viernes < 50% → `backfill_price_history` automático.
+  - Single FX: `latest_fx_eur_usd = get_current_fx_rate()` (live), fallback a `max(prices).fx_eur_usd`.
+  - Todos los puntos usan mismo FX.
+- `fidelity_kpis`, `fidelity_lots`: sin cambios; usan daily-bar FX vía `get_latest_price()`.
+- Contribuciones EUR nativas (CSV Fidelity EU) — sin conversión FX.
+
+---
+
+## QA Implementation (Barton)
+
+**Archivo principal:** `tests/api/test_fx_decouple.py` — 30 tests comprehensivos
+
+**Test categories** (por bug/feature):
+- TC-1 (viernes): 4 tests — viernes aparece en serie, valores correctos.
+- TC-2 (null FX): 3 tests — día con FX nulo produce punto, topup crea 2 filas (no 1).
+- TC-3 (día actual): 5 tests — hoy aparece, period2=tomorrow, sanidad Unix.
+- TC-4 (consistencia EUR): 4 tests — FX único uniforme en toda serie, contribuciones EUR nativas.
+- TC-5 (sin intersección): 5 tests — backfill almacena todos días MSFT (5 filas lun-vie), incluso con FX nulo.
+- TC-6 (regresión): 9 tests — lunes/jueves sin cambios, KPI formula, funciones escalonadas, series vacías.
+
+**Bug encontrado y corregido:** Helper `_make_db_session` en `test_market_data.py` no configuraba `first.return_value = None` cuando Shuri cambió query de `scalar_one_or_none` a `first`. Actualizado.
+
+**Resultado:** 
+- `test_fx_decouple.py`: 30 passed ✅
+- Suite completa: **1325 passed, 2 skipped, 0 failed** ✅
+
+---
+
+## Review Verdict (Fury)
+
+**Status:** ✅ APPROVED — sin defectos bloqueantes.
+
+**Hallazgos principales:**
+
+1. **De-intersección**: Verificado. Ambos `topup` y `backfill` almacenan TODOS los días MSFT sin filtrar por EURUSD. ✅
+2. **Consistencia FX**: Coherente en todos los endpoints. Value y contributions ambos EUR. ✅
+   - Evolution: live FX snapshot.
+   - KPIs/lots: daily-bar FX (get_latest_price).
+   - Nota: <0.3% intraday noise típico — views distintas, frecuencias distintas.
+3. **Gap recovery**: Seguro. Max 1 intento por request, threshold >= 30 evita falsos positivos, degradación graceful si Yahoo falla.
+4. **Idempotencia**: ON CONFLICT DO UPDATE (topup) + DO NOTHING (backfill) → sin duplicados.
+5. **close_eur almacenado**: Aceptable. Ningún endpoint activo lo lee. Recalculado en runtime para tomar live FX.
+
+**Defectos encontrados:** Ninguno.
+
+---
+
+## Impact Summary
+
+- **Frontend:** Ninguno. Endpoints siguen devolviendo EUR, charts renderean igual.
+- **Migration:** Ninguna. Head **0017**.
+- **API contracts:** Sin cambios.
+- **Degradation:** Si Yahoo falla → datos parciales sin viernes; sin cortes.
+
+---
+

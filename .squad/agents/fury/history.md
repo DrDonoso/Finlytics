@@ -84,6 +84,17 @@
 
 ---
 
+## Learnings
+
+### 2026-07-22: FX Decouple Review (Model A) — ✅ APPROVED
+- **Single-FX model coherence**: value_series usa `close_usd × live_fx`, contributions es EUR nativo del CSV Fidelity → comparación gain/loss coherente sin reconversión.
+- **KPIs/lots usan daily-bar FX** (vía `get_latest_price().fx_eur_usd`), evolution usa live-snapshot FX (`get_current_fx_rate()`). Diferencia es ruido intraday (<0.3%), no inconsistencia real — son vistas distintas con requisitos distintos.
+- **close_eur almacenado es campo muerto**: ningún código activo lo lee para cálculos EUR (todos computan `close_usd × fx_eur_usd` en runtime).
+- **Gap recovery bounded**: máximo 1 intento backfill/request, self-heals al rellenar viernes, `len >= 30` protege fixtures.
+- **Forward-fill FX es el patrón correcto** para series que cruzan días sin bar FX (viernes, nulls): usar el FX más reciente disponible.
+
+---
+
 ## Deferred Follow-ups
 
 - **Merchant Slice 3 (soft-delete recovery UI):** Awaiting owner prioritization
