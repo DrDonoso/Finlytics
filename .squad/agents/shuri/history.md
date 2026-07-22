@@ -16,8 +16,9 @@
 5. **Import-time Opening Balance (2026-07-21):** ✅ Complete; opening_balance in ConfirmIn; DRY refactor of helper.
 6. **is_system flag + KPI exclusion (2026-07-21):** ✅ Complete; migration 0017, model, helper, _apply_filters.
 7. **is_system OPTION B — ledger visible (2026-07-21):** ✅ Complete; get_transactions muestra apertura, TransactionOut.is_system expuesto.
+8. **FX Decouple Model-A — Evolution Chart Fix (2026-07-22):** ✅ Complete; viernes ya no caen del gráfico; period2 fix; single FX en read-time; gap recovery automático; no migración.
 
-**Current Test Baseline:** 225 passed (subconjunto targeted), suite completa pendiente de verificar.
+**Current Test Baseline:** 66 passed (targeted fidelity/evolution), suite completa pendiente de verificar.
 
 ---
 
@@ -101,6 +102,24 @@ IBAN path: natural (SELECT returns None). Name path: add pre-SELECT `select(Acco
 - `test_transactions.py` fixture `_TX` + dos tests de schema keys actualizados para incluir `is_system`.
 - Nota a Vision: totales de importe en página de transacciones deben venir de `get_overview`, NO de sumar rows del ledger.
 - Suite tras cambios: **225 passed, 473 deselected** (subconjunto transaction/summary/overview/opening/system).
+
+### FX Decouple — Model-A (2026-07-22)
+
+**Causa raíz viernes caídos:** `EURUSD=X` en Yahoo NUNCA devuelve barras los viernes (rollover FX fin de semana). La lógica `common = set(msft_map) & set(fx_map)` descartaba todos los viernes. También `period2 = _to_unix(date.today())` era medianoche UTC → excluía el día actual.
+
+**Model-A aprobado:** Desacoplar FX del almacenamiento diario de equity. Almacenar TODOS los días MSFT; convertir a EUR en read-time con UN SOLO FX latest.
+
+**Lookback 90 días en topup**: La primera ejecución post-fix recupera automáticamente todos los viernes de los últimos 90 días. Para viernes históricos (> 90 días), `fidelity_evolution` detecta la brecha (< 50% de viernes esperados en prices) y dispara `backfill_price_history` automáticamente.
+
+**FX forward-fill en escritura**: `fx_map.get(d, latest_fx_eur_usd)` → para cada día sin FX exacto, se usa el FX más reciente del batch (o el almacenado en DB si el batch FX falla). Columnas `fx_eur_usd` / `close_eur` siguen NOT NULL → no se necesita migración.
+
+**Single FX en lectura**: `fidelity_evolution` usa `get_current_fx_rate()` (Yahoo snapshot) con fallback a `max(prices, key=price_date).fx_eur_usd`. Mismo FX para todas las fechas en `price_map`. `compute_evolution_series` sin cambios de firma.
+
+**Threshold gap detection**: `len(prices) >= 30 and actual_fridays < expected_fridays // 2`. Mínimo 30 filas evita falsos positivos en fixtures de test con 1 fila mock.
+
+**Contribuciones**: `lot.cost_basis` ya está en EUR (CSV Fidelity EU) → no necesita conversión FX. Series de valor y contribuciones coherentes bajo el mismo FX.
+
+**No migration, no frontend changes.** Tests: 66 passed (5 nuevos en `TestFxDecoupleHappyPath`).
 
 ---
 
