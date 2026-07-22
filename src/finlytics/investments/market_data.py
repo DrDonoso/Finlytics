@@ -149,13 +149,15 @@ async def _yahoo_get(symbol: str, params: dict | None = None) -> dict | None:
 async def _fetch_yahoo_history(symbol: str, start: date | None = None) -> list[dict]:
     """Fetch EOD history from Yahoo Chart API.
 
-    When *start* is given, requests ``period1`` → ``period2=today``.
+    When *start* is given, requests ``period1`` → ``period2=tomorrow``.
+    Using tomorrow as period2 (not today midnight) ensures today's in-progress
+    bar is included — Yahoo interprets period2=today-midnight as "before today".
     Returns ``[]`` on failure.
     """
     params: dict = {"interval": "1d"}
     if start:
         params["period1"] = _to_unix(start)
-        params["period2"] = _to_unix(date.today())
+        params["period2"] = _to_unix(date.today() + timedelta(days=1))
     data = await _yahoo_get(symbol, params=params)
     if data is None:
         return []
@@ -273,15 +275,16 @@ async def _fetch_with_fallback(
 async def topup_recent_prices(db: AsyncSession) -> None:
     """Incremental top-up: fetch recent closes and UPSERT with ON CONFLICT DO UPDATE.
 
-    Window: [max_stored_date (inclusive) … today].  This corrects the last
-    stored day — replacing an intraday snapshot with the official settled close
-    once Yahoo reports it — and fills any missing recent days (e.g. after a
-    weekend or a missed session).
+    Window: [max_stored_date − 90 days … tomorrow].  The 90-day lookback
+    recovers any days previously dropped by the old ``msft ∩ fx`` intersection
+    bug (every Friday was missing because Yahoo's ``EURUSD=X`` daily series
+    never includes Fridays due to weekend FX rollover).
 
-    Yahoo daily history returns the official close for past days and a
-    provisional close for the current in-progress day (updated until market
-    close).  That is exactly what we want: provisional during the session,
-    settled once the day ends, correct forever after.
+    Every MSFT trading day is stored independently of FX availability.  For
+    days where the same-day EURUSD bar is absent (Fridays, occasional nulls),
+    the most recently available FX rate is used as a fill-forward value.
+    ``close_eur`` is stored for DB completeness; the read path
+    (fidelity_evolution) re-converts with a single latest FX at query time.
 
     **Transaction contract**: must be called with a *fresh* AsyncSession (no
     open autobegin transaction).  Opens and closes its own ``db.begin()``
@@ -290,57 +293,76 @@ async def topup_recent_prices(db: AsyncSession) -> None:
     completely empty — the full backfill (triggered at import-confirm time)
     handles first-time population.
     """
-    # 1. Find the most recent stored date for MSFT
+    # 1. Find the most recent stored date + FX in one query
+    max_date: date | None = None
+    latest_stored_fx: float | None = None
     async with db.begin():
         result = await db.execute(
-            select(PriceHistory.price_date)
+            select(PriceHistory.price_date, PriceHistory.fx_eur_usd)
             .where(PriceHistory.ticker == _MSFT_TICKER)
             .order_by(PriceHistory.price_date.desc())
             .limit(1)
         )
-        max_date: date | None = result.scalar_one_or_none()
+        row = result.first()
+        if row:
+            max_date = row[0]
+            latest_stored_fx = float(row[1])
 
     if max_date is None:
         return  # price_history empty — full backfill handles first-time population
 
-    # 2. Fetch daily history for the window [max_date, today] (network, outside any tx)
+    # 90-day lookback: recovers recent Fridays skipped by the old intersection bug
+    lookback_start = max_date - timedelta(days=90)
+
+    # 2. Fetch daily history (network, outside any tx)
     try:
         msft_rows, fx_rows = await asyncio.gather(
-            _fetch_yahoo_history(_MSFT_TICKER, start=max_date),
-            _fetch_yahoo_history("EURUSD=X", start=max_date),
+            _fetch_yahoo_history(_MSFT_TICKER, start=lookback_start),
+            _fetch_yahoo_history("EURUSD=X", start=lookback_start),
         )
     except Exception as exc:
         log.warning("topup_recent_prices: fetch failed: %s", exc)
         return
 
-    if not msft_rows or not fx_rows:
-        log.warning(
-            "topup_recent_prices: no data returned (msft=%d rows, eurusd=%d rows)",
-            len(msft_rows),
-            len(fx_rows),
-        )
+    if not msft_rows:
+        log.warning("topup_recent_prices: no MSFT data returned")
         return
 
-    msft_map = {r["date"]: r["close"] for r in msft_rows}
-    fx_map   = {r["date"]: r["close"] for r in fx_rows}
-    common   = sorted(set(msft_map) & set(fx_map))
+    # Build FX lookup (EUR per USD) from fetched rows
+    fx_map: dict[date, float] = {}
+    for r in fx_rows:
+        eurusd_quote = r["close"]  # USD per EUR (e.g. 1.0823)
+        if eurusd_quote > 0:
+            fx_map[r["date"]] = 1.0 / eurusd_quote  # EUR per USD
 
-    if not common:
+    # Latest FX: prefer freshest fetched value; fallback to stored DB value
+    latest_fx_eur_usd: float | None = latest_stored_fx
+    if fx_map:
+        latest_fx_eur_usd = fx_map[max(fx_map.keys())]
+
+    if latest_fx_eur_usd is None:
+        # Stored row exists (max_date != None) so fx_eur_usd is always non-null; this
+        # branch is theoretically unreachable but guarded for safety.
+        log.warning("topup_recent_prices: no FX rate available, skipping")
         return
 
+    # Store ALL MSFT trading days — Fridays use the most recent available FX
     values = []
-    for d in common:
-        close_usd    = msft_map[d]
-        eurusd_quote = fx_map[d]           # USD per EUR (e.g. 1.0823)
-        fx_eur_usd   = 1.0 / eurusd_quote  # EUR per USD (e.g. 0.9239)
-        close_eur    = close_usd * fx_eur_usd
+    for r in msft_rows:
+        d = r["date"]
+        close_usd = r["close"]
+        fx = fx_map.get(d, latest_fx_eur_usd)   # exact same-day FX or latest fallback
+        close_eur = close_usd * fx
         values.append({
             "ticker":     _MSFT_TICKER,
             "price_date": d,
             "close_usd":  Decimal(str(round(close_usd, 6))),
-            "fx_eur_usd": Decimal(str(round(fx_eur_usd, 6))),
+            "fx_eur_usd": Decimal(str(round(fx, 6))),
             "close_eur":  Decimal(str(round(close_eur, 6))),
         })
+
+    if not values:
+        return
 
     # 3. UPSERT with ON CONFLICT DO UPDATE — overwrites intraday values with settled closes
     stmt = pg_insert(PriceHistory).values(values)
@@ -357,8 +379,8 @@ async def topup_recent_prices(db: AsyncSession) -> None:
         )
 
     log.info(
-        "topup_recent_prices: upserted %d rows for MSFT from %s to %s",
-        len(values), max_date, common[-1],
+        "topup_recent_prices: upserted %d rows for MSFT (lookback from %s)",
+        len(values), lookback_start,
     )
 
 
@@ -404,7 +426,13 @@ async def get_latest_price(db: AsyncSession) -> LatestPriceRow | None:
 
 
 async def backfill_price_history(earliest_date: date, db: AsyncSession) -> int:
-    """Fetch MSFT + EURUSD history from *earliest_date* to today and bulk-insert.
+    """Fetch MSFT price history from *earliest_date* to today and bulk-insert.
+
+    Every MSFT trading day is stored independently of FX availability.
+    For days where the same-day EURUSD bar is absent (e.g. Fridays), the
+    most recently fetched FX rate is used as a fill-forward value so no
+    MSFT day is dropped.  If the entire FX series is unavailable, the
+    backfill is skipped (NOT NULL constraint on fx_eur_usd cannot be met).
 
     Uses Yahoo Chart API (primary) → Stooq → yfinance fallback.
     Idempotent: ``INSERT ON CONFLICT (ticker, price_date) DO NOTHING``.
@@ -418,34 +446,39 @@ async def backfill_price_history(earliest_date: date, db: AsyncSession) -> int:
         _fetch_with_fallback("EURUSD=X", "eurusd", "EURUSD=X", start=earliest_date),
     )
 
-    if not msft_rows or not fx_rows:
-        log.warning(
-            "Backfill skipped: msft=%d rows, eurusd=%d rows",
-            len(msft_rows),
-            len(fx_rows),
-        )
+    if not msft_rows:
+        log.warning("Backfill skipped: no MSFT data (eurusd=%d rows)", len(fx_rows))
+        return 0
+
+    # Build FX lookup (EUR per USD) with fill-forward for missing days (e.g. Fridays)
+    fx_map: dict[date, float] = {}
+    for r in fx_rows:
+        eurusd_quote = r["close"]  # USD per EUR
+        if eurusd_quote > 0:
+            fx_map[r["date"]] = 1.0 / eurusd_quote  # EUR per USD
+
+    latest_fx_eur_usd: float | None = fx_map[max(fx_map.keys())] if fx_map else None
+    if latest_fx_eur_usd is None:
+        log.warning("Backfill skipped: no FX data available (cannot populate fx_eur_usd NOT NULL)")
         return 0
 
     msft_map = {r["date"]: r["close"] for r in msft_rows}
-    fx_map   = {r["date"]: r["close"] for r in fx_rows}
-    common   = sorted(set(msft_map) & set(fx_map))
-
-    if not common:
-        return 0
 
     values = []
-    for d in common:
-        close_usd    = msft_map[d]
-        eurusd_quote = fx_map[d]          # USD per EUR
-        fx_eur_usd   = 1.0 / eurusd_quote  # EUR per USD
-        close_eur    = close_usd * fx_eur_usd
+    for d in sorted(msft_map.keys()):
+        close_usd = msft_map[d]
+        fx = fx_map.get(d, latest_fx_eur_usd)   # exact same-day FX or latest fallback
+        close_eur = close_usd * fx
         values.append({
             "ticker":     _MSFT_TICKER,
             "price_date": d,
             "close_usd":  Decimal(str(round(close_usd, 6))),
-            "fx_eur_usd": Decimal(str(round(fx_eur_usd, 6))),
+            "fx_eur_usd": Decimal(str(round(fx, 6))),
             "close_eur":  Decimal(str(round(close_eur, 6))),
         })
+
+    if not values:
+        return 0
 
     async with db.begin():
         await db.execute(
@@ -456,3 +489,20 @@ async def backfill_price_history(earliest_date: date, db: AsyncSession) -> int:
 
     log.info("Backfill: %d rows for MSFT from %s", len(values), earliest_date)
     return len(values)
+
+
+async def get_current_fx_rate() -> float | None:
+    """Return the current EUR/USD rate (EUR per USD) from the Yahoo EURUSD=X snapshot.
+
+    Uses ``regularMarketPrice`` from the chart meta, which is the live quote
+    (USD per EUR, e.g. 1.0823) — inverted to EUR per USD (e.g. 0.9239).
+    Returns ``None`` on any network failure so callers can fall back to the
+    most recently stored ``fx_eur_usd`` from price_history.
+    """
+    try:
+        snap = await _fetch_yahoo_snapshot("EURUSD=X")
+        if snap and snap.get("close", 0) > 0:
+            return 1.0 / snap["close"]  # USD per EUR → EUR per USD
+    except Exception as exc:
+        log.warning("get_current_fx_rate: snapshot failed: %s", exc)
+    return None
