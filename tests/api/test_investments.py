@@ -2417,3 +2417,520 @@ async def test_combined_overview_401_unauthenticated(unauthenticated_client):
     """No session cookie → 401 on GET /combined-overview."""
     resp = await unauthenticated_client.get("/api/investments/combined-overview")
     assert resp.status_code == 401
+
+
+
+# ── Schema-version cache auto-invalidation (Barton 2026-07-23) ──────────────────────
+#
+# Contract (service.py):
+#   _PORTFOLIO_SCHEMA_VERSION  — int constant; bump to invalidate old cache rows.
+#   _serialize_portfolio       — embeds {"_schema_version": <CURRENT>, ...asdict(p)}.
+#   _deserialize_portfolio     — ignores _schema_version key (round-trip safe).
+#   _get_db_cache              — returns None when version absent or != current;
+#                                DELETEs stale row + FLUSHes before returning None.
+#   get_portfolio              — version-invalid row → synchronous live fetch;
+#                                first load after deploy is NOT stale.
+#   delete+INSERT sequence     — no duplicate-key because delete+flush precedes add.
+#
+# NOTE: AsyncSession.delete() is a coroutine in SQLAlchemy 2.0 (await required).
+# All mock DBs use AsyncMock for delete and flush.
+
+
+def _sv_scalars_result(items):
+    r = MagicMock()
+    r.scalars.return_value.all.return_value = list(items)
+    return r
+
+
+def _sv_scalar_result(value):
+    r = MagicMock()
+    r.scalar_one_or_none.return_value = value
+    return r
+
+
+def _sv_conn(conn_id: int = 7) -> MagicMock:
+    c = MagicMock()
+    c.id = conn_id
+    c.plugin_id = "indexa-capital"
+    c.status = "active"
+    c.token_enc = "fake-enc-tok"
+    c.account_label_masked = "PBK•••Z5"
+    c.last_synced_at = None
+    return c
+
+
+def _sv_mock_db(execute_side_effect) -> MagicMock:
+    """Mock AsyncSession with AsyncMock for all coroutine methods used in service.py."""
+    db = MagicMock()
+    db.execute = AsyncMock(side_effect=list(execute_side_effect))
+    db.commit = AsyncMock()
+    db.delete = AsyncMock()  # coroutine in SQLAlchemy 2.0
+    db.flush = AsyncMock()   # coroutine
+    db.add = MagicMock()
+    return db
+
+
+def _sv_live_portfolio():
+    """NormalizedPortfolio with a contribution_event — marker of 'fresh live fetch'."""
+    from finlytics.investments.base import (
+        NormalizedContributionEvent,
+        NormalizedPerformance,
+        NormalizedPortfolio,
+        NormalizedReturns,
+    )
+    return NormalizedPortfolio(
+        holdings=[],
+        total_value=3000.0,
+        total_invested=2500.0,
+        total_gain_loss=500.0,
+        performance=NormalizedPerformance(
+            total_value=3000.0,
+            returns=NormalizedReturns(twr_annual=0.10, xirr=0.11, pl=500.0, invested=2500.0),
+            value_series=[],
+            contribution_events=[
+                NormalizedContributionEvent(
+                    date="2026-01-01", amount=2500.0, cumulative=2500.0, type="contribution"
+                )
+            ],
+        ),
+    )
+
+
+# TC1: current version + fresh → cache HIT, no live fetch
+async def test_sv_cache_hit_current_version_no_live_fetch():
+    """TC1: payload _schema_version == current AND <24 h → HIT; provider never called."""
+    from finlytics.investments import service as svc
+
+    ver = svc._PORTFOLIO_SCHEMA_VERSION
+
+    live_portfolio = _sv_live_portfolio()
+    payload = svc._serialize_portfolio(live_portfolio)
+    assert payload.get("_schema_version") == ver, (
+        f"_serialize_portfolio must embed _schema_version={ver!r}, got {payload.get('_schema_version')!r}"
+    )
+
+    mock_row = MagicMock()
+    mock_row.payload = payload
+    mock_row.fetched_at = datetime.now(timezone.utc)
+
+    conn = _sv_conn()
+    mock_db = _sv_mock_db([
+        _sv_scalars_result([conn]),
+        _sv_scalar_result(mock_row),
+    ])
+
+    with (
+        patch("finlytics.investments.service.decrypt_token", return_value="plain-tok"),
+        patch.object(svc._PROVIDERS["indexa-capital"], "validate_token", AsyncMock(
+            side_effect=AssertionError("validate_token must NOT be called on cache hit")
+        )),
+        patch.object(svc._PROVIDERS["indexa-capital"], "get_portfolio", AsyncMock(
+            side_effect=AssertionError("provider.get_portfolio must NOT be called on cache hit")
+        )),
+    ):
+        result = await svc.get_portfolio(user_id=1, db=mock_db)
+
+    assert result.total_value == pytest.approx(3000.0), "Cache hit must return cached total_value"
+    assert result.contribution_events, "Cache hit must return the cached contribution_events"
+
+
+# TC2/TC3 unit: _get_db_cache returns None AND deletes stale row
+async def test_sv_get_db_cache_absent_version_returns_none():
+    """TC2 (unit): payload with NO _schema_version → _get_db_cache returns None + deletes row."""
+    from finlytics.investments import service as svc
+
+    old_payload = {
+        "holdings": [],
+        "total_value": 1500.0,
+        "total_invested": 1400.0,
+        "total_gain_loss": 100.0,
+        "performance": None,
+        # _schema_version absent (pre-deploy row)
+    }
+    mock_row = MagicMock()
+    mock_row.payload = old_payload
+    mock_row.fetched_at = datetime.now(timezone.utc)
+
+    mock_db = _sv_mock_db([_sv_scalar_result(mock_row)])
+
+    result = await svc._get_db_cache(connection_id=1, db=mock_db)
+
+    assert result is None, (
+        "Pre-deploy payload (no _schema_version) must be treated as cache MISS (returns None)"
+    )
+    mock_db.delete.assert_awaited_once_with(mock_row)
+    mock_db.flush.assert_awaited_once()
+
+
+async def test_sv_get_db_cache_wrong_version_returns_none():
+    """TC3 (unit): old _schema_version → _get_db_cache returns None + deletes row."""
+    from finlytics.investments import service as svc
+
+    old_payload = {
+        "_schema_version": 0,  # stale; current is 2
+        "holdings": [],
+        "total_value": 1500.0,
+        "total_invested": 1400.0,
+        "total_gain_loss": 100.0,
+        "performance": None,
+    }
+    mock_row = MagicMock()
+    mock_row.payload = old_payload
+    mock_row.fetched_at = datetime.now(timezone.utc)
+
+    mock_db = _sv_mock_db([_sv_scalar_result(mock_row)])
+
+    result = await svc._get_db_cache(connection_id=1, db=mock_db)
+
+    assert result is None, "Mismatched _schema_version must be treated as cache MISS (returns None)"
+    mock_db.delete.assert_awaited_once_with(mock_row)
+    mock_db.flush.assert_awaited_once()
+
+
+# TC2 integration: absent version → sync refetch → first load returns FRESH data
+async def test_sv_absent_version_triggers_sync_refetch_returns_fresh():
+    """TC2 (integration): absent _schema_version → sync live fetch; first load is NOT stale."""
+    from finlytics.investments import service as svc
+    from finlytics.investments.base import DiscoveredAccount, ValidationResult
+
+    old_payload = {
+        "holdings": [],
+        "total_value": 999.0,
+        "total_invested": 900.0,
+        "total_gain_loss": 99.0,
+        "performance": None,
+    }
+    old_row = MagicMock()
+    old_row.payload = old_payload
+    old_row.fetched_at = datetime.now(timezone.utc)
+
+    conn = _sv_conn()
+    mock_db = _sv_mock_db([
+        _sv_scalars_result([conn]),
+        _sv_scalar_result(old_row),
+    ])
+
+    validation = ValidationResult(valid=True, accounts=[
+        DiscoveredAccount("PBKLBYZ5", "mutual", "active")
+    ])
+    live_portfolio = _sv_live_portfolio()
+
+    with (
+        patch("finlytics.investments.service.decrypt_token", return_value="plain-tok"),
+        patch.object(svc._PROVIDERS["indexa-capital"], "validate_token", AsyncMock(return_value=validation)),
+        patch.object(svc._PROVIDERS["indexa-capital"], "get_portfolio", AsyncMock(return_value=live_portfolio)),
+    ):
+        result = await svc.get_portfolio(user_id=1, db=mock_db)
+
+    assert result.total_value == pytest.approx(3000.0), (
+        f"First load after deploy must return FRESH data (3000.0), got {result.total_value}. "
+        "Bug: absent _schema_version not treated as cache miss."
+    )
+    assert result.contribution_events, (
+        "Fresh live data must include contribution_events; "
+        "stale payload had none — version check must invalidate old rows."
+    )
+
+
+# TC3 integration: wrong version → sync refetch → first load returns fresh data
+async def test_sv_wrong_version_triggers_sync_refetch_returns_fresh():
+    """TC3 (integration): wrong _schema_version → sync live fetch; result is fresh."""
+    from finlytics.investments import service as svc
+    from finlytics.investments.base import DiscoveredAccount, ValidationResult
+
+    old_payload = {
+        "_schema_version": 0,  # stale
+        "holdings": [],
+        "total_value": 888.0,
+        "total_invested": 800.0,
+        "total_gain_loss": 88.0,
+        "performance": None,
+    }
+    old_row = MagicMock()
+    old_row.payload = old_payload
+    old_row.fetched_at = datetime.now(timezone.utc)
+
+    conn = _sv_conn()
+    mock_db = _sv_mock_db([
+        _sv_scalars_result([conn]),
+        _sv_scalar_result(old_row),
+    ])
+
+    validation = ValidationResult(valid=True, accounts=[
+        DiscoveredAccount("PBKLBYZ5", "mutual", "active")
+    ])
+    live_portfolio = _sv_live_portfolio()
+
+    with (
+        patch("finlytics.investments.service.decrypt_token", return_value="plain-tok"),
+        patch.object(svc._PROVIDERS["indexa-capital"], "validate_token", AsyncMock(return_value=validation)),
+        patch.object(svc._PROVIDERS["indexa-capital"], "get_portfolio", AsyncMock(return_value=live_portfolio)),
+    ):
+        result = await svc.get_portfolio(user_id=1, db=mock_db)
+
+    assert result.total_value == pytest.approx(3000.0), (
+        f"Wrong _schema_version must return FRESH data (3000.0), got {result.total_value}"
+    )
+    assert result.contribution_events, "Fresh live data must include contribution_events"
+
+
+# TC4: _get_db_cache deletes stale row + flush → INSERT fresh row succeeds (no dup-key)
+async def test_sv_no_duplicate_row_on_version_invalid_recache():
+    """TC4: stale row deleted+flushed by _get_db_cache; get_portfolio INSERTs fresh (no dup-key).
+
+    Contract: _get_db_cache must await db.delete(row) and await db.flush() BEFORE
+    returning None, so the subsequent db.add() in get_portfolio does not hit a
+    unique-constraint on (connection_id).
+    """
+    from finlytics.investments import service as svc
+    from finlytics.investments.base import DiscoveredAccount, ValidationResult
+    from finlytics.db.models import InvestmentPortfolioCache
+
+    old_payload = {
+        "_schema_version": 0,  # stale version
+        "holdings": [],
+        "total_value": 777.0,
+        "total_invested": 700.0,
+        "total_gain_loss": 77.0,
+        "performance": None,
+    }
+    old_row = MagicMock()
+    old_row.payload = old_payload
+    old_row.fetched_at = datetime.now(timezone.utc)
+
+    conn = _sv_conn(conn_id=42)
+    mock_db = _sv_mock_db([
+        _sv_scalars_result([conn]),
+        _sv_scalar_result(old_row),
+    ])
+
+    validation = ValidationResult(valid=True, accounts=[
+        DiscoveredAccount("PBKLBYZ5", "mutual", "active")
+    ])
+    live_portfolio = _sv_live_portfolio()
+
+    with (
+        patch("finlytics.investments.service.decrypt_token", return_value="plain-tok"),
+        patch.object(svc._PROVIDERS["indexa-capital"], "validate_token", AsyncMock(return_value=validation)),
+        patch.object(svc._PROVIDERS["indexa-capital"], "get_portfolio", AsyncMock(return_value=live_portfolio)),
+    ):
+        result = await svc.get_portfolio(user_id=1, db=mock_db)
+
+    # Stale row must be deleted (prevents unique-constraint on INSERT)
+    mock_db.delete.assert_awaited_once_with(old_row)
+    # Flush must be called to send DELETE to DB before INSERT
+    mock_db.flush.assert_awaited_once()
+
+    # Fresh row inserted once with the current _schema_version
+    added_rows = [
+        call_args[0][0]
+        for call_args in mock_db.add.call_args_list
+        if isinstance(call_args[0][0] if call_args[0] else None, InvestmentPortfolioCache)
+    ]
+    assert len(added_rows) == 1, f"Expected 1 InvestmentPortfolioCache INSERT, got {len(added_rows)}"
+    assert added_rows[0].connection_id == 42
+    assert added_rows[0].payload.get("_schema_version") == svc._PORTFOLIO_SCHEMA_VERSION, (
+        "Re-cached payload must embed current _schema_version"
+    )
+    assert result.total_value == pytest.approx(3000.0)
+
+
+# TC5: _serialize_portfolio embeds _schema_version; _deserialize_portfolio round-trip intact
+def test_sv_serialize_includes_version_and_deserialize_round_trip():
+    """TC5: _serialize embeds _schema_version; _deserialize ignores it (round-trip works)."""
+    from finlytics.investments import service as svc
+    from finlytics.investments.base import (
+        NormalizedContributionEvent,
+        NormalizedPerformance,
+        NormalizedPortfolio,
+        NormalizedReturns,
+    )
+
+    ver = svc._PORTFOLIO_SCHEMA_VERSION
+
+    portfolio = NormalizedPortfolio(
+        holdings=[],
+        total_value=5000.0,
+        total_invested=4500.0,
+        total_gain_loss=500.0,
+        performance=NormalizedPerformance(
+            total_value=5000.0,
+            returns=NormalizedReturns(twr_annual=0.07, xirr=0.08, pl=500.0, invested=4500.0),
+            value_series=[],
+            contribution_events=[
+                NormalizedContributionEvent(
+                    date="2026-06-01", amount=4500.0, cumulative=4500.0, type="contribution"
+                )
+            ],
+        ),
+    )
+
+    payload = svc._serialize_portfolio(portfolio)
+    assert "_schema_version" in payload, "_serialize_portfolio must embed '_schema_version' key"
+    assert payload["_schema_version"] == ver, (
+        f"Expected _schema_version={ver!r}, got {payload['_schema_version']!r}"
+    )
+
+    restored = svc._deserialize_portfolio(payload)
+    assert restored.total_value == pytest.approx(5000.0)
+    assert restored.total_invested == pytest.approx(4500.0)
+    assert restored.total_gain_loss == pytest.approx(500.0)
+    assert restored.performance is not None
+    assert len(restored.performance.contribution_events) == 1
+    assert restored.performance.contribution_events[0].date == "2026-06-01"
+    assert restored.performance.contribution_events[0].type == "contribution"
+
+
+# TC6 regression: fresh + stale behavior unchanged for version-matching rows
+async def test_sv_regression_fresh_current_version_no_live_fetch():
+    """TC6 (fresh): current version, <24 h → cache HIT, no live call."""
+    from finlytics.investments import service as svc
+
+    payload = svc._serialize_portfolio(_sv_live_portfolio())
+    mock_row = MagicMock()
+    mock_row.payload = payload
+    mock_row.fetched_at = datetime.now(timezone.utc)
+
+    conn = _sv_conn(conn_id=11)
+    mock_db = _sv_mock_db([
+        _sv_scalars_result([conn]),
+        _sv_scalar_result(mock_row),
+    ])
+
+    with (
+        patch("finlytics.investments.service.decrypt_token", return_value="plain-tok"),
+        patch.object(svc._PROVIDERS["indexa-capital"], "validate_token", AsyncMock(
+            side_effect=AssertionError("validate_token must NOT be called for fresh cache hit")
+        )),
+        patch.object(svc._PROVIDERS["indexa-capital"], "get_portfolio", AsyncMock(
+            side_effect=AssertionError("provider.get_portfolio must NOT be called for fresh cache hit")
+        )),
+    ):
+        result = await svc.get_portfolio(user_id=1, db=mock_db)
+
+    assert result.total_value == pytest.approx(3000.0)
+    assert result.cache_stale is None or result.cache_stale is False, (
+        "Fresh cache hit must not be marked stale"
+    )
+
+
+async def test_sv_regression_stale_current_version_schedules_bg_refresh():
+    """TC6 (stale): current version, >=24 h → stale data returned immediately + bg task scheduled."""
+    from datetime import timedelta
+
+    from finlytics.investments import service as svc
+
+    payload = svc._serialize_portfolio(_sv_live_portfolio())
+    mock_row = MagicMock()
+    mock_row.payload = payload
+    mock_row.fetched_at = datetime.now(timezone.utc) - timedelta(hours=25)
+
+    conn = _sv_conn(conn_id=13)
+    mock_db = _sv_mock_db([
+        _sv_scalars_result([conn]),
+        _sv_scalar_result(mock_row),
+    ])
+
+    bg_tasks = MagicMock()
+    bg_tasks.add_task = MagicMock()
+
+    with (
+        patch("finlytics.investments.service.decrypt_token", return_value="plain-tok"),
+        patch.object(svc._PROVIDERS["indexa-capital"], "validate_token", AsyncMock(
+            side_effect=AssertionError("validate_token must NOT be called synchronously for stale hit")
+        )),
+        patch.object(svc._PROVIDERS["indexa-capital"], "get_portfolio", AsyncMock(
+            side_effect=AssertionError("provider.get_portfolio must NOT be called synchronously for stale hit")
+        )),
+    ):
+        result = await svc.get_portfolio(user_id=1, db=mock_db, background_tasks=bg_tasks)
+
+    assert result.total_value == pytest.approx(3000.0), "Stale hit must return cached total_value"
+    assert result.cache_stale is True, "cache_stale must be True for stale hit"
+    assert bg_tasks.add_task.called, "Background refresh task must be scheduled for stale cache hit"
+
+
+# ── Cache schema-version invalidation ────────────────────────────────────────
+
+
+async def test_cache_schema_version_mismatch_triggers_refetch():
+    """Fila de caché sin _schema_version (código antiguo) → MISS sincrónico → refetch.
+
+    Verifica el happy-path completo de Option B (cache schema versioning):
+    1. La fila stale (sin _schema_version) es eliminada de DB con delete+flush.
+    2. Se ejecuta un fetch en vivo al proveedor (no el path STALE/background).
+    3. La nueva fila almacenada lleva _schema_version == _PORTFOLIO_SCHEMA_VERSION.
+    4. El resultado devuelve los datos del fetch fresco, no el valor stale.
+    """
+    from finlytics.investments import service as svc
+    from finlytics.investments.base import (
+        DiscoveredAccount,
+        NormalizedPortfolio,
+        ValidationResult,
+    )
+
+    mock_conn = MagicMock()
+    mock_conn.id = 99
+    mock_conn.plugin_id = "indexa-capital"
+    mock_conn.status = "active"
+    mock_conn.token_enc = "fake-enc-token"
+    mock_conn.account_label_masked = "PBK\u2022\u2022\u2022Z5"
+    mock_conn.last_synced_at = None
+
+    # Payload antiguo: sin clave _schema_version (escrito por código pre-contribution_events)
+    stale_row = MagicMock()
+    stale_row.payload = {
+        "total_value": 999.0,
+        "holdings": [],
+        "total_invested": None,
+        "total_gain_loss": None,
+        "performance": None,
+        # no "_schema_version" key — simulates a row cached by the old code
+    }
+    stale_row.fetched_at = datetime(2026, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+
+    # Primera llamada execute → lista de conexiones; segunda → fila stale de caché
+    exec_conns = MagicMock()
+    exec_conns.scalars.return_value.all.return_value = [mock_conn]
+
+    exec_cache = MagicMock()
+    exec_cache.scalar_one_or_none.return_value = stale_row
+
+    mock_db = MagicMock()
+    mock_db.execute = AsyncMock(side_effect=[exec_conns, exec_cache])
+    mock_db.delete = AsyncMock()
+    mock_db.flush = AsyncMock()
+    mock_db.commit = AsyncMock()
+    mock_db.add = MagicMock()
+
+    fresh_portfolio = NormalizedPortfolio(
+        holdings=[],
+        total_value=12345.0,
+        total_invested=10000.0,
+        total_gain_loss=2345.0,
+        performance=None,
+    )
+    validation = ValidationResult(
+        valid=True,
+        accounts=[DiscoveredAccount("PBKLBYZ5", "mutual", "active")],
+    )
+
+    with (
+        patch("finlytics.investments.service.decrypt_token", return_value="plain-tok"),
+        patch.object(svc._PROVIDERS["indexa-capital"], "validate_token", AsyncMock(return_value=validation)),
+        patch.object(svc._PROVIDERS["indexa-capital"], "get_portfolio", AsyncMock(return_value=fresh_portfolio)),
+    ):
+        result = await svc.get_portfolio(user_id=1, db=mock_db)
+
+    # La fila stale fue eliminada y flusheada antes del INSERT
+    mock_db.delete.assert_called_once_with(stale_row)
+    mock_db.flush.assert_called_once()
+
+    # Se insertó una fila nueva con la versión de esquema correcta
+    mock_db.add.assert_called_once()
+    new_row_arg = mock_db.add.call_args[0][0]
+    assert new_row_arg.connection_id == 99
+    assert new_row_arg.payload.get("_schema_version") == svc._PORTFOLIO_SCHEMA_VERSION
+
+    # El resultado lleva los datos del fetch fresco, no el stale 999.0
+    assert result.total_value == pytest.approx(12345.0)
