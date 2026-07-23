@@ -1,10 +1,315 @@
 ---
 
-# ✅ APPROVED: Shuri, Vision, Barton, Fury — Import-time opening balance
+# Review: Cache Schema Versioning (Option B)
+
+**Reviewer:** Fury  
+**Fecha:** 2026-07-23T12:48:27+02:00  
+**Veredicto:** ✅ APPROVED — sin defectos
+
+
+---
+
+# Contrato: Cache Schema Versioning (Option B)
+
+**Autor:** Shuri  
+**Fecha:** 2026-07-23T12:48:27+02:00  
+**Estado:** IMPLEMENTADO — listo para revisión de Barton
+
+
+---
+# ✅ APPROVED: Revisión: Slice "Old Account Onboarding" — Opción C
+
+# Revisión: Slice "Old Account Onboarding" — Opción C
+
+**Revisor:** Fury (Lead / Architect)  
+**Fecha:** 2026-07-21T11:23:28+02:00  
+**Estado:** ✅ APPROVED
+
+
+---
+# ✅ IMPLEMENTED: POST /api/accounts — Contrato final e informe de implementación
+
+# POST /api/accounts — Contrato final e informe de implementación
+
+**Autor:** Shuri (Backend Engineer)  
+**Fecha:** 2026-07-21T11:30:12+02:00  
+**Estado:** ✅ Implementado — pendiente revisión de Vision (frontend) y Barton (QA)
+
+
+---
+# ✅ IMPLEMENTED: Vision Decision — Formulario "Nueva cuenta"
+
+# Vision Decision — Formulario "Nueva cuenta"
+**Fecha:** 2026-07-21T11:30:13+02:00
+**Autor:** Vision (Frontend Engineer)
+
+## Contexto
+Shuri construye el endpoint `POST /api/accounts` (201 → AccountOut) con saldo inicial opcional modelado como movimiento "Saldo inicial". Vision añade el flujo de creación en el frontend.
+
+**Nota:** `shuri-post-accounts-contract.md` no estaba disponible en inbox. Se usó el contrato del briefing directamente.
+
+## Decisiones de implementación
+
+### 1. Patrón modal (AccountCreateModal)
+Se sigue exactamente el mismo patrón que `AccountEditModal` y `AccountDeleteModal` existentes en `AccountsPage.tsx`:
+- Misma estructura `.modal-backdrop` / `.modal` / `.modal-header` / `.modal-body` / `.modal-footer`
+- Tecla Escape cierra el modal
+- `aria-modal="true"` + `aria-labelledby`
+
+### 2. Sección "Saldo inicial" colapsable
+Toggle tipo disclosure button (▶/▼) que muestra u oculta los campos `opening_balance` + `opening_date`. Borde izquierdo visual (`.acct-opening-section`) para diferenciarlo del formulario principal. Se eligió este patrón sobre un checkbox porque hace más visible la ayuda textual.
+
+### 3. Manejo de errores 409 / 422
+`createAccount` usa `raw fetch` (no `apiFetch`) para adjuntar `.status` al error lanzado, igual que `createRule` y `authPost`. La página lee `err.status` y muestra el string i18n apropiado dentro del modal (encima de los campos). El 422 del servidor no debería alcanzarse en condiciones normales (la validación cliente lo previene), pero se maneja como fallback.
+
+### 4. Tipos
+`AccountCreatePayload` añadido a `types.ts`. El tipo de retorno reutiliza `Account` existente (coincide con `AccountOut` del backend).
+
+### 5. Mock
+`mockGetAccounts` migrado a store mutable (`_mockAccounts`). `mockCreateAccount` añade la nueva cuenta al store, siendo visible en recargas mock subsiguientes dentro de la misma sesión.
+
+### 6. Estado en página
+Al crear con éxito, la cuenta se añade directamente al array local `accounts` desde la respuesta del servidor (sin re-fetch). Patrón consistente con `patchAccount`. El toast de éxito usa `t.accountsCreateToast(account.name)`.
+
+### 7. Colocación del botón
+Botón "Nueva cuenta" en `.settings-add-form` (bajo el `h2`), igual que `RulesPage.tsx`. Aparece siempre, también en estado vacío y cargando.
+
+## Archivos modificados
+- `frontend/src/api/types.ts` — `AccountCreatePayload` interface
+- `frontend/src/api/mock.ts` — store mutable + `mockCreateAccount`
+- `frontend/src/api/client.ts` — `createAccount` con raw fetch
+- `frontend/src/i18n/index.ts` — 18 nuevas claves en Dict
+- `frontend/src/i18n/es.ts` — traducciones ES
+- `frontend/src/i18n/en.ts` — traducciones EN
+- `frontend/src/index.css` — CSS `.acct-create-form`, `.acct-opening-toggle-btn`, `.acct-opening-section`
+- `frontend/src/pages/AccountsPage.tsx` — botón + `AccountCreateModal` component
+
+## Build
+`npm run build` (tsc --noEmit + vite build) → ✅ 0 errores TypeScript.
+
+
+
+---
+
+## Overview
+
+Squad slice completed for deriving contribution events from Indexa Capital's cumulative `net_amounts` performance data and displaying them in a frontend table with multi-account aggregation. Events are calculated at runtime (not persisted) and cached in the 24h portfolio JSON cache.
+
+**Final Status:** Full suite 1356 passed, 2 skipped, 0 failed. Frontend build green. Contribution events in InvestmentPortfolioOut (OpenAPI). Clean startup.
+
+**Contract:**
+- Backend: `NormalizedContributionEvent` (date, amount, cumulative, type) derived from net_amounts deltas.
+- Frontend: "Aportaciones y retiradas" table in IndexaView with Fecha·Importe·Acumulado columns, signed coloring, type badges.
+- Multi-account: Sum deltas by date, discard per-account cumulatives, recalculate running total.
+
+
+---
+
+## Backend Implementation (Shuri)
+
+**Files:** base.py (NormalizedContributionEvent dataclass, NormalizedPerformance.contribution_events), indexa.py (_derive_contribution_events helper, _fetch_performance, get_portfolio multi-account merge), schemas.py (ContributionEventOut, InvestmentPortfolioOut.contribution_events), service.py (_deserialize_portfolio, _aggregate)
+
+Derives contribution events from net_amounts by calculating deltas between consecutive cumulative entries. Rules:
+- First entry 0.0 → account open marker, omitted.
+- First entry ≠ 0.0 → initial contribution (amount = value itself).
+- Zero deltas → omitted.
+- Positive delta → type="contribution", negative → type="withdrawal".
+- All amounts rounded to 2 decimals.
+
+Multi-account aggregation in `_aggregate` and `get_portfolio`:
+1. Collect events from all accounts.
+2. Group by date, sum amounts (deltas, not cumulatives).
+3. Discard per-account cumulatives.
+4. Recalculate running total from combined deltas in chronological order.
+5. Derive type from combined amount.
+
+No migration required — events derived at runtime, serialized into 24h cache JSON via dataclasses.asdict().
+
+
+---
+
+## Frontend Implementation (Vision)
+
+**Files:** IndexaView.tsx (table rendering), types.ts (ContributionEvent interface), client.ts (apiFetch mocking), mock.ts (test data with withdrawal), i18n/index/en/es.ts (7 keys)
+
+"Aportaciones y retiradas" table displays contribution_events from portfolio response. Columns: Fecha · Importe · Acumulado (signed coloring, type badges). Ordered most-recent-first via `.reverse()`. Reuses existing CSS (.inv-holdings-table-wrap, .inv-pnl--pos/neg, .inv-asset-class-badge). Defensive optional handling for missing field.
+
+i18n: table_label, date_header, amount_header, cumulative_header, contribution_badge, withdrawal_badge, empty_state (7 strings × 3 files).
+
+
+---
+
+## QA Implementation (Barton)
+
+**File:** tests/api/test_indexa_contributions.py
+
+30 test cases covering: delta derivation, first-0 skip, non-zero first, withdrawal semantics, zero-delta skip, empty net_amounts, integer keys, multi-account via _aggregate with date overlap, ordering, rounding, schema validation, cache round-trip, end-to-end integration. Full suite: 1356 passed, 2 skipped, 0 failed.
+
+
+---
+
+## Review Verdict (Fury)
+
+**Status:** ✅ APPROVED — No blocking defects.
+
+**Correctness verified:**
+- Delta derivation: correct ordering, first-0 skip, zero-delta skip, sign-to-type mapping.
+- Multi-account aggregation: sums deltas per date (not per-account cumulatives), discards individual cumulatives, recalculates running total from combined deltas — verifiably correct integral semantics.
+- Additivity: contributions_series (chart) unchanged, contribution_events orthogonal, schema backward-compatible (default []).
+- Withdrawal semantics: decrease in net_amounts → amount<0 + type="withdrawal".
+- Frontend defensive optional handling.
+- Test coverage: 30 cases including withdrawals, empty, multi-account, ordering, rounding, cache round-trip.
+
+**Known acceptable limitations:**
+- Cannot sub-type withdrawals (partial, total, fees, etc.) — Indexa API does not distinguish.
+- Same-day net events are netted (single net_amounts entry per day).
+
+
+---
+
+## Decision
+
+**OPTION A (Implemented):** Derive contribution events from net_amounts deltas at runtime; aggregate multi-account by summing deltas per date; withdrawals semantically represent negative deltas; same-day netting is accepted limitation.
+
+This approach is minimal, correct, and leverages existing performance data without additional schema complexity.
+
+
+---
+
+
+
+
+---
+
+
+---
+
+# # ✅ IMPLEMENTED + APPROVED: Shuri, Barton, Fury — FX Decouple (Model A)
+
+> **Estado:** IMPLEMENTED + APPROVED  
+> **Fecha entrada:** 2026-07-22T17:04:25+02:00  
+> **Scope:** Desacoplar almacenamiento MSFT-USD de disponibilidad diaria FX; Friday/null-FX/current-day recovery  
+
+
+---
+
+## Root Cause (diagnosed via live Yahoo probes)
+
+ESPP Evolution chart dropped Fridays, null-FX days, and current day. **Causa raíz:**
+1. **Viernes**: Yahoo EURUSD=X daily nunca devuelve barras los viernes (rollover FX de fin de semana).
+2. **Intersección (bug-1)**: `topup_recent_prices` y `backfill_price_history` almacenaban PriceHistory SÓLO para `common = MSFT ∩ EURUSD` → todos los viernes caídos.
+3. **Null FX (bug-2)**: a veces EURUSD devolvía `close=null` para ciertos días → descartaba ese día.
+4. **Día actual (bug-3)**: `period2 = _to_unix(date.today())` medianoche UTC → excluía la barra in-progress del día actual.
+
+
+---
+
+## Decision: Model-A (Decoupled FX)
+
+Desacoplar equity de la disponibilidad diaria FX:
+
+1. **Almacenar MSFT USD para TODOS los días de trading** — independiente de si EURUSD tiene barra ese día.
+2. **FX forward-fill**: si no hay FX exacto para ese día (viernes, null), usar FX más reciente disponible en batch o DB.
+3. **Single FX en read-time**: `fidelity_evolution` aplica UN ÚNICO tipo de cambio (get_current_fx_rate live snapshot, fallback a almacenado) a TODAS las fechas históricas.
+4. **Auto gap-recovery**: si `len(prices) >= 30` y viernes presentes < 50% esperados → dispara `backfill_price_history` automático en primer request post-deploy.
+5. **No migración**: columnas `fx_eur_usd` y `close_eur` siguen NOT NULL, rellenadas con FX más reciente. Head sigue **0017**.
+
+**Trade-off aceptado por owner:** puntos históricos usan FX del día de hoy (no histórico exacto). Elimina completamente dependencia de serie FX diaria Yahoo.
+
+
+---
+
+## Backend Implementation (Shuri)
+
+**Archivo principal:** `src/finlytics/investments/market_data.py`, `src/finlytics/api/fidelity.py`
+
+### market_data.py
+
+- `_fetch_yahoo_history`: period2 cambia `date.today()` → `date.today() + 1 day` (incluye barra in-progress).
+- `topup_recent_prices`: 
+  - Lookback ampliado a 90 días (antes solo desde max_date) → recupera viernes históricos automáticamente.
+  - Elimina intersección: almacena TODOS los días MSFT.
+  - FX forward-fill: usa FX exacto si existe ese día, sino FX más reciente del batch, sino FX almacenado en DB.
+- `backfill_price_history`: mismo patrón (store-all, forward-fill FX).
+- `get_current_fx_rate()` (nueva): obtiene live EURUSD snapshot de Yahoo.
+
+### fidelity.py
+
+- `fidelity_evolution`:
+  - Gap recovery: si `len >= 30` y viernes < 50% → `backfill_price_history` automático.
+  - Single FX: `latest_fx_eur_usd = get_current_fx_rate()` (live), fallback a `max(prices).fx_eur_usd`.
+  - Todos los puntos usan mismo FX.
+- `fidelity_kpis`, `fidelity_lots`: sin cambios; usan daily-bar FX vía `get_latest_price()`.
+- Contribuciones EUR nativas (CSV Fidelity EU) — sin conversión FX.
+
+
+---
+
+## QA Implementation (Barton)
+
+**Archivo principal:** `tests/api/test_fx_decouple.py` — 30 tests comprehensivos
+
+**Test categories** (por bug/feature):
+- TC-1 (viernes): 4 tests — viernes aparece en serie, valores correctos.
+- TC-2 (null FX): 3 tests — día con FX nulo produce punto, topup crea 2 filas (no 1).
+- TC-3 (día actual): 5 tests — hoy aparece, period2=tomorrow, sanidad Unix.
+- TC-4 (consistencia EUR): 4 tests — FX único uniforme en toda serie, contribuciones EUR nativas.
+- TC-5 (sin intersección): 5 tests — backfill almacena todos días MSFT (5 filas lun-vie), incluso con FX nulo.
+- TC-6 (regresión): 9 tests — lunes/jueves sin cambios, KPI formula, funciones escalonadas, series vacías.
+
+**Bug encontrado y corregido:** Helper `_make_db_session` en `test_market_data.py` no configuraba `first.return_value = None` cuando Shuri cambió query de `scalar_one_or_none` a `first`. Actualizado.
+
+**Resultado:** 
+- `test_fx_decouple.py`: 30 passed ✅
+- Suite completa: **1325 passed, 2 skipped, 0 failed** ✅
+
+
+---
+
+## Review Verdict (Fury)
+
+**Status:** ✅ APPROVED — sin defectos bloqueantes.
+
+**Hallazgos principales:**
+
+1. **De-intersección**: Verificado. Ambos `topup` y `backfill` almacenan TODOS los días MSFT sin filtrar por EURUSD. ✅
+2. **Consistencia FX**: Coherente en todos los endpoints. Value y contributions ambos EUR. ✅
+   - Evolution: live FX snapshot.
+   - KPIs/lots: daily-bar FX (get_latest_price).
+   - Nota: <0.3% intraday noise típico — views distintas, frecuencias distintas.
+3. **Gap recovery**: Seguro. Max 1 intento por request, threshold >= 30 evita falsos positivos, degradación graceful si Yahoo falla.
+4. **Idempotencia**: ON CONFLICT DO UPDATE (topup) + DO NOTHING (backfill) → sin duplicados.
+5. **close_eur almacenado**: Aceptable. Ningún endpoint activo lo lee. Recalculado en runtime para tomar live FX.
+
+**Defectos encontrados:** Ninguno.
+
+
+---
+
+## Impact Summary
+
+- **Frontend:** Ninguno. Endpoints siguen devolviendo EUR, charts renderean igual.
+- **Migration:** Ninguna. Head **0017**.
+- **API contracts:** Sin cambios.
+- **Degradation:** Si Yahoo falla → datos parciales sin viernes; sin cortes.
+
+
+---
+
+
+
+
+---
+
+
+---
+
+# # ✅ APPROVED: Shuri, Vision, Barton, Fury — Import-time opening balance
 
 > **Estado:** IMPLEMENTED + APPROVED  
 > **Fecha entrada:** 2026-07-21T13:31:05+02:00  
 > **Scope:** Capture "saldo anterior" when importing a statement for a NEW account  
+
 
 ---
 
@@ -16,6 +321,7 @@ Squad slice completed for capture of opening balance (saldo anterior) during sta
 
 **Contract:** `ConfirmIn.opening_balance: float | None = None`. Ignored for existing accounts. Detects account creation via IBAN (SELECT) or name (pre-SELECT). Date automatically inferred as min(transaction_date) − 1 day. All operations atomic in session.begin(). Guards: empty transactions, zero/null balance, existing accounts.
 
+
 ---
 
 ## Backend Implementation (Shuri)
@@ -26,6 +332,7 @@ Helper `create_opening_balance_tx` extracted to repository.py for DRY (reutiliza
 
 Tests: 3 new happy-path tests in test_imports.py. Patches updated in test_accounts.py for new helper location.
 
+
 ---
 
 ## Frontend Implementation (Vision)
@@ -33,6 +340,7 @@ Tests: 3 new happy-path tests in test_imports.py. Patches updated in test_accoun
 **Files:** ImportModal.tsx, types.ts, client.ts, mock.ts, i18n (index/es/en)
 
 Optional "Saldo anterior" field in ImportModal resolve phase. Visible only when matched_account_id == null (new accounts). Covers IBAN-detected path (newIbanEntries) and name-only path (noIbanFiles). Modal supports multiple accounts. Types: ConfirmRequest += opening_balance. i18n: 3 keys added (label, help text, hint). parseFloat + isNaN guard before payload inclusion.
+
 
 ---
 
@@ -44,6 +352,7 @@ Optional "Saldo anterior" field in ImportModal resolve phase. Visible only when 
 
 Result: **All 11 pass** against Shuri's implementation. Full suite: 1275 passed, 2 skipped, 0 failed.
 
+
 ---
 
 ## Review Verdict (Fury)
@@ -54,13 +363,16 @@ Result: **All 11 pass** against Shuri's implementation. Full suite: 1275 passed,
 
 **Known acceptable issue:** RuntimeWarning in test_statements_originals.py (mock not awaited) — test noise, not prod bug. Optional 2-line cleanup available.
 
+
 ---
 
 ## Known deferral
 
 **is_system flag + migration 0016:** Excluded from this slice. Opening balances currently count as "income" in their month (by design). Owner decides when/if to exclude them from KPI queries. No architectural blocker; can be added later without touching this slice.
 
+
 ---
+
 ---
 
 # 🟡 PROPOSAL: Fury — Onboarding de cuentas antiguas
@@ -74,6 +386,7 @@ Result: **All 11 pass** against Shuri's implementation. Full suite: 1275 passed,
 **Autor:** Fury  
 **Estado:** 🟡 Pendiente validación del owner  
 **Scope:** Modelo de datos Account + ingesta de cuentas históricas
+
 
 ---
 
@@ -112,6 +425,7 @@ Insertar una **transacción sintética de apertura** (`description="Saldo inicia
 | Permite subir N meses de historia granular sin subir TODO | |
 | El owner decide la granularidad: solo 2 años detallados + saldo para el resto | |
 
+
 ---
 
 ## Recomendación
@@ -126,6 +440,7 @@ Insertar una **transacción sintética de apertura** (`description="Saldo inicia
 
 **Categoría especial:** Crear una categoría `"Apertura / Opening Balance"` con un flag `is_system=true` o simplemente excluirla en los KPIs por nombre/tipo. Decisión menor, depende de si el owner quiere que aparezca o no en los gráficos de ingresos.
 
+
 ---
 
 ## Preguntas para el owner (bloquean siguiente paso)
@@ -134,6 +449,7 @@ Insertar una **transacción sintética de apertura** (`description="Saldo inicia
 2. ¿Desde qué fecha quieres análisis granular? (e.g. "últimos 2 años con detalle, el resto como saldo")
 3. ¿Quieres ver "patrimonio / saldo actual por cuenta" como métrica además de gasto/ingreso? (hoy no existe — añadirlo es factible pero es scope nuevo)
 
+
 ---
 
 ## Dependencias técnicas (si se aprueba)
@@ -141,6 +457,7 @@ Insertar una **transacción sintética de apertura** (`description="Saldo inicia
 - **Shuri:** Si se opta por categoría de sistema, valorar si se añade `Category.is_system` (migración) o si basta con filtrar por nombre reservado.
 - **Banner:** Si se suben extractos antiguos, evaluar calidad de parseo de formatos pre-2022.
 - **Vision:** UX del flujo "crear cuenta con saldo inicial" en el frontend.
+
 
 ---
 
@@ -178,6 +495,7 @@ Added an interactive drill-down transactions table to the Finanzas overview page
 ## Validation
 
 `cd frontend && npm run build` — ✅ zero TS errors, vite build success.
+
 
 
 ---
@@ -236,6 +554,7 @@ Moved `CategoryMovers` ("Mayores cambios") from Finanzas to Extractos, fixed the
 `cd frontend && npm run build` → **0 TypeScript errors**, vite build ✓ (pre-existing chunk size warning only).
 
 
+
 ---
 
 # Vision — Finanzas variation removed; Extractos KPI deltas added
@@ -244,11 +563,13 @@ Moved `CategoryMovers` ("Mayores cambios") from Finanzas to Extractos, fixed the
 **Author:** Vision (Frontend Engineer)  
 **Requested by:** DrDonoso
 
+
 ---
 
 ## Summary
 
 Removed month-over-month variation arrows from Finanzas KpiCards and moved the comparison to Extractos, where it is semantically correct (page is month-scoped, comparison is always vs. the previous calendar month).
+
 
 ---
 
@@ -282,11 +603,13 @@ Removed month-over-month variation arrows from Finanzas KpiCards and moved the c
 ### `frontend/src/index.css`
 - Removed `.kpi-prev-period-bar` CSS rule (no longer referenced).
 
+
 ---
 
 ## Validation
 
 `cd frontend && npm run build` — exit 0, zero TypeScript errors. Pre-existing chunk-size and CSS `white-space` warnings only.
+
 
 
 ---
@@ -313,6 +636,7 @@ Users can force-import an individual transaction that was flagged as a duplicate
 - Targeted duplicate override/hash/schema tests passed.
 - Full suite command required for handoff: `C:\Python314\python.exe -m pytest -q`.
 
+
 ---
 # Vision decision — Import preview duplicate override
 
@@ -333,6 +657,7 @@ Add a per-row import preview override for transactions flagged as duplicates. Th
 ## Validation
 
 `cd frontend && npm run build` passes with zero TypeScript errors. Vite’s existing chunk-size warning remains.
+
 
 ---
 # Vision — PreviewTypeahead localized label display
@@ -359,6 +684,7 @@ Update PreviewTypeahead generally so the idle input displays the label of the op
 
 - rontend/src/components/PreviewTypeahead.tsx
 
+
 ---
 # Rocket — Application log timestamps
 
@@ -384,6 +710,7 @@ Every application log line emitted by the container now starts with a human-read
 ## Validation
 
 Python syntax/import parsing passed for `src/finlytics/__main__.py` and `seed.py`; the uvicorn log config helper builds a `dict`.
+
 
 ---
 
@@ -414,6 +741,7 @@ Python syntax/import parsing passed for `src/finlytics/__main__.py` and `seed.py
 ## Validation
 
 `cd frontend && npm run build` passed with zero TypeScript errors. The existing Vite chunk-size warning remains expected.
+
 
 
 ---
@@ -447,6 +775,7 @@ Python syntax/import parsing passed for `src/finlytics/__main__.py` and `seed.py
 ## Validation
 
 `cd frontend && npm run build` passed with zero TypeScript errors. The existing Vite chunk-size warning remains expected.
+
 
 
 ---
@@ -508,6 +837,7 @@ Only stable signal `code` values and severities are returned; no localized human
 - Full suite: `C:\Python314\python.exe -m pytest -q` → 1153 passed, 2 skipped.
 
 
+
 ---
 
 # Merchant Normalization Feature — REMOVED/REVERTED
@@ -560,6 +890,7 @@ Color palettes (Wanda) and palette-aware charts remain deployed. This decision s
 - Palette bootstrap served ✓
 - Container healthy on :7777 ✓
 
+
 ---
 
 # Wanda — Palette-aware finance semantic colors
@@ -582,6 +913,7 @@ Meaning is preserved: income/positive remains unmistakably green, and expense/ne
 ## Guardrail
 
 Category identity colors remain untouched: backend `category.color`, categorical fallback arrays, merchant/category slice colors, provider colors, asset-class colors, and instrument palettes are not reinterpreted as income/expense semantics.
+
 
 ---
 
@@ -623,6 +955,7 @@ Category identity colors remain untouched: backend `category.color`, categorical
 
 `cd frontend && npm run build` passed with zero TypeScript errors. The existing Vite chunk-size warning remains expected.
 
+
 ---
 
 ## BATCH STATUS: Finlytics Feedback Batch 5 (2026-07-15)
@@ -641,6 +974,7 @@ Category identity colors remain untouched: backend `category.color`, categorical
 
 **Outcome:** ✅ Heatmap scaling fixed (3-mode + adaptive cellsize) | ✅ ESPP import reminder endpoint shipped + banner integrated | ✅ Cadence analysis delivered | ⏳ Pending: owner acceptance + checkpoint commit of feature code.
 
+
 ---
 
 # Decisions Log
@@ -656,6 +990,7 @@ Shuri delivered two post-integration refinements:
 2. **Incremental price top-up** — `topup_recent_prices()` fetches Yahoo history and UPSERTs to settle intraday snapshots to official closes daily. Last stored day is corrected on next read. 1104 tests passed.
 
 **Overall status:** Fidelity ESPP fully integrated. Daily chart + sortable/paginated lots table with tooltips. Price refresh on-demand (≤1 fetch/business day, settled-daily model).
+
 
 ---
 
@@ -673,6 +1008,7 @@ Shuri delivered two post-integration refinements:
 - Frontend implementation (Vision) — nav restructure, 2 overview pages, i18n, CSS — build 0 errors
 - Nullability contract fix (Coordinator) — combined-overview fields typed number|null, guarded usages
 
+
 ---
 
 ## BATCH STATUS: Finlytics Feedback Batch 4 (2026-07-15)
@@ -689,91 +1025,6 @@ Shuri delivered two post-integration refinements:
 
 **Outcome:** ✅ 3 items implemented + verified | ⏳ Pending owner decisions: heatmap scaling proposal (GitHub-calendar + in-card scroll + weekly for long ranges) + checkpoint commit of uncommitted feature code.
 
----
-
-## Vision: Inicio/Finanzas Split + InvestmentSnapshotCard + ImportSourcePicker (2026-07-15)
-
-**Fecha:** 2026-07-15T16:20:19+02:00  
-**Autor:** Vision (Frontend Engineer)  
-**Solicitado por:** DrDonoso (David)  
-**Estado:** SHIPPED — build limpio, 0 errores TS
-
-### Contexto
-
-Batch de 5 items de feedback del owner implementa la propuesta MOVE+REPLACE de Wanda (`.squad/decisions.md` § "PROPOSAL: Recomendación: Inicio vs Finanzas") — esta decisión estaba marcada como pendiente.
-
-### Decisiones implementadas
-
-**1. Connectors — Eliminar botón "Resumen" de Fidelity ESPP cuando conectado**  
-Card connected muestra solo: badge ✓ + botón Desconectar. Archivo: `ConnectorsPage.tsx` — `renderFidelityEsppCard`.
-
-**2. Settings groups collapsed por defecto**  
-Los 4 grupos colapsables (Datos/Reglas/Sistema/Aplicación) usan `useState(false)`. Archivo: `Layout.tsx` líneas ~57-60.
-
-**3. Split Inicio vs Finanzas — MOVE + REPLACE** (Principio: cada widget tiene UN único hogar. Sin duplicación.)
-
-| Componente | Antes | Ahora |
-|---|---|---|
-| `GlobalFilterBar` | ✅ | ❌ |
-| `SpendingByCategory` | ✅ | ❌ |
-| `TopMerchants` | ✅ | ❌ |
-| `SpendingHeatmap` | ✅ | ❌ |
-| `CategoryMovers` | ✅ | ❌ |
-| `KpiCards` | ✅ Filtrable | ✅ Mes actual fijo |
-| `InvestmentSnapshotCard` | ❌ | ✅ Nuevo |
-| Botón Importar | File picker | `ImportSourcePicker` |
-
-**Nota:** `defaultRange()` devuelve mes anterior; Dashboard usa `currentMonthRange()` inline para mes en curso.
-
-**Finanzas:** Hereda GlobalFilterBar, KpiCards (con previousOverview), SpendingByCategory, TopMerchants; AÑADE SpendingHeatmap, CategoryMovers, ImportLauncher + ImportModal.
-
-**4. Botón Importar en Finanzas**  
-`ImportLauncher` + `ImportModal` + `refreshKey` + `toast` en `FinancesOverviewPage.tsx`. Tras importar, `refreshKey` dispara re-fetch de todos los datos.
-
-**5. Inicio: Importar → ImportSourcePicker (data-driven)**  
-Nuevo componente `ImportSourcePicker.tsx`:
-- Siempre lista "Extractos bancarios" (file picker).
-- Fetches `GET /api/investments/plugins` y filtra `import_route !== null`.
-- Fidelity ESPP → `import_route: '/investments/fidelity-espp'` (Shuri backend).
-- Extensible: futuros plugins aparecen automáticamente.
-
-Tipo actualizado: `InvestmentPlugin.import_route: string | null` en `api/types.ts`.
-
-**6. Nuevo componente: InvestmentSnapshotCard**  
-`frontend/src/components/InvestmentSnapshotCard.tsx`:
-- Fetches `GET /api/investments/combined-overview`.
-- Loading → spinner. Error → error box. Vacío → mensaje + link "Ver inversiones →".
-- Populated → total_value_eur grande + desglose por provider (icon + name + value_eur).
-- `fmtEur(null)` → "—".
-- Header siempre muestra link a `/investments`. CSS: clases `inv-snapshot-*` en `index.css`.
-
-### Archivos modificados/creados
-
-| Archivo | Cambio |
-|---|---|
-| `frontend/src/api/types.ts` | `InvestmentPlugin.import_route: string \| null` |
-| `frontend/src/api/mock.ts` | `import_route` en todos plugins; fidelity-espp entry |
-| `frontend/src/i18n/index.ts` | 7 nuevas claves (invSnapshot*, importPicker*) |
-| `frontend/src/i18n/es.ts` | 7 traducciones ES |
-| `frontend/src/i18n/en.ts` | 7 traducciones EN |
-| `frontend/src/components/Layout.tsx` | sg* collapsed por defecto |
-| `frontend/src/pages/ConnectorsPage.tsx` | Eliminado Link "Resumen" en Fidelity connected |
-| `frontend/src/pages/Dashboard.tsx` | Reescrito como hub cross-domain |
-| `frontend/src/pages/FinancesOverviewPage.tsx` | Heatmap + Movers + Import añadidos |
-| `frontend/src/index.css` | CSS para inv-snapshot-* e import-picker-* |
-| `frontend/src/components/InvestmentSnapshotCard.tsx` | **Nuevo** |
-| `frontend/src/components/ImportSourcePicker.tsx` | **Nuevo** |
-
-**Build:** `tsc --noEmit && vite build` → 0 TypeScript errors, built in 6.48s ✓
-
----
-
-# DESIGN SPEC + PROPOSAL: Reestructuración de navegación y páginas overview
-
-**Autora:** Wanda (UX/UI Designer)  
-**Fecha:** 2026-07-15  
-**Implementador:** Vision (Frontend Engineer)  
-**Estado:** Spec lista para implementación
 
 ---
 
@@ -878,6 +1129,7 @@ Los sub-links de plugins conectados (Indexa, Fidelity) **se eliminan de la nav**
 | `frontend/src/i18n/index.ts` | Añadir tipos para claves nuevas |
 | `frontend/src/i18n/es.ts` | Añadir valores ES |
 | `frontend/src/i18n/en.ts` | Añadir valores EN |
+
 
 ---
 
@@ -1012,6 +1264,7 @@ La página `/investments` deja de ser un catálogo de plugins conectados y se co
 
 Mantener el estado vacío actual (`investments-empty` con CTA → Conectores). Mostrar solo si `providers.length === 0` (o 404 del endpoint).
 
+
 ---
 
 ## C) PROPUESTA: Página overview de grupo Finanzas — `/finances`
@@ -1080,6 +1333,7 @@ Todo el CSS de layout ya existe (`.dashboard`, `.dashboard-header`, `.charts-row
 - **Estructura:** Clonar la lógica de data-fetching de `Dashboard.tsx` (filtros, overview, byCategory) pero **sin**: ImportModal, ImportLauncher, heatmap data, categoryMovers data, globalOverview (unfiltered), toast.
 - **Ruta:** `/finances` en `App.tsx`.
 - **Título de página:** usar `<h1 className="tx-page-title">{t.financesOverviewTitle}</h1>` (misma clase que Transacciones, consistencia visual).
+
 
 ---
 
@@ -1176,6 +1430,7 @@ settingsGroupSystem: 'System',
 settingsGroupApp: 'App',
 ```
 
+
 ---
 
 ## E) Fix del título de Tendencias (AnalyticsPage)
@@ -1255,6 +1510,7 @@ Esto iguala tamaño y peso visual. **Recomiendo el fix mínimo** para evitar rie
 
 Después del fix, la regla `.analytics-page-title` en index.css (línea 942-947) queda huérfana y puede eliminarse.
 
+
 ---
 
 ## Resumen de trabajo para Vision
@@ -1270,6 +1526,7 @@ Después del fix, la regla `.analytics-page-title` en index.css (línea 942-947)
 **Dependencia backend (punto B):** El overview combinado de inversiones necesita que Shuri construya `GET /api/investments/combined-overview` con el shape definido arriba. Vision puede maquetar con datos mock mientras tanto.
 
 
+
 ---
 
 # Decision: Indexa Portfolio Cache — DB Cache + Async Background Refresh
@@ -1279,6 +1536,7 @@ Después del fix, la regla `.analytics-page-title` en index.css (línea 942-947)
 **Status:** Implemented  
 **Requested by:** DrDonoso (David)
 
+
 ---
 
 ## Problema
@@ -1287,11 +1545,13 @@ La vista Indexa Capital era lenta al abrirse porque el endpoint `GET /api/invest
 
 Owner spec: *"cachear en BD, congelar 1 día está bien, y que la búsqueda se haga en async en background."*
 
+
 ---
 
 ## Decisión
 
 Implementar un caché de BD por conexión (`investment_portfolio_cache`) con ventana de frescura de **24 horas** y refresh asíncrono vía FastAPI `BackgroundTasks`.
+
 
 ---
 
@@ -1362,6 +1622,7 @@ async def _bg_refresh_connection(
 `_serialize_portfolio(p)` → `dataclasses.asdict(p)` (recursivo, JSON-safe).  
 `_deserialize_portfolio(data)` → reconstruye jerarquía de dataclasses. Las claves de `months_pct`/`months_eur` se convierten de `str` (JSON) a `int` (Python): `{int(k): v for k, v in d.items()}`.
 
+
 ---
 
 ## Alternativas descartadas
@@ -1372,6 +1633,7 @@ async def _bg_refresh_connection(
 | In-memory cache (lo existente, 5 min) | No persiste entre reinicios; no cumple el req de 24h; no hace refresh async |
 | Caché a nivel de `InvestmentPortfolioOut` (ya agregado) | Perdería granularidad por conexión; dificulta invalidación parcial |
 
+
 ---
 
 ## Impacto en tests
@@ -1380,6 +1642,7 @@ async def _bg_refresh_connection(
 - **2 tests existentes actualizados** (`test_portfolio_service_maps_holdings_gain_loss_and_returns`, `test_aggregate_single_account_passes_through_monthly_and_drawdown`): eliminado `_portfolio_cache.clear()`; añadido `execute_result.scalar_one_or_none.return_value = None` para simular cache miss.
 - **Suite completa:** 1112 passed, 2 skipped, 0 failed.
 
+
 ---
 
 ## Nota para Vision
@@ -1387,13 +1650,6 @@ async def _bg_refresh_connection(
 El campo `cache_stale: bool` está disponible en la respuesta de `GET /api/investments/portfolio`. Si se quiere mostrar un indicador tipo *"Datos de hace X horas — actualizando..."* en la IndexaView, Vision puede leer `cache_stale` y `cached_at` para construirlo. No es obligatorio; el comportamiento actual es correcto sin cambios de frontend.
 
 
----
-
-# Decision: Combined Investments Overview Endpoint
-
-**Autora:** Shuri (Backend Engineer)  
-**Fecha:** 2026-07-15  
-**Estado:** Implementado ✅
 
 ---
 
@@ -1401,6 +1657,7 @@ El campo `cache_stale: bool` está disponible en la respuesta de `GET /api/inves
 
 `GET /api/investments/combined-overview`  
 → Autenticado (session cookie, igual que todos los endpoints de inversiones)
+
 
 ---
 
@@ -1453,6 +1710,7 @@ El campo `cache_stale: bool` está disponible en la respuesta de `GET /api/inves
 - `total_invested_eur`, `total_gain_loss_eur`, `total_gain_loss_pct` — null si no hay datos de coste o si la suma es inconsistente
 - `providers[].value_eur`, `providers[].gain_loss_eur`, `providers[].gain_loss_pct` — null cuando precio MSFT no disponible
 
+
 ---
 
 ## Fuentes de datos
@@ -1463,6 +1721,7 @@ El campo `cache_stale: bool` está disponible en la respuesta de `GET /api/inves
 | Fidelity `value_eur` | `Σ(lot.shares) × MSFT_close_usd × fx_eur_usd` via `get_latest_price()` |
 | Fidelity `invested_eur` | `Σ(lot.cost_basis)` — siempre conocido cuando hay lots |
 | `espp_stock` label | Clase fija para Fidelity ESPP (visibilidad en donut separada de `equity` Indexa) |
+
 
 ---
 
@@ -1479,6 +1738,7 @@ El campo `cache_stale: bool` está disponible en la respuesta de `GET /api/inves
 
 > Los labels son defaults; i18n los localiza en el frontend.
 
+
 ---
 
 ## Comportamiento por estado
@@ -1491,6 +1751,7 @@ El campo `cache_stale: bool` está disponible en la respuesta de `GET /api/inves
 | Precio MSFT no disponible | Fidelity en `providers[]` con `value_eur: null`; omitido de `by_provider` y `by_asset_class` |
 | Encryption key ausente | HTTP 503 (Romanoff fail-closed) |
 
+
 ---
 
 ## Archivos implementados
@@ -1502,20 +1763,13 @@ El campo `cache_stale: bool` está disponible en la respuesta de `GET /api/inves
 | `tests/api/test_investments.py` | 8 tests: no connections, both providers (totals + pcts ~100 + shape), indexa-only, fidelity-only, degraded price (null), 401 |
 
 
----
-
-# IMPL MEMO: Nav restructure + Finanzas overview + Investments combined
-
-**Autor:** Vision (Frontend Engineer)
-**Fecha:** 2026-07-15T14:10:06+02:00
-**Spec origen:** `.squad/decisions/inbox/wanda-nav-restructure-overviews.md`
-**Estado:** Implementado · build limpio · pendiente endpoint Shuri
 
 ---
 
 ## Resumen ejecutivo
 
 Se implementa la reestructuración de navegación completa de Wanda + las 2 páginas overview + la corrección del título de Tendencias + el reagrupamiento de Ajustes en 4 grupos. Build: 0 errores TypeScript.
+
 
 ---
 
@@ -1591,6 +1845,7 @@ Nuevas clases añadidas al final:
 - `.inv-provider-cards` — grid `auto-fill minmax(260px, 1fr)`
 - `.inv-provider-card` + subclases (`__header`, `__icon`, `__name`, `__value`, `__gain`, `__gain--positive/--negative`, `__cta`)
 
+
 ---
 
 ## Dependencia Shuri pendiente
@@ -1610,11 +1865,13 @@ Nuevas clases añadidas al final:
 
 Hasta que Shuri entregue el endpoint, `/investments` mostrará el empty state (no rompe nada).
 
+
 ---
 
 ## Paso 7 (Indexa cache indicator)
 
 Omitido. El archivo `.squad/decisions/inbox/shuri-indexa-portfolio-cache.md` no existe. Si Shuri añade campo `stale`/`cached_at` en el futuro, Vision añadirá el indicador "actualizando…" en IndexaView en ese momento.
+
 
 ---
 
@@ -1629,6 +1886,7 @@ tsc --noEmit && vite build
 **0 errores TypeScript. 0 nuevos warnings.** Pre-existing chunk-size warning presente (conocido, no es regresión).
 
 
+
 ---
 
 ## Decision: Fidelity Evolution Chart — Daily Market-Day Resolution
@@ -1637,12 +1895,14 @@ tsc --noEmit && vite build
 **Agent:** Shuri (Backend Engineer)  
 **Status:** Implemented ✅
 
+
 ---
 
 ### Context
 
 The Fidelity ESPP evolution chart plots portfolio value over time.  
 Previous implementation applied `use_weekly = total_days > 365`, which for the owner's ~4.5-year history produced **weekly buckets (~75 points)**. That hid the day-to-day price movement the chart is intended to show.
+
 
 ---
 
@@ -1671,6 +1931,7 @@ else:
     series_dates = sorted(d for d in price_map if min_date <= d <= max_date)
 ```
 
+
 ---
 
 ### Rationale
@@ -1685,6 +1946,7 @@ else:
 | KPIs/lots endpoints | Not touched — no change to current-value logic |
 | Price source/backfill | Not touched |
 
+
 ---
 
 ### Files Changed
@@ -1695,6 +1957,7 @@ else:
 | `tests/investments/test_market_data.py` | 4 granularity tests updated; weekend-fill test renamed to market-day test; new extreme-range guardrail test |
 | `tests/investments/test_fidelity_provider.py` | 2 boundary tests renamed/updated (366d, 365d now daily) |
 
+
 ---
 
 ### Test Result
@@ -1702,6 +1965,7 @@ else:
 ```
 1089 passed, 2 skipped, 0 failed
 ```
+
 
 ---
 
@@ -1712,6 +1976,7 @@ else:
 **Status:** Implemented ✅  
 **Affects:** `src/finlytics/investments/market_data.py`, `src/finlytics/api/fidelity.py`
 
+
 ---
 
 ### Problem
@@ -1719,6 +1984,7 @@ else:
 `get_latest_price` stored today's price with `ON CONFLICT DO NOTHING`. Once an intraday value was written (e.g. 384 at 14:00), it was never corrected to the official close (e.g. 350 at 22:00). The bug persisted across days: tomorrow's KPIs still showed the stale intraday value for yesterday.
 
 Historical backfill only ran when `price_history` was completely empty — it never touched the recent tail.
+
 
 ---
 
@@ -1753,6 +2019,7 @@ Replaced with:
 
 `backfill_price_history` (called at `import_confirm` and lazy in `fidelity_evolution`) is unchanged. It handles the initial full population of `price_history` from the earliest lot date. The top-up handles the recent tail from that point forward.
 
+
 ---
 
 ### Alternatives Considered
@@ -1763,6 +2030,7 @@ Replaced with:
 | Cron job / background task for daily settlement | Adds infrastructure complexity; top-up on read is simpler and keeps the DB always fresh |
 | Always re-fetch entire history on read | Too expensive for a frequently called endpoint |
 
+
 ---
 
 ### Impact
@@ -1772,23 +2040,6 @@ Replaced with:
 - **Lots endpoint:** Same.
 - **Test suite:** 1104 passed, 2 skipped, 0 failed. New test classes: `TestTopupRecentPrices`, `TestGetLatestPrice`.
 
----
-
-**Coordinators:** Shuri (Backend), Vision (Frontend), Rocket (DevOps)  
-**Status:** COMPLETE & VERIFIED IN DOCKER  
-
-**Summary:**
-- ✅ Plugin discovery: Fidelity ESPP registered in _PLUGIN_REGISTRY + dynamic status in list_plugins (1070 → 1088 tests)
-- ✅ Price source: Yahoo Chart API primary (browser User-Agent required; query1→query2 fallback) with lazy backfill
-- ✅ Upload UI: Styled file picker + SP/DO tooltips (i18n ES/EN) 
-- ✅ Verified in Docker: MSFT €337.04, EUR/USD 0.87558, evolution chart functional
-- 🔄 Repo code: Uncommitted; owner testing/iterating
-# ADR: Yahoo Chart API como fuente de precio primaria para Fidelity ESPP
-
-**Fecha:** 2026-07-15  
-**Autor:** Shuri (Backend Engineer)  
-**Estado:** Implementado  
-**Contexto:** Bugfix — precio MSFT nulo en Docker, gráfico de evolución sin datos
 
 ---
 
@@ -1799,6 +2050,7 @@ El feed de precios Fidelity devolvía `null` en producción (Docker):
 - **Stooq** sirve un JS anti-bot challenge / soft-404 → inutilizable.
 - **yfinance** llama a `fc.yahoo.com` — inaccesible desde el container.
 - Resultado: `current_value` / `gain` nulos, "price stale" visible, gráfico de evolución vacío.
+
 
 ---
 
@@ -1851,6 +2103,7 @@ Si `query1.finance.yahoo.com` devuelve 429 o falla por conexión, se reintenta a
 - `close` puede contener `null` (festivos) → se omiten al parsear.
 - Timestamps son Unix seconds en UTC → `datetime.fromtimestamp(ts, tz=timezone.utc).date()`.
 
+
 ---
 
 ## FX Direction (EURUSD=X)
@@ -1864,6 +2117,7 @@ close_eur  = close_usd * fx_eur_usd     # = close_usd / eurusd_quote
 ```
 
 Ejemplo: MSFT $450, EURUSD=1.08 → €416.67 ✓ (no €486 que daría sin invertir).
+
 
 ---
 
@@ -1885,6 +2139,7 @@ if not prices:
 
 **Idempotencia:** `ON CONFLICT (ticker, price_date) DO NOTHING`. Si backfill ya se ejecutó (re-deploy, retry), no duplica datos.
 
+
 ---
 
 ## Alternativas descartadas
@@ -1896,6 +2151,7 @@ if not prices:
 | Webscraping Yahoo Finance HTML | Frágil; estructura HTML cambia con frecuencia |
 | Reconstruir desde yfinance sin `fc.yahoo.com` | yfinance v0.2+ depende de ese endpoint; no parcheable sin fork |
 
+
 ---
 
 ## Impacto en tests
@@ -1905,6 +2161,7 @@ if not prices:
 - `TestYahooUserAgent`: mock httpx → verifica UA header, 429→query2 fallback, ambos hosts fallan → None.
 - Stooq CSV tests mantenidos (parser aún existe como fallback).
 - **Sin red real en tests** — todo mockeado con `unittest.mock`.
+
 
 ---
 
@@ -1916,6 +2173,7 @@ if not prices:
 | `src/finlytics/api/fidelity.py` | Lazy backfill en `fidelity_evolution` |
 | `tests/investments/test_market_data.py` | +18 tests Yahoo (total: 47) |
 
+
 ---
 
 ## 2026-07-15T10:08:20+02:00 — Fidelity ESPP Connector — Implementation Wave 1–2 Decision Record
@@ -1924,6 +2182,7 @@ if not prices:
 **Reviewers:** Fury (Architecture & Contract), Romanoff (Privacy), Barton (QA)  
 **Status:** APPROVED & RUNNING (Docker http://localhost:7777)  
 **Context:** Multi-wave implementation (foundation + parser + endpoints + frontend + tests + DevOps) with reviewer-driven contract fixes. Feature complete, awaiting owner CSV testing.
+
 
 ---
 
@@ -1945,6 +2204,7 @@ if not prices:
 - `provider_type = "live_api"` in ABC; `FidelityESPPProvider.provider_type = "statement_import"`
 - FidelityESPPProvider does NOT import fidelity_csv.py (Banner in parallel)
 - Test suite: 971 passed, 0 failed
+
 
 ---
 
@@ -1984,6 +2244,7 @@ Descartadas sin error:
 
 **Suite de tests:** 50 new tests + existing 921 = 971 passed
 
+
 ---
 
 ### Wave 1–C: CRITICAL CORRECTION — CSV Currency (Fury + Romanoff + Banner)
@@ -2004,6 +2265,7 @@ Multiple dividend-reinvestment (DO) lots pueden tener identical (date, qty, cbps
 - File-level: sha256(file_bytes) para gross dedup
 - Lot-level: sha256(ticker|date|qty|cost_per_share|share_source|ordinal_within_group) para dedup estable
 - Ordinal index (0-based within identical groups in CSV order) → dedup estable en re-exports
+
 
 ---
 
@@ -2051,6 +2313,7 @@ Caso canónico: MSFT $450, EURUSD=1.08 → €416.67 ✓
 
 Router usa prefix="/investments", coexiste con investments.py router bajo `/api/investments/`.
 
+
 ---
 
 ### Wave 2–B: Privacy Review (Romanoff) — ✅ PASS
@@ -2087,6 +2350,7 @@ Error parsing CSV expuesto en 400 detail. Para single-user autoalojada, no es pr
 
 #### Veredicto: ✅ **PASS**
 Cumple criterios privacidad: sin PII, sin datos usuario externos, almacenamiento inexistente en disco, sin secretos, logging limpio.
+
 
 ---
 
@@ -2134,6 +2398,7 @@ Cumple criterios privacidad: sin PII, sin datos usuario externos, almacenamiento
 **Root cause:** Both endpoints call `get_latest_price(db)` with NO guard. While `get_latest_price` catches network errors, a DB error on initial cache read propagates uncaught.
 
 **Recommended fix:** Wrap in try/except, degrade to `price = None` path (HTTP 200 with null fields instead of 500).
+
 
 ---
 
@@ -2187,6 +2452,7 @@ Cumple criterios privacidad: sin PII, sin datos usuario externos, almacenamiento
 #### Summary
 4 blocking contract mismatches → runtime integration failures. Core architecture, money math, idempotency solid. Fix 4 field/convention mismatches → ships.
 
+
 ---
 
 ### Wave 2–E: Banner Contract Fix (NON-AUTHOR per reviewer-lockout rule)
@@ -2226,6 +2492,7 @@ Cumple criterios privacidad: sin PII, sin datos usuario externos, almacenamiento
 pytest -q  →  1069 passed, 2 skipped  ✅
 npm run build  →  0 TS errors  ✅
 ```
+
 
 ---
 
@@ -2267,6 +2534,7 @@ npm run build  →  0 TS errors  ✅
 
 #### Conclusion
 Banner's fixes correct, complete, verified. All 4 blocking mismatches resolved. BUG #KPI-1 graceful degradation in place. Both test suites green (1069 pytest, 0 TS errors). **This ships.**
+
 
 ---
 
@@ -2312,6 +2580,7 @@ Banner's fixes correct, complete, verified. All 4 blocking mismatches resolved. 
 - Loading/empty/error as first-class states ✅
 - No pagination in lots table ✅
 - No donut or returns matrix ✅
+
 
 ---
 
@@ -2437,6 +2706,7 @@ Banner's fixes correct, complete, verified. All 4 blocking mismatches resolved. 
 
 **Total changes:** ~14 lines CSS (additive), 20 lines JSX, 5 lines state/effect. No visual regressions.
 
+
 ---
 
 ## 2026-07-14T11:10:33+02:00 — Phase 2: Indexa Capital Connector — Complete Design & Implementation Record
@@ -2445,6 +2715,7 @@ Banner's fixes correct, complete, verified. All 4 blocking mismatches resolved. 
 **Contributors:** Romanoff (Security), Shuri (Backend), Wanda (Design), Vision (Frontend), Barton (QA), Rocket (DevOps)  
 **Status:** APPROVED & SHIPPED (commit 4a7673c, local)  
 **Context:** Phase 2 — multi-agent implementation of Indexa Capital read-only connector with encrypted token storage, wizard UI, and portfolio aggregation.
+
 
 ---
 
@@ -2456,6 +2727,7 @@ Banner's fixes correct, complete, verified. All 4 blocking mismatches resolved. 
 **Date:** 2026-07-14  
 **Status:** DRAFT — awaiting owner sign-off  
 **Depends on:** Phase 1 shipped (investments skeleton), Romanoff's security policy (approved)
+
 
 ---
 
@@ -2513,6 +2785,7 @@ Only 3 methods. `IndexaProvider` implements them by calling the 3 Indexa GET end
 - **Rationale:** Indexa data is 1-business-day lagged anyway. No documented rate limits. A 5-min TTL means the user sees fresh data on each visit but rapid refreshes don't spam. Simpler than a sync cron + cache invalidation.
 - **Multi-account:** If a user has 2 Indexa accounts, both are fetched and aggregated in a single `/portfolio` call.
 
+
 ---
 
 ## 2. Persistence
@@ -2550,6 +2823,7 @@ Per Romanoff's approved policy:
 
 Shuri implements `crypto.py` following Romanoff's spec exactly. No deviations.
 
+
 ---
 
 ## 3. API Endpoints
@@ -2575,6 +2849,7 @@ Four new endpoints on the existing `investments` router. The existing `GET /plug
 ### GET /plugins behavior change
 
 The existing static registry stays. But `status` for `indexa-capital` becomes **dynamic**: if the user has an active connection → `"connected"`, otherwise → `"available"` (no longer `"coming_soon"`). The other two plugins remain `"coming_soon"`.
+
 
 ---
 
@@ -2632,6 +2907,7 @@ The existing shape covers fiscal-results mapping:
 
 Weight % = `amount / total_amount` (computed client-side from the holdings array, not stored).
 
+
 ---
 
 ## 5. Wizard UX Flow
@@ -2671,6 +2947,7 @@ Launched from the Indexa connector card on **Ajustes → Conectores** (`/setting
 ### Disconnect flow
 
 On `Ajustes → Conectores`, connected plugins show a "Desconectar" button instead of "Conectar". Click → confirmation dialog → `DELETE /api/investments/connections/{id}` → card reverts to "Conectar".
+
 
 ---
 
@@ -2726,6 +3003,7 @@ This requires:
 - Transactions, fees, benchmark, volatility
 - Frontend test infrastructure (vitest setup)
 
+
 ---
 
 ## 7. Open Questions for Owner
@@ -2737,6 +3015,7 @@ This requires:
 | 3 | **Dev bootstrap:** Allow `INDEXA_API_TOKEN` in `.env` for dev testing without the wizard? (Romanoff says OK if dev-only + documented.) | Default: yes, per Romanoff's policy §7 — commented out in `.env.example`. |
 | 4 | **Chart scope for MVP?** Include the value-over-time chart in MVP, or ship KPIs + holdings first and add the chart in a fast follow-up? | Default: defer chart to post-MVP. KPIs + holdings table = shippable and useful on its own. |
 | 5 | **`INDEXA_ENCRYPTION_KEY` required at startup?** Romanoff says fail-closed (app won't start without it). This means existing users must set this env var even if they don't use Indexa. Acceptable? | Default: yes, fail-closed — add to `.env.example` with generation instructions. Low friction for a single-user app. |
+
 
 
 ---
@@ -2760,6 +3039,7 @@ Upon re-review with full context:
 The implementation fully aligns with the codebase conventions and the core architectural principles of Finlytics. The changeset is ready for commit.
 
 
+
 ---
 
 
@@ -2772,6 +3052,7 @@ The implementation fully aligns with the codebase conventions and the core archi
 **Status:** VERIFIED ✅ — Policy + implementation review complete (2026-07-14). All 8 invariants PASS.  
 **Context:** Phase 2 — real Indexa Capital connector. User pastes a read-only API token in a setup wizard; app stores it and calls Indexa GET endpoints.
 
+
 ---
 
 ## ⚠️ Owner Overrides (post-design, APPROVED — supersede §1 below)
@@ -2781,6 +3062,7 @@ Two decisions were made by DrDonoso AFTER this spec was written. They are **corr
 1. **Encryption key is `FINLYTICS_ENCRYPTION_KEY`** (general app-wide key for all connectors), NOT `INDEXA_ENCRYPTION_KEY`. The env var name in `.env.example`, `config.py`, and `crypto.py` is `FINLYTICS_ENCRYPTION_KEY`. Anywhere this doc says `INDEXA_ENCRYPTION_KEY`, substitute `FINLYTICS_ENCRYPTION_KEY`.
 
 2. **Scoped fail-closed** (not global): The app **starts normally** without `FINLYTICS_ENCRYPTION_KEY`. Only encrypt/decrypt operations fail (raise `EncryptionNotConfiguredError` → HTTP 503). "Refuse to start" is NOT required and NOT implemented. This is correct per owner's decision. Any reference in this doc to "refuse to start" should be read as "encrypt/decrypt operations fail with 503".
+
 
 ---
 
@@ -2821,6 +3103,7 @@ python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().d
 
 Key rotation is out of scope for the initial build but **must** be documented in a future ops runbook: to rotate, re-encrypt all `token_enc` values before switching the env key. Until rotation is implemented, treat key loss as permanent token loss — the user must reconnect via the wizard.
 
+
 ---
 
 ## 2. Storage & Exposure Rules
@@ -2859,6 +3142,7 @@ Example: `PBKXXXXXXZ5` → `PBK•••Z5`
 If the identifier is shorter than 6 characters, mask all but the last 2.  
 Apply masking immediately on receipt from Indexa — store only the masked form. Never persist the full account identifier.
 
+
 ---
 
 ## 3. Token Validation Before Storage
@@ -2872,6 +3156,7 @@ Before persisting the token (encrypted or otherwise), the app **MUST** validate 
 
 **Critical:** when constructing error messages or log entries about validation failures, include only the HTTP status code. Never echo the token value back in any message, exception, or log line.
 
+
 ---
 
 ## 4. Transport
@@ -2880,6 +3165,7 @@ Before persisting the token (encrypted or otherwise), the app **MUST** validate 
 - **TLS verification enforced.** `verify=True` always. `verify=False` is banned — treat it as a build-blocking defect.
 - **Timeouts required.** Set explicit timeouts on every Indexa HTTP call: `connect_timeout=10s`, `read_timeout=30s`. Never make an unbounded call.
 - **No token in redirects.** Disable automatic redirect following, or ensure the `X-AUTH-TOKEN` header is stripped before any redirect. Do not let the HTTP client silently forward auth headers to a redirected URL.
+
 
 ---
 
@@ -2896,6 +3182,7 @@ Before persisting the token (encrypted or otherwise), the app **MUST** validate 
 - Store only: the encrypted token + masked account refs + sync timestamps.
 - Do NOT persist full transaction history from Indexa unless a specific user-facing feature explicitly requires it.
 - Do NOT cache full `/users/me` response bodies — extract only what's needed (e.g., an account identifier for masking), then discard the rest.
+
 
 ---
 
@@ -2915,6 +3202,7 @@ Before persisting the token (encrypted or otherwise), the app **MUST** validate 
 - Generic error categories (timeout, network error, bad status) — never the response body that might contain PII
 
 **Implementation note for Shuri:** extend the existing `redaction.py` pattern to cover Indexa-specific patterns if they can appear in log strings (e.g., apply token masking if token values could leak into exception messages from the HTTP library).
+
 
 ---
 
@@ -2941,6 +3229,7 @@ Banning `INDEXA_API_TOKEN` from `.env` entirely would break any dev/smoke-test w
 
 5. The variable is commented out by default in `.env.example` — it must not accidentally look "required."
 
+
 ---
 
 ## 8. Disconnect / Revocation
@@ -2951,6 +3240,7 @@ Banning `INDEXA_API_TOKEN` from `.env` entirely would break any dev/smoke-test w
 2. **Clear any cached portfolio/holdings data** associated with that connection (delete rows keyed to `connection_id` in any holdings/snapshot tables).
 3. **Inform the user** in the UI: "Tu token ha sido eliminado de Finlytics. Para mayor seguridad, también puedes revocarlo desde el panel de Indexa Capital." — the user retains independent control to revoke in Indexa's UI.
 4. **On revocation detected at sync time** (Indexa returns 401/403): transition the connection to `status='error'`, surface a "Token revocado — reconecta o verifica en Indexa Capital" message. Do not delete automatically (let the user explicitly disconnect to avoid surprise data loss).
+
 
 ---
 
@@ -2979,6 +3269,7 @@ Banning `INDEXA_API_TOKEN` from `.env` entirely would break any dev/smoke-test w
 6. Wizard does not accept, store, or transmit email/document/password fields.
 7. Disconnect hard-deletes the ciphertext.
 
+
 ---
 
 ## 10. Implementation Review — 2026-07-14
@@ -3002,6 +3293,7 @@ Banning `INDEXA_API_TOKEN` from `.env` entirely would break any dev/smoke-test w
 **One observation (not a fail):** `DiscoveredAccountOut.account_number` (raw) is returned in `/connections/validate` responses. This is intentional: the wizard needs it for the subsequent connect call. The server re-validates ownership in `connect_plugin()` (`service.py:117-127`), so a client cannot use this to spoof a different account. The field is transient (no storage), and account numbers are internal Indexa identifiers, not IBANs/emails/DNI.
 
 
+
 ---
 
 ### Backend Implementation Contract (Shuri) — 5 Endpoints, 858 Tests PASS
@@ -3013,11 +3305,13 @@ Banning `INDEXA_API_TOKEN` from `.env` entirely would break any dev/smoke-test w
 **Status:** SHIPPED — 838 tests green  
 **For:** Vision (frontend), Barton (tests), Wanda (i18n keys)
 
+
 ---
 
 ## Base URL
 
 All endpoints are prefixed `/api/investments`.  All require a valid session cookie (401 if absent).
+
 
 ---
 
@@ -3060,6 +3354,7 @@ Authorization: session cookie
 - `"connected"` — user has ≥1 active connection
 - `"available"` — no active connections; wizard CTA shown
 
+
 ---
 
 ## 2. POST /api/investments/connections/validate  ← Step 1 of wizard
@@ -3097,6 +3392,7 @@ Content-Type: application/json
 |---|---|---|
 | 400 | Indexa rejects token (401/403) | `"Token inválido — verifícalo en Indexa Capital."` |
 | 503 | Network / timeout error | `"No se pudo verificar el token — error de red con Indexa Capital."` |
+
 
 ---
 
@@ -3144,6 +3440,7 @@ Content-Type: application/json
 | 503 | Network / timeout error | `"No se pudo verificar el token — error de red con Indexa Capital."` |
 | 503 | `FINLYTICS_ENCRYPTION_KEY` absent | `"Server not configured for encryption — contact the administrator."` |
 
+
 ---
 
 ## 4. GET /api/investments/connections
@@ -3174,6 +3471,7 @@ GET /api/investments/connections
 - `error` — Indexa returned 401/403 at last sync; user should reconnect
 - `disconnected` — manually disconnected (hard-deleted; this value appears in cache only)
 
+
 ---
 
 ## 5. DELETE /api/investments/connections/{id}
@@ -3191,6 +3489,7 @@ DELETE /api/investments/connections/1
 | Code | Condition |
 |---|---|
 | 404 | connection not found (or belongs to another user) |
+
 
 ---
 
@@ -3277,6 +3576,7 @@ GET /api/investments/portfolio
 
 **Caching:** 5-minute in-memory TTL per `connection_id`.  Rapid page refreshes reuse cached data; the cache is evicted on DELETE.
 
+
 ---
 
 ## Extended Schema Reference
@@ -3358,6 +3658,7 @@ class ValidateTokenResponse(BaseModel):
     accounts: list[DiscoveredAccountOut]
 ```
 
+
 ---
 
 ## Indexa → Finlytics Field Mapping
@@ -3388,6 +3689,7 @@ class ValidateTokenResponse(BaseModel):
 | `fixed_income_*` | `"fixed_income"` |
 | `cash`, `money_market` | `"cash"` |
 | anything else | `"other"` |
+
 
 ---
 
@@ -3422,6 +3724,7 @@ Wizard flow is now two steps — mock both:
 - `cash_invested.instruments_cost` = total amount invested in instruments (cost basis); `instruments_amount` = current market value.
 
 
+
 ---
 
 ### Design Spec (Wanda) — Wizard + Viz CSS Complete
@@ -3434,6 +3737,7 @@ Wizard flow is now two steps — mock both:
 **Depends on:** Shuri's endpoints (§3 of fury-indexa-phase2-plan.md)
 
 All CSS is in `frontend/src/index.css` — appended after the existing investments skeleton block. Build verified: `npm run build` passes with 0 errors.
+
 
 ---
 
@@ -3452,6 +3756,7 @@ All CSS is in `frontend/src/index.css` — appended after the existing investmen
 | Page layout | `.dashboard` | InvestmentsPage root |
 | Plugin card shell | `.plugin-card` `.plugin-card__icon` `.plugin-card__name` `.plugin-card__description` | ConnectorsPage |
 | Coming-soon badge | `.coming-soon-badge` | Non-Indexa cards |
+
 
 ---
 
@@ -3645,6 +3950,7 @@ A 4-step modal launched from the Indexa card on `ConnectorsPage`. Uses the stand
 | 3b — Error | dot 2 active (back to 2) | error-banner + token-field (pre-filled) | Cerrar / Reintentar |
 | 3c — Accounts | dot 3 active | title + desc + account-list | ← Volver / Conectar (disabled if none selected) |
 | 4 — Success | all dots done | `.inv-wizard__success` block | Ver inversiones → |
+
 
 ---
 
@@ -3945,6 +4251,7 @@ const ASSET_CLASS_COLORS: Record<string, string> = {
 }
 ```
 
+
 ---
 
 ## Deliverable C — ConnectorsPage Card States
@@ -3990,6 +4297,7 @@ const ASSET_CLASS_COLORS: Record<string, string> = {
   <button className="btn-primary" disabled aria-disabled="true">{t.investmentsConnect}</button>
 </div>
 ```
+
 
 ---
 
@@ -4061,6 +4369,7 @@ Vision must add these to `frontend/src/i18n/es.ts`, `en.ts`, and `Dict` in `inde
 | `connectorError` | `'Error de conexión'` | `'Connection error'` |
 | `connectorDisconnect` | `'Desconectar'` | `'Disconnect'` |
 | `connectorErrorRetry` | `'Reconectar'` | `'Reconnect'` |
+
 
 ---
 
@@ -4134,6 +4443,7 @@ Vision must add these to `frontend/src/i18n/es.ts`, `en.ts`, and `Dict` in `inde
 | `.error-badge` | Red "Error" pill | ConnectorsPage |
 | `.btn-disconnect` | Small muted disconnect button (red hover) | ConnectorsPage |
 
+
 ---
 
 ## Responsive behaviour summary
@@ -4143,11 +4453,13 @@ Vision must add these to `frontend/src/i18n/es.ts`, `en.ts`, and `Dict` in `inde
 | `≤900px` | `.inv-charts-row` stacks to 1 column |
 | `≤600px` | `.modal.inv-wizard` → full-width bottom-sheet; `.btn-disconnect` → 36px touch target |
 
+
 ---
 
 ## Dark mode
 
 All new classes use only CSS token variables or dual-pattern raw rgba overrides (`[data-theme="dark"]` + `@media (prefers-color-scheme: dark)` with `:root:not([data-theme="light"])`). No class-based theme switching needed.
+
 
 
 ---
@@ -4161,11 +4473,13 @@ All new classes use only CSS token variables or dual-pattern raw rgba overrides 
 **Status:** SHIPPED — `npm run build` 0 TS errors  
 **Depends on:** Shuri's backend (858 tests green), Wanda's design spec
 
+
 ---
 
 ## Summary
 
 Full Phase 2 frontend: Indexa Capital wizard, connection management on ConnectorsPage, and the fully-populated InvestmentsPage (KPIs + area chart + allocation donut + holdings table).
+
 
 ---
 
@@ -4182,6 +4496,7 @@ Full Phase 2 frontend: Indexa Capital wizard, connection management on Connector
 | `frontend/src/components/IndexaWizard.tsx` | **NEW** — 4-step modal wizard per Wanda's `.modal.inv-wizard` spec |
 | `frontend/src/pages/ConnectorsPage.tsx` | Rewritten — fetches plugins + connections, renders Indexa card in 3 states (available/connected/error), launches wizard, handles disconnect |
 | `frontend/src/pages/InvestmentsPage.tsx` | Rewritten — full populated viz (KPIs, charts, table) or empty state based on `plugins_connected` |
+
 
 ---
 
@@ -4203,6 +4518,7 @@ Full Phase 2 frontend: Indexa Capital wizard, connection management on Connector
 - `DELETE /api/investments/connections/{id}` — hard-delete; triggered after `window.confirm`  
 - `GET /api/investments/portfolio` — aggregated portfolio with holdings, value_series, returns  
 
+
 ---
 
 ## Key Design Decisions
@@ -4218,6 +4534,7 @@ Full Phase 2 frontend: Indexa Capital wizard, connection management on Connector
 | `gain_loss_pct × 100` for display | Shuri's spec: decimal format (0.1093 = 10.93%) |
 | `total_gain_loss_pct × 100` same | Same decimal convention; applied in KPI sub-label |
 
+
 ---
 
 ## i18n Keys Added (44 total)
@@ -4231,6 +4548,7 @@ Full Phase 2 frontend: Indexa Capital wizard, connection management on Connector
 ### Connector card states (4 keys)
 `connectorConnected`, `connectorError`, `connectorDisconnect`, `connectorErrorRetry`
 
+
 ---
 
 ## Mock Data (demo mode)
@@ -4238,6 +4556,7 @@ Full Phase 2 frontend: Indexa Capital wizard, connection management on Connector
 - `validateIndexaToken`: accepts any token ≥8 chars; returns one account `PBK•••Z5`
 - `mockGetInvestmentPortfolio` when connected: `total_value=12345.67`, 3 holdings (equity/fixed_income/cash), 15-point `value_series` from Jan 2023 → Mar 2024
 - `mockGetConnections` when connected: single active connection `id=1, plugin_id=indexa-capital`
+
 
 
 ---
@@ -4251,11 +4570,13 @@ Full Phase 2 frontend: Indexa Capital wizard, connection management on Connector
 **For:** Coordinator (Fury), Shuri (fix owner), Romanoff (spec owner)  
 **Status:** OPEN — 2 bugs, both require a fix before Phase 2 ships to production
 
+
 ---
 
 ## Context
 
 Ran full security + functional test pass on `src/finlytics/investments/` and `src/finlytics/api/investments.py`. All 44 investment tests pass (896 suite-wide). Two discrepancies found between Romanoff's security spec and Shuri's implementation.
+
 
 ---
 
@@ -4296,6 +4617,7 @@ Either:
 
 If Option A, Romanoff must re-publish the updated `.env.example` entry and threat model section.
 
+
 ---
 
 ## BUG-2: Startup behavior mismatch — "refuse to start" vs "503 on use"
@@ -4332,6 +4654,7 @@ In practice: the current behavior is _operationally safer_ than a silent start i
 
 **Romanoff:** If the "503 on use" design is intentional and accepted, update §1 to document the approved behavior so the spec and code match.
 
+
 ---
 
 ## Tests that assert the fail-closed property (passing)
@@ -4344,6 +4667,7 @@ The following tests confirm the fail-closed behavior **as implemented** (503 res
 - `test_crypto_missing_key_decrypt_raises`
 
 If BUG-2 is fixed to add startup-time refusal, additional startup tests should be added in `tests/test_startup.py` (deferred to coordinator decision).
+
 
 ---
 
@@ -4364,11 +4688,13 @@ The following Romanoff build-blockers were explicitly verified and pass:
 | Hard-delete removes ciphertext | `test_delete_connection_returns_204` + service logic review | ✅ PASS |
 
 
+
 ---
 
 ## 2026-07-14 — Recommendations: Connectors → Settings, Cartera Phase 2 Plan
 
 # Decisions Log
+
 
 ---
 
@@ -4403,6 +4729,7 @@ The following Romanoff build-blockers were explicitly verified and pass:
 | All states | No plugins (current), loading, data available, error, empty holdings |
 
 This page layout and component structure are pre-planned so real data in Phase 2 slots in cleanly without rework.
+
 
 ---
 
@@ -4565,6 +4892,7 @@ The `InvestmentsPage` follows the same layout as Dashboard/Analytics:
 2. **Plugin catalog:** 3 entries (Indexa Capital, generic broker, crypto).
 3. **Nav icon:** 💰
 
+
 ---
 
 ## 2026-07-14 — Backend: Investments Plugin Stub (Phase 1, Slice 1)
@@ -4630,6 +4958,7 @@ The `InvestmentsPage` follows the same layout as Dashboard/Analytics:
 - `src/finlytics/api/investments.py` — new router (created)
 - `src/finlytics/app.py` — router registered
 
+
 ---
 
 ## 2026-07-14 — Frontend Implementation: Connectors Moved to Settings
@@ -4653,6 +4982,7 @@ The `InvestmentsPage` follows the same layout as Dashboard/Analytics:
 | `frontend/src/i18n/index.ts`, `es.ts`, `en.ts` | Added `settingsSubConnectors`, `investmentsManageConnectors` keys |
 
 **Result:** 0 TypeScript errors. Build succeeded. Connector catalog cleanly moved; Investments page refocused as pure view + CTA. In Phase 2, disabled Connect buttons become real auth flows — page already the right home.
+
 
 ---
 
@@ -4787,6 +5117,7 @@ All tokens (`--surface`, `--bg`, `--border`, `--text-muted`, `--text`) resolve c
 | `investmentsConnect` | `"Conectar"` | `"Connect"` |
 | `navInvestments` | `"Inversiones"` | `"Investments"` |
 
+
 ---
 
 ## 2026-07-14 — Frontend: InvestmentsPage Skeleton (Phase 1, Slices 2–4)
@@ -4825,6 +5156,7 @@ Unlike summary endpoints (which fall back silently to mock data), `getInvestment
 
 All required class names were confirmed already present in `index.css` per Wanda's spec. No CSS was added by Vision.
 
+
 ---
 
 ## 2026-07-14 — QA: Investments Backend Tests (Phase 1, Slice 6)
@@ -4859,6 +5191,7 @@ The endpoint is a static in-memory registry with no DB access. Authenticated tes
 **Result: NO.** `frontend/package.json` has no `test` script and no vitest/jest devDependency. There is no `@testing-library/react`, `vitest`, or `jest` in `devDependencies`.
 
 **Recommendation:** Scaffolding frontend test infra (vitest + @testing-library/react) is a non-trivial one-time setup task. Since Vision's Investments page exists now, defer frontend test implementation until the coordinator decides whether frontend unit tests are in scope for this project. When that decision is made, Barton can write the nav-link and coming-soon render test in a single session.
+
 
 ---
 
@@ -4898,6 +5231,7 @@ docker compose -f docker-compose.local.yml up -d --build
 
 For uncommitted feature code: **Always use `docker-compose.local.yml` with `--build`** (includes `build: .` from current working tree). Default `docker-compose.yml` pulls published Hub image (stale). 401 smoke check confirms new route is live.
 
+
 ---
 
 # Shuri — Evolución de la Cuenta: Live Probe Findings
@@ -4905,6 +5239,7 @@ For uncommitted feature code: **Always use `docker-compose.local.yml` with `--bu
 **Requested by:** DrDonoso (owner)  
 **Status:** FRONTEND BUG — backend returns full data  
 **Account probed:** mask `96E•••BH` (read-only, owner's real account)
+
 
 ---
 
@@ -4922,11 +5257,13 @@ data = {
 }
 ```
 
+
 ---
 
 ## No Backend Changes Made
 
 All backend paths confirmed correct. Tests remain at **921 passed, 2 skipped** (unchanged).
+
 
 
 ---
@@ -4935,6 +5272,7 @@ All backend paths confirmed correct. Tests remain at **921 passed, 2 skipped** (
 **Date:** 2026-07-14  
 **Status:** Findings only — no production code changed  
 **Source:** Live READ-ONLY probe of owner's real Indexa account (1 account, type=mutual, status=active)
+
 
 ---
 
@@ -4961,6 +5299,7 @@ date_str = datetime.strptime(k, "%Y%m%d").strftime("%Y-%m-%d")
 **Secondary bug (same function):** `portfolios` are sorted **newest-first** (index 0 = today, index -1 = account open date with `total_amount=0.0`). Current code does `latest = portfolios[-1]` → oldest entry → all zeros → `total_value=0.0` for `cash_invested` and value fallback.  
 Fix: `latest = portfolios[0]`.
 
+
 ---
 
 ### 2 — Aportaciones (Cumulative Contributions) Daily/Stepwise Series
@@ -4972,6 +5311,7 @@ Fix: `latest = portfolios[0]`.
 | **Alternative: `portfolios[].inflows`** | Each portfolio entry has a daily `inflows` float (0.0 on non-deposit days). Cumulatively sum over sorted entries. |
 | **Alternative: cash-transactions** | Filter `operation_type = "TRANSFERENCIA SEPA"` (9 entries) for actual user wire transfers. Fields: `date` (YYYY-MM-DD), `amount` (float, positive for deposits). Cumsum gives deposit step-line. |
 | Gotchas | `net_amounts` values = `inflows - tax_outflows` (not raw inflows). Use `return.inflows` for gross; use `net_amounts` for net-of-retenciones. TRANSFERENCIA SEPA are user deposits; the 38 SUSCRIPCIÓN entries are fund purchases (not user cash). |
+
 
 ---
 
@@ -4995,6 +5335,7 @@ Additional return fields confirmed present:
 - `return.volatility` = 0.0707  
 - `return.money_return_annual` — present (not yet surfaced in our schema)
 
+
 ---
 
 ## Cash-Transactions Structure
@@ -5016,6 +5357,7 @@ Additional return fields confirmed present:
 
 For the aportaciones step-line from cash-transactions: filter `TRANSFERENCIA SEPA` with `status="closed"`, sort by `date` ASC, cumsum `amount`.
 
+
 ---
 
 ## Summary for Implementation (Next Steps)
@@ -5028,6 +5370,7 @@ For the aportaciones step-line from cash-transactions: filter `TRANSFERENCIA SEP
 6. **Add `sharpe_ratio`** and `money_return_annual` to `NormalizedReturns`.
 
 
+
 ---
 
 # Shuri — Indexa Connector Bug Fixes & Enhancement
@@ -5036,6 +5379,7 @@ For the aportaciones step-line from cash-transactions: filter `TRANSFERENCIA SEP
 **Author:** Shuri (Backend)  
 **Status:** SHIPPED  
 **Audience:** Vision (Frontend), Barton (QA)
+
 
 ---
 
@@ -5052,6 +5396,7 @@ For the aportaciones step-line from cash-transactions: filter `TRANSFERENCIA SEP
 A `DEBUG`-level log fires when the top-level field is absent (never logs the token).
 
 **Real-account example:** cash (67.16 €) + funds (20,492.36 €) = **20,559.52 €** — now correctly derived from `portfolios[-1].total_amount`.
+
 
 ---
 
@@ -5070,6 +5415,7 @@ A `DEBUG`-level log fires when the top-level field is absent (never logs the tok
 | `gain_loss_pct` | Recomputed: `sum(profit_loss) / sum(cost_amount)` |
 
 Holdings are sorted by `current_value` descending. Result: **one holding per fund**, matching Indexa's own fiscal view.
+
 
 ---
 
@@ -5094,6 +5440,7 @@ All new fields are `float | None = None` — safe to render as `null` in JSON.
 
 **Frontend contract:** multiply decimals × 100 to display as percentages (existing convention). `money_return`, `pl`, `invested` are already in EUR.
 
+
 ---
 
 ## Files changed
@@ -5107,6 +5454,7 @@ All new fields are `float | None = None` — safe to render as `null` in JSON.
 | `tests/api/test_investments.py` | 9 new tests for BUG A, BUG B, and new fields |
 
 
+
 ---
 
 # Shuri — Indexa Redesign Backend: Extended Response Shape
@@ -5115,6 +5463,7 @@ All new fields are `float | None = None` — safe to render as `null` in JSON.
 **Status:** SHIPPED — all 916 tests passing (2 skipped, unrelated)  
 **Branch:** main  
 **For:** Vision (frontend charts), Wanda (tests/E2E), Barton (integration)
+
 
 ---
 
@@ -5128,6 +5477,7 @@ All new fields are `float | None = None` — safe to render as `null` in JSON.
 5. **`monthly_returns`** — month × year matrix for the returns calendar
 6. **`drawdown`** — max drawdown object
 7. **Multi-account**: contributions_series summed by date; matrix/drawdown/twr/sharpe = null
+
 
 ---
 
@@ -5154,6 +5504,7 @@ All new fields are `float | None = None` — safe to render as `null` in JSON.
   "cash_invested": { ... }          // CashInvestedSplit | null
 }
 ```
+
 
 ---
 
@@ -5184,6 +5535,7 @@ All fields `float | null`. New fields marked ★.
 (`18000.00 + (−0.01) + 2559.53 = 20559.52` ✓)
 
 **Multi-account rule:** `aportaciones`, `retenciones`, `rentabilidad_eur`, `pl`, `money_return` are **summed**. `twr_*`, `xirr`, `volatility`, `sharpe_ratio`, `money_return_annual`, `rentabilidad_pct` are **null** for multi-account.
+
 
 ---
 
@@ -5225,6 +5577,7 @@ One object per calendar year. `months_pct` / `months_eur` only contain keys for 
 
 **Note:** `monthly_returns` is `null` for multi-account (non-aggregatable). Current incomplete month (July 2026) is absent (not in history yet).
 
+
 ---
 
 ### `CashInvestedSplit` (on `cash_invested` key)
@@ -5240,12 +5593,14 @@ One object per calendar year. `months_pct` / `months_eur` only contain keys for 
 
 Reflects `portfolios[0]` (newest daily snapshot — Indexa returns newest-first).
 
+
 ---
 
 ## Date Format
 
 All dates in all series and drawdown: **`YYYY-MM-DD`** (ISO 8601).  
 `ValuePoint.date` and `DrawdownOut.start_date`/`end_date` are all 10-character ISO strings.
+
 
 ---
 
@@ -5267,12 +5622,14 @@ All dates in all series and drawdown: **`YYYY-MM-DD`** (ISO 8601).
 | `money_return_annual` | `data["return"]["money_return_annual"]` |
 
 
+
 ---
 
 # Vision Build Contract — Investments Page Polish (3 Changes)
 **Author:** Wanda (UX/UI) · **Date:** 2026-07-14  
 **CSS:** `frontend/src/index.css` (already appended) · **For:** Vision (Frontend Engineer)  
 **Builds on:** `wanda-investments-redesign.md` (prior contract — read that first)
+
 
 ---
 
@@ -5284,12 +5641,14 @@ All dates in all series and drawdown: **`YYYY-MM-DD`** (ISO 8601).
 | 2 | Metrics strip: TWR / MWR / Volatility | `.inv-metrics-strip`, `.inv-metric*` | Add strip inside `.inv-summary-card` |
 | 3 | Second donut: by instrument | `.inv-donuts-row`, `.inv-donut-compact-legend`, `.inv-donut-legend-*`, `--inv-p0…p11` | Replace single donut slot with two-card grid |
 
+
 ---
 
 ## 1. Change 1 — Summary Card Height Fix
 
 **What changed in CSS:** `.inv-top-row` now has `align-items: start` (was `stretch`).  
 **JSX change needed:** None. Cards are no longer forced to equal heights, so the summary card shrinks to fit its content + the metrics strip.
+
 
 ---
 
@@ -5361,6 +5720,7 @@ Place this **inside** `.inv-summary-card`, **after** the last `.inv-summary-row`
 | `invMetricVolatility` | `Volatilidad` | `Volatility` |
 | `invMetricSubAnnual` | `anualizada` | `annualised` |
 | `invMetricSubXirr` | `TIR anualizada` | `annualised IRR` |
+
 
 ---
 
@@ -5481,6 +5841,7 @@ CSS also exposes them as `--inv-p0` … `--inv-p11` for swatch `backgroundColor:
 | `invDonutAssetTitle` | `Por clase de activo` | `By asset class` |
 | `invDonutInstrumentTitle` | `Por instrumento` | `By instrument` |
 
+
 ---
 
 ## 4. Class Reference Table (all new classes)
@@ -5502,6 +5863,7 @@ CSS also exposes them as `--inv-p0` … `--inv-p11` for swatch `backgroundColor:
 | `.inv-donut-legend-name` | `index.css` | Fund name, truncated with ellipsis |
 | `.inv-donut-legend-pct` | `index.css` | Right-aligned percentage |
 | `--inv-p0` … `--inv-p11` | `index.css` `:root` | 12 palette CSS custom properties for swatch fallback |
+
 
 ---
 
@@ -5543,6 +5905,7 @@ CSS also exposes them as `--inv-p0` … `--inv-p11` for swatch `backgroundColor:
 </main>
 ```
 
+
 ---
 
 ## 6. Responsive Behaviour Summary
@@ -5556,12 +5919,14 @@ CSS also exposes them as `--inv-p0` … `--inv-p11` for swatch `backgroundColor:
 Mobile order (stacked): summary card → metrics strip → donut1 → donut2 → evolution → matrix → holdings.
 
 
+
 ---
 
 # Vision Build Contract — Investments Polish 2 (3 Changes)
 **Author:** Wanda (UX/UI) · **Date:** 2026-07-14  
 **CSS:** `frontend/src/index.css` (already appended) · **For:** Vision (Frontend Engineer)  
 **Builds on:** `wanda-investments-polish.md` (polish 1 — read first)
+
 
 ---
 
@@ -5572,6 +5937,7 @@ Mobile order (stacked): summary card → metrics strip → donut1 → donut2 →
 | 1 | Move returns matrix into left column gap | `.inv-left-col` | Wrap summary card + matrix in `.inv-left-col`; remove standalone matrix from below evolution card |
 | 2 | Fix donut center label alignment | `.inv-donuts-row .cat-donut-wrap { height: 220px }` | **None** — CSS-only fix |
 | 3 | Info-tip tooltips for TWR/MWR/Volatilidad | `.inv-metric-header`, `.inv-info-tip`, `.inv-info-bubble` | Add `inv-metric-header` div + tip button inside each `.inv-metric` |
+
 
 ---
 
@@ -5648,6 +6014,7 @@ The matrix has ≥15 columns (`min-width: 720px` on the `<table>`). In a half-vi
 | ≥ 901px | 1fr 1fr | flex-col: summary → matrix (matrix scrolls H if needed) |
 | ≤ 900px | 1fr (stacked) | full-width; summary → matrix → donuts → evolution → holdings |
 
+
 ---
 
 ## 2. Change 2 — Donut Center Label Fix (CSS-only)
@@ -5663,6 +6030,7 @@ The matrix has ≥15 columns (`min-width: 720px` on the `<table>`). In a half-vi
 ```
 
 **JSX change needed: None.** The existing `cat-donut-wrap` / `cat-donut-center` markup is correct. The scoped rule now makes the wrapper exactly match the RC height so `inset: 0` lands on centre.
+
 
 ---
 
@@ -5723,6 +6091,7 @@ Repeat the same pattern for MWR and Volatilidad (use the `aria-label` + bubble t
 
 **Use `invMetricVolInfo` for Volatilidad** (the existing `invMetricVolatility` / `invMetricSubAnnual` keys remain; only add the `…Info` keys).
 
+
 ---
 
 ## 4. Full Class Reference (all new in this contract)
@@ -5733,6 +6102,7 @@ Repeat the same pattern for MWR and Volatilidad (use the `aria-label` + bubble t
 | `.inv-metric-header` | `index.css` | Flex row — label + tip button |
 | `.inv-info-tip` | `index.css` | 14px circular "?" button with relative positioning |
 | `.inv-info-bubble` | `index.css` | Absolute tooltip bubble; hidden/shown by tip hover/focus |
+
 
 ---
 
@@ -5757,11 +6127,13 @@ Repeat the same pattern for MWR and Volatilidad (use the `aria-label` + bubble t
 ```
 
 
+
 ---
 
 # Vision Build Contract — Investments Page Redesign (Indexa Layout)
 **Author:** Wanda (UX/UI) · **Date:** 2026-07-14  
 **CSS:** `frontend/src/index.css` (already appended) · **For:** Vision (Frontend Engineer)
+
 
 ---
 
@@ -5777,6 +6149,7 @@ Repeat the same pattern for MWR and Volatilidad (use the `aria-label` + bubble t
 
 **New state variables needed:** `evPeriod`, `evMode`, `matrixMode`  
 **New Recharts import:** `LineChart`, `Line` (replace `AreaChart`/`Area` or add)
+
 
 ---
 
@@ -5807,6 +6180,7 @@ Repeat the same pattern for MWR and Volatilidad (use the `aria-label` + bubble t
 ```
 
 **Remove:** `kpi-grid` block (5 kpi-cards), `inv-charts-row` wrapper (and its `inv-chart-card--value` child).
+
 
 ---
 
@@ -5873,6 +6247,7 @@ Repeat the same pattern for MWR and Volatilidad (use the `aria-label` + bubble t
 | Rentabilidad % | `returns.money_return` | Decimal → × 100 for %. Display: `money_return`, not `twr_total` (Indexa's "Rentabilidad" = money-weighted) |
 | Aportaciones | `returns.inflows` | Gross deposits |
 | Retenciones | `returns.tax_outflows` | Positive float; display as `−value` |
+
 
 ---
 
@@ -6087,6 +6462,7 @@ const evolutionData = useMemo(() => {
 
 **Recharts note:** Import `LineChart` and `Line` from `recharts`. You may keep `AreaChart`/`Area` imports if still needed elsewhere; otherwise swap them.
 
+
 ---
 
 ## 4. Block 3 — Monthly Returns Matrix JSX
@@ -6251,6 +6627,7 @@ type DrawdownInfo = {
 })()}
 ```
 
+
 ---
 
 ## 5. CSS Class Reference
@@ -6310,6 +6687,7 @@ All classes are in `frontend/src/index.css`. Read the Indexa Redesign block appe
 | `.returns-matrix-cell--bench` | muted text |
 | `.inv-drawdown-note` | 12px muted text, border-top |
 
+
 ---
 
 ## 6. i18n Keys (add to `es.ts`, `en.ts`, `index.ts` Dict)
@@ -6361,6 +6739,7 @@ All classes are in `frontend/src/index.css`. Read the Indexa Redesign block appe
 
 Note: `invDrawdownNote` receives pre-formatted strings (absolute values). The `−` sign is part of the template.
 
+
 ---
 
 ## 7. Backend Types Needed (coordinate with Shuri)
@@ -6388,6 +6767,7 @@ drawdown?: {
 };
 ```
 
+
 ---
 
 ## 8. What to Keep / Remove in InvestmentsPage.tsx
@@ -6405,6 +6785,7 @@ drawdown?: {
 
 **AreaChart vs LineChart:** The evolution chart now uses `LineChart + Line` instead of `AreaChart + Area`. Remove `AreaChart`, `Area` from imports if no longer used elsewhere. Add `LineChart`, `Line`.
 
+
 ---
 
 ## 9. Null / Loading Behaviour
@@ -6414,15 +6795,18 @@ drawdown?: {
 - `portfolio.net_amounts_series == null` → `contribMap` is empty → `contributions: null` for all points → contributions line simply absent from chart (Recharts `connectNulls` won't draw anything, which is correct)
 - While loading: use the existing `.state-box` pattern inside each card
 
+
 ---
 
 *End of contract. CSS is live in `index.css`. Build and verify with `cd frontend && npm run build`.*
+
 
 
 ---
 
 # Vision Build Contract — Returns Table (Tabla de Rentabilidades)
 **Author:** Wanda (UX/UI) · **Date:** 2026-07-14 · **For:** Vision (Frontend Engineer)
+
 
 ---
 
@@ -6437,6 +6821,7 @@ Add the returns card **between `inv-charts-row` and the holdings card** (`inv-ho
 [.card.inv-returns-card]  ← NEW — full-width returns table  ◀
 [.card.inv-holdings-card] ← holdings table (unchanged)
 ```
+
 
 ---
 
@@ -6507,6 +6892,7 @@ Add the returns card **between `inv-charts-row` and the holdings card** (`inv-ho
 </div>
 ```
 
+
 ---
 
 ## 3. Helper functions (suggested)
@@ -6528,6 +6914,7 @@ function pct(v: number | null | undefined): string {
 }
 ```
 
+
 ---
 
 ## 4. i18n Keys (add to ES + EN)
@@ -6542,6 +6929,7 @@ function pct(v: number | null | undefined): string {
 | `invReturnsAnnual` | Rentabilidad anualizada | Annualised return |
 | `invReturnsXirr` | TIR / XIRR | IRR / XIRR |
 | `invReturnsVolatility` | Volatilidad | Volatility |
+
 
 ---
 
@@ -6558,11 +6946,13 @@ function pct(v: number | null | undefined): string {
 | `.returns-value--neg` | `var(--expense)` red — negative return |
 | `.returns-value--neutral` | `var(--text-muted)` — volatility (risk metric, not directional) |
 
+
 ---
 
 ## 6. Evolution Chart Emphasis
 
 `inv-value-chart-wrap` height bumped **260px → 300px** (already applied in `index.css`). No JSX change needed — `ResponsiveContainer height="100%"` fills the wrapper automatically.
+
 
 ---
 
@@ -6572,12 +6962,14 @@ function pct(v: number | null | undefined): string {
 - While portfolio data is loading, show the `.state-box` spinner over the entire card (reuse existing `state-box` pattern inside `.inv-returns-card`).
 - No skeleton rows needed — the card itself shows the spinner.
 
+
 ---
 
 ## 8. Data source
 
 All values come from `portfolio.returns` object:  
 `twr_total`, `twr_last_week`, `twr_last_month`, `twr_last_year`, `twr_annual`, `xirr`, `volatility` — all **decimals** (e.g. `0.0423` = 4.23%). Multiply × 100 before display.
+
 
 ---
 
@@ -6588,11 +6980,13 @@ All values come from `portfolio.returns` object:
 **Status:** FEASIBILITY CONFIRMED — 3-Phase Plan Draft; awaiting owner scope decisions (Phase 1 details)  
 **Context:** Owner requested import capability for quarterly Fidelity ESPP (MSFT) statements (PDF) with daily market-based valuation in EUR. Team conducted feasibility probe: PDF parseable, pricing viable, DB schema designed.
 
+
 ---
 
 ## Executive Verdict: ¿Es viable?
 
 **Sí, completamente viable.** ESPP statement import + market-priced holdings is a standard pattern (not novel). The key insight: this requires a new **provider type** (`statement_import`) coexisting with the existing `live_api` type (Indexa). No architectural blocker; all three critical pieces (PDF extraction, market price source, DB persistence) have concrete solutions.
+
 
 ---
 
@@ -6616,6 +7010,7 @@ The pattern (statement-import + market-priced holdings) is reusable:
 - Stock plans (RSU, options) from any employer
 - Manual holdings ("I own X shares of Y")
 - The "market-priced holding" piece (ticker → daily price → current value) is generic
+
 
 ---
 
@@ -6682,6 +7077,7 @@ class ESPPHoldingSnapshot(BaseModel):
 ### Effort Estimate (Banner)
 
 ~2.75 days: schema (0.5d) + prompts (0.5d) + extractor (0.5d) + PII redaction expansion (0.25d) + tests (1d).
+
 
 ---
 
@@ -6776,6 +7172,7 @@ Same pattern as transactions: SHA-256 of natural key `(connection_id, purchase_d
 - `live_api`: decrypt token → call API → return portfolio.
 - `statement_import`: read lots from DB → fetch price → compute portfolio.
 
+
 ---
 
 ## 4. Three-Phase Plan (Vertical Slices)
@@ -6827,6 +7224,7 @@ Same pattern as transactions: SHA-256 of natural key `(connection_id, purchase_d
 
 **Demo:** "See a chart of how my MSFT ESPP has grown since first purchase."
 
+
 ---
 
 ## 5. Open Questions for Owner
@@ -6837,6 +7235,7 @@ Same pattern as transactions: SHA-256 of natural key `(connection_id, purchase_d
 4. **ESPP discount tracking:** Track the ~15% discount separately from market gain (fiscal relevance)?
 5. **Disposals:** Will you ever sell shares (FIFO/LIFO logic) or accumulate-only (simpler model)?
 6. **PDF format changes:** If Fidelity updates layout, the review step in the wizard is the safety net. Acceptable?
+
 
 ---
 
@@ -6850,6 +7249,7 @@ Same pattern as transactions: SHA-256 of natural key `(connection_id, purchase_d
 3. **Participant number pattern:** Expand `redact_pii()` to match and mask this identifier.
 4. Validate that the flow (parse local → redact → LLM with sanitized text) meets security policy.
 
+
 ---
 
 ## 7. Risk Summary
@@ -6860,6 +7260,7 @@ Same pattern as transactions: SHA-256 of natural key `(connection_id, purchase_d
 | yfinance endpoint rotation (Yahoo scraping) | Low | Price fetch fails | Stooq primary; yfinance fallback; abstraction for future swap |
 | Multi-lot per purchase edge case | Low | Incorrect total shares | Extractor tested against real statement; review step catches errors |
 | Fractional share precision loss | Very Low | Rounding error | Enforce `Decimal` type; fixed-point arithmetic |
+
 
 ---
 
@@ -6876,6 +7277,7 @@ Same pattern as transactions: SHA-256 of natural key `(connection_id, purchase_d
 | **Extraction strategy** | Hybrid parse + LLM structured output |
 | **Effort (design)** | ~2.75d Banner + ~3–4d Shuri + UX/tests in Phase 1 |
 | **Owner blockers?** | Scope decisions: Phase 1 depth, sell logic, currency display |
+
 
 
 ---
@@ -6900,14 +7302,6 @@ The ordinal index (0-based within identical groups in CSV order) ensures stable 
 
 **Outcome:** CSV-first MVP confirmed. PDF importer deprioritized. Awaiting owner sign-off on Phase 1 UI preference (KPI cards vs table vs both) and revaluation frequency (on-demand vs hourly).
 
----
-
-# Refinamiento Arquitectónico: Fidelity ESPP — CSV-First + Input Adapters
-
-**Autor:** Fury (Lead/Architect)  
-**Fecha:** 2026-07-15T08:51:14+02:00  
-**Status:** PROPUESTA — pendiente aprobación del owner  
-**Contexto:** El owner respondió a las preguntas de scoping de la arquitectura inicial. Nuevas decisiones: accumulate-only, prev-close pricing, sin descuento ESPP, generic-ready, y MUY IMPORTANTE: puede entregar un CSV de current shares en lugar del PDF.
 
 ---
 
@@ -6931,6 +7325,7 @@ The ordinal index (0-based within identical groups in CSV order) ensures stable 
 Si el owner puede exportar un CSV con sus shares actuales, obtenemos la misma información financiera core (ticker, shares, opcionalmente cost basis) sin LLM, sin PII, sin parseo frágil. El PDF es un camino más rico (per-lot purchase dates, offering periods) pero NO es necesario para el objetivo primario: "saber cuánto vale mi ESPP hoy en EUR."
 
 **Decisión:** Phase 1 = CSV adapter. Phase futura = PDF adapter (sólo si el CSV no cubre el detalle que quiere per-lot).
+
 
 ---
 
@@ -6981,6 +7376,7 @@ El modelo NO es específico de ESPP ni de MSFT — cualquier holding cotizado en
 2. **Extensible:** Un futuro broker (e.g., Interactive Brokers CSV export) → nuevo adapter, misma tabla.
 3. **Testable:** Cada adapter se testea en aislamiento contra su formato; valuation se testea contra lots mockeados.
 
+
 ---
 
 ## C. Generic-Ready: Qué hacemos genérico AHORA vs diferir
@@ -7020,6 +7416,7 @@ El campo `ticker` NO necesita cambio — ya es VARCHAR genérico.
 La `price_cache` ya es genérica (keyed by ticker).
 
 **Cambio mínimo:** Renaming + 2 columnas. Schema esencialmente válido.
+
 
 ---
 
@@ -7066,6 +7463,7 @@ Pero seguir la misma disciplina:
 - Backend: `FidelityProvider` implementa `InvestmentProvider` con `provider_type = "statement_import"`
 - Connection: row en `investment_connections` con `plugin_id = "fidelity-espp"`, `token_enc = NULL` (no hay API token)
 - Routing en service.py: branch por `provider_type` para computar portfolio desde lots + market price
+
 
 ---
 
@@ -7128,6 +7526,7 @@ Pero seguir la misma disciplina:
 
 **Demo:** "Subo el PDF del quarterly statement → veo cada lote con su fecha de compra."
 
+
 ---
 
 ## F. Preguntas abiertas para el owner (antes de construir)
@@ -7155,11 +7554,13 @@ Pero seguir la misma disciplina:
 
 7. **¿Tienes otros tickers en mente para "prepared for more things"?** — No para implementar ahora, pero saber si serían otros ESPPs, RSUs, acciones compradas por tu cuenta, ETFs... influye en cómo nombramos las cosas.
 
+
 ---
 
 ## Nota: Privacidad (PDF path)
 
 Romanoff está evaluando en paralelo si podemos almacenar el PDF y bajo qué condiciones. El path CSV tiene **cero concern de PII** — no contiene nombres, direcciones ni identificadores personales. Esta es otra razón fuerte para CSV-first.
+
 
 ---
 
@@ -7176,13 +7577,6 @@ Romanoff está evaluando en paralelo si podemos almacenar el PDF y bajo qué con
 | Price: intraday? | Confirmed: prev-day close (simplicísimo) |
 | Discount tracking? | Confirmed: NO (defer indefinitely) |
 
----
-
-# ESPP PDF Storage & Privacy Review — Fidelity Statement
-
-**Fecha:** 2026-07-15T08:51:14+02:00  
-**Autor:** Romanoff (Security/Privacy Engineer)  
-**Estado:** RECOMENDACIÓN — pendiente de decisión del owner
 
 ---
 
@@ -7209,6 +7603,7 @@ Romanoff está evaluando en paralelo si podemos almacenar el PDF y bajo qué con
 - `redact_pii()` **NO cubre** (aún): nombre completo, dirección postal, número de participante (`I` + 8 dígitos)
 - La redacción se aplica solo en el boundary del LLM (`extractor.py`), no en storage
 
+
 ---
 
 ## 2. Respuesta a la pregunta del owner
@@ -7227,6 +7622,7 @@ El owner tiene razón en cuestionar la regla dogmática. **Los extractos bancari
 | PII adicional vs. extracto bancario | Nombre + IBAN + transacciones | +Dirección postal + Employee ID (`I`+8 dígitos) + datos plan ESPP | **Moderado:** añade datos de empleo/RRHH vinculados al empleador |
 
 El riesgo incremental frente a los extractos bancarios ya almacenados es **moderado, no severo**. La diferencia material es que el extracto Fidelity vincula explícitamente al usuario con su empleador y plan de compensación variable. En un despliegue self-hosted monousuario sobre volumen local, esto es aceptable. No hay más actores que el propio usuario.
+
 
 ---
 
@@ -7254,6 +7650,7 @@ El riesgo incremental frente a los extractos bancarios ya almacenados es **moder
 - Máxima privacidad, pero rompe la paridad con extractos bancarios.
 - Innecesario en el contexto self-hosted actual.
 
+
 ---
 
 ## 4. La frontera OpenAI — Requisito no negociable (separable de storage)
@@ -7269,6 +7666,7 @@ Esta decisión es **independiente** de si se guarda o no el PDF. Independienteme
 **Estrategia pragmática:** las páginas 4, 5 y 8 contienen los datos financieros que el LLM necesita (holdings, lotes, ESPP metadata). La cabecera con PII personal está concentrada en la página 1. Una aproximación limpia: redactar las primeras N líneas de la página 1 (donde siempre están nombre y dirección) antes del LLM call, y aplicar el regex de participant number en todo el texto.
 
 **Esta redacción debe implementarse en `redact_pii()` o en un wrapper específico para ESPP antes de que Banner construya la integración.**
+
 
 ---
 
@@ -7290,6 +7688,7 @@ Esta decisión es **independiente** de si se guarda o no el PDF. Independienteme
 
 **El path CSV sidesteps casi todo este debate de privacidad.** Para un MVP de inversiones que solo muestre posición actual y valor en EUR, empezar con CSV es la opción más limpia.
 
+
 ---
 
 ## 6. Resumen ejecutivo
@@ -7303,14 +7702,6 @@ Esta decisión es **independiente** de si se guarda o no el PDF. Independienteme
 | ¿Qué es no negociable independientemente del storage? | Redacción pre-LLM de nombre/dirección/employee-ID |
 | ¿El CSV sidestea el debate? | **Sí, casi por completo**, a costa de perder historial de lotes |
 
----
-
-# Fidelity "View open lots" CSV — Probe Findings
-
-**Autor:** Banner (Data/AI Engineer)  
-**Fecha:** 2026-07-15T09:24:54+02:00  
-**Status:** FINDINGS — para Fury (arquitectura), Shuri (schema), Romanoff (PII review)  
-**Contexto:** El owner puede exportar un CSV de "View open lots" desde Fidelity en lugar del PDF. Este documento recoge los hallazgos del probe real del fichero.
 
 ---
 
@@ -7330,6 +7721,7 @@ Esta decisión es **independiente** de si se guarda o no el PDF. Independienteme
 | Valores ausentes | Guión literal `-` |
 | Penúltima línea | Línea vacía (solo `,`) — ignorar |
 | Última línea (footer) | `The values are displayed in EUR` — **strip antes de parsear** |
+
 
 ---
 
@@ -7352,6 +7744,7 @@ Esta decisión es **independiente** de si se guarda o no el PDF. Independienteme
 **⚠️ CORRECCIÓN CRÍTICA a arquitectura Fury:**  
 El footer confirma `EUR`. `Cost basis/share` NO es el precio USD de compra — es ya el equivalente EUR (convertido por Fidelity al tipo de cambio de la fecha de adquisición). El campo `NormalizedLot.currency` debe ser `"EUR"`, no `"USD"`.
 
+
 ---
 
 ## 3. Presencia de campos necesarios para el MVP
@@ -7372,6 +7765,7 @@ El footer confirma `EUR`. `Cost basis/share` NO es el precio USD de compra — e
 
 **Conclusión: el CSV SOLO es suficiente** para el objetivo MVP + Phases 2-3. Σ(Quantity) = shares totales; cost basis por lote para gain/loss; fechas para serie histórica.
 
+
 ---
 
 ## 4. Fecha "as-of"
@@ -7379,6 +7773,7 @@ El footer confirma `EUR`. `Cost basis/share` NO es el precio USD de compra — e
 **No hay fecha "as-of" explícita en el fichero.** Los valores `Value` y `Gain/loss` reflejan el precio de mercado en el momento del export, pero la fecha no se registra en el CSV. El importer debe:
 - Capturar el `import_timestamp` como referencia temporal para la snapshot de valor
 - O bien ignorar `Value`/`Gain/loss` del CSV (recomputar desde precio live en Phase 2)
+
 
 ---
 
@@ -7390,6 +7785,7 @@ El footer confirma `EUR`. `Cost basis/share` NO es el precio USD de compra — e
 | Dividend reinvestment | `DO` | Varios/mes, días 1/2/15/16/17 | Menor (~0.55–1.1 shares) | `-` |
 
 **Lotes duplicados:** múltiples lotes DO en la misma fecha pueden tener valores idénticos `(Date acquired, Quantity, Cost basis/share)`. La clave `(date, quantity, price)` **no es única**. Ver sección 7 para la estrategia de idempotencia.
+
 
 ---
 
@@ -7418,6 +7814,7 @@ El CSV supera al PDF en todos los ejes que importan para el MVP:
 
 Los únicos campos que el PDF añade (plan name, payroll deduction %, offering period formal, contributions totales) NO son necesarios para el objetivo "cuánto valen mis MSFT hoy en EUR". Phase 4 (PDF adapter) es probablemente **obsoleta**.
 
+
 ---
 
 ## 7. Mapping CSV → NormalizedLot (Shuri's model)
@@ -7440,6 +7837,7 @@ NormalizedLot:
 - `Value` — volátil (cambia diariamente con precio de mercado), recomputar en Phase 2
 - `Gain/loss` — derivado de `Value - Cost basis`, recomputar en Phase 2
 - `Sale/Transfer availability date` — `-` en todos los lotes observados; almacenar como nullable si se quiere
+
 
 ---
 
@@ -7469,6 +7867,7 @@ dedup_hash = sha256(
 
 Justificación: accumulate-only → los lotes existentes nunca desaparecen; los nuevos siempre se añaden al final del CSV. El `ordinal` dentro del grupo es estable entre re-exports del mismo conjunto.
 
+
 ---
 
 ## 9. Esfuerzo estimado
@@ -7482,6 +7881,7 @@ Justificación: accumulate-only → los lotes existentes nunca desaparecen; los 
 | **PDF total** | | **~3+ días** |
 
 **El CSV no necesita a Banner para Phase 1** (Fury ya asignó el CSV adapter a Shuri). Banner entra en Phase 4 si se construye el PDF adapter.
+
 
 ---
 
@@ -7505,6 +7905,7 @@ Justificación: accumulate-only → los lotes existentes nunca desaparecen; los 
 **Status:** FINAL DESIGN CONVERGED — awaiting owner sign-off on 6 final questions  
 **Context:** Closing refinement round. Currency-of-record = EUR (FINAL). CSV-first MVP confirmed. Endpoint contracts agreed (Vision ↔ Shuri).
 
+
 ---
 
 ### A. Currency-of-Record Decision: EUR (FINAL)
@@ -7516,6 +7917,7 @@ Justificación: accumulate-only → los lotes existentes nunca desaparecen; los 
 - **Fallback (if USD only):** Detect CSV footer → store USD + mark currency="USD" → requires historical FX per lot for cost basis in EUR (complexity avoided by requesting EUR)
 
 **Rationale:** Owner thinks in EUR (payroll-FX reality). Cost basis EUR = exactly what left the paycheck. Storing USD is a dead-end (would need historical FX per lot to show EUR cost basis anyway).
+
 
 ---
 
@@ -7558,6 +7960,7 @@ Justificación: accumulate-only → los lotes existentes nunca desaparecen; los 
    - Returns: [{ date, value_eur, invested_eur }] — daily (business day) granularity
    - Frontend: area/line chart like Indexa — value line + contributions line. Period selector.
 
+
 ---
 
 ### C. Final Phases
@@ -7586,6 +7989,7 @@ Justificación: accumulate-only → los lotes existentes nunca desaparecen; los 
 - Evolution chart: value line EUR + invested line EUR
 - Period selector: 1M / 3M / 6M / YTD / 1Y / ALL
 - Hover tooltip with value + day gain
+
 
 ---
 
@@ -7617,6 +8021,7 @@ um_lots_skipped
 - etched_at (TIMESTAMPTZ default now())
 - Constraint: UNIQUE (ticker, price_date)
 
+
 ---
 
 ### E. Endpoint Contracts (Vision ↔ Shuri)
@@ -7634,6 +8039,7 @@ um_lots_skipped
 
 **3. GET /api/investments/fidelity/lots** (Phase 3)
 - Returns: array of lots with id, purchase_date (ISO), shares, cost_basis_per_share_eur, cost_basis_total_eur, current_value_eur (null until Phase 2), gain_loss_eur, gain_loss_pct, share_source ("SP"|"DO"), grant_date (ISO or null)
+
 
 ---
 
@@ -7657,6 +8063,7 @@ um_lots_skipped
 6. **Confirm EUR for CSV?**  
    Export CSV in EUR as configured now. If Fidelity stops offering EUR, we detect and handle USD.
 
+
 ---
 
 ### G. Notes for Implementation
@@ -7667,11 +8074,13 @@ um_lots_skipped
 - **Banner** not needed until/if Phase 4 PDF adapter (probably never)
 - **Romanoff** already validated: CSV = zero PII concern. Done.
 
+
 ---
 
 **No real financial values or identity PII in decisions.md.**  
 Currency-of-record FINAL = EUR (Fury).  
 Endpoint contract kpis/evolution/lots agreed (Shuri ↔ Vision).
+
 
 ---
 
@@ -7692,80 +8101,6 @@ Endpoint contract kpis/evolution/lots agreed (Shuri ↔ Vision).
 
 **Docker:** rebuilt (docker-compose.local.yml), no new migration (head 0015), endpoints verified, new frontend chunks served, running :7777.
 
----
-
-## 🎨 PROPOSAL: Recomendación: Inicio vs Finanzas — Diferenciación de Pantallas
-
-**Autora:** Wanda (UX/UI Designer)  
-**Fecha:** 2026-07-15  
-**Estado:** Propuesta — pendiente decisión del owner
-
-### 1. ¿Para qué sirve cada pantalla?
-
-| Pantalla | Propósito | Analogía |
-|----------|-----------|----------|
-| **Inicio** (`/`) | **Cuadro de mando personal** — snapshot cross-domain (gastos + inversiones) del estado financiero actual. Responde a: *"¿cómo estoy?"* en 3 segundos. | La pantalla de bloqueo del iPhone: lo justo para saber si algo requiere atención. |
-| **Finanzas** (`/finances`) | **Centro de operaciones de gasto** — análisis enfocado de ingresos/gastos con filtros completos. Responde a: *"¿en qué me he gastado el dinero este mes?"* con capacidad de drill-down. | La app del banco abierta en la sección de movimientos. |
-
-**Principio clave:** Inicio NO es un dashboard de finanzas reducido. Inicio es el *hub* que abarca TODO (gastos + inversiones). Finanzas es la herramienta de análisis de cash-flow.
-
-### 2. Recomendación: **MOVER + REEMPLAZAR** (ni duplicar, ni simplemente quitar)
-
-**Dirección concreta:**
-
-1. **MOVER a Finanzas:** SpendingByCategory, TopMerchants, CategoryMovers, SpendingHeatmap, y GlobalFilterBar. Finanzas se convierte en el dashboard de análisis de gasto *completo*.
-
-2. **REEMPLAZAR en Inicio:** Sustituir los widgets movidos por contenido cross-domain:
-   - KPIs simplificados del mes actual (sin filtros) — gasto del mes, ingreso del mes, neto
-   - Nuevo widget de patrimonio/inversiones (valor total de cartera + variación)
-   - Accesos rápidos a secciones
-
-3. **NO DUPLICAR:** Cada widget debe tener UN hogar.
-
-**Justificación:** Con la app creciendo a gastos + inversiones, Inicio necesita ser el punto de encuentro de ambos mundos. Hacerlo cross-domain le da un propósito único e insustituible.
-
-### 3. Propuesta de layout — Inicio ideal
-
-```
-KPIs del mes (julio 2026) — Gastos, Ingresos, Neto, Ahorro
-Patrimonio inversiones — Valor total, ganancia/pérdida, desglose por proveedor
-Accesos rápidos — Finanzas, Inversiones, Tendencias, Ajustes
-```
-
-### 4. Finanzas ideal propuesto
-
-Con los widgets movidos:
-- GlobalFilterBar — filtros
-- KpiCards — con filtros aplicados
-- SpendingByCategory (donut) + TopMerchants (side by side)
-- SpendingHeatmap — full width
-- CategoryMovers — full width
-
-### 5. Necesidades de datos / endpoints nuevos
-
-| Necesidad | Endpoint | Estado |
-|-----------|----------|--------|
-| KPIs mes actual en Inicio | `getOverview({ from, to })` | ✅ Ya existe |
-| Patrimonio inversiones en Inicio | `GET /api/investments/combined-overview` | ✅ Ya existe |
-| CategoryMovers en Finanzas | `getByCategory()` | ✅ Ya existe |
-| SpendingHeatmap en Finanzas | `getHeatmap()` | ✅ Ya existe |
-
-**🎉 No se necesita NINGÚN endpoint nuevo.** Solo:
-1. Nuevo componente React `InvestmentSnapshotCard` (compact) para Inicio
-2. Reorganizar qué componentes renderiza cada página
-
-### 6. Riesgos y consideraciones
-
-- **Inicio queda "ligero":** Intencionado. Mobile-first = menos scroll, más foco.
-- **Pérdida de interactividad en Inicio:** Sin filtros, Inicio es solo lectura. Esto es una feature (reduce carga cognitiva). Para interactuar → Finanzas.
-- **Accesos rápidos pueden parecer innecesarios con el sidebar:** En desktop sí. En mobile, donde el sidebar está colapsado, son muy útiles como primer punto de contacto.
-
-### 7. Resumen ejecutivo
-
-> **Inicio = Vistazo rápido cross-domain (gastos del mes + inversiones + shortcuts)**
-> **Finanzas = Análisis completo de cash-flow con filtros**
-> **Dirección: MOVER widgets de análisis a Finanzas, REEMPLAZAR en Inicio con contenido cross-domain. No duplicar.**
-> **Backend: 0 endpoints nuevos necesarios.**
 
 ---
 
@@ -7802,6 +8137,7 @@ Palette persistence follows the existing theme pattern in `ThemeContext`: local 
 ### Guardrail
 
 Financial semantic colors are not palette-driven. Income/positive green, expense/negative red, category colors, chart colors, and investment instrument palettes remain intact regardless of accent selection.
+
 
 ---
 
@@ -7847,6 +8183,7 @@ Normalization: uppercase, trim, collapse whitespace, strip punctuation and diacr
 **Tests:** `tests/test_merchant_normalization.py` + `tests/api/test_merchants.py` (full suite: 1156 passed, 2 skipped).  
 **Endpoints:** GET/POST `/merchants`, PATCH `/merchants/{id}`, POST/DELETE `/merchants/{id}/aliases`, GET `/merchants/unmatched`, POST `/merchants/backfill`.
 
+
 ---
 
 
@@ -7874,6 +8211,7 @@ Normalization: uppercase, trim, collapse whitespace, strip punctuation and diacr
 ## Validation
 
 \cd frontend && npm run build\ passed with zero TypeScript errors. The existing Vite chunk-size warning remains expected.
+
 
 
 ---
@@ -7905,6 +8243,7 @@ Telegram config for now.
 Existing reminder endpoints and their inline rendering MUST remain (notifications are additive).
 
 
+
 ---
 
 # Notifications + Telegram — Architecture Proposal
@@ -7913,6 +8252,7 @@ Existing reminder endpoints and their inline rendering MUST remain (notification
 **Date:** 2026-07-17
 **Status:** DESIGN ONLY — awaiting David's validation before any code
 **Companion doc:** `wanda-notifications-ux.md` (bell/panel/wizard visuals — this doc defers all UI styling to Wanda and covers the backend model, API, delivery, connector, migration & sequencing).
+
 
 ---
 
@@ -7925,6 +8265,7 @@ Existing reminder endpoints and their inline rendering MUST remain (notification
 - **One migration** `0016`, three tables. **Two demoable slices** (bell+read/dismiss, then Telegram).
 
 Grounding confirmed in code: reminders are stateless pure functions; the app has **no scheduler** (entrypoint = `alembic upgrade head` → seed → single uvicorn worker); async side-effects use FastAPI `BackgroundTasks`; tokens are Fernet-encrypted, fail-closed to 503.
+
 
 ---
 
@@ -7972,6 +8313,7 @@ The two existing detectors **wrap the existing pure functions unchanged** (`comp
 
 > **Note vs Wanda (localStorage):** Wanda proposed client-only localStorage for dismiss state — perfect *if Telegram were out of scope*. But Telegram push is part of THIS feature, and the backend must own "what notifications exist + were they delivered." Driving that from browser storage is impossible, and building localStorage now means discarding it in Slice 2. So: **backend-owned state from Slice 1.** Everything else in Wanda's doc stands as-is.
 
+
 ---
 
 ## B) API surface
@@ -8000,6 +8342,7 @@ action_link: str|None  # "/finances?account_id=3", "/investments/fidelity-espp"
 created_at; read_at|None; dismissed_at|None
 ```
 No tokens, no PII, ever.
+
 
 ---
 
@@ -8031,6 +8374,7 @@ _CHANNELS = {"telegram": TelegramChannel()}
 ```
 Future channels (email, etc.) drop in the same way.
 
+
 ---
 
 ## D) Telegram connector
@@ -8052,6 +8396,7 @@ Endpoints mirror investments: `GET /channels`, `POST /channels/telegram/test`, `
 
 **The `sendMessage` call:** lives in `src/finlytics/notifications/channels/telegram.py`, uses `httpx.AsyncClient` (already a dep) with a short timeout (~10s). Bot token is decrypted only inside `send()`, used in the `api.telegram.org/bot<token>/sendMessage` URL, and **never logged** (log masked chat_id + HTTP status only). Failures are caught, recorded in `notification_deliveries.error`, and never raise into the request path (background context). 503 only on the interactive test/save path.
 
+
 ---
 
 ## E) Migration plan — `0016_add_notifications.py` (revises `0015`)
@@ -8063,6 +8408,7 @@ Follows the `0015` `op.create_table` style; `alembic upgrade head` runs it on co
 3. **`notification_deliveries`** — `id` PK · `notification_id` FK→notifications CASCADE · `channel` · `status` · `sent_at?` · `error?`. **UNIQUE(`notification_id`,`channel`)**.
 
 Never edit a deployed migration.
+
 
 ---
 
@@ -8082,6 +8428,7 @@ Wire `notification_channels` + `notification_deliveries` · channel registry + `
 B2 async interval loop in a FastAPI lifespan hook → evaluate + push without an app visit (single worker, no lock).
 → **Owners:** Rocket (lifespan/interval + ops), Shuri (reuse orchestrator), Barton (interval-eval test). **Gate:** only if "next app open" isn't timely enough.
 
+
 ---
 
 ## Questions for David (each has a default so we can proceed)
@@ -8094,6 +8441,7 @@ B2 async interval loop in a FastAPI lifespan hook → evaluate + push without an
 6. **Channel scope:** one Telegram config total (UNIQUE user_id+channel_id)? — *Default: yes.*
 
 
+
 ---
 
 # Notifications Center — UX Proposal
@@ -8101,6 +8449,7 @@ B2 async interval loop in a FastAPI lifespan hook → evaluate + push without an
 **Author:** Wanda (UX/UI Designer)  
 **Date:** 2026-07-17  
 **Status:** Proposal — awaiting David's validation before implementation
+
 
 ---
 
@@ -8111,6 +8460,7 @@ Two actionable alerts already exist:
 2. `.espp-reminder-banner` — amber full-width banner on Dashboard + FidelityView (overdue ESPP upload).
 
 Both are contextual but have no persistent home. David wants a global **bell button** surfacing all current (and future) notifications, with read/dismiss affordances.
+
 
 ---
 
@@ -8141,6 +8491,7 @@ Both are contextual but have no persistent home. David wants a global **bell but
 | 1+ unread | Bell + red badge with count |
 | All read (none pending) | Bell only, no badge |
 
+
 ---
 
 ## 2. Panel Form Factor
@@ -8167,6 +8518,7 @@ Both are contextual but have no persistent home. David wants a global **bell but
 - `border-radius: 0 0 var(--radius) var(--radius)` (rounded bottom corners only).
 
 **Dismiss panel:** Click/tap outside (semi-transparent fixed backdrop behind panel), or `Escape` key.
+
 
 ---
 
@@ -8197,6 +8549,7 @@ Both are contextual but have no persistent home. David wants a global **bell but
 | **Action link** | `font-size: 12px; font-weight: 600; color: var(--primary); text-decoration: underline`. Navigates and closes panel. |
 | **Dismiss (✕)** | `position: absolute; top: 8px; right: 8px`; 20×20px; `color: var(--text-muted)`. Hover: `var(--text)`. |
 | **Unread item background** | `rgba(var(--primary-rgb), 0.04)` — subtle tint, dynamic with palette. |
+
 
 ---
 
@@ -8230,6 +8583,7 @@ Small `text-button` in panel header, visible only when `unreadCount > 0`. Marks 
 ### Sorting
 Sort by: **severity first** (warnings before info) → **recency within severity**. No grouping headers needed at current volume (≤ 5 items).
 
+
 ---
 
 ## 5. Relationship to Existing Inline Alerts
@@ -8248,6 +8602,7 @@ They complement each other. Dismissing from the bell says "I'm aware" — after 
 Implementation note for Vision: a `useNotifications()` hook (or context) holding `dismissedIds: string[]` from localStorage is the clean pattern. Dashboard.tsx and FidelityView.tsx check it before rendering `.espp-reminder-banner`.
 
 **"Mark as read" (not dismiss) has no effect on inline banners** — the banner stays until dismissed or the underlying condition resolves.
+
 
 ---
 
@@ -8291,6 +8646,7 @@ Warning tokens are **not** palette-variant — amber warning color should stay a
 ### Token migration (recommended, not blocking)
 Migrate the existing `.espp-reminder-banner` hardcoded colors to `var(--warning)`, `var(--warning-bg)`, `var(--warning-text)` as part of the implementation, so the banner and notification items stay visually consistent.
 
+
 ---
 
 ## 7. Telegram Wizard Note (Brief)
@@ -8307,6 +8663,7 @@ The Telegram push-channel setup wizard (owned by Fury) should visually mirror `I
 | **4 — Connected ✅** | `.inv-wizard__success` layout. "Notificaciones de Telegram activadas." |
 
 **No new CSS classes needed.** The entire `inv-wizard__*` stylesheet reuses as-is. `TelegramWizard` is a separate React component sharing the same styles.
+
 
 ---
 
@@ -8331,6 +8688,7 @@ Vision wires these; proposed copy:
 
 All three files (`i18n/index.ts`, `en.ts`, `es.ts`) must be updated.
 
+
 ---
 
 ## Open Questions for David
@@ -8342,6 +8700,7 @@ All three files (`i18n/index.ts`, `en.ts`, `es.ts`) must be updated.
 3. **ESPP banner suppress-on-dismiss:** Does David agree that dismissing from bell should also hide the `.espp-reminder-banner`? (Recommended above.)
 
 
+
 ---
 
 # Notifications Design-QA — Vision Punch-list
@@ -8351,9 +8710,11 @@ All three files (`i18n/index.ts`, `en.ts`, `es.ts`) must be updated.
 **Branch:** main  
 **Status:** Actionable — pick up at your convenience
 
+
 ---
 
 CSS is done (index.css patched). The items below are structural/logic changes in the `.tsx` — your domain.
+
 
 ---
 
@@ -8382,6 +8743,7 @@ onMarkRead: (id: number) => void
 
 CSS already styles `.notif-item__dot` as a non-interactive circle; converting it to a button is a zero-visual-change structural swap.
 
+
 ---
 
 ## 2. Body text not rendered (`body_key` / `body_args` fields)
@@ -8409,12 +8771,14 @@ CSS class `.notif-item__body-text` already needed — Wanda will add it once you
 
 Also add the body i18n key resolvers to `i18n/{index,es,en}.ts` for the two existing notification types.
 
+
 ---
 
 ## 3. Panel doesn't close when clicking outside on iOS Safari
 
 **Already fixed in CSS by Wanda** (`cursor: pointer` on `.notif-backdrop`).  
 No action needed from Vision.
+
 
 ---
 
@@ -8430,6 +8794,7 @@ default:
 ```
 Or add a `t.notifTitleUnknown` fallback key.
 
+
 ---
 
 ## Notes
@@ -8437,6 +8802,7 @@ Or add a `t.notifTitleUnknown` fallback key.
 - All items above are low-urgency polish (spec compliance, not crashes).  
 - Item 3 (iOS backdrop) is easy for Wanda to add in CSS; flagging so Vision can decide preferred fix.  
 - Wanda has already patched all CSS issues (tokens, dark mode, icon colours, mobile dismiss, badge contrast). No CSS changes needed from Vision unless adding body-text markup (item 2).
+
 
 
 ---
@@ -8447,6 +8813,7 @@ Or add a `t.notifTitleUnknown` fallback key.
 **Date:** 2026-07-17  
 **Status:** IMPLEMENTED — Slice 1 backend complete, green suite (1179 passed, 2 skipped)  
 **Slice:** 1 of 2 (Telegram channel wizard is Slice 2)
+
 
 ---
 
@@ -8461,6 +8828,7 @@ All routes are under `/api/notifications`, auth-gated via `get_current_user`.
 | `POST` | `/api/notifications/read-all` | Mark all unread active notifications read | Returns `{"updated": N}` |
 | `POST` | `/api/notifications/{id}/read` | Mark one read | HTTP 204. 404 if not owned by user. |
 | `POST` | `/api/notifications/{id}/dismiss` | Dismiss one (hides from active list) | HTTP 204. 404 if not owned by user. |
+
 
 ---
 
@@ -8504,6 +8872,7 @@ All routes are under `/api/notifications`, auth-gated via `get_current_user`.
 { "updated": 3 }
 ```
 
+
 ---
 
 ## i18n Keys (Wanda / Vision — add to `en.ts`, `es.ts`, `i18n/index.ts`)
@@ -8512,6 +8881,7 @@ All routes are under `/api/notifications`, auth-gated via `get_current_user`.
 |-------------|-------------|------------|------------|
 | `notif.statement_missing` | `{month, account}` | "Missing statement for BBVA — 2026-06" | "Estado de cuenta faltante: BBVA — 2026-06" |
 | `notif.espp_overdue` | `{period}` | "ESPP upload overdue — Q2 2026" | "Subida ESPP pendiente — Q2 2026" |
+
 
 ---
 
@@ -8525,6 +8895,7 @@ These are stable identity strings stored in `notifications.dedup_key`.
 | `espp:overdue:{YYYY-Q#}` | `espp:overdue:2026-Q2` | One per ESPP quarter overdue upload |
 | `import:completed:{run_id}` | `import:completed:1234` | *(future)* |
 | `backup:stale:{YYYY-MM}` | `backup:stale:2026-07` | *(future)* |
+
 
 ---
 
@@ -8582,6 +8953,7 @@ Constraints: `UNIQUE(user_id, dedup_key)` · `INDEX(user_id)` · `INDEX(user_id,
 
 Constraints: `UNIQUE(notification_id, channel)` — idempotency guard for Telegram double-send prevention.
 
+
 ---
 
 ## Detector Registry
@@ -8594,6 +8966,7 @@ Constraints: `UNIQUE(notification_id, channel)` — idempotency guard for Telegr
 | `EsppDetector` | `"espp"` | True | `compute_espp_reminder` | `espp:overdue:…` |
 
 Add a new detector → append to `REGISTRY`. No other code changes needed.
+
 
 ---
 
@@ -8612,6 +8985,7 @@ Add a new detector → append to `REGISTRY`. No other code changes needed.
 
 `new_notifs` are committed Notification objects with IDs, `read_at=None`, `dismissed_at=None`.
 
+
 ---
 
 ## Background Loop
@@ -8623,6 +8997,7 @@ Configured in `config.py`:
 Gated in `app.py`'s `lifespan` context manager:
 - Never starts inside `pytest` (`"pytest" in sys.modules` check).
 - Safely cancelled on application shutdown.
+
 
 ---
 
@@ -8644,6 +9019,7 @@ Gated in `app.py`'s `lifespan` context manager:
 **Test result:** 1179 passed, 2 skipped (pre-existing skips unrelated to notifications).
 
 
+
 ---
 
 # Telegram Backend — Channel CRUD & Test-Endpoint Contract
@@ -8652,6 +9028,7 @@ Gated in `app.py`'s `lifespan` context manager:
 **Date:** 2026-07-17  
 **Status:** IMPLEMENTED — Slice 2 backend complete, green suite (1212 passed, 2 skipped)  
 **Slice:** 2 of 2 (Telegram delivery channel)
+
 
 ---
 
@@ -8663,6 +9040,7 @@ Gated in `app.py`'s `lifespan` context manager:
 | `src/finlytics/notifications/messages.py` | `render_notification_text` (Spanish renderer) |
 | `tests/notifications/test_deliver_new.py` | 7 unit tests for deliver_new |
 
+
 ---
 
 ## Updated Files
@@ -8673,6 +9051,7 @@ Gated in `app.py`'s `lifespan` context manager:
 | `src/finlytics/api/notifications.py` | +4 channel CRUD endpoints, updated imports |
 | `src/finlytics/api/schemas.py` | +`NotificationChannelOut`, `TelegramChannelIn`, `TelegramTestIn`, `TelegramTestOut` |
 | `src/finlytics/config.py` | +`telegram_send_enabled: bool = True` |
+
 
 ---
 
@@ -8697,6 +9076,7 @@ Returns the user's configured channels.
   }
 ]
 ```
+
 
 ---
 
@@ -8735,6 +9115,7 @@ Upsert the user's Telegram channel (one per user — replaces existing).
 | 400 | `telegram_get_me` fails — bad token (safe message, no token leaked) |
 | 503 | `FINLYTICS_ENCRYPTION_KEY` not configured |
 
+
 ---
 
 ### `DELETE /api/notifications/channels/{id}`
@@ -8746,6 +9127,7 @@ Delete a channel (scoped to current user).
 | Status | When |
 |--------|------|
 | 404 | Channel ID not found or not owned by current user |
+
 
 ---
 
@@ -8785,6 +9167,7 @@ or on failure:
 | 400 | Only one of bot_token/chat_id provided, or no stored channel |
 | 503 | Encryption not configured (on stored-channel path) |
 
+
 ---
 
 ## deliver_new Implementation
@@ -8807,6 +9190,7 @@ or on failure:
 - `TelegramError` messages are manually crafted — never include the URL or token.
 - `delivery.error` field is truncated to 500 chars; no secrets interpolated.
 
+
 ---
 
 ## Message Templates (Spanish)
@@ -8818,6 +9202,7 @@ or on failure:
 | `notif.statement_missing` | `⚠️ Falta subir el extracto de BBVA — 2026-06` |
 | `notif.espp_overdue` | `⚠️ Subida ESPP pendiente — Q2 2026` |
 | *(any other key)* | `📌 Finlytics: {key}` ← safe generic fallback |
+
 
 ---
 
@@ -8844,6 +9229,7 @@ class TelegramTestOut(BaseModel):
     error: str | None = None
 ```
 
+
 ---
 
 ## Config Kill-Switch
@@ -8856,6 +9242,7 @@ telegram_send_enabled: bool = True  # TELEGRAM_SEND_ENABLED env var
 
 Set `TELEGRAM_SEND_ENABLED=false` to suppress all Telegram sends without removing channels. Useful for ops maintenance.
 
+
 ---
 
 ## Security Audit Trail
@@ -8865,12 +9252,14 @@ Set `TELEGRAM_SEND_ENABLED=false` to suppress all Telegram sends without removin
 - `label` contains only the last 4 chars of `chat_id` (no token, no full chat_id).
 - `telegram_get_me` validation URL contains the token — this URL is NEVER logged (the function raises `TelegramError` with a safe message only).
 
+
 ---
 
 ## Test Result
 
 **1212 passed, 2 skipped** (baseline: 1205 passed, 2 skipped).  
 New tests: `tests/notifications/test_deliver_new.py` (7 tests).
+
 
 
 ---
@@ -8882,6 +9271,7 @@ New tests: `tests/notifications/test_deliver_new.py` (7 tests).
 **Branch:** main  
 **Audit reference:** `romanoff-telegram-audit.md` (verdict: FIX-FIRST)  
 **Test result:** 1239 passed, 2 skipped (baseline unchanged)
+
 
 ---
 
@@ -8904,6 +9294,7 @@ that has never existed in production."
 The existing SELECT-then-insert upsert logic is unaffected and continues to produce
 exactly one row per user per channel type.
 
+
 ---
 
 ## M2 — `config_enc` NOT NULL + null guard in decrypt paths ✅ FIXED
@@ -8923,6 +9314,7 @@ exactly one row per user per channel type.
 No existing tests required modification: all test fixtures use non-null `config_enc`
 values (`"dummy_ciphertext"`, `"dummy_encrypted_config"`).
 
+
 ---
 
 ## L1 — Explicit `verify=True, follow_redirects=False` on httpx clients ✅ FIXED
@@ -8940,6 +9332,7 @@ to another host.
 
 Matches the explicit security posture already established in `src/finlytics/investments/indexa.py`.
 
+
 ---
 
 ## L3 — No token in logs ✅ CONFIRMED
@@ -8949,9 +9342,11 @@ any of the changes above. Log calls in `service.py` reference only `channel.id`,
 `notif.id`, and safe error messages. The `url` local variable (which contains the
 bot_token in its path) is never passed to any log call in `telegram.py`.
 
+
 ---
 
 *Shuri — 2026-07-17T15:04:32+02:00*
+
 
 
 ---
@@ -8961,6 +9356,7 @@ bot_token in its path) is never passed to any log call in `telegram.py`.
 **Date:** 2026-07-17  
 **Author:** Vision (Frontend Engineer)  
 **Status:** Implemented ✅
+
 
 ---
 
@@ -8986,6 +9382,7 @@ bot_token in its path) is never passed to any log call in `telegram.py`.
 | `frontend/src/pages/Dashboard.tsx` | Removed `getFidelityReminder` + `esppReminder` state; ESPP banner now driven by `notifications.find(n => n.source === 'espp')` via `useNotifications()`. |
 | `frontend/src/investments/views/FidelityView.tsx` | Same ESPP-banner change as Dashboard. |
 
+
 ---
 
 ## How the Telegram Wizard (Slice 2) Should Slot In
@@ -8998,6 +9395,7 @@ Slice 2 will add a Telegram / push-channel connector for notifications (based on
 4. **`NotificationsProvider`** is already at the app root so any new Slice 2 settings page can consume `useNotifications()` directly without additional context setup.
 
 
+
 ---
 
 # Vision — Telegram Frontend + Wanda punch-list
@@ -9007,6 +9405,7 @@ Slice 2 will add a Telegram / push-channel connector for notifications (based on
 **Branch:** main  
 **Status:** Delivered — `npm run build` green (zero TS errors)
 
+
 ---
 
 ## Files Added
@@ -9015,6 +9414,7 @@ Slice 2 will add a Telegram / push-channel connector for notifications (based on
 |------|---------|
 | `frontend/src/components/TelegramWizard.tsx` | 4-step wizard for configuring the Telegram notification channel. Mirrors IndexaWizard chassis (`modal-backdrop`/`inv-wizard`, `dotClass`/`sepClass`, `btn-primary`/`btn-secondary`). |
 | `frontend/src/pages/NotificationsSettingsPage.tsx` | Settings sub-page at `/settings/notifications`. Fetches `GET /api/notifications/channels`, shows Telegram card with connect/edit/disconnect actions. |
+
 
 ---
 
@@ -9033,6 +9433,7 @@ Slice 2 will add a Telegram / push-channel connector for notifications (based on
 | `frontend/src/App.tsx` | Imported `NotificationsSettingsPage`; added `<Route path="notifications">` under settings. |
 | `frontend/src/components/Layout.tsx` | Added `<NavLink to="/settings/notifications">` inside the **Sistema** settings group. |
 
+
 ---
 
 ## Backend contract assumed (not changed)
@@ -9044,12 +9445,14 @@ DELETE /api/notifications/channels/{id}    → 204
 POST /api/notifications/channels/telegram/test → TelegramTestOut {ok, error?}
 ```
 
+
 ---
 
 ## What was NOT touched
 
 - Backend code and tests (no changes)
 - Backup wizard WIP (`client.ts` backup exports, `BackupPage.tsx`, related types/i18n) — additive edits only
+
 
 
 ---
@@ -9063,6 +9466,7 @@ POST /api/notifications/channels/telegram/test → TelegramTestOut {ok, error?}
 **Verdict:** ⚠️ **FIX-FIRST** — 2 Medium findings require a migration + a guard before
 next production deployment. No Critical or High findings. Code quality is good;
 the author clearly intended to be secure.
+
 
 ---
 
@@ -9080,6 +9484,7 @@ the author clearly intended to be secure.
 | `src/finlytics/config.py` | Settings + `telegram_send_enabled` flag |
 | `alembic/versions/0016_add_notifications.py` | Schema migration |
 | `src/finlytics/api/investments.py` | Reference pattern for 503 handling |
+
 
 ---
 
@@ -9116,6 +9521,7 @@ Consequence:
 2. Add the same to `NotificationChannel.__table_args__` in `models.py`.
 3. The existing SELECT-then-insert upsert remains correct; the DB constraint is a
    belt-and-suspenders guard for concurrent races.
+
 
 ---
 
@@ -9155,6 +9561,7 @@ row that will fail silently on every future notification.
 3. Same guard in the `test_telegram_channel` stored-channel path
    (`api/notifications.py:320`).
 
+
 ---
 
 ### 🔵 LOW — L1: `httpx.AsyncClient` missing explicit `verify=True` and `follow_redirects=False`
@@ -9184,6 +9591,7 @@ async with httpx.AsyncClient(timeout=10.0, verify=True, follow_redirects=False) 
 ```
 Apply to both functions in `telegram.py`. Make it the house style for all
 outbound httpx clients.
+
 
 ---
 
@@ -9221,6 +9629,7 @@ raise TelegramError(f"Telegram rejected the request (ok:false, see logs).")
 # Log desc at DEBUG level where it's least likely to be shipped to a SIEM.
 ```
 
+
 ---
 
 ### 🔵 LOW — L3: httpx DEBUG logging would expose bot_token in request URLs
@@ -9249,6 +9658,7 @@ logging.getLogger("httpcore").setLevel(logging.WARNING)
 ```
 This is defence-in-depth; current production code is not at risk.
 
+
 ---
 
 ## Threat Checklist Verdicts
@@ -9263,6 +9673,7 @@ This is defence-in-depth; current production code is not at risk.
 | 6 | **AuthZ / ownership** | ✅ PASS | Router registered with `dependencies=_auth` (`app.py:156`). `list_channels`, `upsert`, `delete`, `test` all filter by `user.id`. User A cannot touch user B's channels. |
 | 7 | **Injection / templating** | ✅ PASS | `render_notification_text` uses only trusted detector args (`title_args` from detector code). No Jinja, no eval, no untrusted user input. |
 | 8 | **Idempotency guard** | ✅ PASS (w/ note) | `UNIQUE(notification_id, channel)` on `notification_deliveries` prevents double-sends. See M1 for race on `notification_channels`. |
+
 
 ---
 
@@ -9295,6 +9706,7 @@ This is defence-in-depth; current production code is not at risk.
   variable. The `url` local variable containing the token never appears in any
   exception message.
 
+
 ---
 
 ## Routing for Fixes
@@ -9307,9 +9719,11 @@ This is defence-in-depth; current production code is not at risk.
 | L2 | Cap/sanitize Telegram API `description` passthrough | Shuri | Next sprint |
 | L3 | Suppress httpx/httpcore DEBUG logging at startup | Shuri | Optional / hardening |
 
+
 ---
 
 *Romanoff — 2026-07-17T17:12:48+02:00*
+
 
 
 ---
@@ -9321,11 +9735,13 @@ This is defence-in-depth; current production code is not at risk.
 **Branch:** main  
 **Result:** ✅ PASS — stack is UP at :7777
 
+
 ---
 
 ## What was verified
 
 End-to-end Docker verification of the Notifications + Telegram feature on `docker-compose.local.yml` (Dockerfile.local, host-prebuilt frontend).
+
 
 ---
 
@@ -9391,6 +9807,7 @@ Key lines:
 - ✅ Notifications background loop started, interval=300s (default).
 - ✅ No tracebacks, no exceptions on boot.
 
+
 ---
 
 ## Env vars for the feature
@@ -9406,11 +9823,13 @@ All have safe defaults — none block container startup:
 
 `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` are stored per-user in `notification_channels.config_enc` (encrypted at rest) — not needed as container env vars.
 
+
 ---
 
 ## Stack status
 
 **LEFT UP** at http://localhost:7777 as requested by DrDonoso.
+
 
 
 ---
@@ -9423,11 +9842,13 @@ All have safe defaults — none block container startup:
 **Author:** Vision (Frontend Engineer)  
 **Requested by:** DrDonoso
 
+
 ---
 
 ## Summary
 
 Three frontend changes applied based on owner feedback after testing the notifications feature.
+
 
 ---
 
@@ -9442,6 +9863,7 @@ Three frontend changes applied based on owner feedback after testing the notific
 
 **Files deleted:**
 - `frontend/src/pages/NotificationsSettingsPage.tsx`
+
 
 ---
 
@@ -9461,6 +9883,7 @@ Three frontend changes applied based on owner feedback after testing the notific
 - **Step 2**: Chat ID + test (formerly step 3).
 - **Step 3**: Confirm/connect (formerly step 4).
 
+
 ---
 
 ## ③ Chat ID integer validation
@@ -9474,6 +9897,7 @@ Three frontend changes applied based on owner feedback after testing the notific
 - Test button and "Next" button both disabled until `chatIdValid`.
 - Hint text updated: explicitly states @usuario is not supported, points to @userinfobot.
 - Backend 422 responses now map to `tgWizardErrorBadToken` (alongside 400).
+
 
 ---
 
@@ -9494,6 +9918,7 @@ Three frontend changes applied based on owner feedback after testing the notific
 
 **Files changed:** `frontend/src/i18n/index.ts`, `frontend/src/i18n/es.ts`, `frontend/src/i18n/en.ts`
 
+
 ---
 
 ## Build result
@@ -9507,6 +9932,7 @@ Three frontend changes applied based on owner feedback after testing the notific
 **Author:** Shuri (backend)  
 **Status:** implemented, tests green (1244 passed, 2 skipped)
 
+
 ---
 
 ## ① chat_id validation rule
@@ -9518,6 +9944,7 @@ Three frontend changes applied based on owner feedback after testing the notific
 - Storage: chat_id remains a **string** (Telegram IDs may exceed 32 bits — never cast to int).
 - HTTP status on violation: **422 Unprocessable Entity** (Pydantic validation error).
 - Implementation: `src/finlytics/api/schemas.py` — `_CHAT_ID_RE`, `_validate_chat_id()`, `@field_validator("chat_id")` on both `TelegramChannelIn` and `TelegramTestIn`.
+
 
 ---
 
@@ -9588,6 +10015,7 @@ The orchestrator's auto-resolve step is scoped to `Notification.source == detect
 **Requested by:** DrDonoso  
 **Round changes picked up:** Telegram connector wizard UI (Vision), chat_id integer validation + `scripts/seed_notifications.py` (Shuri), donut mobile CSS fix (Wanda).
 
+
 ---
 
 ## Result: ✅ PASS — Stack UP at :7777
@@ -9631,6 +10059,7 @@ INFO:  Uvicorn running on http://0.0.0.0:7777
 
 No tracebacks. Alembic at head (0016). Notification loop started.
 
+
 ---
 
 **Stack status:** UP. No app code modified. No secrets printed.
@@ -9641,6 +10070,7 @@ No tracebacks. Alembic at head (0016). Notification loop started.
 **Author:** Wanda (UX/UI)  
 **Date:** 2026-07-20T08:38:58+02:00  
 **Requested by:** DrDonoso (David)
+
 
 ---
 
@@ -9700,6 +10130,7 @@ Height `240px` kept (saves vertical space on mobile; 232px donut fits with 4px t
 
 
 
+
 ---
 # Mobile KPI layout fixes — Finanzas & Extractos
 
@@ -9708,6 +10139,7 @@ Height `240px` kept (saves vertical space on mobile; 232px donut fits with 4px t
 **Requested by:** DrDonoso (David)  
 **Branch:** main  
 **File changed:** `frontend/src/index.css` only
+
 
 ---
 
@@ -9740,6 +10172,7 @@ In `@media (max-width: 600px)`, replaced the `.header-kpis` single-line rule wit
 
 Desktop layout (`>600px`) untouched.
 
+
 ---
 
 ## Issue 2 — Extractos KPI cards: left-aligned with dead right-side space
@@ -9763,6 +10196,7 @@ Added `width: 100%` to `.month-header > .tx-totals` inside the existing `@media 
 
 This is the minimal surgical fix. It only targets the StatementsPage context (`.month-header >` child combinator) and does not affect `TransactionsPage`'s `.tx-totals` which lives outside `.month-header`.
 
+
 ---
 
 ## Verification
@@ -9770,6 +10204,7 @@ This is the minimal surgical fix. It only targets the StatementsPage context (`.
 - `cd frontend && npm run build` → ✅ zero TS errors, zero new warnings (pre-existing chunk-size warning unchanged).
 - Breakpoints checked: ≤430px (iPhone 14 Pro Max), ≤390px, ≤360px, >768px (desktop).
 - Light + dark: only layout/spacing changed — no colour tokens added or modified.
+
 
 ---
 # Vision — Transaction detail / edit popup (mobile-only)
@@ -9802,6 +10237,7 @@ On mobile (≤600px), tapping any transaction row opens a full-screen bottom-she
 ## Validation
 
 `cd frontend && npm run build` — zero TypeScript errors. Pre-existing chunk-size warning only.
+
 
 ---
 # Rocket Rebuild — Mobile-UX Round
@@ -9889,6 +10325,7 @@ ow.net stored in historicNet state.
 
 cd frontend && npm run build passes with zero TypeScript errors.
 
+
 ---
 # Wanda — Nav arrow hover background removal
 
@@ -9923,6 +10360,7 @@ pm run build passes.
 **Date:** 2026-07-21T11:30:13+02:00
 **Agent:** Barton (Tester / QA)
 
+
 ---
 
 ## Summary
@@ -9930,6 +10368,7 @@ pm run build passes.
 Reviewed Shuri's implementation of `POST /api/accounts` (accounts.py + schemas.py) and added **11 edge-case tests** to `tests/api/test_accounts.py`.
 
 **Result:** 669 tests, all pass, 0 failures.
+
 
 ---
 
@@ -9949,11 +10388,13 @@ Plus two helpers added (shared by my tests):
 - `_pg_insert_ok()` — mock execute result simulating real pg_insert success
 - `_track_session_adds(mock_session)` — captures session.add() calls by type
 
+
 ---
 
 ## Shuri's Tests (Already Covered — Not Duplicated)
 
 Shuri's existing POST tests cover: minimal 201, custom type/currency, opening_balance with tx_count=1, zero balance (call_count check), duplicate name 409, duplicate IBAN 409, missing opening_date 422, empty name 422, whitespace name 422, IBAN masking in response.
+
 
 ---
 
@@ -9980,6 +10421,7 @@ A positive `opening_balance` will count as "income" in summary/KPI queries. This
 ### 4. `_make_no_conflict_session` limitation
 Shuri's helper uses `return_value=` (one mock for all execute calls). For tests requiring distinct pg_insert behavior (e.g., simulate real insert success), `side_effect=[no_conflict_mock, _pg_insert_ok()]` is required. My tests use this pattern.
 
+
 ---
 
 ## Files Changed
@@ -9990,20 +10432,13 @@ Shuri's helper uses `return_value=` (one mock for all execute calls). For tests 
 | `.squad/agents/barton/history.md` | Appended learnings |
 
 
----
-# ✅ APPROVED: Revisión: Slice "Old Account Onboarding" — Opción C
-
-# Revisión: Slice "Old Account Onboarding" — Opción C
-
-**Revisor:** Fury (Lead / Architect)  
-**Fecha:** 2026-07-21T11:23:28+02:00  
-**Estado:** ✅ APPROVED
 
 ---
 
 ## Veredicto: APROBADO
 
 El slice cumple con todos los requisitos de la Opción C aprobada por el owner: creación manual de cuentas con transacción de apertura sintética "Saldo inicial", sin migración Alembic.
+
 
 ---
 
@@ -10036,6 +10471,7 @@ El slice cumple con todos los requisitos de la Opción C aprobada por el owner: 
 - Tests nuevos de POST cubren: happy path, tipo/moneda custom, saldo de apertura, saldo cero, nombre duplicado (409), IBAN duplicado (409), balance sin fecha (422), nombre vacío (422), IBAN enmascarado, saldo negativo, campos de transacción, determinismo del hash dedup, metadata del ImportRun, guard de saldo cero a nivel tipo, pass-through de moneda.
 - Buena cobertura de las invariantes de integridad de datos.
 
+
 ---
 
 ## Recomendación follow-up: `is_system` + migración 0016
@@ -10051,14 +10487,6 @@ Razones:
 **Próximo paso:** El owner decide si y cuándo quiere excluir el saldo de apertura de los KPIs. Si sí → migración 0016 con `is_system` boolean + index parcial + `WHERE NOT is_system` en queries de summary.
 
 
----
-# ✅ IMPLEMENTED: POST /api/accounts — Contrato final e informe de implementación
-
-# POST /api/accounts — Contrato final e informe de implementación
-
-**Autor:** Shuri (Backend Engineer)  
-**Fecha:** 2026-07-21T11:30:12+02:00  
-**Estado:** ✅ Implementado — pendiente revisión de Vision (frontend) y Barton (QA)
 
 ---
 
@@ -10109,6 +10537,7 @@ Razones:
 | `422 Unprocessable Entity` | `opening_balance` proporcionado sin `opening_date` |
 | `422 Unprocessable Entity` | `name` vacío o solo espacios |
 
+
 ---
 
 ## Comportamiento interno
@@ -10154,6 +10583,7 @@ Crea la cuenta pero **NO** genera ImportRun ni Transaction. Cero sintéticas.
 
 Todo ocurre en un único `async with session.begin()`. Si cualquier paso falla (flush, insert de Transaction, etc.), toda la operación se revierte — la cuenta no queda en la DB a medias.
 
+
 ---
 
 ## ⚠️ KPI Skew — comportamiento documentado
@@ -10163,6 +10593,7 @@ Un `opening_balance` positivo creará una transacción con `amount > 0`. Las con
 > Una apertura de cuenta con saldo positivo (e.g. 1.500 €) **aparecerá como "Ingreso" en el mes correspondiente a `opening_date`**.
 
 Esto es **intencional en este slice** (Fury's Option C). No es un bug, es un compromiso aceptado a cambio de cero cambios de esquema.
+
 
 ---
 
@@ -10196,6 +10627,7 @@ Crear una categoría con `name="__apertura__"` y `is_base=True`, excluirla en KP
    - **Sí** → no hace falta nada más (comportamiento actual).  
    - **No** → aprueba la migración `0016_add_transaction_is_system`.
 
+
 ---
 
 ## Archivos modificados
@@ -10209,59 +10641,9 @@ Crear una categoría con `name="__apertura__"` y `is_base=True`, excluirla en KP
 **Sin migración Alembic.** La opción C de Fury no requiere cambios de esquema.
 
 
----
-# ✅ IMPLEMENTED: Vision Decision — Formulario "Nueva cuenta"
-
-# Vision Decision — Formulario "Nueva cuenta"
-**Fecha:** 2026-07-21T11:30:13+02:00
-**Autor:** Vision (Frontend Engineer)
-
-## Contexto
-Shuri construye el endpoint `POST /api/accounts` (201 → AccountOut) con saldo inicial opcional modelado como movimiento "Saldo inicial". Vision añade el flujo de creación en el frontend.
-
-**Nota:** `shuri-post-accounts-contract.md` no estaba disponible en inbox. Se usó el contrato del briefing directamente.
-
-## Decisiones de implementación
-
-### 1. Patrón modal (AccountCreateModal)
-Se sigue exactamente el mismo patrón que `AccountEditModal` y `AccountDeleteModal` existentes en `AccountsPage.tsx`:
-- Misma estructura `.modal-backdrop` / `.modal` / `.modal-header` / `.modal-body` / `.modal-footer`
-- Tecla Escape cierra el modal
-- `aria-modal="true"` + `aria-labelledby`
-
-### 2. Sección "Saldo inicial" colapsable
-Toggle tipo disclosure button (▶/▼) que muestra u oculta los campos `opening_balance` + `opening_date`. Borde izquierdo visual (`.acct-opening-section`) para diferenciarlo del formulario principal. Se eligió este patrón sobre un checkbox porque hace más visible la ayuda textual.
-
-### 3. Manejo de errores 409 / 422
-`createAccount` usa `raw fetch` (no `apiFetch`) para adjuntar `.status` al error lanzado, igual que `createRule` y `authPost`. La página lee `err.status` y muestra el string i18n apropiado dentro del modal (encima de los campos). El 422 del servidor no debería alcanzarse en condiciones normales (la validación cliente lo previene), pero se maneja como fallback.
-
-### 4. Tipos
-`AccountCreatePayload` añadido a `types.ts`. El tipo de retorno reutiliza `Account` existente (coincide con `AccountOut` del backend).
-
-### 5. Mock
-`mockGetAccounts` migrado a store mutable (`_mockAccounts`). `mockCreateAccount` añade la nueva cuenta al store, siendo visible en recargas mock subsiguientes dentro de la misma sesión.
-
-### 6. Estado en página
-Al crear con éxito, la cuenta se añade directamente al array local `accounts` desde la respuesta del servidor (sin re-fetch). Patrón consistente con `patchAccount`. El toast de éxito usa `t.accountsCreateToast(account.name)`.
-
-### 7. Colocación del botón
-Botón "Nueva cuenta" en `.settings-add-form` (bajo el `h2`), igual que `RulesPage.tsx`. Aparece siempre, también en estado vacío y cargando.
-
-## Archivos modificados
-- `frontend/src/api/types.ts` — `AccountCreatePayload` interface
-- `frontend/src/api/mock.ts` — store mutable + `mockCreateAccount`
-- `frontend/src/api/client.ts` — `createAccount` con raw fetch
-- `frontend/src/i18n/index.ts` — 18 nuevas claves en Dict
-- `frontend/src/i18n/es.ts` — traducciones ES
-- `frontend/src/i18n/en.ts` — traducciones EN
-- `frontend/src/index.css` — CSS `.acct-create-form`, `.acct-opening-toggle-btn`, `.acct-opening-section`
-- `frontend/src/pages/AccountsPage.tsx` — botón + `AccountCreateModal` component
-
-## Build
-`npm run build` (tsc --noEmit + vite build) → ✅ 0 errores TypeScript.
-
 
 ---
+
 
 
 ---
@@ -10271,6 +10653,7 @@ Botón "Nueva cuenta" en `.settings-add-form` (bajo el `h2`), igual que `RulesPa
 > **Estado:** IMPLEMENTED + APPROVED  
 > **Fecha entrada:** 2026-07-21T16:59:22+02:00  
 > **Slice:** is_system / KPI-exclusion follow-up  
+
 
 ---
 
@@ -10285,6 +10668,7 @@ Complete implementation of `is_system` flag for opening balance transactions ("S
 
 **Final Status:** Full suite green. OpenAPI exposed. Docker deployment clean (0015→0016→0017 migration chain). No defects.
 
+
 ---
 
 ## Architecture: OPTION B (Ledger-visible, KPI-excluded)
@@ -10296,6 +10680,7 @@ Complete implementation of `is_system` flag for opening balance transactions ("S
 - `get_overview`, `get_by_category`, `get_by_merchant`, `get_by_month`, `get_by_day`, `get_by_account`, `get_cashflow` inherit `exclude_system=True` by default → exclude.
 
 **Reconciliation:** The earlier proposal `shuri-is-system.md` suggested ledger should ALSO exclude (`exclude_system=True` everywhere). This was **SUPERSEDED** by owner direction and Option B contract in `shuri-is-system-ledger.md`. The Option B design is now authoritative.
+
 
 ---
 
@@ -10319,6 +10704,7 @@ Complete implementation of `is_system` flag for opening balance transactions ("S
 
 6. **`create_opening_balance_tx` helper:** Sets `is_system=True` on new opening transactions.
 
+
 ---
 
 ## Frontend Implementation (Vision)
@@ -10341,6 +10727,7 @@ Complete implementation of `is_system` flag for opening balance transactions ("S
 
 **Build:** `npm run build` → 0 TS errors.
 
+
 ---
 
 ## QA Implementation (Barton)
@@ -10355,6 +10742,7 @@ Complete implementation of `is_system` flag for opening balance transactions ("S
 - Regression: no bypass paths
 
 **Result:** 15 pass. Full suite: **1290 passed, 2 skipped, 0 failed.**
+
 
 ---
 
@@ -10372,6 +10760,7 @@ Complete implementation of `is_system` flag for opening balance transactions ("S
 - Tests: 1290 suite pass, 15 dedicated tests, 217 subset all green ✓
 
 **Non-blocking note:** The earlier `shuri-is-system.md` contained Option A (ledger-excludes), now superseded. For clarity, Shuri marked it as ⚠️ SUPERSEDED BY OPTION B in the document header.
+
 
 ---
 
@@ -10400,6 +10789,7 @@ Complete implementation of `is_system` flag for opening balance transactions ("S
 }
 ```
 
+
 ---
 
 ## Pre-commit Checklist (Coordinator Verified)
@@ -10417,199 +10807,277 @@ Complete implementation of `is_system` flag for opening balance transactions ("S
 
 **Ready to merge. ✅**
 
----
 
-# ✅ IMPLEMENTED + APPROVED: Shuri, Barton, Fury — FX Decouple (Model A)
 
-> **Estado:** IMPLEMENTED + APPROVED  
-> **Fecha entrada:** 2026-07-22T17:04:25+02:00  
-> **Scope:** Desacoplar almacenamiento MSFT-USD de disponibilidad diaria FX; Friday/null-FX/current-day recovery  
 
 ---
 
-## Root Cause (diagnosed via live Yahoo probes)
 
-ESPP Evolution chart dropped Fridays, null-FX days, and current day. **Causa raíz:**
-1. **Viernes**: Yahoo EURUSD=X daily nunca devuelve barras los viernes (rollover FX de fin de semana).
-2. **Intersección (bug-1)**: `topup_recent_prices` y `backfill_price_history` almacenaban PriceHistory SÓLO para `common = MSFT ∩ EURUSD` → todos los viernes caídos.
-3. **Null FX (bug-2)**: a veces EURUSD devolvía `close=null` para ciertos días → descartaba ese día.
-4. **Día actual (bug-3)**: `period2 = _to_unix(date.today())` medianoche UTC → excluía la barra in-progress del día actual.
+
 
 ---
 
-## Decision: Model-A (Decoupled FX)
+## Análisis por criterio
 
-Desacoplar equity de la disponibilidad diaria FX:
+### 1. First-load-fresh (path MISS sincrónico)
+✅ **Correcto.** `_get_db_cache` devuelve `None` → la conexión va a `need_fetch` → fetch sincrónico en vivo. NO toca el path STALE (que devuelve datos viejos + background refresh). La primera carga post-deploy ya muestra `contribution_events` frescos.
 
-1. **Almacenar MSFT USD para TODOS los días de trading** — independiente de si EURUSD tiene barra ese día.
-2. **FX forward-fill**: si no hay FX exacto para ese día (viernes, null), usar FX más reciente disponible en batch o DB.
-3. **Single FX en read-time**: `fidelity_evolution` aplica UN ÚNICO tipo de cambio (get_current_fx_rate live snapshot, fallback a almacenado) a TODAS las fechas históricas.
-4. **Auto gap-recovery**: si `len(prices) >= 30` y viernes presentes < 50% esperados → dispara `backfill_price_history` automático en primer request post-deploy.
-5. **No migración**: columnas `fx_eur_usd` y `close_eur` siguen NOT NULL, rellenadas con FX más reciente. Head sigue **0017**.
+### 2. No duplicate-row / unique violation
+✅ **Correcto.** `await db.delete(row)` + `await db.flush()` envía el DELETE al motor SQL dentro de la transacción ANTES de que `get_portfolio` ejecute `db.add(InvestmentPortfolioCache(...))`. El INSERT se materializa en el siguiente `commit()`. La constraint `uq_portfolio_cache_connection_id` nunca se viola porque el DELETE ya fue flushed.
 
-**Trade-off aceptado por owner:** puntos históricos usan FX del día de hoy (no histórico exacto). Elimina completamente dependencia de serie FX diaria Yahoo.
+### 3. Transaction safety
+✅ **Correcto.** `_get_db_cache` opera en la misma sesión `db` que `get_portfolio`. El `flush()` es una operación intra-transacción — si el fetch en vivo posterior falla y `commit()` nunca se llama, la sesión se cierra sin commit → el DELETE se revierte → la fila stale sobrevive → reintento en la próxima request. No hay pérdida de datos ni sesión corrupta.
 
----
+### 4. Version bump correctness
+✅ **Correcto.** Todas las rutas de escritura usan `_serialize_portfolio()` que SIEMPRE embebe `_schema_version`. Las dos rutas:
+- MISS path en `get_portfolio` → `_serialize_portfolio(portfolio)` ✓
+- Background refresh `_bg_refresh_connection` → `_serialize_portfolio(portfolio)` ✓
 
-## Backend Implementation (Shuri)
+Filas existentes (sin key) → `None != 2` → invalidación inmediata. No hay ningún path que escriba sin versión.
 
-**Archivo principal:** `src/finlytics/investments/market_data.py`, `src/finlytics/api/fidelity.py`
+### 5. Regression FRESH/STALE
+✅ **Sin regresión.** Tests TC6 (fresh) y TC6 (stale) verifican explícitamente que filas con `_schema_version == 2` y edad correcta siguen el comportamiento original (no delete, no live fetch en fresh; background refresh en stale).
 
-### market_data.py
+### 6. Self-heal producción
+✅ **Confirmado.** Al desplegar, la primera request encontrará la fila actual (sin `_schema_version`), la invalidará, hará fetch en vivo sincrónico, y almacenará la nueva fila con versión + `contribution_events`. El bug de "tabla vacía" se resuelve automáticamente.
 
-- `_fetch_yahoo_history`: period2 cambia `date.today()` → `date.today() + 1 day` (incluye barra in-progress).
-- `topup_recent_prices`: 
-  - Lookback ampliado a 90 días (antes solo desde max_date) → recupera viernes históricos automáticamente.
-  - Elimina intersección: almacena TODOS los días MSFT.
-  - FX forward-fill: usa FX exacto si existe ese día, sino FX más reciente del batch, sino FX almacenado en DB.
-- `backfill_price_history`: mismo patrón (store-all, forward-fill FX).
-- `get_current_fx_rate()` (nueva): obtiene live EURUSD snapshot de Yahoo.
-
-### fidelity.py
-
-- `fidelity_evolution`:
-  - Gap recovery: si `len >= 30` y viernes < 50% → `backfill_price_history` automático.
-  - Single FX: `latest_fx_eur_usd = get_current_fx_rate()` (live), fallback a `max(prices).fx_eur_usd`.
-  - Todos los puntos usan mismo FX.
-- `fidelity_kpis`, `fidelity_lots`: sin cambios; usan daily-bar FX vía `get_latest_price()`.
-- Contribuciones EUR nativas (CSV Fidelity EU) — sin conversión FX.
 
 ---
 
-## QA Implementation (Barton)
+## Tests (21 relevantes pasan)
+- 9 tests nuevos de versioning (unit + integration) cubren: absent version, wrong version, duplicate-row, serialize round-trip, regression fresh/stale.
+- Suite completa 1366 passed, 2 skipped, 0 failed.
 
-**Archivo principal:** `tests/api/test_fx_decouple.py` — 30 tests comprehensivos
-
-**Test categories** (por bug/feature):
-- TC-1 (viernes): 4 tests — viernes aparece en serie, valores correctos.
-- TC-2 (null FX): 3 tests — día con FX nulo produce punto, topup crea 2 filas (no 1).
-- TC-3 (día actual): 5 tests — hoy aparece, period2=tomorrow, sanidad Unix.
-- TC-4 (consistencia EUR): 4 tests — FX único uniforme en toda serie, contribuciones EUR nativas.
-- TC-5 (sin intersección): 5 tests — backfill almacena todos días MSFT (5 filas lun-vie), incluso con FX nulo.
-- TC-6 (regresión): 9 tests — lunes/jueves sin cambios, KPI formula, funciones escalonadas, series vacías.
-
-**Bug encontrado y corregido:** Helper `_make_db_session` en `test_market_data.py` no configuraba `first.return_value = None` cuando Shuri cambió query de `scalar_one_or_none` a `first`. Actualizado.
-
-**Resultado:** 
-- `test_fx_decouple.py`: 30 passed ✅
-- Suite completa: **1325 passed, 2 skipped, 0 failed** ✅
 
 ---
 
-## Review Verdict (Fury)
+## Decisión
 
-**Status:** ✅ APPROVED — sin defectos bloqueantes.
+**APPROVE** — implementación correcta, mínima, sin migración, auto-reparable. Lista para merge y deploy.
 
-**Hallazgos principales:**
 
-1. **De-intersección**: Verificado. Ambos `topup` y `backfill` almacenan TODOS los días MSFT sin filtrar por EURUSD. ✅
-2. **Consistencia FX**: Coherente en todos los endpoints. Value y contributions ambos EUR. ✅
-   - Evolution: live FX snapshot.
-   - KPIs/lots: daily-bar FX (get_latest_price).
-   - Nota: <0.3% intraday noise típico — views distintas, frecuencias distintas.
-3. **Gap recovery**: Seguro. Max 1 intento por request, threshold >= 30 evita falsos positivos, degradación graceful si Yahoo falla.
-4. **Idempotencia**: ON CONFLICT DO UPDATE (topup) + DO NOTHING (backfill) → sin duplicados.
-5. **close_eur almacenado**: Aceptable. Ningún endpoint activo lo lee. Recalculado en runtime para tomar live FX.
-
-**Defectos encontrados:** Ninguno.
 
 ---
 
-## Impact Summary
+## Resumen
 
-- **Frontend:** Ninguno. Endpoints siguen devolviendo EUR, charts renderean igual.
-- **Migration:** Ninguna. Head **0017**.
-- **API contracts:** Sin cambios.
-- **Degradation:** Si Yahoo falla → datos parciales sin viernes; sin cortes.
+Se introduce `_PORTFOLIO_SCHEMA_VERSION` en `service.py` para invalidar automáticamente filas de caché escritas por código antiguo (sin `contribution_events`). Ninguna migración de BD requerida.
+
 
 ---
 
----
+## Cambios en `service.py`
 
-# ✅ APPROVED: Shuri, Vision, Barton, Fury — Indexa contributions table
+### Nueva constante (tras `_CACHE_MAX_AGE`)
 
-> **Estado:** IMPLEMENTED + APPROVED  
-> **Fecha entrada:** 2026-07-23T10:09:14+00:00  
-> **Scope:** Derivar aportaciones/retiradas desde net_amounts de Indexa Capital; exponer en tabla frontend con agregación multi-cuenta  
+```python
+_PORTFOLIO_SCHEMA_VERSION = 2
+```
 
----
+Empezamos en `2`. Las filas existentes no tienen clave `_schema_version`, así que `.get("_schema_version")` devuelve `None` ≠ `2` → invalidación inmediata al primer request post-deploy.
 
-## Overview
+### `_serialize_portfolio` — escribe la versión
 
-Squad slice completed for deriving contribution events from Indexa Capital's cumulative `net_amounts` performance data and displaying them in a frontend table with multi-account aggregation. Events are calculated at runtime (not persisted) and cached in the 24h portfolio JSON cache.
+```python
+def _serialize_portfolio(portfolio: NormalizedPortfolio) -> dict:
+    data = dataclasses.asdict(portfolio)
+    data["_schema_version"] = _PORTFOLIO_SCHEMA_VERSION
+    return data
+```
 
-**Final Status:** Full suite 1356 passed, 2 skipped, 0 failed. Frontend build green. Contribution events in InvestmentPortfolioOut (OpenAPI). Clean startup.
+Todas las rutas de escritura (MISS + background refresh) usan esta función → **toda fila nueva lleva la versión correcta**.
 
-**Contract:**
-- Backend: `NormalizedContributionEvent` (date, amount, cumulative, type) derived from net_amounts deltas.
-- Frontend: "Aportaciones y retiradas" table in IndexaView with Fecha·Importe·Acumulado columns, signed coloring, type badges.
-- Multi-account: Sum deltas by date, discard per-account cumulatives, recalculate running total.
+### `_get_db_cache` — detecta e invalida
 
----
+```python
+if row.payload.get("_schema_version") != _PORTFOLIO_SCHEMA_VERSION:
+    await db.delete(row)
+    await db.flush()
+    return None
+```
 
-## Backend Implementation (Shuri)
+- **`delete` antes que `None`:** la fila existente se borra y se hace `flush` en la misma sesión DB antes de devolver `None`. Esto garantiza que el INSERT posterior (ruta MISS) no viola la restricción única `uq_portfolio_cache_connection_id`.
+- **Retorna `None` → MISS sincrónico:** `get_portfolio` hace fetch en vivo inmediatamente, de forma que la **primera carga post-deploy ya muestra los datos frescos** (incluyendo `contribution_events`), no pasa al path STALE/background.
 
-**Files:** base.py (NormalizedContributionEvent dataclass, NormalizedPerformance.contribution_events), indexa.py (_derive_contribution_events helper, _fetch_performance, get_portfolio multi-account merge), schemas.py (ContributionEventOut, InvestmentPortfolioOut.contribution_events), service.py (_deserialize_portfolio, _aggregate)
+### `_deserialize_portfolio` — sin cambios de código
 
-Derives contribution events from net_amounts by calculating deltas between consecutive cumulative entries. Rules:
-- First entry 0.0 → account open marker, omitted.
-- First entry ≠ 0.0 → initial contribution (amount = value itself).
-- Zero deltas → omitted.
-- Positive delta → type="contribution", negative → type="withdrawal".
-- All amounts rounded to 2 decimals.
+La función extrae claves específicas del dict; nunca hace `NormalizedPortfolio(**data)`. La clave `_schema_version` es ignorada de forma natural. Documentado en el docstring para dejar constancia explícita.
 
-Multi-account aggregation in `_aggregate` and `get_portfolio`:
-1. Collect events from all accounts.
-2. Group by date, sum amounts (deltas, not cumulatives).
-3. Discard per-account cumulatives.
-4. Recalculate running total from combined deltas in chronological order.
-5. Derive type from combined amount.
-
-No migration required — events derived at runtime, serialized into 24h cache JSON via dataclasses.asdict().
 
 ---
 
-## Frontend Implementation (Vision)
+## Comportamiento FRESH/STALE/MISSING — sin cambios para filas válidas
 
-**Files:** IndexaView.tsx (table rendering), types.ts (ContributionEvent interface), client.ts (apiFetch mocking), mock.ts (test data with withdrawal), i18n/index/en/es.ts (7 keys)
+| Estado | Condición | Comportamiento |
+|--------|-----------|----------------|
+| FRESH | `age < 24h` **y** `_schema_version == 2` | Devuelve caché inmediatamente (sin live call) |
+| STALE | `age >= 24h` **y** `_schema_version == 2` | Devuelve caché + background refresh |
+| MISS | `row is None` | Fetch sincrónico + INSERT |
+| VERSION INVALID | `_schema_version != 2` (o ausente) | DELETE + flush + MISS sincrónico |
 
-"Aportaciones y retiradas" table displays contribution_events from portfolio response. Columns: Fecha · Importe · Acumulado (signed coloring, type badges). Ordered most-recent-first via `.reverse()`. Reuses existing CSS (.inv-holdings-table-wrap, .inv-pnl--pos/neg, .inv-asset-class-badge). Defensive optional handling for missing field.
-
-i18n: table_label, date_header, amount_header, cumulative_header, contribution_badge, withdrawal_badge, empty_state (7 strings × 3 files).
-
----
-
-## QA Implementation (Barton)
-
-**File:** tests/api/test_indexa_contributions.py
-
-30 test cases covering: delta derivation, first-0 skip, non-zero first, withdrawal semantics, zero-delta skip, empty net_amounts, integer keys, multi-account via _aggregate with date overlap, ordering, rounding, schema validation, cache round-trip, end-to-end integration. Full suite: 1356 passed, 2 skipped, 0 failed.
 
 ---
 
-## Review Verdict (Fury)
+## Contrato para Barton (tests)
 
-**Status:** ✅ APPROVED — No blocking defects.
+### Test ya incluido (Shuri)
 
-**Correctness verified:**
-- Delta derivation: correct ordering, first-0 skip, zero-delta skip, sign-to-type mapping.
-- Multi-account aggregation: sums deltas per date (not per-account cumulatives), discards individual cumulatives, recalculates running total from combined deltas — verifiably correct integral semantics.
-- Additivity: contributions_series (chart) unchanged, contribution_events orthogonal, schema backward-compatible (default []).
-- Withdrawal semantics: decrease in net_amounts → amount<0 + type="withdrawal".
-- Frontend defensive optional handling.
-- Test coverage: 30 cases including withdrawals, empty, multi-account, ordering, rounding, cache round-trip.
+`test_cache_schema_version_mismatch_triggers_refetch` en `tests/api/test_investments.py`:
+- Simula fila de caché sin `_schema_version` (código antiguo).
+- Verifica `delete` + `flush` llamados exactamente una vez.
+- Verifica que la fila nueva lleva `_schema_version == 2`.
+- Verifica que el resultado contiene datos del fetch fresco, no el stale.
 
-**Known acceptable limitations:**
-- Cannot sub-type withdrawals (partial, total, fees, etc.) — Indexa API does not distinguish.
-- Same-day net events are netted (single net_amounts entry per day).
+### Tests adicionales que Barton puede añadir
+
+1. **FRESH con versión correcta no borra la fila:** Fila con `_schema_version=2` y `age < 24h` → `delete` NO llamado, portfolio devuelto del caché.
+2. **STALE con versión correcta usa el path background:** Fila con `_schema_version=2` y `age >= 24h` → datos stale devueltos + background task encolado (no `delete`).
+3. **Serialización round-trip con versión:** `_serialize_portfolio(p)["_schema_version"] == 2`; `_deserialize_portfolio(_serialize_portfolio(p))` no lanza excepciones.
+4. **Versión futura:** Fila con `_schema_version=3` (hipotética) cuando la constante es `2` → misma ruta de invalidación (delete+flush+MISS).
+
+
+---
+
+## Sin cambios en frontend
+
+Esta feature es 100% backend. El API shape de `GET /api/investments/portfolio` no varía.
+
+
 
 ---
 
-## Decision
+# # Review: Cache Schema Versioning (Option B)
 
-**OPTION A (Implemented):** Derive contribution events from net_amounts deltas at runtime; aggregate multi-account by summing deltas per date; withdrawals semantically represent negative deltas; same-day netting is accepted limitation.
-
-This approach is minimal, correct, and leverages existing performance data without additional schema complexity.
+**Reviewer:** Fury  
+**Fecha:** 2026-07-23T12:48:27+02:00  
+**Veredicto:** ✅ APPROVED — sin defectos
 
 ---
+
+## Análisis por criterio
+
+### 1. First-load-fresh (path MISS sincrónico)
+✅ **Correcto.** `_get_db_cache` devuelve `None` → la conexión va a `need_fetch` → fetch sincrónico en vivo. NO toca el path STALE (que devuelve datos viejos + background refresh). La primera carga post-deploy ya muestra `contribution_events` frescos.
+
+### 2. No duplicate-row / unique violation
+✅ **Correcto.** `await db.delete(row)` + `await db.flush()` envía el DELETE al motor SQL dentro de la transacción ANTES de que `get_portfolio` ejecute `db.add(InvestmentPortfolioCache(...))`. El INSERT se materializa en el siguiente `commit()`. La constraint `uq_portfolio_cache_connection_id` nunca se viola porque el DELETE ya fue flushed.
+
+### 3. Transaction safety
+✅ **Correcto.** `_get_db_cache` opera en la misma sesión `db` que `get_portfolio`. El `flush()` es una operación intra-transacción — si el fetch en vivo posterior falla y `commit()` nunca se llama, la sesión se cierra sin commit → el DELETE se revierte → la fila stale sobrevive → reintento en la próxima request. No hay pérdida de datos ni sesión corrupta.
+
+### 4. Version bump correctness
+✅ **Correcto.** Todas las rutas de escritura usan `_serialize_portfolio()` que SIEMPRE embebe `_schema_version`. Las dos rutas:
+- MISS path en `get_portfolio` → `_serialize_portfolio(portfolio)` ✓
+- Background refresh `_bg_refresh_connection` → `_serialize_portfolio(portfolio)` ✓
+
+Filas existentes (sin key) → `None != 2` → invalidación inmediata. No hay ningún path que escriba sin versión.
+
+### 5. Regression FRESH/STALE
+✅ **Sin regresión.** Tests TC6 (fresh) y TC6 (stale) verifican explícitamente que filas con `_schema_version == 2` y edad correcta siguen el comportamiento original (no delete, no live fetch en fresh; background refresh en stale).
+
+### 6. Self-heal producción
+✅ **Confirmado.** Al desplegar, la primera request encontrará la fila actual (sin `_schema_version`), la invalidará, hará fetch en vivo sincrónico, y almacenará la nueva fila con versión + `contribution_events`. El bug de "tabla vacía" se resuelve automáticamente.
+
+---
+
+## Tests (21 relevantes pasan)
+- 9 tests nuevos de versioning (unit + integration) cubren: absent version, wrong version, duplicate-row, serialize round-trip, regression fresh/stale.
+- Suite completa 1366 passed, 2 skipped, 0 failed.
+
+---
+
+## Decisión
+
+**APPROVE** — implementación correcta, mínima, sin migración, auto-reparable. Lista para merge y deploy.
+
+
+---
+
+# # Contrato: Cache Schema Versioning (Option B)
+
+**Autor:** Shuri  
+**Fecha:** 2026-07-23T12:48:27+02:00  
+**Estado:** IMPLEMENTADO — listo para revisión de Barton
+
+---
+
+## Resumen
+
+Se introduce `_PORTFOLIO_SCHEMA_VERSION` en `service.py` para invalidar automáticamente filas de caché escritas por código antiguo (sin `contribution_events`). Ninguna migración de BD requerida.
+
+---
+
+## Cambios en `service.py`
+
+### Nueva constante (tras `_CACHE_MAX_AGE`)
+
+```python
+_PORTFOLIO_SCHEMA_VERSION = 2
+```
+
+Empezamos en `2`. Las filas existentes no tienen clave `_schema_version`, así que `.get("_schema_version")` devuelve `None` ≠ `2` → invalidación inmediata al primer request post-deploy.
+
+### `_serialize_portfolio` — escribe la versión
+
+```python
+def _serialize_portfolio(portfolio: NormalizedPortfolio) -> dict:
+    data = dataclasses.asdict(portfolio)
+    data["_schema_version"] = _PORTFOLIO_SCHEMA_VERSION
+    return data
+```
+
+Todas las rutas de escritura (MISS + background refresh) usan esta función → **toda fila nueva lleva la versión correcta**.
+
+### `_get_db_cache` — detecta e invalida
+
+```python
+if row.payload.get("_schema_version") != _PORTFOLIO_SCHEMA_VERSION:
+    await db.delete(row)
+    await db.flush()
+    return None
+```
+
+- **`delete` antes que `None`:** la fila existente se borra y se hace `flush` en la misma sesión DB antes de devolver `None`. Esto garantiza que el INSERT posterior (ruta MISS) no viola la restricción única `uq_portfolio_cache_connection_id`.
+- **Retorna `None` → MISS sincrónico:** `get_portfolio` hace fetch en vivo inmediatamente, de forma que la **primera carga post-deploy ya muestra los datos frescos** (incluyendo `contribution_events`), no pasa al path STALE/background.
+
+### `_deserialize_portfolio` — sin cambios de código
+
+La función extrae claves específicas del dict; nunca hace `NormalizedPortfolio(**data)`. La clave `_schema_version` es ignorada de forma natural. Documentado en el docstring para dejar constancia explícita.
+
+---
+
+## Comportamiento FRESH/STALE/MISSING — sin cambios para filas válidas
+
+| Estado | Condición | Comportamiento |
+|--------|-----------|----------------|
+| FRESH | `age < 24h` **y** `_schema_version == 2` | Devuelve caché inmediatamente (sin live call) |
+| STALE | `age >= 24h` **y** `_schema_version == 2` | Devuelve caché + background refresh |
+| MISS | `row is None` | Fetch sincrónico + INSERT |
+| VERSION INVALID | `_schema_version != 2` (o ausente) | DELETE + flush + MISS sincrónico |
+
+---
+
+## Contrato para Barton (tests)
+
+### Test ya incluido (Shuri)
+
+`test_cache_schema_version_mismatch_triggers_refetch` en `tests/api/test_investments.py`:
+- Simula fila de caché sin `_schema_version` (código antiguo).
+- Verifica `delete` + `flush` llamados exactamente una vez.
+- Verifica que la fila nueva lleva `_schema_version == 2`.
+- Verifica que el resultado contiene datos del fetch fresco, no el stale.
+
+### Tests adicionales que Barton puede añadir
+
+1. **FRESH con versión correcta no borra la fila:** Fila con `_schema_version=2` y `age < 24h` → `delete` NO llamado, portfolio devuelto del caché.
+2. **STALE con versión correcta usa el path background:** Fila con `_schema_version=2` y `age >= 24h` → datos stale devueltos + background task encolado (no `delete`).
+3. **Serialización round-trip con versión:** `_serialize_portfolio(p)["_schema_version"] == 2`; `_deserialize_portfolio(_serialize_portfolio(p))` no lanza excepciones.
+4. **Versión futura:** Fila con `_schema_version=3` (hipotética) cuando la constante es `2` → misma ruta de invalidación (delete+flush+MISS).
+
+---
+
+## Sin cambios en frontend
+
+Esta feature es 100% backend. El API shape de `GET /api/investments/portfolio` no varía.
+
 
