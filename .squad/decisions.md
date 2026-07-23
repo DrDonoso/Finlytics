@@ -10524,3 +10524,92 @@ Desacoplar equity de la disponibilidad diaria FX:
 
 ---
 
+---
+
+# ✅ APPROVED: Shuri, Vision, Barton, Fury — Indexa contributions table
+
+> **Estado:** IMPLEMENTED + APPROVED  
+> **Fecha entrada:** 2026-07-23T10:09:14+00:00  
+> **Scope:** Derivar aportaciones/retiradas desde net_amounts de Indexa Capital; exponer en tabla frontend con agregación multi-cuenta  
+
+---
+
+## Overview
+
+Squad slice completed for deriving contribution events from Indexa Capital's cumulative `net_amounts` performance data and displaying them in a frontend table with multi-account aggregation. Events are calculated at runtime (not persisted) and cached in the 24h portfolio JSON cache.
+
+**Final Status:** Full suite 1356 passed, 2 skipped, 0 failed. Frontend build green. Contribution events in InvestmentPortfolioOut (OpenAPI). Clean startup.
+
+**Contract:**
+- Backend: `NormalizedContributionEvent` (date, amount, cumulative, type) derived from net_amounts deltas.
+- Frontend: "Aportaciones y retiradas" table in IndexaView with Fecha·Importe·Acumulado columns, signed coloring, type badges.
+- Multi-account: Sum deltas by date, discard per-account cumulatives, recalculate running total.
+
+---
+
+## Backend Implementation (Shuri)
+
+**Files:** base.py (NormalizedContributionEvent dataclass, NormalizedPerformance.contribution_events), indexa.py (_derive_contribution_events helper, _fetch_performance, get_portfolio multi-account merge), schemas.py (ContributionEventOut, InvestmentPortfolioOut.contribution_events), service.py (_deserialize_portfolio, _aggregate)
+
+Derives contribution events from net_amounts by calculating deltas between consecutive cumulative entries. Rules:
+- First entry 0.0 → account open marker, omitted.
+- First entry ≠ 0.0 → initial contribution (amount = value itself).
+- Zero deltas → omitted.
+- Positive delta → type="contribution", negative → type="withdrawal".
+- All amounts rounded to 2 decimals.
+
+Multi-account aggregation in `_aggregate` and `get_portfolio`:
+1. Collect events from all accounts.
+2. Group by date, sum amounts (deltas, not cumulatives).
+3. Discard per-account cumulatives.
+4. Recalculate running total from combined deltas in chronological order.
+5. Derive type from combined amount.
+
+No migration required — events derived at runtime, serialized into 24h cache JSON via dataclasses.asdict().
+
+---
+
+## Frontend Implementation (Vision)
+
+**Files:** IndexaView.tsx (table rendering), types.ts (ContributionEvent interface), client.ts (apiFetch mocking), mock.ts (test data with withdrawal), i18n/index/en/es.ts (7 keys)
+
+"Aportaciones y retiradas" table displays contribution_events from portfolio response. Columns: Fecha · Importe · Acumulado (signed coloring, type badges). Ordered most-recent-first via `.reverse()`. Reuses existing CSS (.inv-holdings-table-wrap, .inv-pnl--pos/neg, .inv-asset-class-badge). Defensive optional handling for missing field.
+
+i18n: table_label, date_header, amount_header, cumulative_header, contribution_badge, withdrawal_badge, empty_state (7 strings × 3 files).
+
+---
+
+## QA Implementation (Barton)
+
+**File:** tests/api/test_indexa_contributions.py
+
+30 test cases covering: delta derivation, first-0 skip, non-zero first, withdrawal semantics, zero-delta skip, empty net_amounts, integer keys, multi-account via _aggregate with date overlap, ordering, rounding, schema validation, cache round-trip, end-to-end integration. Full suite: 1356 passed, 2 skipped, 0 failed.
+
+---
+
+## Review Verdict (Fury)
+
+**Status:** ✅ APPROVED — No blocking defects.
+
+**Correctness verified:**
+- Delta derivation: correct ordering, first-0 skip, zero-delta skip, sign-to-type mapping.
+- Multi-account aggregation: sums deltas per date (not per-account cumulatives), discards individual cumulatives, recalculates running total from combined deltas — verifiably correct integral semantics.
+- Additivity: contributions_series (chart) unchanged, contribution_events orthogonal, schema backward-compatible (default []).
+- Withdrawal semantics: decrease in net_amounts → amount<0 + type="withdrawal".
+- Frontend defensive optional handling.
+- Test coverage: 30 cases including withdrawals, empty, multi-account, ordering, rounding, cache round-trip.
+
+**Known acceptable limitations:**
+- Cannot sub-type withdrawals (partial, total, fees, etc.) — Indexa API does not distinguish.
+- Same-day net events are netted (single net_amounts entry per day).
+
+---
+
+## Decision
+
+**OPTION A (Implemented):** Derive contribution events from net_amounts deltas at runtime; aggregate multi-account by summing deltas per date; withdrawals semantically represent negative deltas; same-day netting is accepted limitation.
+
+This approach is minimal, correct, and leverages existing performance data without additional schema complexity.
+
+---
+

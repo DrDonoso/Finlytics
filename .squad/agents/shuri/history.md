@@ -17,6 +17,7 @@
 6. **is_system flag + KPI exclusion (2026-07-21):** ✅ Complete; migration 0017, model, helper, _apply_filters.
 7. **is_system OPTION B — ledger visible (2026-07-21):** ✅ Complete; get_transactions muestra apertura, TransactionOut.is_system expuesto.
 8. **FX Decouple Model-A — Evolution Chart Fix (2026-07-22):** ✅ Complete; viernes ya no caen del gráfico; period2 fix; single FX en read-time; gap recovery automático; no migración.
+9. **Indexa Contributions Table (2026-07-23):** ✅ APPROVED; derive contribution events from net_amounts deltas; multi-account aggregation; 1356 tests pass. Cross-ref: orchestration-log/2026-07-23T10-09-14Z-shuri.md, log/2026-07-23T10-09-14Z-indexa-contributions.md
 
 **Current Test Baseline:** 66 passed (targeted fidelity/evolution), suite completa pendiente de verificar.
 
@@ -120,6 +121,18 @@ IBAN path: natural (SELECT returns None). Name path: add pre-SELECT `select(Acco
 **Contribuciones**: `lot.cost_basis` ya está en EUR (CSV Fidelity EU) → no necesita conversión FX. Series de valor y contribuciones coherentes bajo el mismo FX.
 
 **No migration, no frontend changes.** Tests: 66 passed (5 nuevos en `TestFxDecoupleHappyPath`).
+
+### Contribution Events — Indexa Capital (2026-07-23)
+
+**Fuente:** `net_amounts` (acumulativo) del endpoint `/accounts/{acc}/performance`. Los deltas entre entradas consecutivas son los movimientos individuales.
+
+**Helper puro:** `_derive_contribution_events(raw_net_amounts: dict)` en `indexa.py`. Primera entrada `0.0` = marcador de apertura, se omite. Deltas `0.0` siempre se omiten. Resultado: lista de `NormalizedContributionEvent(date, amount, cumulative, type)` con `amount` y `cumulative` redondeados a 2 decimales.
+
+**Cadena completa sin migración:** `NormalizedContributionEvent` (base.py) → `NormalizedPerformance.contribution_events` → serializa vía `dataclasses.asdict` en caché 24h → `_deserialize_portfolio` reconstruye → `_aggregate` fusiona por fecha → `ContributionEventOut` (schemas.py) → `InvestmentPortfolioOut.contribution_events` (GET /api/investments/portfolio).
+
+**Fusión multi-cuenta:** suma deltas del mismo día entre todas las cuentas, luego recalcula el acumulado como suma corriente en orden cronológico. Consistente con el patrón de `value_series`.
+
+**`contributions_series` intacta:** el campo existente (acumulativos brutos para el gráfico) no se toca. `contribution_events` es aditivo.
 
 ---
 
