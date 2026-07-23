@@ -8,9 +8,9 @@
 
 ## Session Summary (Condensed)
 
-**Total sessions reviewed:** 6 major feature slices  
-**Approval rate:** 100% (6/6 APPROVED)  
-**Total tests reviewed:** 1290+ passed
+**Total sessions reviewed:** 7 major feature slices  
+**Approval rate:** 100% (7/7 APPROVED)  
+**Total tests reviewed:** 1356+ passed
 
 ---
 
@@ -26,6 +26,7 @@
 | Old Account Onboarding (Slice: Option C) | ✅ APPROVED | 2026-07-21 |
 | Import-time Opening Balance | ✅ APPROVED | 2026-07-21 |
 | is_system / KPI exclusion (OPTION B) | ✅ APPROVED | 2026-07-21 |
+| Indexa Contributions Table (derive from net_amounts deltas; multi-account aggregation) | ✅ APPROVED | 2026-07-23 |
 
 ---
 
@@ -86,6 +87,13 @@
 
 ## Learnings
 
+### 2026-07-23: Indexa Contribution Events (Option A) — ✅ APPROVED
+- **Derivación de deltas correcta**: `_derive_contribution_events` computa diferencias entre entries consecutivas de `net_amounts`; skip de 0.0 inicial; skip de deltas cero; type por signo. Sin posibilidad de doble-conteo.
+- **Multi-cuenta: el truco es sumar deltas (no cumulativos)**: tanto en `get_portfolio` (IndexaProvider) como en `_aggregate` (service), se suman amounts por fecha y se recalcula el cumulative como running total del stream combinado. Esto es correcto: cumulative = integral de flujos, no suma de integrales parciales con orígenes distintos.
+- **Cache backward-compatible**: `contribution_events: list = []` en schema + `get("contribution_events") or []` en deserialización → cachés antiguas sin el campo no rompen.
+- **Retiradas confirmadas**: delta negativo → amount negativo → type="withdrawal". Tests TC-3 (5 variantes) + TC-11 withdrawal lo verifican.
+- **No-regresión**: `contributions_series` (chart) intacta; field nuevo es ortogonal.
+
 ### 2026-07-22: FX Decouple Review (Model A) — ✅ APPROVED
 - **Single-FX model coherence**: value_series usa `close_usd × live_fx`, contributions es EUR nativo del CSV Fidelity → comparación gain/loss coherente sin reconversión.
 - **KPIs/lots usan daily-bar FX** (vía `get_latest_price().fx_eur_usd`), evolution usa live-snapshot FX (`get_current_fx_rate()`). Diferencia es ruido intraday (<0.3%), no inconsistencia real — son vistas distintas con requisitos distintos.
@@ -124,4 +132,24 @@ See `.squad/orchestration-log/2026-07-21T*-fury.md` for latest cross-agent refs.
 - Vision: orchestration-log/2026-07-21T16-59-22Z-vision.md
 - Barton: orchestration-log/2026-07-21T16-59-22Z-barton.md
 - Fury: orchestration-log/2026-07-21T16-59-22Z-fury.md
+
+---
+
+## Session: 2026-07-23 — Indexa Contributions Table (slice complete)
+
+**Collaborators:** Shuri, Vision, Barton, Fury  
+**Status:** ✅ IMPLEMENTED + APPROVED  
+**Decisions:** .squad/decisions.md (merged from inbox), .squad/orchestration-log/  
+**Session Log:** .squad/log/2026-07-23T10-09-14Z-indexa-contributions.md
+
+**Summary:** Full squad execution: derivation of contribution events from net_amounts deltas (Shuri), frontend table with i18n (Vision), 30 comprehensive tests (Barton), architecture review (Fury). Multi-account aggregation verified. 1356 tests pass. No defects. Ready for merge.
+
+**Key Decision (OPTION A):** Derive contribution events from net_amounts deltas at runtime; aggregate multi-account by summing deltas per date; withdrawals semantically represent negative deltas; same-day netting accepted limitation.
+
+**Cross-agent refs:**
+- Shuri: orchestration-log/2026-07-23T10-09-14Z-shuri.md
+- Vision: orchestration-log/2026-07-23T10-09-14Z-vision.md
+- Barton: orchestration-log/2026-07-23T10-09-14Z-barton.md
+- Fury: orchestration-log/2026-07-23T10-09-14Z-fury.md
+
 

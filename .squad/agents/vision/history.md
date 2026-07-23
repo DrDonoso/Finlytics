@@ -1,8 +1,9 @@
 # Vision — Agent History
 
-## Summary of Sessions (2026-07-20 to 2026-07-21)
+## Summary of Sessions (2026-07-20 to 2026-07-23)
 
 **Major outcomes:**
+- **Indexa Contributions Table** (2026-07-23): "Aportaciones y retiradas" table in IndexaView; Fecha·Importe·Acumulado columns with signed coloring, type badges; defensive optional handling; 7 i18n keys; reuse existing CSS. ✅ Build green, contribution_events exposed in API. Cross-ref: orchestration-log/2026-07-23T10-09-14Z-vision.md, log/2026-07-23T10-09-14Z-indexa-contributions.md
 - **is_system badge en ledger** (2026-07-21): Badge "Sistema"/"System" en filas `is_system=true` del ledger. Totales de página ya vienen del backend (overview) — no había suma cliente que corregir. ✅ Build green.
 - **Import-time opening balance** (2026-07-21): Campo "Saldo anterior" opcional en la fase resolve del ImportModal, para cuentas nuevas (IBAN y manual). 3 keys i18n, `opening_balance` en `ConfirmRequest`. ✅ Build green.
 - **Old Account Onboarding** (2026-07-21): AccountCreateModal with collapsible opening-balance section; 18 i18n keys; raw fetch for 409/422 handling; mutable mock store. ✅ Build green.
@@ -32,7 +33,27 @@
 
 ---
 
+
+
+---
+
+## 2026-07-23T11:32:01+02:00: Tabla "Aportaciones y retiradas" en IndexaView
+
+**Summary:** Añadida tabla `contribution_events` al final del bloque conectado de IndexaView. El campo es opcional en el tipo (`contribution_events?: ContributionEvent[]`), por lo que el frontend es retrocompatible con backends sin el campo. Filas ordenadas más-reciente-primero (`.reverse()` sobre el array del backend que viene por fecha asc). Importe con signo y color (`inv-pnl--pos/neg`); badge tipo con clases ya existentes de asset-class (`--equity` azul para aportación, `--cash` gris para retirada). 7 claves i18n. Mock actualizado con 4 aportaciones + 1 retirada. npm run build ✅ 0 errores TS.
+
+**Key files:** IndexaView.tsx, api/types.ts, api/mock.ts, i18n/{index,es,en}.ts.
+
+**Pattern notes:**
+- `contribution_events?: ContributionEvent[]` — campo opcional, evita romper si el backend no lo envía.
+- El array del backend llega ordenado por fecha asc; se invierte con `.reverse()` sobre una copia `[...array]` para mostrar más reciente primero.
+- Se reutilizan las clases `.inv-pnl--pos` / `.inv-pnl--neg` y `.inv-asset-class-badge--{class}` del holdings table — sin CSS nuevo.
+- El formateo de fechas usa `formatDDMMYYYY()` (función local de IndexaView) para consistencia con el resto de la vista.
+- El empty state protege tanto el caso array vacío como campo ausente (`portfolio?.contribution_events ?? []`).
+
 ## Learnings
+
+- **contribution_events: campo opcional en el tipo** — `contribution_events?: ContributionEvent[]` evita romper si el backend no lo incluye todavía. Siempre defenderlo con `?? []`.
+- **Reutilizar clases de holdings para la tabla de eventos** — `.inv-pnl--pos/neg`, `.inv-asset-class-badge--{class}`, `.inv-holdings-table-wrap`, `.inv-th-num` son genéricas del contexto de inversiones; reusarlas evita CSS nuevo.
 
 - **tx-totals usan overview endpoint** — Los bloques `.tx-totals` en TransactionsPage y FinancesOverviewPage obtienen sus cifras de `getOverview()` (backend), no de suma cliente. Esto significa que cualquier cambio en qué filas aparecen en el ledger no afecta los totales de página automáticamente — el backend ya maneja la exclusión.
 - **td-desc tiene overflow:hidden** — Nunca añadir badges dentro de `.td-desc`: tienen `white-space: nowrap; overflow: hidden; text-overflow: ellipsis`. Los sub-elementos (badges, sublines) deben ser hermanos, no hijos del div.
