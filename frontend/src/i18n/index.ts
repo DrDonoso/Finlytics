@@ -725,6 +725,14 @@ export interface Dict {
   // ── System transaction badge (is_system=true, "Saldo inicial") ────────────
   systemTxBadge: string
   systemTxBadgeTooltip: string
+  // ── Indexa contributions/withdrawals table ────────────────────────────────
+  invContribTableTitle: string
+  invContribColDate: string
+  invContribColAmount: string
+  invContribColCumulative: string
+  invContribTypeContribution: string
+  invContribTypeWithdrawal: string
+  invContribEmpty: string
 }
 
 const ES_LABELS: Record<string, string> = {

@@ -606,6 +606,13 @@ export interface InvestmentHolding {
   last_updated: string
 }
 
+export interface ContributionEvent {
+  date: string
+  amount: number       // signed: + = aportación, − = retirada
+  cumulative: number
+  type: 'contribution' | 'withdrawal'
+}
+
 export interface InvestmentPortfolio {
   total_value: number
   total_invested: number | null
@@ -621,6 +628,7 @@ export interface InvestmentPortfolio {
   drawdown: DrawdownOut | null
   cash_invested: CashInvestedSplit | null
   holdings: InvestmentHolding[]
+  contribution_events?: ContributionEvent[]
 }
 
 export interface InvestmentConnection {

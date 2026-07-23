@@ -716,6 +716,13 @@ export function mockGetInvestmentPortfolio(): Promise<InvestmentPortfolio> {
         last_updated: '2026-07-14T11:12:00.123456+00:00',
       },
     ],
+    contribution_events: [
+      { date: '2023-01-15', amount:  9500.00, cumulative:  9500.00, type: 'contribution' },
+      { date: '2023-04-10', amount:   250.00, cumulative:  9750.00, type: 'contribution' },
+      { date: '2023-07-03', amount:   500.00, cumulative: 10250.00, type: 'contribution' },
+      { date: '2023-10-20', amount:  -500.00, cumulative:  9750.00, type: 'withdrawal'   },
+      { date: '2024-01-08', amount:  1250.00, cumulative: 11000.00, type: 'contribution' },
+    ],
   })
 }
 

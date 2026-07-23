@@ -945,6 +945,54 @@ export default function IndexaView() {
               </div>
             )}
           </div>
+          {/* 7. Contributions & withdrawals table */}
+          {(() => {
+            const events = [...(portfolio?.contribution_events ?? [])].reverse()
+            return (
+              <div className="card inv-holdings-card">
+                <div className="card-title">{t.invContribTableTitle}</div>
+                {events.length === 0 ? (
+                  <div className="state-box">
+                    <span className="icon">💸</span>
+                    <span>{t.invContribEmpty}</span>
+                  </div>
+                ) : (
+                  <div className="inv-holdings-table-wrap">
+                    <table className="inv-holdings-table">
+                      <thead>
+                        <tr>
+                          <th>{t.invContribColDate}</th>
+                          <th className="inv-th-num">{t.invContribColAmount}</th>
+                          <th className="inv-th-num">{t.invContribColCumulative}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {events.map((ev, i) => {
+                          const isPos = ev.amount >= 0
+                          const sign  = isPos ? '+' : ''
+                          return (
+                            <tr key={i}>
+                              <td>
+                                <span className="inv-td-isin">{formatDDMMYYYY(ev.date)}</span>
+                                {' '}
+                                <span className={`inv-asset-class-badge inv-asset-class-badge--${ev.type === 'contribution' ? 'equity' : 'cash'}`}>
+                                  {ev.type === 'contribution' ? t.invContribTypeContribution : t.invContribTypeWithdrawal}
+                                </span>
+                              </td>
+                              <td className={`inv-td-num ${isPos ? 'inv-pnl--pos' : 'inv-pnl--neg'}`}>
+                                {sign}{formatCurrency(ev.amount)}
+                              </td>
+                              <td className="inv-td-num">{formatCurrency(ev.cumulative)}</td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )
+          })()}
         </>
       )}
 
