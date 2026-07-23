@@ -58,6 +58,12 @@ from finlytics.investments.fidelity import FidelityESPPProvider
 log = logging.getLogger(__name__)
 
 _CACHE_MAX_AGE = 86400.0  # seconds (24 hours)
+# Bump this whenever the NormalizedPortfolio JSON shape changes (e.g. new top-level
+# fields, renamed keys, changed nesting).  Any cached row that lacks this version
+# or carries a different value is treated as a cache MISS → synchronous live refetch.
+# Existing rows written by pre-contribution_events code have no _schema_version key,
+# so they are automatically invalidated on first request after this deploy.
+_PORTFOLIO_SCHEMA_VERSION = 2
 _refresh_in_flight: set[int] = set()  # connection IDs with an active background refresh
 
 # Registry keyed by plugin_id — add new providers here.
@@ -109,11 +115,18 @@ def clear_connection_cache(connection_id: int) -> None:
 
 def _serialize_portfolio(portfolio: NormalizedPortfolio) -> dict:
     """Convert NormalizedPortfolio to a JSON-safe dict for DB storage."""
-    return dataclasses.asdict(portfolio)
+    data = dataclasses.asdict(portfolio)
+    data["_schema_version"] = _PORTFOLIO_SCHEMA_VERSION
+    return data
 
 
 def _deserialize_portfolio(data: dict) -> NormalizedPortfolio:
-    """Reconstruct NormalizedPortfolio from a JSON-loaded dict (DB cache row)."""
+    """Reconstruct NormalizedPortfolio from a JSON-loaded dict (DB cache row).
+
+    Private keys such as ``_schema_version`` are silently ignored: the function
+    extracts only the specific fields it needs rather than splatting the whole
+    dict into the dataclass constructor, so unknown keys never cause errors.
+    """
     perf_data = data.get("performance")
     performance: NormalizedPerformance | None = None
     if perf_data is not None:
@@ -176,6 +189,14 @@ async def _get_db_cache(
     ).scalar_one_or_none()
 
     if row is None:
+        return None
+
+    if row.payload.get("_schema_version") != _PORTFOLIO_SCHEMA_VERSION:
+        # Version mismatch: cached payload was written by an older code shape.
+        # Delete the stale row NOW and flush so the caller can INSERT a fresh one
+        # for the same connection_id without hitting the unique constraint.
+        await db.delete(row)
+        await db.flush()
         return None
 
     fetched_at = row.fetched_at
