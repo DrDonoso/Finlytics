@@ -4,6 +4,31 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260723.02] - 2026-07-23
+
+- fix(investments): version the portfolio cache to invalidate stale shapes
+- decisions.md: 489,758 → 493,266 bytes
+- Archived 9 entries older than 2026-07-16 (7 days prior)
+- decisions-archive.md created with 10,547 bytes
+- Merged 2 inbox files into decisions.md
+- Inbox files deleted (.gitkeep retained)
+- Deduplicated new entries
+- 2026-07-23T10-48-27Z-shuri.md: Portfolio cache versioning implementation
+- 2026-07-23T10-48-27Z-barton.md: 9 comprehensive tests + AsyncMock pattern
+- 2026-07-23T10-48-27Z-fury.md: Architecture review + approval
+- 2026-07-23T10-48-27Z-cache-versioning.md: Executive summary
+- shuri/history.md: Added cache-versioning session ref
+- barton/history.md: Added cache-versioning session ref + AsyncMock learning
+- fury/history.md: Added cache-versioning session ref + invalidation learnings
+- Decisions: 489,758 bytes → 493,266 bytes (after archive + inbox merge)
+- Archive: 9 pre-7d entries → decisions-archive.md
+- Inbox: 2 files → merged → cleaned
+- Histories: All under 15,360 bytes (no summarization needed)
+- shuri: 14,567 bytes
+- barton: 6,862 bytes
+- fury: 10,626 bytes
+
+
 ## [20260723] - 2026-07-23
 
 - Backend: _derive_contribution_events + NormalizedContributionEvent; exposed as contribution_events on GET /api/investments/portfolio (chart series unchanged).
