@@ -4,6 +4,13 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260723] - 2026-07-23
+
+- Backend: _derive_contribution_events + NormalizedContributionEvent; exposed as contribution_events on GET /api/investments/portfolio (chart series unchanged).
+- Frontend: table in IndexaView with signed coloring, type badge, empty state.
+- Tests: 30 new (deltas, withdrawal, multi-account, cache round-trip); suite 1356.
+
+
 ## [20260722] - 2026-07-22
 
 - Store MSFT close_usd for every trading day, independent of FX (drop the msft-intersect-fx logic in topup and backfill; forward-fill FX).
