@@ -1388,6 +1388,71 @@ async def test_fetch_performance_contributions_series_from_net_amounts():
     assert dates == sorted(dates)
 
 
+# ── ADD: contribution_events (deltas + withdrawal) ────────────────────────────
+
+
+async def test_fetch_performance_contribution_events_with_withdrawal():
+    """contribution_events deriva los deltas de net_amounts; cubre aportación, retirada y acumulado.
+
+    net_amounts:
+      20240101 → 0.0    (marcador de apertura, se omite)
+      20240201 → 2000.0 (aportación inicial +2000, acumulado 2000)
+      20240301 → 4000.0 (aportación +2000, acumulado 4000)
+      20240401 → 3500.0 (retirada  -500,  acumulado 3500)
+      20240501 → 5000.0 (aportación +1500, acumulado 5000)
+    """
+    from unittest.mock import AsyncMock, patch
+
+    from finlytics.investments.indexa import _fetch_performance
+
+    mock_data = {
+        "total_amount": 3200.0,
+        "return": {},
+        "net_amounts": {
+            "20240101": 0.0,
+            "20240201": 2000.0,
+            "20240301": 4000.0,
+            "20240401": 3500.0,
+            "20240501": 5000.0,
+        },
+        "portfolios": [
+            {"cash_amount": 0.0, "instruments_amount": 3200.0,
+             "instruments_cost": 3500.0, "total_amount": 3200.0}
+        ],
+    }
+    with patch("finlytics.investments.indexa._get", AsyncMock(return_value=mock_data)):
+        result = await _fetch_performance(AsyncMock(), "ACC123")
+
+    events = result.contribution_events
+    assert len(events) == 4, f"Esperados 4 eventos, obtenidos {len(events)}"
+
+    assert events[0].date == "2024-02-01"
+    assert events[0].amount == pytest.approx(2000.0)
+    assert events[0].cumulative == pytest.approx(2000.0)
+    assert events[0].type == "contribution"
+
+    assert events[1].date == "2024-03-01"
+    assert events[1].amount == pytest.approx(2000.0)
+    assert events[1].cumulative == pytest.approx(4000.0)
+    assert events[1].type == "contribution"
+
+    assert events[2].date == "2024-04-01"
+    assert events[2].amount == pytest.approx(-500.0)
+    assert events[2].cumulative == pytest.approx(3500.0)
+    assert events[2].type == "withdrawal"
+
+    assert events[3].date == "2024-05-01"
+    assert events[3].amount == pytest.approx(1500.0)
+    assert events[3].cumulative == pytest.approx(5000.0)
+    assert events[3].type == "contribution"
+
+    # contributions_series permanece intacta (valores acumulativos brutos)
+    assert len(result.contributions_series) == 5
+    cs_by_date = {vp.date: vp.value for vp in result.contributions_series}
+    assert cs_by_date["2024-01-01"] == pytest.approx(0.0)
+    assert cs_by_date["2024-04-01"] == pytest.approx(3500.0)
+
+
 # ── ADD: monthly returns matrix ────────────────────────────────────────────────
 
 

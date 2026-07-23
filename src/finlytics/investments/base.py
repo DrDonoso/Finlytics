@@ -78,6 +78,15 @@ class NormalizedValuePoint:
 
 
 @dataclass
+class NormalizedContributionEvent:
+    """A single contribution or withdrawal event derived from net_amounts deltas."""
+    date: str         # YYYY-MM-DD
+    amount: float     # positive = aportación, negative = retirada (rounded to cents)
+    cumulative: float # running net invested after this event (rounded to cents)
+    type: str         # "contribution" | "withdrawal"
+
+
+@dataclass
 class NormalizedCashInvested:
     cash_amount: float
     instruments_amount: float
@@ -91,6 +100,7 @@ class NormalizedPerformance:
     returns: NormalizedReturns
     value_series: list[NormalizedValuePoint] = field(default_factory=list)
     contributions_series: list[NormalizedValuePoint] = field(default_factory=list)
+    contribution_events: list[NormalizedContributionEvent] = field(default_factory=list)
     monthly_returns: list[NormalizedMonthlyReturnRow] = field(default_factory=list)
     drawdown: NormalizedDrawdown | None = None
     cash_invested: NormalizedCashInvested | None = None

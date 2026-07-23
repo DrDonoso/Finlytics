@@ -24,6 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from finlytics.api.schemas import (
     CashInvestedSplit,
     ConnectionOut,
+    ContributionEventOut,
     DiscoveredAccountOut,
     DrawdownOut,
     InvestmentHoldingOut,
@@ -37,6 +38,7 @@ from finlytics.db.session import async_session_factory
 from finlytics.investments.base import (
     InvestmentProvider,
     NormalizedCashInvested,
+    NormalizedContributionEvent,
     NormalizedDrawdown,
     NormalizedHolding,
     NormalizedMonthlyReturnRow,
@@ -142,6 +144,10 @@ def _deserialize_portfolio(data: dict) -> NormalizedPortfolio:
             contributions_series=[
                 NormalizedValuePoint(**vp)
                 for vp in (perf_data.get("contributions_series") or [])
+            ],
+            contribution_events=[
+                NormalizedContributionEvent(**ev)
+                for ev in (perf_data.get("contribution_events") or [])
             ],
             monthly_returns=monthly_returns,
             drawdown=NormalizedDrawdown(**drawdown_data) if drawdown_data else None,
@@ -610,8 +616,10 @@ def _aggregate(
 
     series_by_date: dict[str, float] = {}
     contrib_by_date: dict[str, float] = {}
+    events_by_date: dict[str, float] = {}
     has_series = False
     has_contrib = False
+    has_events = False
 
     ci_cash = ci_instr_amt = ci_instr_cost = ci_total = 0.0
     has_ci = False
@@ -672,6 +680,9 @@ def _aggregate(
             for vp in perf.contributions_series:
                 contrib_by_date[vp.date] = contrib_by_date.get(vp.date, 0.0) + vp.value
                 has_contrib = True
+            for ev in perf.contribution_events:
+                events_by_date[ev.date] = events_by_date.get(ev.date, 0.0) + ev.amount
+                has_events = True
             if perf.cash_invested:
                 ci = perf.cash_invested
                 ci_cash += ci.cash_amount
@@ -712,6 +723,22 @@ def _aggregate(
         if has_contrib
         else []
     )
+
+    # contribution_events: aggregate by date (sum deltas), recompute cumulative
+    contribution_events_out: list[ContributionEventOut] = []
+    if has_events:
+        running = 0.0
+        for d, amt in sorted(events_by_date.items()):
+            amt_r = round(amt, 2)
+            if amt_r == 0.0:
+                continue
+            running = round(running + amt_r, 2)
+            contribution_events_out.append(ContributionEventOut(
+                date=d,
+                amount=amt_r,
+                cumulative=running,
+                type="contribution" if amt_r > 0 else "withdrawal",
+            ))
 
     # Monthly returns + drawdown: single-account only (non-aggregatable)
     monthly_returns: list[MonthlyReturnRow] | None = None
@@ -769,6 +796,7 @@ def _aggregate(
         returns=returns,
         value_series=value_series,
         contributions_series=contributions_series,
+        contribution_events=contribution_events_out,
         monthly_returns=monthly_returns,
         drawdown=drawdown_out,
         cash_invested=cash_invested,

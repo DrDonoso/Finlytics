@@ -730,5 +730,12 @@ const en: Dict = {
   drillDownClearAll: 'Clear all',
   systemTxBadge: 'System',
   systemTxBadgeTooltip: 'Opening balance — informational row, excluded from totals',
+  invContribTableTitle: 'Contributions & withdrawals',
+  invContribColDate: 'Date',
+  invContribColAmount: 'Amount',
+  invContribColCumulative: 'Cumulative',
+  invContribTypeContribution: 'Contribution',
+  invContribTypeWithdrawal: 'Withdrawal',
+  invContribEmpty: 'No contributions recorded',
 }
 export default en

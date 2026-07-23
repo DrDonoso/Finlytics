@@ -730,5 +730,12 @@ const es: Dict = {
   drillDownClearAll: 'Limpiar todo',
   systemTxBadge: 'Sistema',
   systemTxBadgeTooltip: 'Saldo inicial — fila informativa, no computable en totales',
+  invContribTableTitle: 'Aportaciones y retiradas',
+  invContribColDate: 'Fecha',
+  invContribColAmount: 'Importe',
+  invContribColCumulative: 'Acumulado',
+  invContribTypeContribution: 'Aportación',
+  invContribTypeWithdrawal: 'Retirada',
+  invContribEmpty: 'Sin aportaciones registradas',
 }
 export default es

@@ -24,6 +24,7 @@ from finlytics.investments.base import (
     DiscoveredAccount,
     InvestmentProvider,
     NormalizedCashInvested,
+    NormalizedContributionEvent,
     NormalizedDrawdown,
     NormalizedHolding,
     NormalizedMonthlyReturnRow,
@@ -218,6 +219,50 @@ def _compute_monthly_returns(
     return result
 
 
+def _derive_contribution_events(raw_net_amounts: dict) -> list[NormalizedContributionEvent]:
+    """Derive individual contribution/withdrawal events from cumulative net_amounts.
+
+    net_amounts: YYYYMMDD → cumulative net invested (EUR, float).
+    Deltas between consecutive entries are individual movements.
+    Positive delta → contribution; negative delta → withdrawal.
+    First entry: if value == 0.0 (account-open marker), it is skipped; otherwise
+    it is treated as the initial contribution (delta = value itself).
+    Zero deltas are always skipped.
+    """
+    sorted_pairs = sorted(
+        ((str(k), float(v)) for k, v in raw_net_amounts.items() if len(str(k)) == 8),
+        key=lambda x: x[0],
+    )
+
+    events: list[NormalizedContributionEvent] = []
+    prev_cumulative: float | None = None
+
+    for yyyymmdd, cumulative in sorted_pairs:
+        if prev_cumulative is None:
+            # First entry
+            amount = round(cumulative, 2)
+            if amount == 0.0:
+                # Account-open marker — skip, but anchor prev_cumulative
+                prev_cumulative = cumulative
+                continue
+        else:
+            amount = round(cumulative - prev_cumulative, 2)
+
+        if amount == 0.0:
+            prev_cumulative = cumulative
+            continue
+
+        events.append(NormalizedContributionEvent(
+            date=_fmt_date(yyyymmdd),
+            amount=amount,
+            cumulative=round(cumulative, 2),
+            type="contribution" if amount > 0 else "withdrawal",
+        ))
+        prev_cumulative = cumulative
+
+    return events
+
+
 async def _fetch_performance(
     client: httpx.AsyncClient, account_number: str
 ) -> NormalizedPerformance:
@@ -280,6 +325,9 @@ async def _fetch_performance(
         if len(str(k)) == 8
     ]
 
+    # Derive individual contribution/withdrawal events from the cumulative net_amounts
+    contribution_events = _derive_contribution_events(raw_net_amounts)
+
     # ADD: monthly returns matrix from history + benchmark
     # Real Indexa /performance returns benchmark as a dict keyed by date.
     history: dict = data.get("history", {})
@@ -324,6 +372,7 @@ async def _fetch_performance(
         ),
         value_series=value_series,
         contributions_series=contributions_series,
+        contribution_events=contribution_events,
         monthly_returns=monthly_returns,
         drawdown=drawdown,
         cash_invested=cash_invested,
@@ -439,6 +488,26 @@ class IndexaProvider(InvestmentProvider):
                             instruments_cost=ci_a.instruments_cost + ci_b.instruments_cost,
                             total_amount=ci_a.total_amount + ci_b.total_amount,
                         )
+                    # Merge contribution_events by date (sum deltas, recompute cumulative)
+                    ev_by_date: dict[str, float] = {}
+                    for ev in aggregated_perf.contribution_events:
+                        ev_by_date[ev.date] = ev_by_date.get(ev.date, 0.0) + ev.amount
+                    for ev in perf.contribution_events:
+                        ev_by_date[ev.date] = ev_by_date.get(ev.date, 0.0) + ev.amount
+                    running = 0.0
+                    merged_events: list[NormalizedContributionEvent] = []
+                    for d, amt in sorted(ev_by_date.items()):
+                        amt_r = round(amt, 2)
+                        if amt_r == 0.0:
+                            continue
+                        running = round(running + amt_r, 2)
+                        merged_events.append(NormalizedContributionEvent(
+                            date=d,
+                            amount=amt_r,
+                            cumulative=running,
+                            type="contribution" if amt_r > 0 else "withdrawal",
+                        ))
+                    aggregated_perf.contribution_events = merged_events
                     # Non-aggregatable: clear for multi-account
                     aggregated_perf.returns.twr_annual = None
                     aggregated_perf.returns.twr_total = None

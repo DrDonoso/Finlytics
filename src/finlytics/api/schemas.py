@@ -526,6 +526,14 @@ class ValuePoint(BaseModel):
     value: float
 
 
+class ContributionEventOut(BaseModel):
+    """A single contribution or withdrawal event derived from net_amounts deltas."""
+    date: str        # YYYY-MM-DD
+    amount: float    # positive = aportación, negative = retirada (rounded to cents)
+    cumulative: float  # running net invested after this event
+    type: str        # "contribution" | "withdrawal"
+
+
 class DrawdownOut(BaseModel):
     """Max drawdown info from the provider."""
     max_drawdown: float       # fraction, negative (e.g. -0.1005)
@@ -593,6 +601,7 @@ class InvestmentPortfolioOut(BaseModel):
     returns: InvestmentReturns | None = None
     value_series: list[ValuePoint] = []
     contributions_series: list[ValuePoint] = []
+    contribution_events: list[ContributionEventOut] = []
     monthly_returns: list[MonthlyReturnRow] | None = None
     drawdown: DrawdownOut | None = None
     cash_invested: CashInvestedSplit | None = None
