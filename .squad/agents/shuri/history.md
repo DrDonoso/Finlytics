@@ -136,6 +136,27 @@ IBAN path: natural (SELECT returns None). Name path: add pre-SELECT `select(Acco
 
 ---
 
+### Cache Schema Versioning — Option B (2026-07-23)
+
+**Problema:** El caché de 24h servía payloads escritos por código antiguo (sin `contribution_events`). La ruta FRESH los devolvía tal cual → "Sin aportaciones registradas" en producción aunque en localhost siempre se hacía fetch fresco.
+
+**Constante `_PORTFOLIO_SCHEMA_VERSION = 2`:** Definida en `service.py` justo después de `_CACHE_MAX_AGE`. Empezamos en 2 porque las filas existentes no tienen clave `_schema_version` (escriben `None` en `.get()`), lo que garantiza invalidación inmediata en este deploy.
+
+**`_serialize_portfolio`:** Añade `data["_schema_version"] = _PORTFOLIO_SCHEMA_VERSION` al dict retornado por `dataclasses.asdict(portfolio)`. Todas las rutas de escritura (MISS en `get_portfolio` y background refresh en `_bg_refresh_connection`) usan esta función, por lo que ambas escriben la versión correcta automáticamente.
+
+**`_deserialize_portfolio`:** No necesita cambios — extrae sólo claves específicas del dict, nunca hace `NormalizedPortfolio(**data)`, así que `_schema_version` es ignorada de forma natural. Documentado en el docstring para que quede explícito.
+
+**Ruta de invalidación en `_get_db_cache`:** Tras comprobar `row is None`, se verifica `row.payload.get("_schema_version") != _PORTFOLIO_SCHEMA_VERSION`. Si hay discrepancia:
+1. `await db.delete(row)` — marca la fila para borrado en la sesión actual.
+2. `await db.flush()` — envía el DELETE a la DB *antes* de que el caller haga el INSERT, evitando la violación de la restricción única `uq_portfolio_cache_connection_id`.
+3. `return None` — se comporta como MISS → `get_portfolio` hace un fetch sincrónico en vivo, así la **primera carga post-deploy ya muestra contribution_events**.
+
+**Conflicto de escritura resuelto (Option A — delete+flush):** La ruta MISS de `get_portfolio` siempre hace `db.add(InvestmentPortfolioCache(...))` asumiendo que no existe fila. Para filas versionadas inválidas, el `delete+flush` en `_get_db_cache` garantiza que no haya fila cuando llega el INSERT → sin violación de unique constraint. Se eligió Option A (borrar en el punto de detección) sobre Option B (upsert) porque centraliza la lógica en un único lugar y no requiere cambiar la ruta de escritura existente.
+
+**Test añadido:** `test_cache_schema_version_mismatch_triggers_refetch` en `tests/api/test_investments.py` — verifica delete+flush, INSERT con versión correcta, y valor fresco en el resultado. Suite completa: 81 passed.
+
+---
+
 ## Backend Conventions
 
 - **Schemas:** Pydantic BaseModel; amounts float, percentages raw (12.5 = 12.5%)
@@ -161,4 +182,20 @@ IBAN path: natural (SELECT returns None). Name path: add pre-SELECT `select(Acco
 - Vision: orchestration-log/2026-07-21T16-59-22Z-vision.md
 - Barton: orchestration-log/2026-07-21T16-59-22Z-barton.md
 - Fury: orchestration-log/2026-07-21T16-59-22Z-fury.md
+
+---
+
+## Session: 2026-07-23 — Cache Schema Versioning (slice complete)
+
+**Collaborators:** Shuri, Barton, Fury  
+**Status:** ✅ IMPLEMENTED + APPROVED  
+**Decisions:** .squad/decisions.md (merged inbox), .squad/decisions-archive.md (9 pre-7d entries archived)  
+**Session Log:** .squad/log/2026-07-23T10-48-27Z-cache-versioning.md
+
+**Summary:** Root cause: 24h portfolio cache served pre-deploy JSON (no contribution_events). Solution: version-based invalidation. Embed `_PORTFOLIO_SCHEMA_VERSION=2` in all new rows; detect mismatches on read; auto-invalidate via delete+flush → first-load-fresh synchronous refetch → self-heals production on first request. No migration, no frontend changes. 1366 tests pass.
+
+**Cross-agent refs:**
+- Shuri: orchestration-log/2026-07-23T10-48-27Z-shuri.md
+- Barton: orchestration-log/2026-07-23T10-48-27Z-barton.md
+- Fury: orchestration-log/2026-07-23T10-48-27Z-fury.md
 

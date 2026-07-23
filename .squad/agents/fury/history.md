@@ -87,6 +87,13 @@
 
 ## Learnings
 
+### 2026-07-23: Portfolio Cache Schema Versioning (Option B) — ✅ APPROVED
+- **Invalidación sin migración**: `_schema_version` embebido en el JSON del payload; filas existentes (sin key) → `None != 2` → auto-invalidación. Elegante y zero-downtime.
+- **MISS sincrónico, no STALE**: retornar `None` desde `_get_db_cache` garantiza el path MISS (fetch en vivo inmediato), no el STALE (que devolvería datos viejos + background). Crítico para que la primera carga post-deploy ya muestre contribution_events.
+- **flush() antes del INSERT**: `delete+flush` en la misma sesión asegura que el DELETE llega al motor SQL dentro de la transacción antes del posterior `db.add()`. Sin esto, `uq_portfolio_cache_connection_id` violaría en el commit.
+- **Fail-safe en fetch fallido**: si el live fetch falla tras el delete+flush, `commit()` nunca se llama → el DELETE se revierte con la sesión → la fila stale sobrevive para reintentar. No hay pérdida de datos.
+- **Self-heal producción**: deploy → primera request → fila vieja invalidada → fetch sincrónico → tabla de contributions visible inmediatamente. No requiere intervención manual.
+
 ### 2026-07-23: Indexa Contribution Events (Option A) — ✅ APPROVED
 - **Derivación de deltas correcta**: `_derive_contribution_events` computa diferencias entre entries consecutivas de `net_amounts`; skip de 0.0 inicial; skip de deltas cero; type por signo. Sin posibilidad de doble-conteo.
 - **Multi-cuenta: el truco es sumar deltas (no cumulativos)**: tanto en `get_portfolio` (IndexaProvider) como en `_aggregate` (service), se suman amounts por fecha y se recalcula el cumulative como running total del stream combinado. Esto es correcto: cumulative = integral de flujos, no suma de integrales parciales con orígenes distintos.
@@ -151,5 +158,23 @@ See `.squad/orchestration-log/2026-07-21T*-fury.md` for latest cross-agent refs.
 - Vision: orchestration-log/2026-07-23T10-09-14Z-vision.md
 - Barton: orchestration-log/2026-07-23T10-09-14Z-barton.md
 - Fury: orchestration-log/2026-07-23T10-09-14Z-fury.md
+
+
+## Session: 2026-07-23 — Cache Schema Versioning (slice complete)
+
+**Collaborators:** Shuri, Barton, Fury  
+**Status:** ✅ IMPLEMENTED + APPROVED  
+**Decisions:** .squad/decisions.md (merged inbox + archived 9 pre-7d entries), .squad/decisions-archive.md  
+**Session Log:** .squad/log/2026-07-23T10-48-27Z-cache-versioning.md
+
+**Summary:** Root cause analysis and fix for stale portfolio cache serving pre-deploy JSON (missing contribution_events). Solution: version-based cache invalidation. Embed `_PORTFOLIO_SCHEMA_VERSION=2` in all new rows; detect mismatches on read; auto-invalidate via delete+flush → first-load-fresh synchronous refetch → self-heals production on first request post-deploy. No migration, no frontend changes. 1366 tests pass. No defects.
+
+**Decision (OPTION B):** Delete+flush invalidation in `_get_db_cache` (not UPDATE/upsert in write path). Centralizes logic, maintains simple write pattern, guarantees MISS path taken on version mismatch.
+
+**Cross-agent refs:**
+- Shuri: orchestration-log/2026-07-23T10-48-27Z-shuri.md
+- Barton: orchestration-log/2026-07-23T10-48-27Z-barton.md
+- Fury: orchestration-log/2026-07-23T10-48-27Z-fury.md
+
 
 
