@@ -1,0 +1,73 @@
+frontend/src/investments/views/IndexaView.tsx
+  s_07559ff205616f::t_a577fd4410d241 948-995
+src/finlytics/api/schemas.py
+  s_a1bf2f99220772::t_207b40c85bc126 604
+  s_a1bf2f99220772::t_d860fbdf4a5b02 529-536
+tests/api/test_indexa_contributions.py
+  s_11097059695d46::t_0851fdf4c38f94 1-469,471-490,492-504,506-952
+  s_11097059695d46::t_3c12e3741539e7 470,491,505
+src/finlytics/investments/service.py
+  s_a1bf2f99220772::t_dd21ee56a42cde 683-685
+  s_a1bf2f99220772::t_7e1fd884785012 41
+  s_a1bf2f99220772::t_716f5c687d2bcc 148-151
+  s_a1bf2f99220772::t_147c4cf1d2b74c 619,622
+  s_a1bf2f99220772::t_5444018bef4378 727-741
+  s_a1bf2f99220772::t_95be5c847cd54e 799
+  s_a1bf2f99220772::t_a49342ed7ef0ba 27
+  s_a1bf2f99220772::t_9d9295be38001d 742
+tests/api/test_investments.py
+  s_a1bf2f99220772::t_17881e1c5d0b70 1391-1455
+frontend/src/i18n/es.ts
+  s_07559ff205616f::t_717240f5e7e56c 733-739
+src/finlytics/investments/indexa.py
+  s_a1bf2f99220772::t_fc8acb771c96aa 27
+  s_a1bf2f99220772::t_f456179f991f0a 375
+  s_a1bf2f99220772::t_a018e40ffba0a0 222-265
+  s_a1bf2f99220772::t_488449723af9c0 328-329
+  s_a1bf2f99220772::t_5deb85912b079b 491-510
+  s_a1bf2f99220772::t_42ea428e7262ac 330
+frontend/src/i18n/index.ts
+  s_07559ff205616f::t_5ffa449806ef05 728-735
+frontend/src/api/types.ts
+  s_07559ff205616f::t_b5889fcf276620 609-615,631
+frontend/src/api/mock.ts
+  s_07559ff205616f::t_165f74e5ff07bc 719-725
+src/finlytics/investments/base.py
+  s_a1bf2f99220772::t_deea0715a969f2 81-88
+  s_a1bf2f99220772::t_27afe1d4519322 103
+  s_a1bf2f99220772::t_8220475df33d28 80
+frontend/src/i18n/en.ts
+  s_07559ff205616f::t_159755835005a5 733-739
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "4a70d7f5f97ab8507da111950185729c0b8fc2e4",
+  "prompts": {},
+  "sessions": {
+    "s_07559ff205616f": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_01NnuVzQYH7zwnRHmm78Rrjz",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_11097059695d46": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_013SojKxVa9pcrHiuHNkERW5",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    },
+    "s_a1bf2f99220772": {
+      "agent_id": {
+        "tool": "github-copilot-cli",
+        "id": "toolu_015LpQh14u5hoo14rMeDwqud",
+        "model": "unknown"
+      },
+      "human_author": "drdonoso <davidrodriguezdonoso95@gmail.com>"
+    }
+  }
+}
