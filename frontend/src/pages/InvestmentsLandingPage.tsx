@@ -159,9 +159,9 @@ export default function InvestmentsLandingPage() {
                       contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8 }}
                       labelStyle={{ color: 'var(--text)' }}
                       itemStyle={{ color: 'var(--text)' }}
-                      formatter={(value: number, name: string) => {
+                      formatter={(value, name) => {
                         const item = providerDonutData.find(d => d.name === name)
-                        return [formatEurLocale(value), item?.label ?? name]
+                        return [formatEurLocale(Number(value)), item?.label ?? String(name)]
                       }}
                     />
                   </PieChart>
@@ -229,9 +229,9 @@ export default function InvestmentsLandingPage() {
                       contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8 }}
                       labelStyle={{ color: 'var(--text)' }}
                       itemStyle={{ color: 'var(--text)' }}
-                      formatter={(value: number, name: string) => {
+                      formatter={(value, name) => {
                         const item = assetDonutData.find(d => d.name === name)
-                        return [formatEurLocale(value), item?.label ?? name]
+                        return [formatEurLocale(Number(value)), item?.label ?? String(name)]
                       }}
                     />
                   </PieChart>

@@ -510,9 +510,9 @@ export default function FidelityView() {
                         contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8 }}
                         labelStyle={{ color: 'var(--text)' }}
                         itemStyle={{ color: 'var(--text)' }}
-                        labelFormatter={(isoDate: string) => formatDDMMYYYY(isoDate)}
-                        formatter={(value: number, name: string) => [
-                          formatCurrency(value),
+                        labelFormatter={(label) => formatDDMMYYYY(String(label))}
+                        formatter={(value, name) => [
+                          formatCurrency(Number(value)),
                           name === 'value' ? t.fidelityLegendPortfolio : t.fidelityLegendInvested,
                         ]}
                       />
