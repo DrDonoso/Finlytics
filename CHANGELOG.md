@@ -4,6 +4,13 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260728.11] - 2026-07-28
+
+- [Release notes](https://github.com/microsoft/TypeScript/releases)
+- [Commits](https://github.com/microsoft/TypeScript/commits)
+- dependency-name: typescript dependency-version: 7.0.2 dependency-type: direct:development update-type: version-update:semver-major
+
+
 ## [20260728.10] - 2026-07-28
 
 - build(deps): vite 5.4.21 -> 6.4.3, closing 5 security advisories
