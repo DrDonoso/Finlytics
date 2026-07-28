@@ -4,6 +4,14 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260728.03] - 2026-07-28
+
+- ci: configure Dependabot properly, add CodeQL and dependency review
+- pyproject.toml declared no license and no author, so a built wheel reported an unknown license. Adds PEP 639 license = 'MIT' + license-files, authors, readme, project URLs and trove classifiers (build-system bumped to setuptools>=77 for PEP 639 support). Verified: the wheel now emits 'License-Expression: MIT' and bundles dist-info/licenses/LICENSE.
+- frontend/package.json: adds 'license': 'MIT' for consistency (the package is private, so npm did not require it).
+- COPY README.md and LICENSE alongside pyproject.toml. Not needed for the build to succeed (verified: it builds fine without them), but without them the installed package carries no LICENSE file — and MIT requires the notice to be included in all copies, which includes the published Docker image.
+
+
 ## [20260728.02] - 2026-07-28
 
 - Fix formatting in dependabot.yml
