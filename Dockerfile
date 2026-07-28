@@ -1,5 +1,5 @@
 # ─── Stage 1: Build the React frontend ──────────────────────────────────────
-FROM node:20-alpine AS frontend-builder
+FROM node:26-alpine AS frontend-builder
 
 WORKDIR /frontend
 
@@ -14,7 +14,7 @@ RUN npm run build
 
 
 # ─── Stage 2: Python runtime ──────────────────────────────────────────────────
-FROM python:3.12-slim AS base
+FROM python:3.14-slim AS base
 
 # Create non-root user
 RUN groupadd --gid 1000 app && \
