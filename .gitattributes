@@ -1,2 +1,22 @@
 # Shell scripts must always have LF line endings (Linux containers)
 *.sh text eol=lf
+
+# Squad: union merge for append-only team state files
+# Agents append concurrently to these; union merge keeps both sides instead of
+# raising a conflict on every parallel session.
+#
+# log/** and orchestration-log/** are gitignored above and normally untracked —
+# the rules are a no-op for them here. They are kept because Squad ships them
+# for the git-worktree scenario (docs/features/worktrees.md): when several
+# worktrees share one .squad/ via symlink, whoever does commit those logs needs
+# union merge so entries from different worktrees don't collide on merge.
+#
+# .squad/casting/* is identity (JSON registry), not append-only state —
+# deliberately excluded: union merge would corrupt it.
+.squad/decisions.md merge=union
+.squad/agents/*/history.md merge=union
+.squad/log/** merge=union
+.squad/orchestration-log/** merge=union
+.squad/decisions/inbox/** merge=union
+.squad/rai/audit-trail.md merge=union
+.squad/fact-checker/audit-trail.md merge=union
