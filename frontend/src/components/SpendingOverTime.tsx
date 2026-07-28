@@ -71,8 +71,8 @@ export default function SpendingOverTime({ data, loading, error, selectedFlow, o
               contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8 }}
               labelStyle={{ color: 'var(--text)' }}
               itemStyle={{ color: 'var(--text)' }}
-              formatter={(value: number, name: string) => [
-                formatCurrency(value),
+              formatter={(value, name) => [
+                formatCurrency(Number(value)),
                 name === 'expense' ? t.legendExpense : t.legendIncome,
               ]}
             />

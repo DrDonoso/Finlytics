@@ -547,7 +547,7 @@ export default function IndexaView() {
                             contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8 }}
                             labelStyle={{ color: 'var(--text)' }}
                             itemStyle={{ color: 'var(--text)' }}
-                            formatter={(value: number, name: string) => [formatCurrency(value), assetLabel(name, t)]}
+                            formatter={(value, name) => [formatCurrency(Number(value)), assetLabel(String(name), t)]}
                           />
                         </PieChart>
                       </ResponsiveContainer>
@@ -726,9 +726,9 @@ export default function IndexaView() {
                         contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8 }}
                         labelStyle={{ color: 'var(--text)' }}
                         itemStyle={{ color: 'var(--text)' }}
-                        labelFormatter={(isoDate: string) => formatDDMMYYYY(isoDate)}
-                        formatter={(value: number, name: string) => [
-                          evMode === 'eur' ? formatCurrency(value) : `${value.toFixed(2)}%`,
+                        labelFormatter={(label) => formatDDMMYYYY(String(label))}
+                        formatter={(value, name) => [
+                          evMode === 'eur' ? formatCurrency(Number(value)) : `${Number(value).toFixed(2)}%`,
                           name === 'value' ? t.invLegendPortfolio : t.invLegendContributions,
                         ]}
                       />
