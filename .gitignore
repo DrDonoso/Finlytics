@@ -22,12 +22,27 @@ frontend/dist/
 .DS_Store
 Thumbs.db
 
-# Squad: ignore runtime state (logs, inbox, sessions)
+# ── Squad (AI agent team) ─────────────────────────────────────────────────────
+# Policy taken from what `squad init` writes into a consumer repo
+# (squad-sdk/src/config/init.ts), NOT from the Squad repo's own .gitignore —
+# that one also hides `config.json` and `_upstream_repos/` because they run
+# `squad externalize` on their dev machines. Here the state backend is `local`,
+# so the team's memory is committed and travels with the repo.
+#
+# Only per-machine RUNTIME STATE is ignored:
 .squad/orchestration-log/
 .squad/log/
 .squad/decisions/inbox/
 .squad/sessions/
 .squad/.scratch/
+.squad/.cache/
+#
+# Deliberately NOT ignored:
+#   .squad/config.json   — project config (mcpConfigMode), written by `squad init`
+#   .squad/casting/*     — AUTHORITATIVE IDENTITY; must live on main
+#   .squad/decisions.md  — only gitignored under the two-layer/orphan state
+#                          backend, where the squad-state branch owns it
+#
 # Squad: SubSquad activation file (local to this machine)
 .squad-workstream
 
@@ -37,8 +52,8 @@ tests/fixtures/statements/local/
 # Local host data dir (bind-mounted to /app/data) — uploaded statement PDFs, never commit
 /data/
 
-# Squad / AI-team tooling — kept out of main (lives on the local dev branch + master backup)
-.squad/
+# Squad tooling kept out of main (lives on the local dev branch + master backup).
+# Note: .squad/ itself is NOT listed here — see the Squad block above.
 .copilot/
 .squad-workstream
 .github/agents/squad.agent.md
