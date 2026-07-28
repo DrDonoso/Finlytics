@@ -8,6 +8,20 @@ import secrets
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Values that have ever appeared in the public .env.example / docs. Using any of
+# them as the JWT signing key is equivalent to having no authentication at all.
+_PLACEHOLDER_SECRETS = frozenset(
+    {
+        "your-random-secret-here",
+        "your-secret-here",
+        "changeme",
+        "change-me",
+        "changeme-use-a-strong-password",
+        "secret",
+        "password",
+    }
+)
+
 
 class Settings(BaseSettings):
     """Finlytics runtime configuration.
@@ -93,7 +107,18 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _ensure_auth_secret(self) -> "Settings":
-        """Auto-generate an ephemeral secret when AUTH_SECRET is not configured."""
+        """Reject public placeholders; auto-generate when AUTH_SECRET is unset.
+
+        A placeholder copied verbatim from ``.env.example`` (a public file) would
+        let anyone forge a session cookie, so it is a hard startup failure rather
+        than a warning.
+        """
+        if self.auth_secret.strip().lower() in _PLACEHOLDER_SECRETS:
+            raise ValueError(
+                "AUTH_SECRET is set to a public placeholder value. Anyone could "
+                "forge a session cookie with it. Generate your own with: "
+                'python -c "import secrets; print(secrets.token_urlsafe(32))"'
+            )
         if not self.auth_secret:
             self.auth_secret = secrets.token_urlsafe(32)
             logging.getLogger("finlytics.config").warning(
