@@ -22,8 +22,10 @@ RUN groupadd --gid 1000 app && \
 
 WORKDIR /app
 
-# Install Python dependencies (cache-friendly: only re-runs when pyproject.toml changes)
-COPY pyproject.toml ./
+# Install Python dependencies (cache-friendly: re-runs when pyproject.toml,
+# README.md or LICENSE change — the latter two are referenced by the
+# [project] readme / license-files metadata, so the build needs them present).
+COPY pyproject.toml README.md LICENSE ./
 RUN mkdir -p src/finlytics && touch src/finlytics/__init__.py && \
     pip install --no-cache-dir .
 
