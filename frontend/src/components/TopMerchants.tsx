@@ -116,7 +116,7 @@ export default function TopMerchants({ globalFilters, selectedMerchant, onMercha
                   contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8 }}
                   labelStyle={{ color: 'var(--text)' }}
                   itemStyle={{ color: 'var(--text)' }}
-                  formatter={(value: number) => [formatCurrency(value)]}
+                  formatter={(value) => [formatCurrency(Number(value))]}
                 />
               </PieChart>
             </ResponsiveContainer>
