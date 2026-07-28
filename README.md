@@ -280,3 +280,31 @@ Finlytics is a **personal project** with a single-owner focus — built for one 
 ## 📄 License
 
 [MIT](./LICENSE) — © 2026 DrDonoso.
+
+All runtime dependencies are permissively licensed
+(MIT / BSD-3-Clause / Apache-2.0); none are copyleft.
+
+## 🔐 Security
+
+Found a vulnerability? Please report it privately — see
+[SECURITY.md](./SECURITY.md). That file also lists the deployment settings you
+must get right (`AUTH_SECRET`, `FINLYTICS_ENCRYPTION_KEY`, TLS, network
+exposure).
+
+## ⚖️ Disclaimer
+
+Finlytics is an independent, unofficial project. It is **not affiliated with,
+endorsed by, or sponsored by** BBVA, Indexa Capital, Fidelity Investments,
+Microsoft, Yahoo, or OpenAI. All product names, logos and brands are the
+property of their respective owners and are used here for identification
+purposes only.
+
+The connectors read data you already have access to — your own accounts. Indexa
+Capital is accessed with a read-only personal API token you provide; market
+prices come from publicly reachable Yahoo Finance endpoints, whose terms of use
+are your responsibility to observe. No affiliation or data-access agreement with
+any of these providers is implied.
+
+Nothing here is financial advice. The software is provided "as is", without
+warranty of any kind, as stated in the [LICENSE](./LICENSE) — verify any figure
+against your bank or broker before acting on it.

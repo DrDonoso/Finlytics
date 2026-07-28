@@ -1,11 +1,98 @@
-# To get started with Dependabot version updates, you'll need to specify which
-# package ecosystems to update and where the package manifests are located.
-# Please see the documentation for all configuration options:
-# https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+# Dependabot configuration — https://docs.github.com/code-security/dependabot
+#
+# Covers every manifest in the repo:
+#   pip             -> pyproject.toml
+#   npm             -> frontend/package.json + package-lock.json
+#   github-actions  -> .github/workflows/*.yml
+#   docker          -> Dockerfile, Dockerfile.local
+#   docker-compose  -> docker-compose.yml, docker-compose.local.yml
+#
+# Updates are grouped so a single-maintainer repo gets a handful of PRs a week
+# instead of one per dependency. Security updates are NOT affected by grouping
+# or by open-pull-requests-limit — they always come through immediately.
 
 version: 2
 updates:
-  - package-ecosystem: "" # See documentation for possible values
-    directory: "/" # Location of package manifests
+  # ── Python backend ─────────────────────────────────────────────────────────
+  - package-ecosystem: "pip"
+    directory: "/"
     schedule:
       interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels: ["dependencies", "python"]
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
+      include: "scope"
+    groups:
+      python-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  # ── React frontend ─────────────────────────────────────────────────────────
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels: ["dependencies", "frontend"]
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
+      include: "scope"
+    groups:
+      # Build tooling moves together — vite/esbuild/postcss majors otherwise
+      # arrive as separate breaking PRs.
+      build-tooling:
+        patterns: ["vite", "@vitejs/*", "esbuild", "postcss", "typescript"]
+      react:
+        patterns: ["react", "react-dom", "@types/react", "@types/react-dom"]
+      npm-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  # ── GitHub Actions ─────────────────────────────────────────────────────────
+  # Keeps actions/checkout, docker/build-push-action etc. current. Stale actions
+  # are a real supply-chain risk since they run with repo credentials.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels: ["dependencies", "ci"]
+    commit-message:
+      prefix: "chore(ci)"
+    groups:
+      github-actions:
+        patterns: ["*"]
+
+  # ── Container base images (Dockerfile / Dockerfile.local) ──────────────────
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "docker"]
+    commit-message:
+      prefix: "chore(docker)"
+    groups:
+      docker-images:
+        patterns: ["*"]
+
+  # ── Compose service images (postgres, etc.) ────────────────────────────────
+  - package-ecosystem: "docker-compose"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "docker"]
+    commit-message:
+      prefix: "chore(docker)"
+    groups:
+      compose-images:
+        patterns: ["*"]
