@@ -189,6 +189,11 @@ Open `.env` and set at minimum:
 # Required
 POSTGRES_PASSWORD=a-strong-password
 
+# Strongly recommended — signs session cookies. If unset, a new key is
+# generated on every restart and all sessions are invalidated.
+# Generate: python -c "import secrets; print(secrets.token_urlsafe(32))"
+AUTH_SECRET=your-own-generated-secret
+
 # Optional — set all three to enable AI-powered extraction
 OPENAI_API_KEY=your-key
 OPENAI_BASE_URL=https://api.openai.com/v1
@@ -198,6 +203,9 @@ OPENAI_MODEL=your-model-name
 # Generate: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 FINLYTICS_ENCRYPTION_KEY=your-fernet-key
 ```
+
+> ⚠️ Generate your own values. Placeholders copied from `.env.example` are public;
+> the app refuses to start if `AUTH_SECRET` is left at a known placeholder.
 
 ### 2. Run
 
