@@ -4,6 +4,12 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260728.09] - 2026-07-28
+
+- react / react-dom / @types — react-dom 19 requires react 19 and the types must match the runtime. PR #16 is the proof this is the right unit.
+- vite / @vitejs/* — the plugin declares a peer dependency on vite.
+
+
 ## [20260728.08] - 2026-07-28
 
 - build(deps): recharts 2.15.4 -> 3.10.1, adapt Tooltip callback signatures
