@@ -4,6 +4,11 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260728.02] - 2026-07-28
+
+- Fix formatting in dependabot.yml
+
+
 ## [20260728] - 2026-07-28
 
 - security: harden auth secret handling; apply Squad's documented state practices
