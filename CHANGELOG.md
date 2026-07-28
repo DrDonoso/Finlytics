@@ -4,6 +4,11 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260728] - 2026-07-28
+
+- security: harden auth secret handling; apply Squad's documented state practices
+
+
 ## [20260723.02] - 2026-07-23
 
 - fix(investments): version the portfolio cache to invalidate stale shapes
