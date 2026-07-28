@@ -4,6 +4,11 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260728.08] - 2026-07-28
+
+- build(deps): recharts 2.15.4 -> 3.10.1, adapt Tooltip callback signatures
+
+
 ## [20260728.06] - 2026-07-28
 
 - [Release notes](https://github.com/actions/checkout/releases)
