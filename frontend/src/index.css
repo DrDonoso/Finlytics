@@ -565,7 +565,6 @@ a { color: var(--primary); text-decoration: none; }
   font-size: 18px;
   font-weight: 700;
   color: var(--text);
-}
   white-space: nowrap;
 }
 
