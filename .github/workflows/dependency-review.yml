@@ -1,0 +1,42 @@
+# Dependency Review — blocks pull requests that introduce vulnerable or
+# non-permissively-licensed dependencies, before they reach main.
+#
+# Complements Dependabot: Dependabot tells you about vulnerabilities already in
+# the repo, this stops new ones from getting in. Free on public repositories.
+
+name: Dependency Review
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-review:
+    name: Review dependency changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Free on public repos; needs GitHub Advanced Security on private ones.
+    # Skip rather than fail while the repo is still private.
+    if: ${{ !github.event.repository.private }}
+
+    permissions:
+      contents: read
+      pull-requests: write   # to post the summary comment
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Dependency review
+        uses: actions/dependency-review-action@v5
+        with:
+          # Fail the PR on moderate or worse. Existing findings are unaffected —
+          # this only looks at what the PR adds.
+          fail-on-severity: moderate
+          # The project ships under MIT; copyleft licences would conflict with
+          # redistributing the Docker image.
+          deny-licenses: GPL-2.0, GPL-3.0, AGPL-3.0, LGPL-2.1, LGPL-3.0, SSPL-1.0
+          comment-summary-in-pr: on-failure
