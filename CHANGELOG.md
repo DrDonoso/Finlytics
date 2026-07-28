@@ -4,6 +4,14 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260728.04] - 2026-07-28
+
+- [Release notes](https://github.com/remix-run/react-router/releases)
+- [Changelog](https://github.com/remix-run/react-router/blob/react-router-dom@7.18.1/packages/react-router-dom/CHANGELOG.md)
+- [Commits](https://github.com/remix-run/react-router/commits/react-router-dom@7.18.1/packages/react-router-dom)
+- dependency-name: react-router-dom dependency-version: 7.18.1 dependency-type: direct:production update-type: version-update:semver-patch dependency-group: npm-minor-patch
+
+
 ## [20260728.03] - 2026-07-28
 
 - ci: configure Dependabot properly, add CodeQL and dependency review
