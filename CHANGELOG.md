@@ -4,6 +4,17 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260728.06] - 2026-07-28
+
+- [Release notes](https://github.com/actions/checkout/releases)
+- [Changelog](https://github.com/actions/checkout/blob/main/CHANGELOG.md)
+- [Commits](https://github.com/actions/checkout/compare/v6...v7)
+- [Release notes](https://github.com/actions/setup-python/releases)
+- [Commits](https://github.com/actions/setup-python/compare/v6...v7)
+- dependency-name: actions/checkout dependency-version: '7' dependency-type: direct:production update-type: version-update:semver-major dependency-group: github-actions
+- dependency-name: actions/setup-python dependency-version: '7' dependency-type: direct:production update-type: version-update:semver-major dependency-group: github-actions
+
+
 ## [20260728.05] - 2026-07-28
 
 - base-image bumps (node:20 -> node:26, python:3.12 -> 3.14)
