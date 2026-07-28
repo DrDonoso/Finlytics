@@ -4,6 +4,11 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260728.12] - 2026-07-28
+
+- build(deps): vite 6.4.3 -> 8.1.5, fix malformed CSS rule it exposed
+
+
 ## [20260728.11] - 2026-07-28
 
 - [Release notes](https://github.com/microsoft/TypeScript/releases)
