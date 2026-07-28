@@ -7,9 +7,23 @@
 #   docker          -> Dockerfile, Dockerfile.local
 #   docker-compose  -> docker-compose.yml, docker-compose.local.yml
 #
-# Updates are grouped so a single-maintainer repo gets a handful of PRs a week
-# instead of one per dependency. Security updates are NOT affected by grouping
-# or by open-pull-requests-limit — they always come through immediately.
+# GROUPING RULE
+# -------------
+# Minor and patch updates are grouped freely — they are safe to merge wholesale
+# and grouping keeps the PR count sane for a single maintainer.
+#
+# Major updates get their OWN pull request, because each one may need code
+# changes and has to be reviewed on its own. A group without `update-types`
+# swallows majors too: that is how PR #15 ended up bundling vite 5->8,
+# TypeScript 5->7 and plugin-react 4->6 into a single unmergeable PR — one
+# failure blocked all three, and none could be adopted independently.
+#
+# The exception is packages that MUST move in lockstep, where splitting would
+# produce a PR that cannot build on its own. Those groups deliberately omit
+# `update-types` so their majors stay together.
+#
+# Security updates ignore grouping and open-pull-requests-limit entirely, so
+# none of this delays a vulnerability fix.
 
 version: 2
 updates:
@@ -24,7 +38,6 @@ updates:
     commit-message:
       prefix: "chore(deps)"
       prefix-development: "chore(deps-dev)"
-      include: "scope"
     groups:
       python-minor-patch:
         patterns: ["*"]
@@ -41,21 +54,24 @@ updates:
     commit-message:
       prefix: "chore(deps)"
       prefix-development: "chore(deps-dev)"
-      include: "scope"
     groups:
-      # Build tooling moves together — vite/esbuild/postcss majors otherwise
-      # arrive as separate breaking PRs.
-      build-tooling:
-        patterns: ["vite", "@vitejs/*", "esbuild", "postcss", "typescript"]
+      # Lockstep: react-dom 19 requires react 19, and the @types must match the
+      # runtime version. A PR bumping only one of them cannot type-check.
       react:
         patterns: ["react", "react-dom", "@types/react", "@types/react-dom"]
+      # Lockstep: @vitejs/plugin-react declares a peer dependency on vite, so a
+      # vite major and its plugin major have to land together.
+      vite:
+        patterns: ["vite", "@vitejs/*"]
+      # Everything else — notably typescript, which is independent of vite —
+      # is grouped for minor/patch only, so its majors arrive one at a time.
       npm-minor-patch:
         patterns: ["*"]
         update-types: ["minor", "patch"]
 
   # ── GitHub Actions ─────────────────────────────────────────────────────────
-  # Keeps actions/checkout, docker/build-push-action etc. current. Stale actions
-  # are a real supply-chain risk since they run with repo credentials.
+  # Stale actions are a real supply-chain surface: they run with repository
+  # credentials.
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
@@ -66,10 +82,13 @@ updates:
     commit-message:
       prefix: "chore(ci)"
     groups:
-      github-actions:
+      github-actions-minor-patch:
         patterns: ["*"]
+        update-types: ["minor", "patch"]
 
   # ── Container base images (Dockerfile / Dockerfile.local) ──────────────────
+  # node and python are independent runtimes — a major of one must not be
+  # blocked by a major of the other.
   - package-ecosystem: "docker"
     directory: "/"
     schedule:
@@ -80,8 +99,9 @@ updates:
     commit-message:
       prefix: "chore(docker)"
     groups:
-      docker-images:
+      docker-minor-patch:
         patterns: ["*"]
+        update-types: ["minor", "patch"]
 
   # ── Compose service images (postgres, etc.) ────────────────────────────────
   - package-ecosystem: "docker-compose"
@@ -94,5 +114,6 @@ updates:
     commit-message:
       prefix: "chore(docker)"
     groups:
-      compose-images:
+      compose-minor-patch:
         patterns: ["*"]
+        update-types: ["minor", "patch"]
