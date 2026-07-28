@@ -4,6 +4,19 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260728.05] - 2026-07-28
+
+- base-image bumps (node:20 -> node:26, python:3.12 -> 3.14)
+- musl vs glibc — the frontend compiles inside node:alpine and esbuild/rollup ship platform-specific native binaries
+- 'alembic upgrade head' and seed.py, which the entrypoint runs on boot
+- the SPA actually being built and copied into the image
+- /health returns ok
+- /api/auth/status responds — a public route that queries the users table, so passing proves DB connectivity and that migrations completed
+- /api/version returns 401 — auth is enforced in the shipped image, not just under pytest
+- / serves the SPA (asserts div#root from frontend/index.html)
+- alembic_version is non-empty and the categories table is seeded
+
+
 ## [20260728.04] - 2026-07-28
 
 - [Release notes](https://github.com/remix-run/react-router/releases)
