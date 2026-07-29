@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import type { MouseEvent, ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router'
 import type { Account, AccountSummary, CombinedOverview, Overview, StatementReminder } from '../api/types'
 import {
   getAccounts, getOverview, getOverviewMonths, getByAccount,

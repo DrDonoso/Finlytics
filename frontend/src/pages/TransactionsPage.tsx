@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router'
 import type { Account, Category, Tag, Overview, TransactionsViewFilters } from '../api/types'
 import { getAccounts, getCategories, getTags, getOverview } from '../api/client'
 import { useT, categoryLabel, formatDate, DEFAULT_TAG_COLOR, tagTextColor } from '../i18n'
