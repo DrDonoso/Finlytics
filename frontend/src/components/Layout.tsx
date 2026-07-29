@@ -6,6 +6,8 @@ import { getConnections } from '../api/client'
 import { getPluginLogo, PLUGIN_VIEW_REGISTRY, pluginInitial } from '../investments/registry'
 import type { InvestmentConnection } from '../api/types'
 import NotificationBell from './NotificationBell'
+import { IS_DEMO } from '../demo/config'
+import DemoBanner from '../demo/DemoBanner'
 
 const LS_COLLAPSED = 'finlytics_sidebar_collapsed'
 
@@ -157,10 +159,12 @@ export default function Layout() {
                   <span className="nav-icon">📈</span>
                   <span className="nav-label">{t.navAnalytics}</span>
                 </NavLink>
-                <NavLink to="/statements" className={navLinkClass}>
-                  <span className="nav-icon">📄</span>
-                  <span className="nav-label">{t.navStatements}</span>
-                </NavLink>
+                {!IS_DEMO && (
+                  <NavLink to="/statements" className={navLinkClass}>
+                    <span className="nav-icon">📄</span>
+                    <span className="nav-label">{t.navStatements}</span>
+                  </NavLink>
+                )}
               </div>
             )}
           </div>
@@ -225,64 +229,70 @@ export default function Layout() {
             </button>
             {settingsExpanded && (
               <div className="sidebar-subnav">
-                {/* DATOS */}
-                <button
-                  type="button"
-                  className="sidebar-group-label sidebar-group-toggle"
-                  onClick={() => setSgData(v => !v)}
-                  aria-expanded={sgData}
-                >
-                  {t.settingsGroupData}
-                  <span className={`sidebar-arrow${sgData ? ' open' : ''}`}>▾</span>
-                </button>
-                {sgData && (
+                {/* Data, rules and system settings are all write-oriented and
+                    depend on endpoints the demo does not serve. */}
+                {!IS_DEMO && (
                   <>
-                    <NavLink to="/settings/categories" className={navLinkClass}>
-                      <span className="nav-label">{t.settingsSubCategories}</span>
-                    </NavLink>
-                    <NavLink to="/settings/tags" className={navLinkClass}>
-                      <span className="nav-label">{t.settingsSubTags}</span>
-                    </NavLink>
-                    <NavLink to="/settings/accounts" className={navLinkClass}>
-                      <span className="nav-label">{t.settingsSubAccounts}</span>
-                    </NavLink>
-                  </>
-                )}
+                    {/* DATOS */}
+                    <button
+                      type="button"
+                      className="sidebar-group-label sidebar-group-toggle"
+                      onClick={() => setSgData(v => !v)}
+                      aria-expanded={sgData}
+                    >
+                      {t.settingsGroupData}
+                      <span className={`sidebar-arrow${sgData ? ' open' : ''}`}>▾</span>
+                    </button>
+                    {sgData && (
+                      <>
+                        <NavLink to="/settings/categories" className={navLinkClass}>
+                          <span className="nav-label">{t.settingsSubCategories}</span>
+                        </NavLink>
+                        <NavLink to="/settings/tags" className={navLinkClass}>
+                          <span className="nav-label">{t.settingsSubTags}</span>
+                        </NavLink>
+                        <NavLink to="/settings/accounts" className={navLinkClass}>
+                          <span className="nav-label">{t.settingsSubAccounts}</span>
+                        </NavLink>
+                      </>
+                    )}
 
-                {/* REGLAS */}
-                <button
-                  type="button"
-                  className="sidebar-group-label sidebar-group-toggle"
-                  onClick={() => setSgRules(v => !v)}
-                  aria-expanded={sgRules}
-                >
-                  {t.settingsGroupRules}
-                  <span className={`sidebar-arrow${sgRules ? ' open' : ''}`}>▾</span>
-                </button>
-                {sgRules && (
-                  <NavLink to="/settings/rules" className={navLinkClass}>
-                    <span className="nav-label">{t.navRules}</span>
-                  </NavLink>
-                )}
+                    {/* REGLAS */}
+                    <button
+                      type="button"
+                      className="sidebar-group-label sidebar-group-toggle"
+                      onClick={() => setSgRules(v => !v)}
+                      aria-expanded={sgRules}
+                    >
+                      {t.settingsGroupRules}
+                      <span className={`sidebar-arrow${sgRules ? ' open' : ''}`}>▾</span>
+                    </button>
+                    {sgRules && (
+                      <NavLink to="/settings/rules" className={navLinkClass}>
+                        <span className="nav-label">{t.navRules}</span>
+                      </NavLink>
+                    )}
 
-                {/* SISTEMA */}
-                <button
-                  type="button"
-                  className="sidebar-group-label sidebar-group-toggle"
-                  onClick={() => setSgSystem(v => !v)}
-                  aria-expanded={sgSystem}
-                >
-                  {t.settingsGroupSystem}
-                  <span className={`sidebar-arrow${sgSystem ? ' open' : ''}`}>▾</span>
-                </button>
-                {sgSystem && (
-                  <>
-                    <NavLink to="/settings/connectors" className={navLinkClass}>
-                      <span className="nav-label">{t.settingsSubConnectors}</span>
-                    </NavLink>
-                    <NavLink to="/settings/backup" className={navLinkClass}>
-                      <span className="nav-label">{t.settingsSubBackup}</span>
-                    </NavLink>
+                    {/* SISTEMA */}
+                    <button
+                      type="button"
+                      className="sidebar-group-label sidebar-group-toggle"
+                      onClick={() => setSgSystem(v => !v)}
+                      aria-expanded={sgSystem}
+                    >
+                      {t.settingsGroupSystem}
+                      <span className={`sidebar-arrow${sgSystem ? ' open' : ''}`}>▾</span>
+                    </button>
+                    {sgSystem && (
+                      <>
+                        <NavLink to="/settings/connectors" className={navLinkClass}>
+                          <span className="nav-label">{t.settingsSubConnectors}</span>
+                        </NavLink>
+                        <NavLink to="/settings/backup" className={navLinkClass}>
+                          <span className="nav-label">{t.settingsSubBackup}</span>
+                        </NavLink>
+                      </>
+                    )}
                   </>
                 )}
 
@@ -316,13 +326,17 @@ export default function Layout() {
           {username && (
             <div className="sidebar-user">
               <span className="sidebar-username">👤 {username}</span>
-              <button
-                className="sidebar-logout"
-                onClick={() => { setMobileOpen(false); void onLogout() }}
-                type="button"
-              >
-                {t.authLogout}
-              </button>
+              {/* No session to end in demo mode — logging out would strand the
+                  visitor on a login screen that accepts any credentials. */}
+              {!IS_DEMO && (
+                <button
+                  className="sidebar-logout"
+                  onClick={() => { setMobileOpen(false); void onLogout() }}
+                  type="button"
+                >
+                  {t.authLogout}
+                </button>
+              )}
             </div>
           )}
           <div className="lang-switcher">
@@ -344,6 +358,7 @@ export default function Layout() {
 
       {/* ── Main content ─────────────────────────────────────── */}
       <div className={`app-content${desktopCollapsed ? ' desktop-collapsed' : ''}`}>
+        {IS_DEMO && <DemoBanner />}
         <Outlet />
       </div>
     </div>

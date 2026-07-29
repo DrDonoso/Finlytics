@@ -6731,3 +6731,27 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
   tr.tr-mobile-tappable { cursor: pointer; }
   tr.tr-mobile-tappable:active { background: var(--border); }
 }
+
+/* ─── Demo mode banner ──────────────────────────────────────────────────────
+   Only rendered when the app is built with VITE_DEMO=1 (see demo/DemoBanner). */
+.demo-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  border: 1px solid rgba(var(--warning-rgb), 0.45);
+  border-radius: var(--radius);
+  background: var(--warning-bg);
+  color: var(--warning-text);
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+
+.demo-banner-icon { font-size: 1.05rem; flex-shrink: 0; }
+
+.demo-banner-text strong { font-weight: 600; }
+
+@media (max-width: 600px) {
+  .demo-banner { margin-bottom: 12px; font-size: 0.8125rem; }
+}

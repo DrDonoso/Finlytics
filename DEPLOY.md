@@ -53,6 +53,49 @@ docker compose -f docker-compose.local.yml up -d --build
 
 ---
 
+## Public demo (static, no backend)
+
+`npm run build:demo` produces a **frontend-only** build in `frontend/dist-demo/`. It
+serves a synthetic dataset from the browser via [MSW](https://mswjs.io), so the demo
+needs no API, no PostgreSQL and no secrets.
+
+```bash
+cd frontend
+npm install            # once — the demo needs the msw devDependency
+npm run build:demo     # → frontend/dist-demo/
+npm run preview:demo   # optional local check on http://localhost:4173
+```
+
+Then publish `frontend/dist-demo/` on any static host (nginx, Caddy, GitHub Pages,
+Netlify…). Two hosting requirements:
+
+* **SPA fallback** — the app uses `BrowserRouter`, so every unknown path must serve
+  `index.html` or a deep link like `/analytics` returns 404. In nginx:
+  `try_files $uri $uri/ /index.html;`
+* **Serve at the origin root** — assets are referenced absolutely (`/logo.png`,
+  `/logos/*.svg`, `/mockServiceWorker.js`). Hosting under a sub-path such as
+  `/demo/` breaks them.
+
+### What the demo does and does not include
+
+| | |
+|---|---|
+| **Available** | Dashboard, Finances overview, Transactions (filters, sorting, paging), Analytics, Investments + the Indexa view. Editing a transaction works and updates every KPI, but lives in memory only. |
+| **Hidden** | Statement import, statements, rules, backup, accounts/tags/categories management, connectors, Telegram, Fidelity ESPP — anything that writes, uploads, or asks for third-party credentials. |
+| **Data** | Fully invented and regenerated on each page load from a fixed seed, with dates relative to today. No real person, IBAN, institution or merchant. Nothing is persisted: a reload restores the initial scenario. |
+
+Because the demo goes through the same `api/client.ts` as production, **a new endpoint
+needs a matching handler in `src/demo/handlers.ts`**. Without one, the catch-all replies
+`501` and logs `[demo] Unhandled API request: …` to the console — check for that message
+after adding endpoints.
+
+Source layout: `frontend/src/demo/` — `scenario.ts` (data generation), `store.ts`
+(queries and aggregates), `handlers.ts` (MSW routes), `browser.ts` (worker startup),
+`config.ts` (the `VITE_DEMO` flag). The flag is build-time, so a normal
+`npm run build` contains none of it.
+
+---
+
 ## Image
 
 | Registry | Image |
@@ -60,8 +103,8 @@ docker compose -f docker-compose.local.yml up -d --build
 | Docker Hub | `drdonoso/finlytics` |
 
 The main `Dockerfile` is a **multi-stage build**:
-1. `node:20-alpine` — `npm ci && npm run build` → produces the React SPA in `/frontend/dist`
-2. `python:3.12-slim` — installs the Python package, copies the compiled SPA, runs the entrypoint
+1. `node:26-alpine` — `npm ci && npm run build` → produces the React SPA in `/frontend/dist`
+2. `python:3.14-slim` — installs the Python package, copies the compiled SPA, runs the entrypoint
 
 Build-time ARGs `IMAGE_TAG` and `BUILD_DATE` are injected by CI and exposed via `GET /api/version` (used by the About page in the UI).
 

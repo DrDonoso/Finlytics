@@ -6,7 +6,7 @@ Two Dockerfiles exist in this repo:
 
 | File | Purpose | Used by |
 |------|---------|---------|
-| `Dockerfile` | **Full multi-stage build** — Node 20 compiles the React frontend inside Docker, then Python 3.12-slim serves API + SPA. Self-contained. | CI/prod (`docker-compose.yml`, GitHub Actions) |
+| `Dockerfile` | **Full multi-stage build** — `node:26-alpine` compiles the React frontend inside Docker, then `python:3.14-slim` serves API + SPA. Self-contained. | CI/prod (`docker-compose.yml`, GitHub Actions) |
 | `Dockerfile.local` | **Host-prebuilt frontend** — skips the Node stage; expects `frontend/dist/` to already exist on the host. | Local dev (`docker-compose.local.yml`) |
 
 ### Why two files?
@@ -31,9 +31,11 @@ Push to `main` → GitHub Actions runs `docker-deploy.yml` → builds with the m
 
 ## Migrations
 
-Alembic migrations live in `alembic/versions/`. The current head is `0015_add_portfolio_cache.py`.
+Alembic migrations live in `alembic/versions/`. The current head is `0017_add_transaction_is_system.py`.
 
-- Always create a new numbered migration (`0016_...`) for schema changes.
+- Always create a new numbered migration (`0018_...`) for schema changes.
+- Verify the head before writing one — this file goes stale. `down_revision` in the
+  highest-numbered file is the source of truth, not this document.
 - The entrypoint runs `alembic upgrade head` automatically on container start.
 - Never modify an existing migration that has been deployed.
 
@@ -46,7 +48,7 @@ Two connector types coexist under the same plugin model:
 | Type | Example | Storage |
 |------|---------|---------|
 | **Live-API** | Indexa Capital | Token encrypted with Fernet → `investment_connections`. Portfolio fetched on demand and cached 24h in `investment_portfolio_cache`. |
-| **Statement-Import** | Fidelity ESPP | Lots stored in `espp_lots`. Daily MSFT price stored in `market_data` (via Yahoo Chart API). No token required. |
+| **Statement-Import** | Fidelity ESPP | Lots stored in `espp_lots`. Daily MSFT close stored in `price_history` (via Yahoo Chart API). No token required. |
 
 Both produce data consumed by `GET /api/investments/combined-overview`.
 
@@ -71,6 +73,32 @@ All connector API tokens are encrypted at rest using Fernet (AES-128-CBC + HMAC-
 
 - **Routing:** `App.tsx` — nested routes under `<Route path="/" element={<Layout />}>`.
 - **i18n:** Bilingual EN/ES. `Dict` interface in `i18n/index.ts`, implementations in `es.ts` / `en.ts`. All three files must be updated for every new string.
-- **API client:** `frontend/src/api/client.ts` — typed `apiFetch<T>()`. New endpoints follow the `getX()` / `postX()` pattern with mock fallback for `VITE_USE_MOCK=1`.
+- **API client:** `frontend/src/api/client.ts` — typed `apiFetch<T>()`. New endpoints follow the `getX()` / `postX()` pattern.
+  - **Mock layer:** `frontend/src/api/mock.ts`, activated build-time by `VITE_USE_MOCK=1`. Coverage is **partial** — roughly 40 of 68 client functions have a mock branch. Rules, backup, statements, all Fidelity endpoints and `combined-overview` have none.
+  - ⚠️ **Gotcha:** 13 functions also fall back to the mock on *any* thrown error (`catch { return mockGetX() }`), not just when `USE_MOCK` is set. In production a 500 or a network drop therefore renders **fake data as if it were the user's**. Do not copy this pattern into new endpoints; prefer letting the error surface.
+- **Tests:** there is no frontend test runner (`package.json` has only `dev` / `build` / `preview`). `npm run build` runs `tsc --noEmit` first, so type errors do fail the build — that is the only automated frontend gate.
 - **Plugin view registry:** `frontend/src/investments/registry.ts` — maps `plugin_id → { icon, name, component }`. Add an entry here for any new investment connector view.
 - **Design tokens:** Single `index.css` with CSS custom properties (`--bg`, `--surface`, `--border`, `--primary`, `--radius`, `--shadow`). Light/dark via `[data-theme="dark"]`.
+
+## Public demo (`frontend/src/demo/`)
+
+`npm run build:demo` (flag `VITE_DEMO=1`, via `.env.demo`) emits a backend-less build to
+`frontend/dist-demo/`: [MSW](https://mswjs.io) intercepts `/api/*` in the browser and answers
+from a synthetic dataset. Deployment steps are in `DEPLOY.md`.
+
+| File | Role |
+|------|------|
+| `config.ts` | `IS_DEMO` flag + the connector allowlist |
+| `scenario.ts` | Seeded generator — accounts, transactions, portfolio. **Dates are relative to today** because `defaultRange()` opens on the previous calendar month; hardcoded dates would go stale. |
+| `store.ts` | Single source of truth: the ledger AND every aggregate derive from one transaction list, so an edit is reflected in the KPIs. Filter semantics mirror `db/queries.py::_apply_filters`. |
+| `handlers.ts` | MSW routes, plus a catch-all that answers 501 and logs `[demo] Unhandled API request:` |
+| `browser.ts` | Worker startup — awaited in `main.tsx` **before** React mounts (AuthProvider fetches on its first effect) |
+
+Rules when touching the frontend:
+
+- **A new `/api` endpoint reached by a demo route needs a handler in `handlers.ts`**, or the demo
+  silently loses that screen. The catch-all's console error is the signal.
+- Demo mode intentionally exposes a reduced surface (`DemoRoutes` in `App.tsx`). Anything that
+  writes, uploads or asks for third-party credentials stays out.
+- Keep the demo free of MSW leakage into production: the dynamic import in `main.tsx` is guarded
+  by a literal `import.meta.env.VITE_DEMO` check so the bundler can drop it.
