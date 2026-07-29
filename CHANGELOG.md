@@ -4,6 +4,12 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260729.03] - 2026-07-29
+
+- fix(frontend): pin deps to versions served by the corporate mirror
+- chore(deps): hold Dependabot version updates for 10 days
+
+
 ## [20260729.02] - 2026-07-29
 
 - build(deps): react-router-dom -> react-router 8.3.0, closing GHSA-qwww-vcr4-c8h2
