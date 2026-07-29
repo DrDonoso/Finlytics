@@ -18,7 +18,9 @@
 
 import type {
   Account, Category, Tag, Transaction,
-  CombinedOverview, ContributionEvent, InvestmentConnection, InvestmentHolding, InvestmentPortfolio,
+  CombinedOverview, ContributionEvent, FidelityEvolution, FidelityKpis, FidelityLot,
+  FidelityLots, FidelityReminderResponse,
+  InvestmentConnection, InvestmentHolding, InvestmentPortfolio,
   MonthlyReturnRow, ValuePoint,
 } from '../api/types'
 import { DEMO_MONTHS, DEMO_SEED } from './config'
@@ -75,6 +77,14 @@ function daysInMonth(year: number, month0: number): number {
 /** Clamps `day` to the last day of the month so e.g. day 31 in February works. */
 function dayInMonth(year: number, month0: number, day: number): string {
   return isoDate(new Date(year, month0, Math.min(day, daysInMonth(year, month0))))
+}
+
+/** Last Mon–Fri of the month — when ESPP purchases settle.
+ *  Mirrors `_last_weekday_of_month` in `api/fidelity.py`. */
+function lastWeekdayOfMonth(year: number, month0: number): Date {
+  const d = new Date(year, month0, daysInMonth(year, month0))
+  while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() - 1)
+  return d
 }
 
 // ─── Reference data ───────────────────────────────────────────────────────────
@@ -266,8 +276,7 @@ const INITIAL_INVESTMENT = 9000
 
 interface PortfolioBundle {
   portfolio: InvestmentPortfolio
-  connections: InvestmentConnection[]
-  combined: CombinedOverview
+  connection: InvestmentConnection
 }
 
 function buildPortfolio(rng: Rng, today: Date): PortfolioBundle {
@@ -422,51 +431,288 @@ function buildPortfolio(rng: Rng, today: Date): PortfolioBundle {
     contribution_events: contributionEvents,
   }
 
-  const connections: InvestmentConnection[] = [{
+  const connection: InvestmentConnection = {
     id: 1,
     plugin_id: 'indexa-capital',
     status: 'active',
     account_label_masked: 'ES••••••••••••••••4417',
     created_at: new Date(today.getFullYear() - 1, today.getMonth(), 14).toISOString(),
     last_synced_at: portfolio.last_updated,
-  }]
+  }
+
+  return { portfolio, connection }
+}
+
+// ─── Fidelity ESPP (statement-import connector) ───────────────────────────────
+
+/** ESPP purchases settle on the last weekday of Mar/Jun/Sep/Dec — the quarter
+ *  ends `_ESPP_QUARTER_MONTHS` uses in `api/fidelity.py`. */
+const ESPP_QUARTER_MONTHS = [2, 5, 8, 11] as const
+const ESPP_QUARTERS = 12                 // three years of purchase history
+const ESPP_CONTRIBUTION_EUR = 1150       // set aside per quarter
+const ESPP_DISCOUNT = 0.10               // purchase-price discount on the close
+const MSFT_START_USD = 305
+const USD_TO_EUR = 0.92                  // `usd_eur_rate` multiplies USD to give EUR
+
+interface EsppBundle {
+  kpis: FidelityKpis
+  evolution: FidelityEvolution
+  lots: FidelityLots
+  reminder: FidelityReminderResponse
+  connection: InvestmentConnection
+  /** Current market value, needed for the combined-overview totals. */
+  currentValueEur: number
+  investedEur: number
+}
+
+/** Weekly MSFT closes from `from` to `today`, as a sorted array. Weekly rather
+ *  than daily keeps the payload small; the chart is still smooth. */
+function buildPriceSeries(rng: Rng, from: Date, today: Date): { date: string; usd: number }[] {
+  const series: { date: string; usd: number }[] = []
+  let usd = MSFT_START_USD
+  const cursor = new Date(from)
+  while (cursor <= today) {
+    // Mild upward drift with weekly dispersion.
+    usd = Math.max(40, usd * (1 + rng.float(-0.031, 0.037)))
+    series.push({ date: isoDate(cursor), usd: Math.round(usd * 100) / 100 })
+    cursor.setDate(cursor.getDate() + 7)
+  }
+  // Always finish exactly on today so the KPI price is "as of" the current date.
+  const last = series[series.length - 1]
+  if (!last || last.date !== isoDate(today)) {
+    series.push({ date: isoDate(today), usd: Math.round(usd * 100) / 100 })
+  }
+  return series
+}
+
+/** Last close at or before `iso`. */
+function priceAt(series: { date: string; usd: number }[], iso: string): number {
+  let found = series[0]?.usd ?? MSFT_START_USD
+  for (const p of series) {
+    if (p.date > iso) break
+    found = p.usd
+  }
+  return found
+}
+
+function buildEspp(rng: Rng, today: Date): EsppBundle {
+  // Quarter-end purchase dates, oldest first.
+  const purchaseDates: Date[] = []
+  for (let back = 0; back < ESPP_QUARTERS * 4; back++) {
+    const cursor = new Date(today.getFullYear(), today.getMonth() - back, 1)
+    if (!(ESPP_QUARTER_MONTHS as readonly number[]).includes(cursor.getMonth())) continue
+    const settle = lastWeekdayOfMonth(cursor.getFullYear(), cursor.getMonth())
+    if (settle <= today) purchaseDates.push(settle)
+    if (purchaseDates.length >= ESPP_QUARTERS) break
+  }
+  purchaseDates.reverse()
+
+  const firstDate = purchaseDates[0] ?? today
+  const prices = buildPriceSeries(rng, firstDate, today)
+  const currentUsd = prices[prices.length - 1].usd
+  const currentEur = currentUsd * USD_TO_EUR
+
+  const lots: FidelityLot[] = []
+  let id = 1
+
+  for (const [idx, when] of purchaseDates.entries()) {
+    const iso = isoDate(when)
+    const closeEur = priceAt(prices, iso) * USD_TO_EUR
+    const perShare = closeEur * (1 - ESPP_DISCOUNT)
+    const shares = Math.round((ESPP_CONTRIBUTION_EUR / perShare) * 1000) / 1000
+    const costTotal = Math.round(shares * perShare * 100) / 100
+    const value = Math.round(shares * currentEur * 100) / 100
+    const gain = Math.round((value - costTotal) * 100) / 100
+    lots.push({
+      id: id++,
+      purchase_date: iso,
+      shares,
+      cost_basis_per_share_eur: Math.round(perShare * 10000) / 10000,
+      cost_basis_total_eur: costTotal,
+      current_value_eur: value,
+      gain_loss_eur: gain,
+      gain_loss_pct: costTotal > 0 ? Math.round((gain / costTotal) * 10000) / 100 : 0,
+      share_source: 'SP',
+      // The grant window opens two quarters before the purchase settles.
+      grant_date: isoDate(new Date(when.getFullYear(), when.getMonth() - 6, 1)),
+    })
+
+    // Dividends are reinvested as small DO lots, starting after the first buy.
+    if (idx > 0) {
+      const divDate = new Date(when.getFullYear(), when.getMonth(), Math.min(12, daysInMonth(when.getFullYear(), when.getMonth())))
+      const divIso = isoDate(divDate)
+      const divEur = priceAt(prices, divIso) * USD_TO_EUR
+      const heldShares = lots.reduce((sum, l) => sum + l.shares, 0)
+      const divShares = Math.round(((heldShares * 0.0018 * divEur) / divEur) * 1000) / 1000
+      if (divShares > 0) {
+        const divCost = Math.round(divShares * divEur * 100) / 100
+        const divValue = Math.round(divShares * currentEur * 100) / 100
+        const divGain = Math.round((divValue - divCost) * 100) / 100
+        lots.push({
+          id: id++,
+          purchase_date: divIso,
+          shares: divShares,
+          cost_basis_per_share_eur: Math.round(divEur * 10000) / 10000,
+          cost_basis_total_eur: divCost,
+          current_value_eur: divValue,
+          gain_loss_eur: divGain,
+          gain_loss_pct: divCost > 0 ? Math.round((divGain / divCost) * 10000) / 100 : 0,
+          share_source: 'DO',
+          grant_date: null,
+        })
+      }
+    }
+  }
+
+  const totalShares = Math.round(lots.reduce((s, l) => s + l.shares, 0) * 1000) / 1000
+  const investedEur = Math.round(lots.reduce((s, l) => s + l.cost_basis_total_eur, 0) * 100) / 100
+  const currentValueEur = Math.round(totalShares * currentEur * 100) / 100
+  const gainLossEur = Math.round((currentValueEur - investedEur) * 100) / 100
+
+  // Value/contribution series over the same weekly grid as the price walk.
+  const valueSeries: ValuePoint[] = []
+  const contributionsSeries: ValuePoint[] = []
+  for (const point of prices) {
+    const owned = lots
+      .filter(l => l.purchase_date <= point.date)
+      .reduce((s, l) => s + l.shares, 0)
+    const contributed = lots
+      .filter(l => l.purchase_date <= point.date && l.share_source === 'SP')
+      .reduce((s, l) => s + l.cost_basis_total_eur, 0)
+    valueSeries.push({
+      date: point.date,
+      value: Math.round(owned * point.usd * USD_TO_EUR * 100) / 100,
+    })
+    contributionsSeries.push({ date: point.date, value: Math.round(contributed * 100) / 100 })
+  }
+
+  const lastPurchase = purchaseDates[purchaseDates.length - 1]
+  const quarterLabel = `Q${Math.floor(lastPurchase.getMonth() / 3) + 1} ${lastPurchase.getFullYear()}`
+
+  const kpis: FidelityKpis = {
+    total_shares: totalShares,
+    invested_eur: investedEur,
+    current_value_eur: currentValueEur,
+    gain_loss_eur: gainLossEur,
+    gain_loss_pct: investedEur > 0
+      ? Math.round((gainLossEur / investedEur) * 10000) / 100
+      : null,
+    msft_price_usd: currentUsd,
+    usd_eur_rate: USD_TO_EUR,
+    last_price_date: prices[prices.length - 1].date,
+    price_stale: false,
+    as_of_date: isoDate(today),
+  }
+
+  // Never overdue: the most recent quarter's purchase is always in the dataset,
+  // so the demo does not nag about an upload it cannot accept anyway.
+  const reminder: FidelityReminderResponse = {
+    overdue: false,
+    expected_date: isoDate(lastPurchase),
+    period_label: quarterLabel,
+    last_lot_date: lots[lots.length - 1].purchase_date,
+  }
+
+  const connection: InvestmentConnection = {
+    id: 2,
+    plugin_id: 'fidelity-espp',
+    status: 'active',
+    account_label_masked: '••••••••1274',
+    created_at: new Date(today.getFullYear() - 3, today.getMonth(), 9).toISOString(),
+    last_synced_at: new Date(lastPurchase).toISOString(),
+  }
+
+  return {
+    kpis,
+    evolution: { value_series: valueSeries, contributions_series: contributionsSeries },
+    lots: { lots: [...lots].sort((a, b) => b.purchase_date.localeCompare(a.purchase_date)) },
+    reminder,
+    connection,
+    currentValueEur,
+    investedEur,
+  }
+}
+
+// ─── Combined investments overview ────────────────────────────────────────────
+
+const ASSET_LABELS: Record<string, string> = {
+  equity: 'Renta variable',
+  fixed_income: 'Renta fija',
+  espp_stock: 'Acciones ESPP',
+  cash: 'Efectivo',
+}
+
+/** Consolidates both connectors, exactly as `GET /api/investments/combined-overview`
+ *  does on the backend.
+ *
+ *  UNITS: every `pct` here is a PERCENTAGE (25.4 = 25.4%), matching
+ *  `api/investments.py`, which multiplies by 100 for `by_provider.pct`,
+ *  `by_asset_class.pct`, `providers[].gain_loss_pct` and `total_gain_loss_pct`.
+ *  `InvestmentPortfolio.total_gain_loss_pct` is the odd one out — that one is a
+ *  decimal fraction — so it has to be scaled on the way in. */
+function buildCombined(portfolio: InvestmentPortfolio, espp: EsppBundle): CombinedOverview {
+  const indexaValue = portfolio.total_value
+  const indexaInvested = portfolio.total_invested ?? 0
+  const indexaGain = portfolio.total_gain_loss ?? 0
+
+  const totalValue = Math.round((indexaValue + espp.currentValueEur) * 100) / 100
+  const totalInvested = Math.round((indexaInvested + espp.investedEur) * 100) / 100
+  const totalGain = Math.round((totalValue - totalInvested) * 100) / 100
+  /** Share of the total, as a percentage rounded to 2 decimals (backend parity). */
+  const share = (v: number) => (totalValue > 0 ? Math.round((v / totalValue) * 10000) / 100 : 0)
 
   const byAssetClass = new Map<string, number>()
-  for (const h of holdings) {
+  for (const h of portfolio.holdings) {
     byAssetClass.set(h.asset_class, (byAssetClass.get(h.asset_class) ?? 0) + h.current_value)
   }
-  const ASSET_LABELS: Record<string, string> = {
-    equity: 'Renta variable',
-    fixed_income: 'Renta fija',
-    cash: 'Efectivo',
-  }
+  byAssetClass.set('espp_stock', espp.currentValueEur)
 
-  const combined: CombinedOverview = {
+  const esppGain = Math.round((espp.currentValueEur - espp.investedEur) * 100) / 100
+
+  return {
     total_value_eur: totalValue,
-    total_invested_eur: invested,
-    total_gain_loss_eur: gainLoss,
-    total_gain_loss_pct: Math.round(gainLossPct * 10000) / 10000,
+    total_invested_eur: totalInvested,
+    total_gain_loss_eur: totalGain,
+    total_gain_loss_pct: totalInvested > 0
+      ? Math.round((totalGain / totalInvested) * 1000000) / 10000
+      : null,
     by_provider: [
-      { provider: 'indexa', label: 'Indexa Capital', value_eur: totalValue, pct: 1 },
+      { provider: 'indexa', label: 'Indexa Capital', value_eur: indexaValue, pct: share(indexaValue) },
+      { provider: 'fidelity', label: 'Fidelity ESPP', value_eur: espp.currentValueEur, pct: share(espp.currentValueEur) },
     ],
-    by_asset_class: [...byAssetClass.entries()].map(([assetClass, valueEur]) => ({
-      asset_class: assetClass,
-      label: ASSET_LABELS[assetClass] ?? assetClass,
-      value_eur: Math.round(valueEur * 100) / 100,
-      pct: totalValue > 0 ? Math.round((valueEur / totalValue) * 10000) / 10000 : 0,
-    })),
-    providers: [{
-      id: 'indexa-capital',
-      name: 'Indexa Capital',
-      icon: '/logos/indexa-capital.svg',
-      value_eur: totalValue,
-      gain_loss_eur: gainLoss,
-      gain_loss_pct: Math.round(gainLossPct * 10000) / 10000,
-      route: '/investments/indexa-capital',
-    }],
+    by_asset_class: [...byAssetClass.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([assetClass, valueEur]) => ({
+        asset_class: assetClass,
+        label: ASSET_LABELS[assetClass] ?? assetClass,
+        value_eur: Math.round(valueEur * 100) / 100,
+        pct: share(valueEur),
+      })),
+    providers: [
+      {
+        id: 'indexa-capital',
+        name: 'Indexa Capital',
+        icon: '/logos/indexa-capital.svg',
+        value_eur: indexaValue,
+        gain_loss_eur: indexaGain,
+        gain_loss_pct: indexaInvested > 0
+          ? Math.round((indexaGain / indexaInvested) * 1000000) / 10000
+          : null,
+        route: '/investments/indexa-capital',
+      },
+      {
+        id: 'fidelity-espp',
+        name: 'Fidelity ESPP',
+        icon: '/logos/fidelity-espp.svg',
+        value_eur: espp.currentValueEur,
+        gain_loss_eur: esppGain,
+        gain_loss_pct: espp.investedEur > 0
+          ? Math.round((esppGain / espp.investedEur) * 1000000) / 10000
+          : null,
+        route: '/investments/fidelity-espp',
+      },
+    ],
   }
-
-  return { portfolio, connections, combined }
 }
 
 // ─── Public scenario ──────────────────────────────────────────────────────────
@@ -479,6 +725,12 @@ export interface DemoScenario {
   portfolio: InvestmentPortfolio
   connections: InvestmentConnection[]
   combined: CombinedOverview
+  espp: {
+    kpis: FidelityKpis
+    evolution: FidelityEvolution
+    lots: FidelityLots
+    reminder: FidelityReminderResponse
+  }
 }
 
 /** Builds the whole dataset. `tx_count` is left at 0 here — the store derives it
@@ -505,7 +757,23 @@ export function buildScenario(today: Date = new Date()): DemoScenario {
   ]
 
   const transactions = buildTransactions(rng, today)
-  const { portfolio, connections, combined } = buildPortfolio(rng, today)
+  const { portfolio, connection: indexaConnection } = buildPortfolio(rng, today)
+  const espp = buildEspp(rng, today)
+  const combined = buildCombined(portfolio, espp)
 
-  return { accounts, categories, tags, transactions, portfolio, connections, combined }
+  return {
+    accounts,
+    categories,
+    tags,
+    transactions,
+    portfolio,
+    connections: [indexaConnection, espp.connection],
+    combined,
+    espp: {
+      kpis: espp.kpis,
+      evolution: espp.evolution,
+      lots: espp.lots,
+      reminder: espp.reminder,
+    },
+  }
 }

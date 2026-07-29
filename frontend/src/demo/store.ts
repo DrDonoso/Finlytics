@@ -19,7 +19,8 @@
 
 import type {
   Account, AccountSummary, CashflowSummary, Category, CategorySummary,
-  CombinedOverview, DaySummary, InvestmentConnection, InvestmentPortfolio,
+  CombinedOverview, DaySummary, FidelityEvolution, FidelityKpis, FidelityLots,
+  FidelityReminderResponse, InvestmentConnection, InvestmentPortfolio,
   MerchantSummary, MonthSummary, Overview, SummaryMonths,
   Tag, Transaction, TransactionPage, TransactionPatch,
 } from '../api/types'
@@ -328,3 +329,10 @@ export function summaryMonths(): SummaryMonths {
 export function portfolio(): InvestmentPortfolio { return scenario.portfolio }
 export function connections(): InvestmentConnection[] { return scenario.connections }
 export function combinedOverview(): CombinedOverview { return scenario.combined }
+
+// ─── Fidelity ESPP ────────────────────────────────────────────────────────────
+
+export function esppKpis(): FidelityKpis { return scenario.espp.kpis }
+export function esppEvolution(): FidelityEvolution { return scenario.espp.evolution }
+export function esppLots(): FidelityLots { return scenario.espp.lots }
+export function esppReminder(): FidelityReminderResponse { return scenario.espp.reminder }

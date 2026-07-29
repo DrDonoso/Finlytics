@@ -162,6 +162,13 @@ const investments = [
   http.get('/api/investments/connections', () => HttpResponse.json(store.connections())),
   http.get('/api/investments/portfolio', () => HttpResponse.json(store.portfolio())),
   http.get('/api/investments/combined-overview', () => HttpResponse.json(store.combinedOverview())),
+
+  // Fidelity ESPP — read-only. The CSV import endpoints stay unhandled: they
+  // take a file upload and would write, which the demo does not do.
+  http.get('/api/investments/fidelity/kpis', () => HttpResponse.json(store.esppKpis())),
+  http.get('/api/investments/fidelity/evolution', () => HttpResponse.json(store.esppEvolution())),
+  http.get('/api/investments/fidelity/lots', () => HttpResponse.json(store.esppLots())),
+  http.get('/api/investments/fidelity/reminder', () => HttpResponse.json(store.esppReminder())),
 ]
 
 // ─── Notifications ────────────────────────────────────────────────────────────

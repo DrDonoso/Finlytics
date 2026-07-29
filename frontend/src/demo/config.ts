@@ -25,7 +25,5 @@ export const DEMO_SEED = 20260729
 /** Months of history generated, counting back from the current month. */
 export const DEMO_MONTHS = 18
 
-/** Connector views the demo has data for. Anything else (Fidelity ESPP) would
- *  render a view whose endpoints are unhandled, so it is treated as unavailable
- *  — see `investments/PluginViewWrapper.tsx`. */
-export const DEMO_PLUGIN_IDS: readonly string[] = ['indexa-capital']
+/** Connector views the demo has data for. */
+export const DEMO_PLUGIN_IDS: readonly string[] = ['indexa-capital', 'fidelity-espp']

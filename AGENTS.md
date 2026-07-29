@@ -114,7 +114,7 @@ That file's header carries the operational notes; the one that bites is:
 | File | Role |
 |------|------|
 | `config.ts` | `IS_DEMO` flag, the `demo`/`demo` credentials, and the connector allowlist |
-| `scenario.ts` | Seeded generator — accounts, transactions, portfolio. **Dates are relative to today** because `defaultRange()` opens on the previous calendar month; hardcoded dates would go stale. |
+| `scenario.ts` | Seeded generator — accounts, transactions, Indexa portfolio and Fidelity ESPP lots. **Dates are relative to today** because `defaultRange()` opens on the previous calendar month; hardcoded dates would go stale. ESPP purchases land on the last weekday of Mar/Jun/Sep/Dec, mirroring `api/fidelity.py`. |
 | `store.ts` | Single source of truth: the ledger AND every aggregate derive from one transaction list, so an edit is reflected in the KPIs. Filter semantics mirror `db/queries.py::_apply_filters`. |
 | `handlers.ts` | MSW routes, plus a catch-all that answers 501 and logs `[demo] Unhandled API request:` |
 | `browser.ts` | Worker startup — awaited in `main.tsx` **before** React mounts (AuthProvider fetches on its first effect) |
@@ -129,6 +129,13 @@ visitor back out — the same reset that restores the dataset.
 > **Keep the disclaimer on the login screen only.** It is there to set expectations once,
 > before the visitor is inside. A persistent banner would cover the UI on every page,
 > which is the thing the demo exists to show.
+
+> **Percentage units are not uniform across the API** — mirror the backend, don't guess.
+> `combined-overview` (`total_gain_loss_pct`, `providers[].gain_loss_pct`, every `pct`),
+> `fidelity/kpis.gain_loss_pct` and `fidelity/lots[].gain_loss_pct` are all **percentages**
+> (25.4 = 25.4%), while `InvestmentPortfolio.total_gain_loss_pct` and its `returns.*` are
+> **decimal fractions**. The UI prints most of them with a bare `.toFixed(1)`, so getting
+> this wrong renders "+0.3 %" instead of "+25.4 %" and nothing throws.
 
 Rules when touching the frontend:
 
