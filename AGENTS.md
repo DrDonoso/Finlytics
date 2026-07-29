@@ -2,12 +2,21 @@
 
 ## Docker / build
 
-Two Dockerfiles exist in this repo:
+**One `Dockerfile`, two targets.** There is no `Dockerfile.local` any more — it was a
+workaround for an `npm 10.x` crash inside Docker ("Exit handler never called", bin-symlink
+bug) that no longer reproduces on `node:26-alpine` / npm 11. Do not reintroduce a second
+Dockerfile without evidence that the main one fails.
 
-| File | Purpose | Used by |
-|------|---------|---------|
-| `Dockerfile` | **Multi-stage, multi-target.** Default target `base`: `node:26-alpine` compiles the SPA, `python:3.14-slim` serves API + SPA. Target `demo` (`docker build --target demo`): the same SPA built with `VITE_DEMO=1`, served by `nginx:alpine` — no Python, no API, no database. Both frontend builds share one `npm ci` layer. | CI/prod (`docker-compose.yml`), public demo (`docker-compose.demo.yml`) |
-| `Dockerfile.local` | **Host-prebuilt frontend** — skips the Node stage; expects `frontend/dist/` to already exist on the host. | Local dev (`docker-compose.local.yml`) |
+| Target | Produces | Used by |
+|--------|----------|---------|
+| `base` *(default)* | `node:26-alpine` compiles the SPA, `python:3.14-slim` serves API + SPA. | CI/prod — `docker-compose.yml`, `docker-compose.local.yml` |
+| `demo` | The same SPA built with `VITE_DEMO=1`, served by `nginx:alpine`. No Python, no API, no database. | Public demo — `docker-compose.demo.yml` |
+
+```
+frontend-deps  (npm ci)            ← shared layer, runs once
+├── frontend-builder (npm run build)       → dist/
+└── demo-builder     (npm run build:demo)  → dist-demo/
+```
 
 > **The `base` stage must stay LAST.** A bare `docker build .` builds the final stage, so moving `demo` below it would silently make the demo image the production build.
 
@@ -15,23 +24,22 @@ Two Dockerfiles exist in this repo:
 
 > **`frontend/.env.demo` must stay un-ignored in `.dockerignore`.** The generic `.env.*` rule would swallow it, and Vite would then silently build the *production* bundle into the demo image. The `demo-builder` stage greps the output for the MSW worker to make that failure loud.
 
-### Why two files?
-
-`npm 10.x` crashes inside Docker on the owner's machine ("Exit handler never called" — bin-symlink bug). The main `Dockerfile` works fine in CI (GitHub Actions / Linux runners) and is the source of truth for production images.
-
 ### Local dev workflow
 
 ```bash
-cd frontend && npm run build          # build SPA on host
-docker compose -f docker-compose.local.yml build
-docker compose -f docker-compose.local.yml up -d
+docker compose -f docker-compose.local.yml up -d --build
 ```
+
+Identical to `docker-compose.yml` but builds from the working tree instead of pulling the
+published image — use it to run uncommitted code. No host pre-build step: the Dockerfile
+compiles the SPA itself.
 
 ### CI/prod workflow
 
-Push to `main` → GitHub Actions runs `docker-deploy.yml` → builds with the main `Dockerfile` (full multi-stage, no host pre-build needed).
+Push to `main` → GitHub Actions runs `docker-deploy.yml` → builds `drdonoso/finlytics`
+(default target) and `drdonoso/finlytics-demo` (`--target demo`) on the same CalVer tag.
 
-> **Rule:** Never add a "build frontend" step to the CI workflow. The main `Dockerfile` handles it.
+> **Rule:** Never add a "build frontend" step to the CI workflow. The `Dockerfile` handles it.
 
 ---
 

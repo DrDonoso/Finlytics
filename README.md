@@ -223,17 +223,15 @@ This pulls `drdonoso/finlytics:latest` from Docker Hub and starts the full stack
 docker compose up -d --build
 ```
 
-Uses the main `Dockerfile` — Node 20 compiles the React SPA inside Docker, then Python 3.12-slim serves both the API and the SPA. This is what GitHub Actions runs on every push to `main`.
+Uses the main `Dockerfile` — `node:26-alpine` compiles the React SPA inside Docker, then `python:3.14-slim` serves both the API and the SPA. This is what GitHub Actions runs on every push to `main`.
 
-**Local dev (host-prebuilt frontend):**
+**Local dev (build from your working tree):**
 
 ```bash
-cd frontend && npm run build        # build the SPA on your machine
-cd ..
 docker compose -f docker-compose.local.yml up -d --build
 ```
 
-`Dockerfile.local` skips the Node stage and expects `frontend/dist/` to already exist on the host. Use this when `npm` inside Docker fails on your machine (known `npm 10.x` bin-symlink bug on some setups).
+Same stack, but built from the current checkout instead of the published image — use it to run uncommitted code.
 
 ### 3. Open
 

@@ -1,17 +1,21 @@
 # Finlytics — Deployment Guide
 
-## Two Dockerfiles — which one to use?
+## One Dockerfile, two targets
 
-| File | Target | Purpose | Used by |
-|------|--------|---------|---------|
-| `Dockerfile` | *(default)* `base` | **Full multi-stage build** — `node:26-alpine` compiles the React frontend inside Docker, then `python:3.14-slim` serves API + SPA. Self-contained; no host tools needed. | CI/prod (`docker-compose.yml`, GitHub Actions) |
-| `Dockerfile` | `demo` | **Static public demo** — the same SPA built with `VITE_DEMO=1`, served by `nginx:alpine`. No Python, no API, no database. | Public demo (`docker-compose.demo.yml`) |
-| `Dockerfile.local` | — | **Host-prebuilt frontend** — skips the Node stage; expects `frontend/dist/` to already exist on the host. | Local dev (`docker-compose.local.yml`) |
+| Target | Produces | Used by |
+|--------|----------|---------|
+| `base` *(default)* | **Full multi-stage build** — `node:26-alpine` compiles the React frontend inside Docker, then `python:3.14-slim` serves API + SPA. Self-contained; no host tools needed. | CI/prod (`docker-compose.yml`, GitHub Actions), local dev (`docker-compose.local.yml`) |
+| `demo` | **Static public demo** — the same SPA built with `VITE_DEMO=1`, served by `nginx:alpine`. No Python, no API, no database. | Public demo (`docker-compose.demo.yml`) |
 
 Both frontend builds share a single `npm ci` layer (`frontend-deps`), so building the
 demo after the production image costs only the Vite run. The `base` stage is deliberately
 last: `docker build .` builds the final stage, so a bare build always produces the
 production image.
+
+> There used to be a `Dockerfile.local` that skipped the Node stage and copied a
+> host-prebuilt `frontend/dist/`. It worked around an `npm 10.x` crash inside Docker
+> ("Exit handler never called" — bin-symlink bug) which no longer reproduces on
+> `node:26-alpine` / npm 11, so it was removed.
 
 ---
 
@@ -43,19 +47,16 @@ Uses the main `Dockerfile` — identical to what GitHub Actions runs.
 
 ---
 
-## Local dev (host-prebuilt frontend)
-
-Use this when `npm` inside Docker fails on your machine:
+## Local dev (build from the working tree)
 
 ```bash
-cd frontend && npm run build          # compile SPA on host → frontend/dist/
-cd ..
 docker compose -f docker-compose.local.yml up -d --build
 ```
 
-`Dockerfile.local` copies the host-built `frontend/dist/` into the Python image without running Node inside Docker.
-
-> **Why the local file exists:** `npm 10.x` crashes inside Docker on the owner's machine ("Exit handler never called" — bin-symlink bug). The main `Dockerfile` works fine in CI.
+Identical to `docker-compose.yml` except that it **builds** the image from the current
+checkout instead of pulling the published one — use it whenever you need to run
+uncommitted code, since `docker-compose.yml` serves whatever was last pushed to Docker
+Hub. No host pre-build step: the `Dockerfile` compiles the SPA itself.
 
 ---
 

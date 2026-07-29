@@ -1,8 +1,16 @@
+# Local dev stack — identical to docker-compose.yml except that it BUILDS the
+# image from the current working tree instead of pulling the published one.
+# Use it to run uncommitted code; `docker-compose.yml` would serve whatever was
+# last pushed to Docker Hub.
+#
+#   docker compose -f docker-compose.local.yml up -d --build
+#
+# No host pre-build is needed: the main Dockerfile compiles the SPA itself.
+
 services:
   api:
     build:
       context: .
-      dockerfile: Dockerfile.local
     image: drdonoso/finlytics
     restart: unless-stopped
     ports:

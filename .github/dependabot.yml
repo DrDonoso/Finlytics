@@ -4,8 +4,8 @@
 #   pip             -> pyproject.toml
 #   npm             -> frontend/package.json + package-lock.json
 #   github-actions  -> .github/workflows/*.yml
-#   docker          -> Dockerfile, Dockerfile.local
-#   docker-compose  -> docker-compose.yml, docker-compose.local.yml
+#   docker          -> Dockerfile
+#   docker-compose  -> docker-compose.yml, docker-compose.local.yml, docker-compose.demo.yml
 #
 # GROUPING RULE
 # -------------
@@ -92,9 +92,9 @@ updates:
         patterns: ["*"]
         update-types: ["minor", "patch"]
 
-  # ── Container base images (Dockerfile / Dockerfile.local) ──────────────────
-  # node and python are independent runtimes — a major of one must not be
-  # blocked by a major of the other.
+  # ── Container base images (Dockerfile) ─────────────────────────────────────
+  # node, python and nginx are independent runtimes — a major of one must not be
+  # blocked by a major of another.
   - package-ecosystem: "docker"
     directory: "/"
     schedule:

@@ -12,7 +12,6 @@ on:
       - '.squad/**'
       - '.github/**'
       - 'tests/**'
-      - 'Dockerfile.local'
       - 'docker-compose.local.yml'
       - '.env.example'
       - '.gitignore'
