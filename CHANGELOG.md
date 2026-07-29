@@ -4,6 +4,11 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260729] - 2026-07-29
+
+- build(deps): postgres 16 -> 18-alpine, move the data mount
+
+
 ## [20260728.12] - 2026-07-28
 
 - build(deps): vite 6.4.3 -> 8.1.5, fix malformed CSS rule it exposed
