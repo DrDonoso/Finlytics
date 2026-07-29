@@ -150,6 +150,30 @@ jobs:
           IMAGE_TAG=${{ steps.calver.outputs.version }}
           BUILD_DATE=${{ steps.build_date.outputs.date }}
 
+    # Separate image on purpose: the demo is the SPA built with VITE_DEMO=1 and
+    # served by nginx, with no API and no database. It cannot be a mode of the
+    # main image — that one ships the production SPA bundle and needs Postgres
+    # to migrate on boot, which would put the real API on the public internet.
+    - name: Build and push demo Docker image
+      uses: docker/build-push-action@v7
+      with:
+        context: .
+        file: Dockerfile.demo
+        push: true
+        provenance: false
+        cache-from: |
+          type=gha
+          type=registry,ref=drdonoso/finlytics-demo:latest
+        cache-to: |
+          type=gha,mode=max
+          type=inline
+        tags: |
+          drdonoso/finlytics-demo:latest
+          drdonoso/finlytics-demo:${{ steps.calver.outputs.version }}
+        build-args: |
+          IMAGE_TAG=${{ steps.calver.outputs.version }}
+          BUILD_DATE=${{ steps.build_date.outputs.date }}
+
     - name: Create GitHub Release
       env:
         GH_TOKEN: ${{ github.token }}

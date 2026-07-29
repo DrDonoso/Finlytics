@@ -11,7 +11,25 @@ import { handlers } from './handlers'
 
 export const worker = setupWorker(...handlers)
 
+/** Thrown when the browser refuses to register a Service Worker. In practice
+ *  this always means the demo is being served over plain HTTP from something
+ *  other than localhost — browsers only allow Service Workers in a secure
+ *  context, and without one the demo has no API layer at all. */
+export class InsecureContextError extends Error {
+  constructor() {
+    super(
+      'The demo needs a Service Worker, which browsers only allow over HTTPS ' +
+      '(or on localhost). Serve this build behind TLS.',
+    )
+    this.name = 'InsecureContextError'
+  }
+}
+
 export async function startDemoWorker(): Promise<void> {
+  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) {
+    throw new InsecureContextError()
+  }
+
   await worker.start({
     serviceWorker: { url: '/mockServiceWorker.js' },
     quiet: true,

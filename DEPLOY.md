@@ -55,26 +55,72 @@ docker compose -f docker-compose.local.yml up -d --build
 
 ## Public demo (static, no backend)
 
-`npm run build:demo` produces a **frontend-only** build in `frontend/dist-demo/`. It
-serves a synthetic dataset from the browser via [MSW](https://mswjs.io), so the demo
-needs no API, no PostgreSQL and no secrets.
+The demo is a **separate image**, `drdonoso/finlytics-demo`: the SPA built with
+`VITE_DEMO=1` and served by nginx. [MSW](https://mswjs.io) intercepts `/api/*` inside
+the browser and answers from a synthetic dataset, so there is no API container, no
+PostgreSQL, no secrets and no volumes.
+
+> **It cannot be the same image as `drdonoso/finlytics`.** That one ships the production
+> SPA bundle (no mock layer) and its entrypoint runs `alembic upgrade head`, so it needs a
+> live database — and running it publicly would expose the real API, including the
+> OpenAI-billed `/api/imports`, the Indexa token form, and `/api/auth/setup`, which
+> reopens whenever the database is empty.
+
+### Deploying (Dockge, Portainer, plain compose)
+
+Create a stack from `docker-compose.demo.yml`:
+
+```bash
+docker compose -f docker-compose.demo.yml pull
+docker compose -f docker-compose.demo.yml up -d
+```
+
+In Dockge: new stack → paste the contents of `docker-compose.demo.yml` → deploy. The
+image is pulled from Docker Hub; nothing is built on the host.
+
+| Setting | Value |
+|---------|-------|
+| Image | `drdonoso/finlytics-demo:latest` (also tagged with the CalVer release) |
+| Container port | `80` |
+| Host port | `FINLYTICS_DEMO_PORT`, default `7778` |
+| Health check | `GET /healthz` → `200 ok` |
+| State | None — no volumes, no env vars, no database |
+
+### ⚠️ HTTPS is mandatory
+
+The demo's entire API layer is a **Service Worker**, and browsers only register those in
+a *secure context*: HTTPS, or `localhost`. Served from a plain `http://192.168.x.x:7778`
+the worker never starts and every screen fails to load. Put the container behind your
+reverse proxy with a certificate (Nginx Proxy Manager, Caddy, Traefik, a Cloudflare
+tunnel — any of them will do).
+
+If the worker cannot start, the page renders an explicit bilingual message instead of a
+broken app, so this failure is easy to recognise.
+
+### Building it yourself
+
+```bash
+docker build -f Dockerfile.demo -t finlytics-demo:local .
+docker run --rm -p 8099:80 finlytics-demo:local
+```
+
+Or without Docker, for a plain static host:
 
 ```bash
 cd frontend
 npm install            # once — the demo needs the msw devDependency
 npm run build:demo     # → frontend/dist-demo/
-npm run preview:demo   # optional local check on http://localhost:4173
+npm run preview:demo   # local check
 ```
 
-Then publish `frontend/dist-demo/` on any static host (nginx, Caddy, GitHub Pages,
-Netlify…). Two hosting requirements:
+Serving `dist-demo/` by hand has two requirements that `nginx.demo.conf` already covers:
 
-* **SPA fallback** — the app uses `BrowserRouter`, so every unknown path must serve
-  `index.html` or a deep link like `/analytics` returns 404. In nginx:
-  `try_files $uri $uri/ /index.html;`
-* **Serve at the origin root** — assets are referenced absolutely (`/logo.png`,
-  `/logos/*.svg`, `/mockServiceWorker.js`). Hosting under a sub-path such as
-  `/demo/` breaks them.
+* **SPA fallback** — `BrowserRouter` means `/analytics` only exists client-side;
+  without `try_files $uri $uri/ /index.html;` a deep link or a refresh 404s.
+* **Never cache `mockServiceWorker.js`** — it is the demo's whole API layer; a stale
+  copy breaks every screen.
+* **Serve at the origin root** — assets are absolute (`/logo.png`, `/logos/*.svg`,
+  `/mockServiceWorker.js`), so a sub-path like `/demo/` breaks them.
 
 ### What the demo does and does not include
 

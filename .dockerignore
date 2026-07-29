@@ -7,6 +7,10 @@
 .env
 .env.*
 !.env.example
+# Exception: frontend/.env.demo only sets VITE_DEMO=1 (no secret) and is REQUIRED
+# by Dockerfile.demo — `vite build --mode demo` reads it. Without this rule the
+# demo image would silently ship the production SPA, i.e. no mock API at all.
+!frontend/.env.demo
 
 # Python artifacts
 .venv/
@@ -22,6 +26,7 @@ frontend/node_modules/
 # frontend/dist/ is excluded from CI/prod (multi-stage build) but included for Dockerfile.local
 # (host-pre-built dist is COPYied directly). Un-ignored via the rule below:
 !frontend/dist/
+frontend/dist-demo/
 frontend/.vite/
 
 # Tests (not needed at runtime)
