@@ -4,9 +4,19 @@ on:
   push:
     branches:
       - main
+    # Deny-list on purpose: anything not listed here still deploys, so a new
+    # source directory ships automatically instead of silently going stale.
     paths-ignore:
+      - '**.md'
+      - 'LICENSE'
       - '.squad/**'
-      - 'CHANGELOG.md'
+      - '.github/**'
+      - 'tests/**'
+      - 'Dockerfile.local'
+      - 'docker-compose.local.yml'
+      - '.env.example'
+      - '.gitignore'
+      - '.gitattributes'
   workflow_dispatch:
 
 permissions:
