@@ -4,6 +4,11 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260729.02] - 2026-07-29
+
+- build(deps): react-router-dom -> react-router 8.3.0, closing GHSA-qwww-vcr4-c8h2
+
+
 ## [20260729] - 2026-07-29
 
 - build(deps): postgres 16 -> 18-alpine, move the data mount
