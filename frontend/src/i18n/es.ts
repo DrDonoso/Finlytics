@@ -737,6 +737,7 @@ const es: Dict = {
   invContribTypeContribution: 'Aportación',
   invContribTypeWithdrawal: 'Retirada',
   invContribEmpty: 'Sin aportaciones registradas',
+  langSelectLabel: 'Idioma',
   demoNoticeTitle: 'Demo con datos ficticios.',
   demoNoticeBody: 'Ninguna cifra es real y nada se guarda: al recargar la página vuelve el escenario inicial.',
   demoNoticeCredentials: 'Accede con',

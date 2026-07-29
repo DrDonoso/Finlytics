@@ -6,6 +6,7 @@ import { getConnections } from '../api/client'
 import { getPluginLogo, PLUGIN_VIEW_REGISTRY, pluginInitial } from '../investments/registry'
 import type { InvestmentConnection } from '../api/types'
 import NotificationBell from './NotificationBell'
+import LanguageSelect from './LanguageSelect'
 import { IS_DEMO } from '../demo/config'
 
 const LS_COLLAPSED = 'finlytics_sidebar_collapsed'
@@ -15,7 +16,7 @@ function storedCollapsed(): boolean {
 }
 
 export default function Layout() {
-  const { t, lang, setLang } = useT()
+  const { t } = useT()
   const { username, onLogout } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
@@ -334,20 +335,7 @@ export default function Layout() {
               </button>
             </div>
           )}
-          <div className="lang-switcher">
-            <button
-              className={`lang-btn${lang === 'es' ? ' active' : ''}`}
-              onClick={() => setLang('es')}
-              aria-label="Español"
-              type="button"
-            >ES</button>
-            <button
-              className={`lang-btn${lang === 'en' ? ' active' : ''}`}
-              onClick={() => setLang('en')}
-              aria-label="English"
-              type="button"
-            >EN</button>
-          </div>
+          <LanguageSelect />
         </div>
       </aside>
 

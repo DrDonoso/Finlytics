@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useT } from '../i18n'
 import { DEMO_PASSWORD, DEMO_USERNAME, IS_DEMO } from '../demo/config'
 import DemoLoginNotice from '../demo/DemoLoginNotice'
+import LanguageSelect from '../components/LanguageSelect'
 
 export default function LoginPage() {
   const { onLoginSuccess } = useAuth()
@@ -75,6 +76,12 @@ export default function LoginPage() {
             {pending ? t.loading : t.authLoginBtn}
           </button>
         </form>
+        {/* The app follows the browser's language, but that guess can be wrong —
+            and this screen is the first thing a visitor sees, so the override
+            has to be reachable before signing in. */}
+        <div className="auth-lang">
+          <LanguageSelect />
+        </div>
       </div>
     </div>
   )
