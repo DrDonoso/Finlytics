@@ -19,14 +19,15 @@ services:
     restart: unless-stopped
 
     ports:
+      # Same port on both sides — nginx listens on 7778 inside the container.
       # Publish to the reverse proxy, not to the internet directly.
-      - "${FINLYTICS_DEMO_PORT:-7778}:80"
+      - "${FINLYTICS_DEMO_PORT:-7778}:7778"
 
     # No environment, no volumes, no secrets: everything the demo shows is
     # generated in the browser at page load.
 
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/healthz"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:7778/healthz"]
       interval: 30s
       timeout: 3s
       retries: 3

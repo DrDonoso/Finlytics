@@ -7,7 +7,6 @@ import { getPluginLogo, PLUGIN_VIEW_REGISTRY, pluginInitial } from '../investmen
 import type { InvestmentConnection } from '../api/types'
 import NotificationBell from './NotificationBell'
 import { IS_DEMO } from '../demo/config'
-import DemoBanner from '../demo/DemoBanner'
 
 const LS_COLLAPSED = 'finlytics_sidebar_collapsed'
 
@@ -326,17 +325,13 @@ export default function Layout() {
           {username && (
             <div className="sidebar-user">
               <span className="sidebar-username">👤 {username}</span>
-              {/* No session to end in demo mode — logging out would strand the
-                  visitor on a login screen that accepts any credentials. */}
-              {!IS_DEMO && (
-                <button
-                  className="sidebar-logout"
-                  onClick={() => { setMobileOpen(false); void onLogout() }}
-                  type="button"
-                >
-                  {t.authLogout}
-                </button>
-              )}
+              <button
+                className="sidebar-logout"
+                onClick={() => { setMobileOpen(false); void onLogout() }}
+                type="button"
+              >
+                {t.authLogout}
+              </button>
             </div>
           )}
           <div className="lang-switcher">
@@ -358,7 +353,6 @@ export default function Layout() {
 
       {/* ── Main content ─────────────────────────────────────── */}
       <div className={`app-content${desktopCollapsed ? ' desktop-collapsed' : ''}`}>
-        {IS_DEMO && <DemoBanner />}
         <Outlet />
       </div>
     </div>

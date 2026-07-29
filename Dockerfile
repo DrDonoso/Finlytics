@@ -53,10 +53,10 @@ LABEL org.opencontainers.image.title="Finlytics Demo" \
       org.opencontainers.image.created="$BUILD_DATE" \
       org.opencontainers.image.source="https://github.com/DrDonoso/Finlytics"
 
-EXPOSE 80
+EXPOSE 7778
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget -qO- http://127.0.0.1/healthz || exit 1
+  CMD wget -qO- http://127.0.0.1:7778/healthz || exit 1
 
 
 # ─── Stage 4: Python runtime (DEFAULT TARGET — keep last) ────────────────────

@@ -733,9 +733,10 @@ export interface Dict {
   invContribTypeContribution: string
   invContribTypeWithdrawal: string
   invContribEmpty: string
-  // ── Demo mode banner ──────────────────────────────────────────────────────
-  demoBannerTitle: string
-  demoBannerBody: string
+  // ── Demo mode (login screen notice) ───────────────────────────────────────
+  demoNoticeTitle: string
+  demoNoticeBody: string
+  demoNoticeCredentials: string
 }
 
 const ES_LABELS: Record<string, string> = {

@@ -14,6 +14,10 @@ export const IS_DEMO: boolean = import.meta.env.VITE_DEMO === '1'
 /** Username reported by the mocked auth endpoints. */
 export const DEMO_USERNAME = 'demo'
 
+/** Password accepted by the mocked login. Shown on the login screen — this is a
+ *  public demo with synthetic data, so the credentials are not a secret. */
+export const DEMO_PASSWORD = 'demo'
+
 /** Seed for the synthetic dataset. Fixed on purpose: a deterministic scenario is
  *  reproducible and testable, which per-visitor randomisation is not. */
 export const DEMO_SEED = 20260729

@@ -113,12 +113,22 @@ That file's header carries the operational notes; the one that bites is:
 
 | File | Role |
 |------|------|
-| `config.ts` | `IS_DEMO` flag + the connector allowlist |
+| `config.ts` | `IS_DEMO` flag, the `demo`/`demo` credentials, and the connector allowlist |
 | `scenario.ts` | Seeded generator — accounts, transactions, portfolio. **Dates are relative to today** because `defaultRange()` opens on the previous calendar month; hardcoded dates would go stale. |
 | `store.ts` | Single source of truth: the ledger AND every aggregate derive from one transaction list, so an edit is reflected in the KPIs. Filter semantics mirror `db/queries.py::_apply_filters`. |
 | `handlers.ts` | MSW routes, plus a catch-all that answers 501 and logs `[demo] Unhandled API request:` |
 | `browser.ts` | Worker startup — awaited in `main.tsx` **before** React mounts (AuthProvider fetches on its first effect) |
+| `DemoLoginNotice.tsx` | The demo disclaimer, shown **only** on the login card |
 | `nginx.demo.conf` | Serves the demo image. SPA fallback for deep links; `mockServiceWorker.js` must never be cached. Only the demo uses nginx — in production FastAPI serves the SPA itself. |
+
+The demo keeps a real login screen: `/api/auth/status` starts unauthenticated and
+`/api/auth/login` only accepts `demo`/`demo` (anything else 401s), so the sign-in flow
+demoes itself. Session state is a module variable in `handlers.ts`, so a reload logs the
+visitor back out — the same reset that restores the dataset.
+
+> **Keep the disclaimer on the login screen only.** It is there to set expectations once,
+> before the visitor is inside. A persistent banner would cover the UI on every page,
+> which is the thing the demo exists to show.
 
 Rules when touching the frontend:
 

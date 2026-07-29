@@ -15,7 +15,7 @@
 import { http, HttpResponse } from 'msw'
 import type { Filters } from './store'
 import * as store from './store'
-import { DEMO_USERNAME } from './config'
+import { DEMO_PASSWORD, DEMO_USERNAME } from './config'
 
 // ─── Query-string helpers ─────────────────────────────────────────────────────
 
@@ -51,20 +51,39 @@ function filtersFrom(request: Request): Filters {
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
+/** Session state for the demo. Module-level rather than a cookie: MSW handlers
+ *  run in the page, so this survives navigation but resets on reload — which is
+ *  exactly the demo's contract (a refresh restores the initial scenario). */
+let authenticated = false
+
 const auth = [
+  // `initialized: true` keeps SetupPage out of reach: first-run setup creates a
+  // real account in production, and there is nothing here to create it in.
   http.get('/api/auth/status', () =>
-    HttpResponse.json({ initialized: true, authenticated: true })),
+    HttpResponse.json({ initialized: true, authenticated })),
 
   http.get('/api/auth/me', () =>
-    HttpResponse.json({ username: DEMO_USERNAME })),
+    authenticated
+      ? HttpResponse.json({ username: DEMO_USERNAME })
+      : HttpResponse.json({ detail: 'Not authenticated' }, { status: 401 })),
 
-  // The logout control is hidden in demo mode; these exist so that a stray call
-  // resolves cleanly instead of erroring.
-  http.post('/api/auth/login', () =>
-    HttpResponse.json({ username: DEMO_USERNAME, message: 'Login successful' })),
+  // Validates the advertised credentials rather than waving everyone through,
+  // so the demo shows the app's real behaviour — including the 401 path.
+  http.post('/api/auth/login', async ({ request }) => {
+    const body = await request.json() as { username?: string; password?: string }
+    const ok = body?.username?.trim().toLowerCase() === DEMO_USERNAME
+      && body?.password === DEMO_PASSWORD
+    if (!ok) {
+      return HttpResponse.json({ detail: 'Invalid credentials' }, { status: 401 })
+    }
+    authenticated = true
+    return HttpResponse.json({ username: DEMO_USERNAME, message: 'Login successful' })
+  }),
 
-  http.post('/api/auth/logout', () =>
-    HttpResponse.json({ message: 'Logged out' })),
+  http.post('/api/auth/logout', () => {
+    authenticated = false
+    return HttpResponse.json({ message: 'Logged out' })
+  }),
 ]
 
 // ─── Reference data ───────────────────────────────────────────────────────────
