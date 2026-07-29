@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import type { CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router'
 import type { NotificationOut } from '../api/types'
 import { useNotifications } from '../contexts/NotificationsContext'
 import { useT } from '../i18n'

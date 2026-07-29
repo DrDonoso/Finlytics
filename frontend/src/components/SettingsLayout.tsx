@@ -1,4 +1,4 @@
-import { Outlet } from 'react-router-dom'
+import { Outlet } from 'react-router'
 import { useT } from '../i18n'
 
 export default function SettingsLayout() {

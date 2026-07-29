@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router'
 import { getInvestmentPlugins } from '../api/client'
 import type { InvestmentPlugin } from '../api/types'
 import { useT } from '../i18n'

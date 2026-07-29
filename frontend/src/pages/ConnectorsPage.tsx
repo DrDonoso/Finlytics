@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 import type { InvestmentPlugin, InvestmentConnection, NotificationChannelOut } from '../api/types'
 import { getInvestmentPlugins, getConnections, disconnectConnection, getNotificationChannels, deleteNotificationChannel } from '../api/client'
 import { useT } from '../i18n'
