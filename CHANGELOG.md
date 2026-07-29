@@ -4,6 +4,19 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260729.04] - 2026-07-29
+
+- fix(frontend): restore react-router 8.3.0 and clean the lockfile
+- [Release notes](https://github.com/github/codeql-action/releases)
+- [Changelog](https://github.com/github/codeql-action/blob/main/CHANGELOG.md)
+- [Commits](https://github.com/github/codeql-action/compare/v4...v4.37.1)
+- [Release notes](https://github.com/docker/login-action/releases)
+- [Commits](https://github.com/docker/login-action/compare/v4...v4.4.0)
+- dependency-name: github/codeql-action dependency-version: 4.37.1 dependency-type: direct:production update-type: version-update:semver-minor dependency-group: github-actions-minor-patch
+- dependency-name: docker/login-action dependency-version: 4.4.0 dependency-type: direct:production update-type: version-update:semver-minor dependency-group: github-actions-minor-patch
+- ci(deploy): only rebuild when the image or compose file changes
+
+
 ## [20260729.03] - 2026-07-29
 
 - fix(frontend): pin deps to versions served by the corporate mirror
