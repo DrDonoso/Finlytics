@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router'
 import type { ValidatedAccount, InvestmentConnection } from '../api/types'
 import { validateIndexaToken, connectPlugin } from '../api/client'
 import { useT } from '../i18n'

@@ -1,5 +1,5 @@
 import { Suspense } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link } from 'react-router'
 import { PLUGIN_VIEW_REGISTRY } from './registry'
 import { useT } from '../i18n'
 
