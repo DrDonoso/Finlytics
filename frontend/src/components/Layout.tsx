@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Outlet, NavLink, Link, useLocation, useNavigate } from 'react-router-dom'
+import { Outlet, NavLink, Link, useLocation, useNavigate } from 'react-router'
 import { useT } from '../i18n'
 import { useAuth } from '../contexts/AuthContext'
 import { getConnections } from '../api/client'

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 import { getCombinedOverview } from '../api/client'
 import type { CombinedOverview } from '../api/types'
 import { getPluginLogo, pluginInitial } from '../investments/registry'
