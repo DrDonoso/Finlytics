@@ -2,10 +2,16 @@
 
 ## Two Dockerfiles — which one to use?
 
-| File | Purpose | Used by |
-|------|---------|---------|
-| `Dockerfile` | **Full multi-stage build** — Node 20 compiles the React frontend inside Docker, then Python 3.12-slim serves API + SPA. Self-contained; no host tools needed. | CI/prod (`docker-compose.yml`, GitHub Actions) |
-| `Dockerfile.local` | **Host-prebuilt frontend** — skips the Node stage; expects `frontend/dist/` to already exist on the host. | Local dev (`docker-compose.local.yml`) |
+| File | Target | Purpose | Used by |
+|------|--------|---------|---------|
+| `Dockerfile` | *(default)* `base` | **Full multi-stage build** — `node:26-alpine` compiles the React frontend inside Docker, then `python:3.14-slim` serves API + SPA. Self-contained; no host tools needed. | CI/prod (`docker-compose.yml`, GitHub Actions) |
+| `Dockerfile` | `demo` | **Static public demo** — the same SPA built with `VITE_DEMO=1`, served by `nginx:alpine`. No Python, no API, no database. | Public demo (`docker-compose.demo.yml`) |
+| `Dockerfile.local` | — | **Host-prebuilt frontend** — skips the Node stage; expects `frontend/dist/` to already exist on the host. | Local dev (`docker-compose.local.yml`) |
+
+Both frontend builds share a single `npm ci` layer (`frontend-deps`), so building the
+demo after the production image costs only the Vite run. The `base` stage is deliberately
+last: `docker build .` builds the final stage, so a bare build always produces the
+production image.
 
 ---
 
@@ -100,9 +106,12 @@ broken app, so this failure is easy to recognise.
 ### Building it yourself
 
 ```bash
-docker build -f Dockerfile.demo -t finlytics-demo:local .
+docker build --target demo -t finlytics-demo:local .
 docker run --rm -p 8099:80 finlytics-demo:local
 ```
+
+`--target demo` is a stage of the main `Dockerfile`, so it reuses the same `npm ci`
+layer as the production build.
 
 Or without Docker, for a plain static host:
 

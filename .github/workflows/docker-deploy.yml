@@ -150,15 +150,16 @@ jobs:
           IMAGE_TAG=${{ steps.calver.outputs.version }}
           BUILD_DATE=${{ steps.build_date.outputs.date }}
 
-    # Separate image on purpose: the demo is the SPA built with VITE_DEMO=1 and
-    # served by nginx, with no API and no database. It cannot be a mode of the
-    # main image — that one ships the production SPA bundle and needs Postgres
-    # to migrate on boot, which would put the real API on the public internet.
+    # Same Dockerfile, different target: `demo` is the nginx stage serving the
+    # VITE_DEMO=1 bundle. It shares the `npm ci` layer with the production build
+    # above, and cannot be a *mode* of the main image — that one ships the
+    # production SPA and migrates on boot, so it needs Postgres and would put
+    # the real API on the public internet.
     - name: Build and push demo Docker image
       uses: docker/build-push-action@v7
       with:
         context: .
-        file: Dockerfile.demo
+        target: demo
         push: true
         provenance: false
         cache-from: |

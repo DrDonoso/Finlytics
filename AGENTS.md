@@ -2,17 +2,18 @@
 
 ## Docker / build
 
-Three Dockerfiles exist in this repo:
+Two Dockerfiles exist in this repo:
 
 | File | Purpose | Used by |
 |------|---------|---------|
-| `Dockerfile` | **Full multi-stage build** — `node:26-alpine` compiles the React frontend inside Docker, then `python:3.14-slim` serves API + SPA. Self-contained. | CI/prod (`docker-compose.yml`, GitHub Actions) |
+| `Dockerfile` | **Multi-stage, multi-target.** Default target `base`: `node:26-alpine` compiles the SPA, `python:3.14-slim` serves API + SPA. Target `demo` (`docker build --target demo`): the same SPA built with `VITE_DEMO=1`, served by `nginx:alpine` — no Python, no API, no database. Both frontend builds share one `npm ci` layer. | CI/prod (`docker-compose.yml`), public demo (`docker-compose.demo.yml`) |
 | `Dockerfile.local` | **Host-prebuilt frontend** — skips the Node stage; expects `frontend/dist/` to already exist on the host. | Local dev (`docker-compose.local.yml`) |
-| `Dockerfile.demo` | **Static public demo** — builds the SPA with `VITE_DEMO=1` and serves `dist-demo/` from `nginx:alpine`. No Python, no API, no database. Publishes `drdonoso/finlytics-demo`. | Public demo (`docker-compose.demo.yml`) |
 
-> **Never fold the demo into the main image.** The main image ships the production SPA bundle and its entrypoint runs `alembic upgrade head`, so serving the demo from it would require a live database and expose the real API (`/api/imports` bills OpenAI, the connector form asks for real broker tokens, `/api/auth/setup` reopens whenever the DB is empty).
+> **The `base` stage must stay LAST.** A bare `docker build .` builds the final stage, so moving `demo` below it would silently make the demo image the production build.
 
-> **`frontend/.env.demo` must stay un-ignored in `.dockerignore`.** The generic `.env.*` rule would swallow it, and Vite would then silently build the *production* bundle into the demo image. `Dockerfile.demo` greps the output for the MSW worker to make that failure loud.
+> **Never fold the demo into the `base` image.** It ships the production SPA bundle and its entrypoint runs `alembic upgrade head`, so serving the demo from it would require a live database and expose the real API (`/api/imports` bills OpenAI, the connector form asks for real broker tokens, `/api/auth/setup` reopens whenever the DB is empty).
+
+> **`frontend/.env.demo` must stay un-ignored in `.dockerignore`.** The generic `.env.*` rule would swallow it, and Vite would then silently build the *production* bundle into the demo image. The `demo-builder` stage greps the output for the MSW worker to make that failure loud.
 
 ### Why two files?
 
