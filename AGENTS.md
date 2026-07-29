@@ -38,6 +38,8 @@ compiles the SPA itself.
 
 Push to `main` → GitHub Actions runs `docker-deploy.yml` → builds `drdonoso/finlytics`
 (default target) and `drdonoso/finlytics-demo` (`--target demo`) on the same CalVer tag.
+The `IMAGE_TAG` / `BUILD_DATE` build args are injected there and surfaced by
+`GET /api/version` (shown on the About page).
 
 > **Rule:** Never add a "build frontend" step to the CI workflow. The `Dockerfile` handles it.
 
@@ -98,7 +100,16 @@ All connector API tokens are encrypted at rest using Fernet (AES-128-CBC + HMAC-
 
 `npm run build:demo` (flag `VITE_DEMO=1`, via `.env.demo`) emits a backend-less build to
 `frontend/dist-demo/`: [MSW](https://mswjs.io) intercepts `/api/*` in the browser and answers
-from a synthetic dataset. Deployment steps are in `DEPLOY.md`.
+from a synthetic dataset.
+
+CI publishes it as `drdonoso/finlytics-demo` (`docker build --target demo`). It is deployed
+from `docker-compose.demo.yml` — a single nginx container, no API, no database, no volumes.
+That file's header carries the operational notes; the one that bites is:
+
+> **The demo only works over HTTPS** (or `localhost`). Its whole API layer is a Service
+> Worker, and browsers refuse to register those outside a secure context. On plain HTTP the
+> worker never starts and every screen fails to load — `main.tsx` catches this and renders an
+> explicit message rather than a broken app.
 
 | File | Role |
 |------|------|
@@ -107,6 +118,7 @@ from a synthetic dataset. Deployment steps are in `DEPLOY.md`.
 | `store.ts` | Single source of truth: the ledger AND every aggregate derive from one transaction list, so an edit is reflected in the KPIs. Filter semantics mirror `db/queries.py::_apply_filters`. |
 | `handlers.ts` | MSW routes, plus a catch-all that answers 501 and logs `[demo] Unhandled API request:` |
 | `browser.ts` | Worker startup — awaited in `main.tsx` **before** React mounts (AuthProvider fetches on its first effect) |
+| `nginx.demo.conf` | SPA fallback for deep links; `mockServiceWorker.js` must never be cached |
 
 Rules when touching the frontend:
 

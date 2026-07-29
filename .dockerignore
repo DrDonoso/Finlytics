@@ -32,7 +32,6 @@ tests/
 
 # Project management / squad docs
 .squad/
-DEPLOY.md
 
 # Editor & OS noise
 .vscode/
