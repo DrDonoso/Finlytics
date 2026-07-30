@@ -4,6 +4,11 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260730.06] - 2026-07-30
+
+- fix(notifications): rebuild the Telegram bot token from a fixed alphabet (#36)
+
+
 ## [20260730.05] - 2026-07-30
 
 - The palette, typography and icons now derive from the logo instead of Tailwind's defaults. `slate-100`/`blue-600`/`green-500` shared nothing with the navy-to-teal logo, so the brand stopped at the favicon. Tokens are now `#123a6b -> #21639f -> #12b886`, and the red/green pair becomes teal/terracotta, which also survives colour blindness.
