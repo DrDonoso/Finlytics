@@ -4,6 +4,20 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260730.05] - 2026-07-30
+
+- The palette, typography and icons now derive from the logo instead of Tailwind's defaults. `slate-100`/`blue-600`/`green-500` shared nothing with the navy-to-teal logo, so the brand stopped at the favicon. Tokens are now `#123a6b -> #21639f -> #12b886`, and the red/green pair becomes teal/terracotta, which also survives colour blindness.
+- ~380 emoji replaced by an in-house SVG icon set. Emoji render differently on every OS and inherit neither colour nor size, so the app looked like a different product depending on where it was opened. Geist and Geist Mono are self-hosted (82 KB) rather than loaded from a CDN, because a self-hosted finance app should not phone out to render its own UI.
+- The login had no attempt limit: brute-forcing passwords was bounded only by bandwidth. It now allows 10 attempts per window, counted per IP and never per user - per user would let anyone lock a legitimate account out. The IP comes from the connection, not from `X-Forwarded-For`, which is forgeable.
+- Reminders used the wrong day for two hours every night. `TIMEZONE` existed in the config and in docker-compose but was read nowhere, so the container evaluated dates in UTC while Madrid was two hours ahead.
+- A failure reading investments also hid the bank net worth. One broken data source blanked another that was working; net worth is now computed from whatever resolves, and the missing part is marked as such.
+- Stale responses could overwrite fresh ones: 22 of 26 effects were unguarded, so switching months quickly could leave the previous month on screen with no visible error. Requests now go through TanStack Query, where the params are part of the cache key.
+- Three CSS rules never applied. `.batch-accordion-chevron.--open` and `.batch-detail-row.--done/--error` required a literal `--open` class while the markup emits the BEM form, so the accordion arrow never turned and detail rows were never coloured.
+- The frontend had no linter and no tests while the backend had ruff and 1366 - that asymmetry is where the bugs above were hiding. It now has oxlint (ESLint is not installable here: typescript-eslint refuses TypeScript 7) and 65 tests, both gating CI, plus mypy over the query layer.
+- `queries.py` (1175 lines) and `index.css` (7030 lines) split by domain. The query package re-exports through `__init__.py` so the `queries.get_x()` attribute access and the ~250 tests that patch it keep working untouched; the compiled CSS was compared rule by rule before and after and is byte-identical.
+- Closed a high-severity CodeQL ReDoS alert in the tag-name emoji split. It was never exploitable in CPython (linear growth up to 8000 characters), but the ambiguous pattern was pointless in something a user types.
+
+
 ## [20260730.04] - 2026-07-30
 
 - wrangler.jsonc documented the deploy command as optional. The docs do call it optional, but the setup form requires it. It now records `npx wrangler@4 deploy` - major pinned because wrangler is deliberately not a devDependency (npm ci also runs in the Docker builds, which never use it), so npx would otherwise pull whatever is latest and a wrangler 5 could break the deploy with no change on our side.
