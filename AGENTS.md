@@ -150,10 +150,18 @@ visitor back out — the same reset that restores the dataset.
 
 > **Percentage units are not uniform across the API** — mirror the backend, don't guess.
 > `combined-overview` (`total_gain_loss_pct`, `providers[].gain_loss_pct`, every `pct`),
-> `fidelity/kpis.gain_loss_pct` and `fidelity/lots[].gain_loss_pct` are all **percentages**
-> (25.4 = 25.4%), while `InvestmentPortfolio.total_gain_loss_pct` and its `returns.*` are
-> **decimal fractions**. The UI prints most of them with a bare `.toFixed(1)`, so getting
-> this wrong renders "+0.3 %" instead of "+25.4 %" and nothing throws.
+> `fidelity/kpis.gain_loss_pct` and `fidelity/lots[].gain_loss_pct` are **percentages**
+> (25.4 = 25.4%). Everything under `InvestmentPortfolio` is the opposite — decimal
+> **fractions** — because `IndexaView` renders those with `* 100`: `total_gain_loss_pct`,
+> all of `returns.*` (including `money_return`, which is a money-weighted *rate*, not
+> euros), `drawdown.max_drawdown`, `holdings[].gain_loss_pct`, and `monthly_returns`
+> (`months_pct`, `total_pct`, `benchmark_pct`). The UI prints most of them with a bare
+> `.toFixed()`, so getting this wrong renders "+0.3 %" or "+342773.0 %" and nothing throws.
+
+> **`monthly_returns` month keys are unpadded**: `"1"`…`"12"`, not `"01"`. The backend keys
+> them by int and the matrix looks them up with `String(i + 1)`. Zero-padding silently
+> blanks January–September — only 10/11/12 match — which reads as "the current year has
+> no data" until October.
 
 Rules when touching the frontend:
 

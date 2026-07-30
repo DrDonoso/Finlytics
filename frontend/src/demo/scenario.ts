@@ -352,6 +352,15 @@ function buildPortfolio(rng: Rng, today: Date): PortfolioBundle {
   })
 
   // Monthly returns table, grouped by calendar year.
+  //
+  // UNITS: every *_pct here is a DECIMAL FRACTION (0.0234 = +2.34%). The backend
+  // compounds them as ∏(1 + r) - 1 (investments/indexa.py) and IndexaView renders
+  // them with `(v * 100).toFixed(2)`, so storing percentages would display them
+  // multiplied by 100 again.
+  //
+  // KEYS: month numbers WITHOUT a leading zero. The backend keys these by int
+  // and JSON stringifies them as "1".."12"; the matrix reads `String(i + 1)`.
+  // Zero-padding silently blanks January through September — only 10/11/12 match.
   const byYear = new Map<number, MonthlyReturnRow>()
   for (const m of monthlyPct) {
     let row = byYear.get(m.year)
@@ -359,19 +368,20 @@ function buildPortfolio(rng: Rng, today: Date): PortfolioBundle {
       row = { year: m.year, months_pct: {}, months_eur: {}, total_pct: 0, total_eur: 0, benchmark_pct: null }
       byYear.set(m.year, row)
     }
-    const key = pad2(m.month0 + 1)
-    row.months_pct[key] = Math.round(m.pct * 1000) / 10   // percent, 1 decimal
+    const key = String(m.month0 + 1)
+    row.months_pct[key] = m.pct
     row.months_eur[key] = m.eur
   }
   const monthlyReturns: MonthlyReturnRow[] = [...byYear.values()].map(row => {
     const pcts = Object.values(row.months_pct).filter((v): v is number => typeof v === 'number')
     const eurs = Object.values(row.months_eur).filter((v): v is number => typeof v === 'number')
-    const compounded = pcts.reduce((acc, p) => acc * (1 + p / 100), 1) - 1
+    const compounded = pcts.reduce((acc, p) => acc * (1 + p), 1) - 1
     return {
       ...row,
-      total_pct: Math.round(compounded * 1000) / 10,
+      total_pct: Math.round(compounded * 10000) / 10000,
       total_eur: Math.round(eurs.reduce((a, b) => a + b, 0) * 100) / 100,
-      benchmark_pct: Math.round((compounded * 0.92) * 1000) / 10,
+      // A slightly lagging benchmark, so the comparison column reads plausibly.
+      benchmark_pct: Math.round(compounded * 0.92 * 10000) / 10000,
     }
   }).sort((a, b) => b.year - a.year)
 
@@ -398,13 +408,18 @@ function buildPortfolio(rng: Rng, today: Date): PortfolioBundle {
     currency: 'EUR',
     plugins_connected: 1,
     last_updated: new Date(today.getTime() - 42 * 60 * 1000).toISOString(),
+    // UNITS inside `returns`: rates are DECIMAL FRACTIONS, amounts are EUR.
+    // IndexaView renders twr_annual / xirr / volatility / money_return with
+    // `* 100`, and pl / aportaciones / retenciones as currency. `money_return`
+    // is the money-weighted total RETURN (a rate) — the view prints it as the
+    // percentage next to `pl`, so putting euros in it renders "+342773.0 %".
     returns: {
       twr_annual: Math.round(gainLossPct * 0.7 * 10000) / 10000,
       xirr: Math.round(gainLossPct * 0.82 * 10000) / 10000,
       pl: gainLoss,
       invested,
       twr_total: Math.round(gainLossPct * 10000) / 10000,
-      money_return: gainLoss,
+      money_return: Math.round(gainLossPct * 10000) / 10000,
       volatility: 0.0871,
       aportaciones: invested,
       retenciones: 0,
