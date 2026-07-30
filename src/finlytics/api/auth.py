@@ -13,6 +13,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from finlytics.api.deps import get_current_user, get_db
+from finlytics.auth.ratelimit import RateLimiter, client_ip
 from finlytics.auth.security import create_token, decode_token, hash_password, verify_password
 from finlytics.config import settings
 from finlytics.db.models import User
@@ -23,6 +24,14 @@ _COOKIE_NAME = "finlytics_session"
 # Precomputed at import time — used to equalise bcrypt timing when the username
 # does not exist, preventing username-enumeration via response-time differences.
 _DUMMY_HASH: str = hash_password("__timing_dummy_constant__")
+
+# Throttles failed logins per client IP. Deliberately not per username: keying on
+# the username would let anyone lock out the legitimate account just by guessing
+# against it. See finlytics.auth.ratelimit for the full rationale.
+login_rate_limiter = RateLimiter(
+    max_attempts=settings.auth_login_max_attempts,
+    window_seconds=settings.auth_login_window_seconds,
+)
 
 
 # ── Pydantic schemas ──────────────────────────────────────────────────────────
@@ -130,13 +139,26 @@ async def auth_setup(
 
 @router.post("/login", response_model=AuthResponse)
 async def auth_login(
-    body: LoginIn, response: Response, db: AsyncSession = Depends(get_db)
+    body: LoginIn, request: Request, response: Response, db: AsyncSession = Depends(get_db)
 ) -> AuthResponse:
     """Public — verifies credentials and sets the session cookie.
 
     Returns a GENERIC 401 for both wrong username and wrong password to avoid
-    leaking which field is incorrect.
+    leaking which field is incorrect, and 429 once the caller's IP has burned
+    through its attempt budget.
     """
+    ip = client_ip(request)
+
+    # max_attempts <= 0 disables throttling (AUTH_LOGIN_MAX_ATTEMPTS=0).
+    if login_rate_limiter.max_attempts > 0:
+        verdict = login_rate_limiter.check(ip)
+        if not verdict.allowed:
+            raise HTTPException(
+                status_code=429,
+                detail="Too many login attempts. Please try again later.",
+                headers={"Retry-After": str(verdict.retry_after)},
+            )
+
     user = await db.scalar(select(User).where(User.username == body.username))
     if user is None:
         # Always run bcrypt to equalise timing — prevents username enumeration.
@@ -144,6 +166,10 @@ async def auth_login(
         raise HTTPException(status_code=401, detail="Invalid credentials")
     if not verify_password(body.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    # Authenticated: clear the counter so a couple of typos followed by a correct
+    # password leave no trace for the next session.
+    login_rate_limiter.reset(ip)
 
     if body.remember:
         expire_days = settings.auth_remember_expire_days

@@ -117,6 +117,9 @@ const es: Dict = {
   authErrorPasswordTooShort: 'La contraseña debe tener al menos 8 caracteres.',
   authErrorUsernameTooShort: 'El nombre de usuario debe tener al menos 3 caracteres.',
   authErrorAlreadySetup: 'El sistema ya está configurado. Recarga la página para iniciar sesión.',
+  authErrorTooManyAttempts: (minutes: number) => minutes <= 1
+    ? 'Demasiados intentos fallidos. Espera un minuto antes de volver a probar.'
+    : `Demasiados intentos fallidos. Espera ${minutes} minutos antes de volver a probar.`,
   authErrorUnexpected: 'Error inesperado. Inténtalo de nuevo.',
   authRememberMe: 'Recordarme',
   filterExpenseOnly: 'Solo gastos',

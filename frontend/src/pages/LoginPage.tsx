@@ -21,8 +21,15 @@ export default function LoginPage() {
       const user = await login(username, password, remember)
       onLoginSuccess(user.username)
     } catch (err: unknown) {
-      const status = (err as { status?: number }).status
-      setError(status === 401 ? t.authErrorInvalidCredentials : t.authErrorUnexpected)
+      const { status, retryAfter } = err as { status?: number; retryAfter?: number }
+      if (status === 429) {
+        // Retry-After viene en segundos; se redondea hacia arriba a minutos
+        // porque «espera 247 segundos» no ayuda a nadie.
+        const minutes = Math.max(1, Math.ceil((retryAfter ?? 60) / 60))
+        setError(t.authErrorTooManyAttempts(minutes))
+      } else {
+        setError(status === 401 ? t.authErrorInvalidCredentials : t.authErrorUnexpected)
+      }
     } finally {
       setPending(false)
     }

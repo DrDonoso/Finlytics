@@ -117,6 +117,9 @@ const en: Dict = {
   authErrorPasswordTooShort: 'Password must be at least 8 characters.',
   authErrorUsernameTooShort: 'Username must be at least 3 characters.',
   authErrorAlreadySetup: 'Setup already completed. Reload the page to log in.',
+  authErrorTooManyAttempts: (minutes: number) => minutes <= 1
+    ? 'Too many failed attempts. Please wait a minute before trying again.'
+    : `Too many failed attempts. Please wait ${minutes} minutes before trying again.`,
   authErrorUnexpected: 'Unexpected error. Please try again.',
   authRememberMe: 'Remember me',
   filterExpenseOnly: 'Expenses only',

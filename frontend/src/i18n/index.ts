@@ -123,6 +123,8 @@ export interface Dict {
   authErrorPasswordTooShort: string
   authErrorUsernameTooShort: string
   authErrorAlreadySetup: string
+  /** 429: se ha agotado el cupo de intentos de acceso desde esta red. */
+  authErrorTooManyAttempts: (minutes: number) => string
   authErrorUnexpected: string
   authRememberMe: string
   // ── Flow filter ───────────────────────────────────────────────────────────

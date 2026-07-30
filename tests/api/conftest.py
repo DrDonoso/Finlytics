@@ -22,8 +22,23 @@ import pytest
 from fastapi import HTTPException
 from httpx import ASGITransport, AsyncClient
 
+from finlytics.api.auth import login_rate_limiter
 from finlytics.api.deps import get_current_user, get_db, get_llm_client
 from finlytics.app import app
+
+
+@pytest.fixture(autouse=True)
+def _reset_login_rate_limiter():
+    """Aísla el límite de intentos entre tests.
+
+    Todos los tests llegan desde la misma IP ficticia, así que sin esto los
+    intentos fallidos de un test se acumularían en el siguiente y acabarían
+    provocando un 429 en un test que no tiene nada que ver — un fallo
+    dependiente del orden de ejecución y muy difícil de diagnosticar.
+    """
+    login_rate_limiter.clear()
+    yield
+    login_rate_limiter.clear()
 
 
 @pytest.fixture
