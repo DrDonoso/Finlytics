@@ -4,6 +4,11 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260730.07] - 2026-07-30
+
+- fix(rules): bound user-authored rule regexes with a timeout (#38)
+
+
 ## [20260730.06] - 2026-07-30
 
 - fix(notifications): rebuild the Telegram bot token from a fixed alphabet (#36)
