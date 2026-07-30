@@ -8,8 +8,14 @@
 // Build settings that pair with it (Workers dashboard → Settings → Build):
 //   Path            /frontend        ← this file and package.json live here
 //   Build command   npm run build:demo
-//   Deploy command  (empty → npx wrangler deploy)
+//   Deploy command  npx wrangler@4 deploy
 //   NODE_VERSION    22               ← Vite 8 needs ^20.19 || >=22.12
+//
+// The docs call the deploy command optional (defaulting to `npx wrangler
+// deploy`), but the setup form requires it. The major is pinned because wrangler
+// is deliberately NOT a devDependency — `npm ci` also runs in the Docker builds,
+// which never use it — so npx would otherwise fetch whatever is latest and a
+// wrangler 5 could break the deploy with no change on our side.
 //
 // Self-hosting the same bundle instead? See docker-compose.demo.yml; the nginx
 // image reproduces this routing with nginx.demo.conf.
@@ -23,6 +29,11 @@
     // client-side. This serves index.html (HTTP 200) for navigation requests
     // that match no file — and, unlike a blanket `/* -> /index.html` rewrite,
     // still returns a real 404 for a missing asset instead of HTML.
+    //
+    // This is also the ONLY place the fallback can live: expressing it as a
+    // `_redirects` rule makes Cloudflare reject the deploy outright with
+    // "Infinite loop detected in this rule", because it normalises
+    // /index.html back to / and re-matches the wildcard.
     "not_found_handling": "single-page-application"
   }
 }

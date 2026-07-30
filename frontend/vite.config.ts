@@ -30,12 +30,27 @@ function excludeMswWorker(outDir: string): Plugin {
  *  Emitted from here rather than committed under `public/` because everything in
  *  `public/` is copied into the PRODUCTION bundle too, where FastAPI serves the
  *  SPA and these files would be dead weight. */
+/** Static-host config for the demo build, in the `_headers` format Cloudflare
+ *  reads. This does for a CDN what `nginx.demo.conf` does for the self-hosted
+ *  image; both deployment paths ship from the same `dist-demo/`, so they have to
+ *  agree.
+ *
+ *  There is deliberately NO `_redirects` file. The obvious SPA rule
+ *  (`/*  /index.html  200`) is *rejected* by Cloudflare at deploy time:
+ *
+ *      Invalid _redirects configuration:
+ *      Line 1: Infinite loop detected in this rule. This would cause a redirect
+ *      to strip `.html` or `/index` and end up triggering this rule again.
+ *
+ *  Cloudflare normalises `/index.html` to `/`, which matches `/*` again. The
+ *  fallback belongs in `wrangler.jsonc` instead, as
+ *  `assets.not_found_handling: "single-page-application"` — which is also
+ *  stricter, since a missing ASSET still returns a real 404 rather than HTML.
+ *
+ *  Emitted from here rather than committed under `public/` because everything in
+ *  `public/` is copied into the PRODUCTION bundle too, where FastAPI serves the
+ *  SPA and this file would be dead weight. */
 function emitStaticHostConfig(outDir: string): Plugin {
-  // SPA fallback: BrowserRouter routes like /analytics exist only client-side,
-  // so anything that isn't a real file must return index.html — with status 200,
-  // not a redirect. Static assets are matched before these rules.
-  const redirects = `/*  /index.html  200\n`
-
   // mockServiceWorker.js IS the demo's API layer; a stale copy breaks every
   // screen. Browsers already revalidate service-worker scripts on their own
   // (updateViaCache defaults to 'imports'), so this is belt-and-braces.
@@ -59,7 +74,6 @@ function emitStaticHostConfig(outDir: string): Plugin {
     name: 'finlytics:emit-static-host-config',
     apply: 'build',
     async closeBundle() {
-      await writeFile(resolve(outDir, '_redirects'), redirects, 'utf8')
       await writeFile(resolve(outDir, '_headers'), headers, 'utf8')
     },
   }

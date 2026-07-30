@@ -117,13 +117,17 @@ exist for that path and must stay in sync with `nginx.demo.conf`:
 
 | File | Platform | Purpose |
 |------|----------|---------|
-| `frontend/wrangler.jsonc` | Cloudflare Workers | Pure static (no `main`); `not_found_handling: single-page-application` is the SPA fallback |
-| `dist-demo/_redirects` | Pages / Netlify | `/* /index.html 200` SPA fallback |
-| `dist-demo/_headers` | Pages / Workers / Netlify | `no-cache` on the worker, immutable `/assets/*`, security headers |
+| `frontend/wrangler.jsonc` | Cloudflare Workers | Pure static (no `main`); `not_found_handling: single-page-application` is the SPA fallback. Its header records the dashboard build settings — `Path` must be `/frontend`, since there is no `package.json` at the repo root. |
+| `dist-demo/_headers` | Cloudflare | `no-cache` on the worker, immutable `/assets/*`, security headers |
 
-`_redirects` and `_headers` are emitted by a `vite.config.ts` plugin in demo mode rather
-than committed under `public/`, because everything in `public/` is also copied into the
-**production** bundle, where FastAPI serves the SPA and they would be dead weight.
+`_headers` is emitted by a `vite.config.ts` plugin in demo mode rather than committed
+under `public/`, because everything in `public/` is also copied into the **production**
+bundle, where FastAPI serves the SPA and it would be dead weight.
+
+> **Do not add a `_redirects` file with `/*  /index.html  200`.** Cloudflare rejects the
+> deploy with *"Infinite loop detected in this rule"* — it normalises `/index.html` back
+> to `/`, which re-matches the wildcard. The SPA fallback belongs in `wrangler.jsonc`
+> (`not_found_handling`), which is also stricter: a missing *asset* still 404s.
 
 | File | Role |
 |------|------|
