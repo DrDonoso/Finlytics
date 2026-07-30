@@ -1,9 +1,10 @@
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
 } from 'recharts'
-import { useState, useEffect } from 'react'
-import type { MerchantSummary, GlobalFilters } from '../api/types'
-import { getByMerchant } from '../api/client'
+import { useMemo } from 'react'
+import type { GlobalFilters } from '../api/types'
+import { useByMerchant } from '../api/queries'
+import { errorMessage } from '../api/errors'
 import { useT } from '../i18n'
 import { IconAlert, IconLoading, IconStore } from './icons'
 
@@ -16,32 +17,27 @@ interface Props {
   globalFilters: GlobalFilters
   selectedMerchant?: string
   onMerchantClick: (m: string | undefined) => void
-  refreshKey?: number
   periodTotalExpense?: number | null
 }
 
-export default function TopMerchants({ globalFilters, selectedMerchant, onMerchantClick, refreshKey = 0, periodTotalExpense }: Props) {
+export default function TopMerchants({ globalFilters, selectedMerchant, onMerchantClick, periodTotalExpense }: Props) {
   const { t, formatCurrency } = useT()
-  const [loading, setLoading] = useState(true)
-  const [error, setError]     = useState<string | null>(null)
-  const [data, setData]       = useState<MerchantSummary[]>([])
 
-  useEffect(() => {
-    setLoading(true)
-    setError(null)
-    // byMerchant: pass category_id + day (+ from/to/account_id/tags/flow). Do NOT pass merchant.
-    getByMerchant({
-      from:        globalFilters.from  || undefined,
-      to:          globalFilters.to    || undefined,
-      account_id:  globalFilters.account_id,
-      category_id: globalFilters.category_id,
-      tags:        globalFilters.tags.length > 0 ? globalFilters.tags : undefined,
-      flow:        'expense',
-      day:         globalFilters.day,
-    })
-      .then(rows => { setData(rows.slice(0, 8)); setLoading(false) })
-      .catch(e   => { setError(String(e));       setLoading(false) })
-  }, [globalFilters, refreshKey])
+  // byMerchant: pass category_id + day (+ from/to/account_id/tags/flow). Do NOT pass merchant.
+  const params = useMemo(() => ({
+    from:        globalFilters.from  || undefined,
+    to:          globalFilters.to    || undefined,
+    account_id:  globalFilters.account_id,
+    category_id: globalFilters.category_id,
+    tags:        globalFilters.tags.length > 0 ? globalFilters.tags : undefined,
+    flow:        'expense' as const,
+    day:         globalFilters.day,
+  }), [globalFilters])
+
+  const query = useByMerchant(params)
+  const loading = query.isPending
+  const error = query.error ? errorMessage(query.error, t) : null
+  const data = useMemo(() => (query.data ?? []).slice(0, 8), [query.data])
 
   const sorted = [...data].sort((a, b) => b.amount - a.amount)
   const total  = sorted.reduce((sum, d) => sum + d.amount, 0)

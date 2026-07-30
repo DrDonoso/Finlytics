@@ -1,7 +1,8 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useMemo } from 'react'
 import type { CSSProperties } from 'react'
-import type { DaySummary, GlobalFilters } from '../api/types'
-import { getByDay } from '../api/client'
+import type { GlobalFilters } from '../api/types'
+import { useByDay } from '../api/queries'
+import { errorMessage } from '../api/errors'
 import { useT } from '../i18n'
 import type { Lang } from '../i18n'
 import { IconAlert, IconLoading, IconCalendar } from './icons'
@@ -10,7 +11,6 @@ interface Props {
   globalFilters: GlobalFilters
   onSelectPeriod: (from: string, to: string) => void
   onResetPeriod?: () => void
-  refreshKey?: number
 }
 
 // ─── Date utilities ────────────────────────────────────────────────────────────
@@ -108,28 +108,24 @@ function isMonthInRange(year: number, monthIdx: number, fromStr: string, toStr: 
 
 // ─── Component ─────────────────────────────────────────────────────────────────
 
-export default function SpendingHeatmap({ globalFilters, onSelectPeriod, onResetPeriod, refreshKey = 0 }: Props) {
+export default function SpendingHeatmap({ globalFilters, onSelectPeriod, onResetPeriod }: Props) {
   const { t, lang, formatCurrency } = useT()
-  const [loading, setLoading] = useState(true)
-  const [error, setError]     = useState<string | null>(null)
-  const [data, setData]       = useState<DaySummary[]>([])
 
-  useEffect(() => {
-    setLoading(true)
-    setError(null)
-    // byDay: pass merchant (+ existing incl. category_id). Do NOT pass day (it's the source).
-    getByDay({
-      from:        globalFilters.from  || undefined,
-      to:          globalFilters.to    || undefined,
-      account_id:  globalFilters.account_id,
-      category_id: globalFilters.category_id,
-      tags:        globalFilters.tags.length > 0 ? globalFilters.tags : undefined,
-      flow:        globalFilters.flow,
-      merchant:    globalFilters.merchant,
-    })
-      .then(rows => { setData(rows); setLoading(false) })
-      .catch(e   => { setError(String(e)); setLoading(false) })
-  }, [globalFilters, refreshKey])
+  // byDay: pass merchant (+ existing incl. category_id). Do NOT pass day (it's the source).
+  const params = useMemo(() => ({
+    from:        globalFilters.from  || undefined,
+    to:          globalFilters.to    || undefined,
+    account_id:  globalFilters.account_id,
+    category_id: globalFilters.category_id,
+    tags:        globalFilters.tags.length > 0 ? globalFilters.tags : undefined,
+    flow:        globalFilters.flow,
+    merchant:    globalFilters.merchant,
+  }), [globalFilters])
+
+  const query = useByDay(params)
+  const loading = query.isPending
+  const error = query.error ? errorMessage(query.error, t) : null
+  const data = useMemo(() => query.data ?? [], [query.data])
 
   const grid = useMemo(() => {
     if (data.length === 0) return null
