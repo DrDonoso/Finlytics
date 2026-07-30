@@ -21,8 +21,22 @@ from finlytics.db.models import Tag, Transaction, transaction_tags
 
 # ── Emoji helper ──────────────────────────────────────────────────────────────
 
+# Los cuantificadores son posesivos (`++`, `*+`) a proposito: ninguna de las tres
+# partes cede terreno a la siguiente, asi que el motor no prueba divisiones
+# alternativas. Esa busqueda de divisiones es el ReDoS polinomico que senala
+# CodeQL. No se ha conseguido explotar en CPython (crecimiento lineal con
+# entradas de hasta 8000 caracteres), pero el patron ambiguo sobra igualmente en
+# algo que escribe el usuario.
+#
+# Ojo: esto cambia un caso limite, y lo cambia a mejor. Un nombre formado solo
+# por emojis se partia para que el ultimo hiciera de nombre ("**" -> emoji "*",
+# nombre "*"), lo que contradice el contrato de abajo: si quitar el prefijo deja
+# el nombre vacio, hay que devolver el nombre intacto. El patron viejo ademas era
+# incoherente consigo mismo, porque ese reparto dependia de si la cadena
+# terminaba en espacio o no: sin espacio partia, con espacio no. Al no ceder, el
+# patron simplemente no casa y el nombre se devuelve entero en ambos casos.
 _EMOJI_LEAD_RE = re.compile(
-    r"^([\U0001F300-\U0001F9FF\U0001FA00-\U0001FAFF\u2600-\u27BF]+)\s*(.+)$",
+    r"^([\U0001F300-\U0001F9FF\U0001FA00-\U0001FAFF\u2600-\u27BF]++)\s*+(\S.*)$",
     re.UNICODE,
 )
 
