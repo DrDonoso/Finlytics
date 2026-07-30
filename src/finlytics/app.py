@@ -195,15 +195,24 @@ async def spa_fallback(full_path: str) -> Response:
 
     * Real static assets (JS, CSS, images) are served directly from frontend/dist.
     * All other paths return index.html so react-router handles client-side routing.
+    * Paths escaping frontend/dist (`..`, absolute paths, symlinks) never reach
+      FileResponse — they fall through to index.html like any unknown route.
     * When frontend/dist doesn't exist (dev/test), returns a minimal JSON 200.
     """
     if _SPA_DIR.is_dir():
-        spa_root = _SPA_DIR.resolve()
-        candidate = (spa_root / full_path).resolve()
-        if candidate.is_file() and candidate.is_relative_to(spa_root):
+        spa_root = os.path.realpath(_SPA_DIR)
+        # `full_path` is whatever the client typed: it may hold `..` segments, or
+        # be absolute — in which case join() discards spa_root entirely. Resolve
+        # first so `..` and symlinks collapse, then test containment on the
+        # *resolved* path; testing before resolving would check a path that is
+        # not the one eventually opened.
+        candidate = os.path.realpath(os.path.join(spa_root, full_path))
+        # The trailing separator is load-bearing: without it a sibling directory
+        # such as `<root>-backup` shares the prefix and would pass the check.
+        if candidate.startswith(spa_root + os.sep) and os.path.isfile(candidate):
             return FileResponse(candidate)
-        index = spa_root / "index.html"
-        if index.is_file():
+        index = os.path.join(spa_root, "index.html")
+        if os.path.isfile(index):
             return FileResponse(index)
     return JSONResponse({"detail": "Frontend not available"})
 
