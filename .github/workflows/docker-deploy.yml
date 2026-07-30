@@ -13,6 +13,8 @@ on:
       - '.github/**'
       - 'tests/**'
       - 'docker-compose.local.yml'
+      # Cloudflare-only deploy config; it never reaches the Docker images.
+      - 'frontend/wrangler.jsonc'
       - '.env.example'
       - '.gitignore'
       - '.gitattributes'
