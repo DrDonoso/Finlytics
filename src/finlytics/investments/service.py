@@ -18,7 +18,7 @@ from collections import defaultdict
 from datetime import datetime, timezone
 
 from fastapi import BackgroundTasks
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from finlytics.api.schemas import (

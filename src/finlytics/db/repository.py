@@ -25,7 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from finlytics.contracts import ExtractedTransaction
-from finlytics.db.models import Category, ImportRun, Rule, Tag, Transaction, transaction_tags
+from finlytics.db.models import Category, ImportRun, Rule, Tag, Transaction
 from finlytics.extraction.translate import translate_category_name
 
 
