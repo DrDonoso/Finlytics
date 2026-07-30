@@ -111,6 +111,20 @@ That file's header carries the operational notes; the one that bites is:
 > worker never starts and every screen fails to load — `main.tsx` catches this and renders an
 > explicit message rather than a broken app.
 
+The same `dist-demo/` also deploys to a static CDN, which is the better home for a public
+demo — it needs no inbound access to your own network and gets HTTPS for free. Three files
+exist for that path and must stay in sync with `nginx.demo.conf`:
+
+| File | Platform | Purpose |
+|------|----------|---------|
+| `frontend/wrangler.jsonc` | Cloudflare Workers | Pure static (no `main`); `not_found_handling: single-page-application` is the SPA fallback |
+| `dist-demo/_redirects` | Pages / Netlify | `/* /index.html 200` SPA fallback |
+| `dist-demo/_headers` | Pages / Workers / Netlify | `no-cache` on the worker, immutable `/assets/*`, security headers |
+
+`_redirects` and `_headers` are emitted by a `vite.config.ts` plugin in demo mode rather
+than committed under `public/`, because everything in `public/` is also copied into the
+**production** bundle, where FastAPI serves the SPA and they would be dead weight.
+
 | File | Role |
 |------|------|
 | `config.ts` | `IS_DEMO` flag, the `demo`/`demo` credentials, and the connector allowlist |

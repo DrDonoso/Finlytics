@@ -1,4 +1,4 @@
-import { rm } from 'node:fs/promises'
+import { rm, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
@@ -22,6 +22,49 @@ function excludeMswWorker(outDir: string): Plugin {
   }
 }
 
+/** Static-host config for the demo build, in the `_redirects` / `_headers`
+ *  format Cloudflare Pages and Netlify read. These do for a CDN what
+ *  `nginx.demo.conf` does for the self-hosted image; both deployment paths ship
+ *  from the same `dist-demo/`, so they have to agree.
+ *
+ *  Emitted from here rather than committed under `public/` because everything in
+ *  `public/` is copied into the PRODUCTION bundle too, where FastAPI serves the
+ *  SPA and these files would be dead weight. */
+function emitStaticHostConfig(outDir: string): Plugin {
+  // SPA fallback: BrowserRouter routes like /analytics exist only client-side,
+  // so anything that isn't a real file must return index.html — with status 200,
+  // not a redirect. Static assets are matched before these rules.
+  const redirects = `/*  /index.html  200\n`
+
+  // mockServiceWorker.js IS the demo's API layer; a stale copy breaks every
+  // screen. Browsers already revalidate service-worker scripts on their own
+  // (updateViaCache defaults to 'imports'), so this is belt-and-braces.
+  // /assets/* is content-hashed by Vite and therefore safe to cache forever.
+  const headers = [
+    '/mockServiceWorker.js',
+    '  Cache-Control: no-cache',
+    '  Service-Worker-Allowed: /',
+    '',
+    '/assets/*',
+    '  Cache-Control: public, max-age=31536000, immutable',
+    '',
+    '/*',
+    '  X-Content-Type-Options: nosniff',
+    '  X-Frame-Options: SAMEORIGIN',
+    '  Referrer-Policy: strict-origin-when-cross-origin',
+    '',
+  ].join('\n')
+
+  return {
+    name: 'finlytics:emit-static-host-config',
+    apply: 'build',
+    async closeBundle() {
+      await writeFile(resolve(outDir, '_redirects'), redirects, 'utf8')
+      await writeFile(resolve(outDir, '_headers'), headers, 'utf8')
+    },
+  }
+}
+
 export default defineConfig(({ mode }) => {
   const isDemo = mode === 'demo'
   // Keeping outDir here (rather than --outDir on the CLI) means the demo build
@@ -31,7 +74,7 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [
       react(),
-      ...(isDemo ? [] : [excludeMswWorker(outDir)]),
+      ...(isDemo ? [emitStaticHostConfig(outDir)] : [excludeMswWorker(outDir)]),
     ],
     define: {
       __APP_VERSION__: JSON.stringify(appVersion),
