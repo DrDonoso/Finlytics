@@ -35,6 +35,10 @@ dependencies = [
     "cryptography>=43",
     "httpx>=0.27",
     "yfinance>=0.2.43",
+    # Rule patterns are user-authored, and only this engine offers a per-call
+    # `timeout` — the sole way to stop a catastrophically-backtracking pattern,
+    # since CPython holds the GIL for the whole of a regex match.
+    "regex>=2024.5.15",
 ]
 
 [project.optional-dependencies]

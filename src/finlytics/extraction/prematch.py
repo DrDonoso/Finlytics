@@ -58,7 +58,12 @@ from decimal import Decimal, InvalidOperation
 from typing import Iterable, NamedTuple, Optional
 
 from finlytics.contracts import ExtractedTransaction
-from finlytics.extraction.rules import RuleProtocol, _compile_regex, _description_matches
+from finlytics.extraction.rules import (
+    RuleProtocol,
+    _BoundedPattern,
+    _compile_regex,
+    _description_matches,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -299,7 +304,7 @@ def pre_match_rules(
     )
 
     # Pre-compile regex patterns once (mirrors apply_rules approach)
-    compiled: dict[int, re.Pattern[str] | None] = {
+    compiled: dict[int, _BoundedPattern | None] = {
         r.id: _compile_regex(r)
         for r in enabled_rules
         if r.description_mode == "regex"
