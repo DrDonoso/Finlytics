@@ -4,6 +4,33 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260730.04] - 2026-07-30
+
+- wrangler.jsonc documented the deploy command as optional. The docs do call it optional, but the setup form requires it. It now records `npx wrangler@4 deploy` - major pinned because wrangler is deliberately not a devDependency (npm ci also runs in the Docker builds, which never use it), so npx would otherwise pull whatever is latest and a wrangler 5 could break the deploy with no change on our side.
+- docker-deploy.yml now ignores frontend/wrangler.jsonc. It is Cloudflare-only config that never reaches the Docker images, so editing it should not cut a release and republish both.
+
+
+## [20260730.03] - 2026-07-30
+
+- wrangler.jsonc documented the deploy command as optional. The docs do call it optional, but the setup form requires it. It now records `npx wrangler@4 deploy` - major pinned because wrangler is deliberately not a devDependency (npm ci also runs in the Docker builds, which never use it), so npx would otherwise pull whatever is latest and a wrangler 5 could break the deploy with no change on our side.
+- docker-deploy.yml now ignores frontend/wrangler.jsonc. It is Cloudflare-only config that never reaches the Docker images, so editing it should not cut a release and republish both.
+
+
+## [20260730.02] - 2026-07-30
+
+- frontend/wrangler.jsonc for Cloudflare Workers. Pure static, no `main`, so no Worker code runs. `not_found_handling: single-page-application` is the SPA fallback for BrowserRouter routes, and is stricter than a blanket `/* -> /index.html` rewrite: a missing ASSET still returns a real 404 instead of HTML.
+- `_redirects` and `_headers` emitted into dist-demo by a vite.config.ts plugin for Pages/Netlify. They are generated rather than committed under public/, because everything in public/ is copied into the PRODUCTION bundle too, where FastAPI serves the SPA and they would be dead weight.
+
+
+## [20260730] - 2026-07-30
+
+- demo/scenario.ts: seeded generator, 18 months of invented Spanish transactions plus an Indexa portfolio. Dates are relative to today because defaultRange() opens on the previous calendar month - fixed dates would show empty views a month later.
+- demo/store.ts: one transaction list feeds the ledger, every aggregate and every tx_count, so an edit is reflected in the KPIs. Filter semantics mirror db/queries.py::_apply_filters (tag = ANY, amount range on absolute value).
+- demo/handlers.ts: handlers for the allowlisted routes, plus a catch-all that answers 501 and logs "[demo] Unhandled API request:" so a new endpoint fails loudly instead of silently losing a screen.
+- Reduced route surface (DemoRoutes): imports, statements, rules, backup, connectors, Telegram and Fidelity are unrouted and hidden from the sidebar.
+- Banner on every page stating the data is fictional and resets on reload.
+
+
 ## [20260729.04] - 2026-07-29
 
 - fix(frontend): restore react-router 8.3.0 and clean the lockfile

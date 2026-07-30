@@ -16,6 +16,7 @@ import TransactionsTable from '../components/TransactionsTable'
 import { useT, categoryLabel, formatDate } from '../i18n'
 import { defaultRange } from '../utils'
 import { IconClose, IconChevronRight } from '../components/icons'
+import { IS_DEMO } from '../demo/config'
 
 function makeDefaultFilters(): GlobalFilters {
   return { ...defaultRange(), tags: [] }
@@ -150,12 +151,16 @@ export default function FinancesOverviewPage() {
             >
               {t.btnViewTransactions} <IconChevronRight size={14} />
             </button>
-            <button
-              className="btn-primary"
-              onClick={() => launcherRef.current?.open()}
-            >
-              {t.btnImport}
-            </button>
+            {/* Statement import runs LLM extraction server-side — not available
+                in the static demo. */}
+            {!IS_DEMO && (
+              <button
+                className="btn-primary"
+                onClick={() => launcherRef.current?.open()}
+              >
+                {t.btnImport}
+              </button>
+            )}
           </div>
         </div>
 

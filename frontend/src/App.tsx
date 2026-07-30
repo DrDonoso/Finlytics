@@ -21,6 +21,65 @@ import AboutPage from './pages/AboutPage'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { NotificationsProvider } from './contexts/NotificationsContext'
 import { useT } from './i18n'
+import { IS_DEMO } from './demo/config'
+
+/** Demo builds expose a deliberately reduced surface: read-only views backed by
+ *  the synthetic dataset. Everything that imports, deletes, edits configuration
+ *  or asks for third-party credentials is left unrouted, so a stale bookmark
+ *  lands on the dashboard instead of a page whose endpoints answer 501. */
+function DemoRoutes() {
+  return (
+    <Routes>
+      <Route path="/" element={<Layout />}>
+        <Route index element={<Dashboard />} />
+        <Route path="finances" element={<FinancesOverviewPage />} />
+        <Route path="transactions" element={<TransactionsPage />} />
+        <Route path="analytics" element={<AnalyticsPage />} />
+        <Route path="investments">
+          <Route index element={<InvestmentsLandingPage />} />
+          <Route path=":pluginId" element={<PluginViewWrapper />} />
+        </Route>
+        <Route path="settings" element={<SettingsLayout />}>
+          <Route index element={<Navigate to="appearance" replace />} />
+          <Route path="appearance" element={<AppearancePage />} />
+          <Route path="about" element={<AboutPage />} />
+          <Route path="*" element={<Navigate to="/settings/appearance" replace />} />
+        </Route>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Route>
+    </Routes>
+  )
+}
+
+function FullRoutes() {
+  return (
+    <Routes>
+      <Route path="/" element={<Layout />}>
+        <Route index element={<Dashboard />} />
+        <Route path="finances" element={<FinancesOverviewPage />} />
+        <Route path="transactions" element={<TransactionsPage />} />
+        <Route path="analytics" element={<AnalyticsPage />} />
+        <Route path="investments">
+          <Route index element={<InvestmentsLandingPage />} />
+          <Route path=":pluginId" element={<PluginViewWrapper />} />
+        </Route>
+        <Route path="statements" element={<StatementsPage />} />
+        <Route path="rules" element={<Navigate to="/settings/rules" replace />} />
+        <Route path="settings" element={<SettingsLayout />}>
+          <Route index element={<Navigate to="tags" replace />} />
+          <Route path="accounts" element={<AccountsPage />} />
+          <Route path="tags" element={<SettingsPage />} />
+          <Route path="categories" element={<CategoriesPage />} />
+          <Route path="appearance" element={<AppearancePage />} />
+          <Route path="backup" element={<BackupPage />} />
+          <Route path="connectors" element={<ConnectorsPage />} />
+          <Route path="rules" element={<RulesPage />} />
+          <Route path="about" element={<AboutPage />} />
+        </Route>
+      </Route>
+    </Routes>
+  )
+}
 
 function AppContent() {
   const { loading, initialized, authenticated } = useAuth()
@@ -40,31 +99,7 @@ function AppContent() {
   return (
     <NotificationsProvider>
       <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Layout />}>
-            <Route index element={<Dashboard />} />
-            <Route path="finances" element={<FinancesOverviewPage />} />
-            <Route path="transactions" element={<TransactionsPage />} />
-            <Route path="analytics" element={<AnalyticsPage />} />
-            <Route path="investments">
-              <Route index element={<InvestmentsLandingPage />} />
-              <Route path=":pluginId" element={<PluginViewWrapper />} />
-            </Route>
-            <Route path="statements" element={<StatementsPage />} />
-            <Route path="rules" element={<Navigate to="/settings/rules" replace />} />
-            <Route path="settings" element={<SettingsLayout />}>
-              <Route index element={<Navigate to="tags" replace />} />
-              <Route path="accounts" element={<AccountsPage />} />
-              <Route path="tags" element={<SettingsPage />} />
-              <Route path="categories" element={<CategoriesPage />} />
-              <Route path="appearance" element={<AppearancePage />} />
-              <Route path="backup" element={<BackupPage />} />
-              <Route path="connectors" element={<ConnectorsPage />} />
-              <Route path="rules" element={<RulesPage />} />
-              <Route path="about" element={<AboutPage />} />
-            </Route>
-          </Route>
-        </Routes>
+        {IS_DEMO ? <DemoRoutes /> : <FullRoutes />}
       </BrowserRouter>
     </NotificationsProvider>
   )

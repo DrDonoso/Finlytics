@@ -3,12 +3,18 @@ import { useParams, Link } from 'react-router'
 import { PLUGIN_VIEW_REGISTRY } from './registry'
 import { useT } from '../i18n'
 import { IconPlug, IconLoading, IconChevronRight } from '../components/icons'
+import { DEMO_PLUGIN_IDS, IS_DEMO } from '../demo/config'
 
 export default function PluginViewWrapper() {
   const { pluginId } = useParams<{ pluginId: string }>()
   const { t } = useT()
 
-  const entry = pluginId ? PLUGIN_VIEW_REGISTRY[pluginId] : undefined
+  const registered = pluginId ? PLUGIN_VIEW_REGISTRY[pluginId] : undefined
+  // The demo only carries data for some connectors; the rest would mount a view
+  // whose endpoints are unhandled and render an error instead of an empty state.
+  const entry = IS_DEMO && (!pluginId || !DEMO_PLUGIN_IDS.includes(pluginId))
+    ? undefined
+    : registered
 
   if (!entry) {
     return (
@@ -17,8 +23,8 @@ export default function PluginViewWrapper() {
           <div className="state-box">
             <IconPlug size={18} />
             <p>{t.invPluginNotAvailable}</p>
-            <Link to="/settings/connectors" className="btn-primary">
-              {t.investmentsManageConnectors} <IconChevronRight size={14} />
+            <Link to={IS_DEMO ? '/investments' : '/settings/connectors'} className="btn-primary">
+              {IS_DEMO ? t.navInvestments : t.investmentsManageConnectors} <IconChevronRight size={14} />
             </Link>
           </div>
         </div>

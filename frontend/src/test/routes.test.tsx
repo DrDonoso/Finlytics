@@ -11,7 +11,7 @@
  * test existe sobre todo para que eso no llegue a producción.
  */
 import { QueryClientProvider } from '@tanstack/react-query'
-import { render, waitFor, within } from '@testing-library/react'
+import { render, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -180,18 +180,27 @@ describe('todas las rutas montan', () => {
 })
 
 describe('la navegación lateral se pinta entera', () => {
-  it('muestra las secciones principales', async () => {
+  it('enlaza con las secciones principales', async () => {
     const { container } = renderRoute('/', <Dashboard />)
 
     await waitFor(() => {
       expect(container.querySelector('.sidebar-nav')).not.toBeNull()
     })
 
-    // Se busca dentro de la barra lateral: varias etiquetas se repiten en el
-    // contenido de la página y una búsqueda global encontraría más de una.
+    // Se comprueba la estructura y no las etiquetas: la aplicación arranca en el
+    // idioma del navegador, así que el texto visible depende del entorno donde
+    // corran los tests.
     const nav = container.querySelector('.sidebar-nav') as HTMLElement
-    for (const label of ['Inicio', 'Finanzas', 'Inversiones', 'Ajustes']) {
-      expect(within(nav).getByText(label)).toBeInTheDocument()
-    }
+
+    // Inicio es el único enlace de primer nivel; el resto son botones que
+    // despliegan su sección, así que sus enlaces no existen hasta abrirla.
+    const hrefs = [...nav.querySelectorAll('a')].map(a => a.getAttribute('href'))
+    expect(hrefs).toContain('/')
+
+    // Finanzas, Inversiones y Ajustes.
+    expect(nav.querySelectorAll('.sidebar-section-btn').length).toBeGreaterThanOrEqual(3)
+
+    // Y cada entrada lleva su icono del set propio, no un emoji.
+    expect(nav.querySelectorAll('svg.icon').length).toBeGreaterThanOrEqual(4)
   })
 })

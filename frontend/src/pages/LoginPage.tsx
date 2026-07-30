@@ -3,12 +3,17 @@ import { login } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
 import { useT } from '../i18n'
 import { Wordmark } from '../components/Brand'
+import { DEMO_PASSWORD, DEMO_USERNAME, IS_DEMO } from '../demo/config'
+import DemoLoginNotice from '../demo/DemoLoginNotice'
+import LanguageSelect from '../components/LanguageSelect'
 
 export default function LoginPage() {
   const { onLoginSuccess } = useAuth()
   const { t } = useT()
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
+  // Prefilled in demo builds so the visitor can just press the button; the
+  // notice above the form still spells the credentials out.
+  const [username, setUsername] = useState(IS_DEMO ? DEMO_USERNAME : '')
+  const [password, setPassword] = useState(IS_DEMO ? DEMO_PASSWORD : '')
   const [remember, setRemember] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
@@ -40,6 +45,7 @@ export default function LoginPage() {
       <div className="auth-card">
         <Wordmark size="lg" className="auth-logo" />
         <h1 className="auth-title">{t.authLoginTitle}</h1>
+        {IS_DEMO && <DemoLoginNotice />}
         <form onSubmit={handleSubmit} className="auth-form">
           <div className="auth-field">
             <label htmlFor="auth-username">{t.authUsername}</label>
@@ -78,6 +84,12 @@ export default function LoginPage() {
             {pending ? t.loading : t.authLoginBtn}
           </button>
         </form>
+        {/* The app follows the browser's language, but that guess can be wrong —
+            and this screen is the first thing a visitor sees, so the override
+            has to be reachable before signing in. */}
+        <div className="auth-lang">
+          <LanguageSelect />
+        </div>
       </div>
     </div>
   )

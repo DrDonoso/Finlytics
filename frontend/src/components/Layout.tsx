@@ -5,7 +5,9 @@ import { useAuth } from '../contexts/AuthContext'
 import { useConnections } from '../api/queries'
 import { getPluginLogo, PLUGIN_VIEW_REGISTRY, pluginInitial } from '../investments/registry'
 import NotificationBell from './NotificationBell'
+import LanguageSelect from './LanguageSelect'
 import { BrandMark } from './Brand'
+import { IS_DEMO } from '../demo/config'
 import {
   IconMenu, IconHome, IconWallet, IconReceipt, IconChartLine, IconFileText,
   IconTrendingUp, IconSettings, IconChevronDown, IconUser, IconLogout,
@@ -18,7 +20,7 @@ function storedCollapsed(): boolean {
 }
 
 export default function Layout() {
-  const { t, lang, setLang } = useT()
+  const { t } = useT()
   const { username, onLogout } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
@@ -159,10 +161,12 @@ export default function Layout() {
                   <IconChartLine size={17} className="nav-icon" />
                   <span className="nav-label">{t.navAnalytics}</span>
                 </NavLink>
-                <NavLink to="/statements" className={navLinkClass}>
-                  <IconFileText size={17} className="nav-icon" />
-                  <span className="nav-label">{t.navStatements}</span>
-                </NavLink>
+                {!IS_DEMO && (
+                  <NavLink to="/statements" className={navLinkClass}>
+                    <IconFileText size={17} className="nav-icon" />
+                    <span className="nav-label">{t.navStatements}</span>
+                  </NavLink>
+                )}
               </div>
             )}
           </div>
@@ -227,64 +231,70 @@ export default function Layout() {
             </button>
             {settingsExpanded && (
               <div className="sidebar-subnav">
-                {/* DATOS */}
-                <button
-                  type="button"
-                  className="sidebar-group-label sidebar-group-toggle"
-                  onClick={() => setSgData(v => !v)}
-                  aria-expanded={sgData}
-                >
-                  {t.settingsGroupData}
-                  <IconChevronDown size={14} className={`sidebar-arrow${sgData ? ' open' : ''}`} />
-                </button>
-                {sgData && (
+                {/* Data, rules and system settings are all write-oriented and
+                    depend on endpoints the demo does not serve. */}
+                {!IS_DEMO && (
                   <>
-                    <NavLink to="/settings/categories" className={navLinkClass}>
-                      <span className="nav-label">{t.settingsSubCategories}</span>
-                    </NavLink>
-                    <NavLink to="/settings/tags" className={navLinkClass}>
-                      <span className="nav-label">{t.settingsSubTags}</span>
-                    </NavLink>
-                    <NavLink to="/settings/accounts" className={navLinkClass}>
-                      <span className="nav-label">{t.settingsSubAccounts}</span>
-                    </NavLink>
-                  </>
-                )}
+                    {/* DATOS */}
+                    <button
+                      type="button"
+                      className="sidebar-group-label sidebar-group-toggle"
+                      onClick={() => setSgData(v => !v)}
+                      aria-expanded={sgData}
+                    >
+                      {t.settingsGroupData}
+                      <IconChevronDown size={14} className={`sidebar-arrow${sgData ? ' open' : ''}`} />
+                    </button>
+                    {sgData && (
+                      <>
+                        <NavLink to="/settings/categories" className={navLinkClass}>
+                          <span className="nav-label">{t.settingsSubCategories}</span>
+                        </NavLink>
+                        <NavLink to="/settings/tags" className={navLinkClass}>
+                          <span className="nav-label">{t.settingsSubTags}</span>
+                        </NavLink>
+                        <NavLink to="/settings/accounts" className={navLinkClass}>
+                          <span className="nav-label">{t.settingsSubAccounts}</span>
+                        </NavLink>
+                      </>
+                    )}
 
-                {/* REGLAS */}
-                <button
-                  type="button"
-                  className="sidebar-group-label sidebar-group-toggle"
-                  onClick={() => setSgRules(v => !v)}
-                  aria-expanded={sgRules}
-                >
-                  {t.settingsGroupRules}
-                  <IconChevronDown size={14} className={`sidebar-arrow${sgRules ? ' open' : ''}`} />
-                </button>
-                {sgRules && (
-                  <NavLink to="/settings/rules" className={navLinkClass}>
-                    <span className="nav-label">{t.navRules}</span>
-                  </NavLink>
-                )}
+                    {/* REGLAS */}
+                    <button
+                      type="button"
+                      className="sidebar-group-label sidebar-group-toggle"
+                      onClick={() => setSgRules(v => !v)}
+                      aria-expanded={sgRules}
+                    >
+                      {t.settingsGroupRules}
+                      <IconChevronDown size={14} className={`sidebar-arrow${sgRules ? ' open' : ''}`} />
+                    </button>
+                    {sgRules && (
+                      <NavLink to="/settings/rules" className={navLinkClass}>
+                        <span className="nav-label">{t.navRules}</span>
+                      </NavLink>
+                    )}
 
-                {/* SISTEMA */}
-                <button
-                  type="button"
-                  className="sidebar-group-label sidebar-group-toggle"
-                  onClick={() => setSgSystem(v => !v)}
-                  aria-expanded={sgSystem}
-                >
-                  {t.settingsGroupSystem}
-                  <IconChevronDown size={14} className={`sidebar-arrow${sgSystem ? ' open' : ''}`} />
-                </button>
-                {sgSystem && (
-                  <>
-                    <NavLink to="/settings/connectors" className={navLinkClass}>
-                      <span className="nav-label">{t.settingsSubConnectors}</span>
-                    </NavLink>
-                    <NavLink to="/settings/backup" className={navLinkClass}>
-                      <span className="nav-label">{t.settingsSubBackup}</span>
-                    </NavLink>
+                    {/* SISTEMA */}
+                    <button
+                      type="button"
+                      className="sidebar-group-label sidebar-group-toggle"
+                      onClick={() => setSgSystem(v => !v)}
+                      aria-expanded={sgSystem}
+                    >
+                      {t.settingsGroupSystem}
+                      <IconChevronDown size={14} className={`sidebar-arrow${sgSystem ? ' open' : ''}`} />
+                    </button>
+                    {sgSystem && (
+                      <>
+                        <NavLink to="/settings/connectors" className={navLinkClass}>
+                          <span className="nav-label">{t.settingsSubConnectors}</span>
+                        </NavLink>
+                        <NavLink to="/settings/backup" className={navLinkClass}>
+                          <span className="nav-label">{t.settingsSubBackup}</span>
+                        </NavLink>
+                      </>
+                    )}
                   </>
                 )}
 
@@ -331,20 +341,7 @@ export default function Layout() {
               </button>
             </div>
           )}
-          <div className="lang-switcher">
-            <button
-              className={`lang-btn${lang === 'es' ? ' active' : ''}`}
-              onClick={() => setLang('es')}
-              aria-label="Español"
-              type="button"
-            >ES</button>
-            <button
-              className={`lang-btn${lang === 'en' ? ' active' : ''}`}
-              onClick={() => setLang('en')}
-              aria-label="English"
-              type="button"
-            >EN</button>
-          </div>
+          <LanguageSelect />
         </div>
       </aside>
 

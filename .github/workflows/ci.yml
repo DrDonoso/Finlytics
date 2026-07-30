@@ -116,8 +116,8 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
-      # Deliberately the full multi-stage Dockerfile — the same one CI/prod
-      # publishes. Not Dockerfile.local, which skips the Node stage.
+      # Deliberately the default target of the full multi-stage Dockerfile —
+      # the same image CI/prod publishes, not the `demo` target.
       - name: Build image
         uses: docker/build-push-action@v7
         with:

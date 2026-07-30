@@ -1,0 +1,32 @@
+/* ─── Demo mode: login-screen notice ────────────────────────────────────────
+   Only rendered when the app is built with VITE_DEMO=1 (see demo/DemoLoginNotice).
+   Deliberately confined to the login card — the app itself stays unobstructed. */
+.demo-notice {
+  margin: 0 0 18px;
+  padding: 12px 14px;
+  border: 1px solid rgba(var(--warning-rgb), 0.45);
+  border-radius: var(--radius);
+  background: var(--warning-bg);
+  color: var(--warning-text);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  text-align: left;
+}
+
+.demo-notice-text { margin: 0; }
+
+.demo-notice-text strong { font-weight: 600; }
+
+.demo-notice-creds {
+  margin: 8px 0 0;
+  font-size: 0.8125rem;
+}
+
+.demo-notice-creds code {
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: rgba(var(--warning-rgb), 0.18);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}

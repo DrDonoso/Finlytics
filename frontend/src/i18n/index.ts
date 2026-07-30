@@ -1,9 +1,17 @@
-import { createContext, createElement, useContext, useState, useCallback } from 'react'
+import { createContext, createElement, useContext, useState, useCallback, useEffect } from 'react'
 import type { ReactNode } from 'react'
 import es from './es'
 import en from './en'
 
 export type Lang = 'es' | 'en'
+
+/** Native names, shown in the language selector. A language is always listed in
+ *  its own language — that is what makes the menu usable to someone who cannot
+ *  read the current one. */
+export const LANG_NAMES: Record<Lang, string> = {
+  es: 'Español',
+  en: 'English',
+}
 
 export interface Dict {
   appSubtitle: string
@@ -748,6 +756,12 @@ export interface Dict {
   invContribTypeContribution: string
   invContribTypeWithdrawal: string
   invContribEmpty: string
+  // ── Language selector ─────────────────────────────────────────────────────
+  langSelectLabel: string
+  // ── Demo mode (login screen notice) ───────────────────────────────────────
+  demoNoticeTitle: string
+  demoNoticeBody: string
+  demoNoticeCredentials: string
 }
 
 const ES_LABELS: Record<string, string> = {
@@ -833,13 +847,37 @@ export function formatDate(iso: string, lang: Lang): string {
 
 const LS_KEY = 'finlytics_lang'
 
-function storedLang(): Lang {
+const SUPPORTED: readonly Lang[] = ['es', 'en']
+
+function isLang(v: unknown): v is Lang {
+  return typeof v === 'string' && (SUPPORTED as readonly string[]).includes(v)
+}
+
+/** Best match for the browser's preferred languages, or null when it asks for
+ *  something we don't ship. `navigator.languages` is ordered by preference and
+ *  entries are BCP-47 tags ('es-ES', 'en-GB'), so only the primary subtag is
+ *  compared. */
+function browserLang(): Lang | null {
   try {
-    const v = localStorage.getItem(LS_KEY)
-    return v === 'en' ? 'en' : 'es'
-  } catch {
-    return 'es'
-  }
+    const preferred = navigator.languages?.length
+      ? navigator.languages
+      : [navigator.language]
+    for (const tag of preferred) {
+      const primary = tag?.split('-')[0]?.toLowerCase()
+      if (isLang(primary)) return primary
+    }
+  } catch { /* SSR or a locked-down browser — fall through */ }
+  return null
+}
+
+/** An explicit choice always wins; otherwise follow the browser, and only fall
+ *  back to Spanish when the browser asks for a language this app doesn't have. */
+function initialLang(): Lang {
+  try {
+    const stored = localStorage.getItem(LS_KEY)
+    if (isLang(stored)) return stored
+  } catch { /* storage blocked — fall through to detection */ }
+  return browserLang() ?? 'es'
 }
 
 interface LanguageContextValue {
@@ -850,7 +888,14 @@ interface LanguageContextValue {
 const LanguageContext = createContext<LanguageContextValue>({ lang: 'es', setLang: () => {} })
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
-  const [lang, setLangState] = useState<Lang>(storedLang)
+  const [lang, setLangState] = useState<Lang>(initialLang)
+
+  // Keep <html lang> in sync: screen readers and browser translation prompts
+  // read it, and it is wrong on first paint since index.html hardcodes one value.
+  useEffect(() => {
+    document.documentElement.lang = lang
+  }, [lang])
+
   const setLang = useCallback((l: Lang) => {
     try { localStorage.setItem(LS_KEY, l) } catch { }
     setLangState(l)

@@ -14,6 +14,7 @@ import {
   fidelityImportConfirm as callImportConfirm,
 } from '../../api/client'
 import { useT, langLocale } from '../../i18n'
+import { IS_DEMO } from '../../demo/config'
 import { useNotifications } from '../../contexts/NotificationsContext'
 import { IconChevronUp, IconChevronDown, IconLoading, IconAlert, IconBriefcase, IconChartLine, IconReceipt, IconClose, IconFolder, IconCheck, IconArrowLeft, IconArrowRight } from '../../components/icons'
 
@@ -340,9 +341,12 @@ export default function FidelityView() {
       {/* Page header */}
       <div className="investments-header">
         <h1 className="investments-page-title">{t.fidelityTitle}</h1>
-        <button className="btn-primary" type="button" onClick={openImport}>
-          {t.fidelityImportBtn}
-        </button>
+        {/* CSV import uploads a file and writes lots — not available in the demo. */}
+        {!IS_DEMO && (
+          <button className="btn-primary" type="button" onClick={openImport}>
+            {t.fidelityImportBtn}
+          </button>
+        )}
       </div>
 
       {(() => {
@@ -366,9 +370,11 @@ export default function FidelityView() {
           <div className="investments-empty">
             <span className="investments-empty__icon" aria-hidden="true"><IconBriefcase size={28} /></span>
             <p className="investments-empty__text">{t.fidelityEmptyTitle}</p>
-            <button className="btn-primary" type="button" onClick={openImport}>
-              {t.fidelityImportBtn}
-            </button>
+            {!IS_DEMO && (
+              <button className="btn-primary" type="button" onClick={openImport}>
+                {t.fidelityImportBtn}
+              </button>
+            )}
           </div>
         </div>
 
