@@ -60,7 +60,7 @@ jobs:
   # cadenas sin traducir y dependencias de efectos incompletas. Este job
   # existe para que no vuelva a acumularse.
   frontend:
-    name: Frontend (lint + build)
+    name: Frontend (lint + test + build)
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -84,6 +84,9 @@ jobs:
 
       - name: Lint
         run: npm run lint
+
+      - name: Unit tests (vitest)
+        run: npm test
 
       # tsc --noEmit va incluido en el script build.
       - name: Type-check and build
