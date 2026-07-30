@@ -328,6 +328,12 @@ export const IconSmartphone = make('IconSmartphone', <>
 
 export const IconDroplet = make('IconDroplet', <path d="M12 3.2 6.9 9.5a6.9 6.9 0 1 0 10.2 0Z" />)
 
+export const IconGlobe = make('IconGlobe', <>
+  <circle cx="12" cy="12" r="9.1" />
+  <path d="M2.9 12h18.2" />
+  <path d="M12 2.9a13.6 13.6 0 0 1 0 18.2 13.6 13.6 0 0 1 0-18.2Z" />
+</>)
+
 /** Índice por nombre, útil cuando el icono se elige en tiempo de ejecución. */
 export const ICONS = {
   home: IconHome, dashboard: IconDashboard, wallet: IconWallet, receipt: IconReceipt,
@@ -347,7 +353,7 @@ export const ICONS = {
   arrowUp: IconArrowUp, arrowDown: IconArrowDown, arrowLeft: IconArrowLeft, arrowRight: IconArrowRight,
   arrowUpRight: IconArrowUpRight, arrowDownRight: IconArrowDownRight,
   sun: IconSun, moon: IconMoon, monitor: IconMonitor, smartphone: IconSmartphone,
-  droplet: IconDroplet,
+  droplet: IconDroplet, globe: IconGlobe,
 } satisfies Record<string, (props: IconProps) => ReactElement>
 
 export type IconName = keyof typeof ICONS

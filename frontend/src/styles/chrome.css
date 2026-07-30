@@ -67,7 +67,9 @@
   outline-offset: 2px;
 }
 
-.lang-select-icon { font-size: 14px; line-height: 1; }
+/* Los iconos son SVG del set propio: se dimensionan desde el componente, así que
+   aquí sólo hace falta que no se encojan y que el chevron gire al abrir. */
+.lang-select-icon { flex-shrink: 0; }
 
 .lang-select-current {
   flex: 1;
@@ -78,10 +80,13 @@
 }
 
 .lang-select-arrow {
-  font-size: 11px;
+  flex-shrink: 0;
   transition: transform 0.15s;
 }
 .lang-select-arrow.open { transform: rotate(180deg); }
+@media (prefers-reduced-motion: reduce) {
+  .lang-select-arrow { transition: none; }
+}
 
 .lang-select-menu {
   position: absolute;
@@ -122,7 +127,7 @@
 
 .lang-select-option-name { flex: 1; }
 
-.lang-select-check { font-size: 12px; }
+.lang-select-check { flex-shrink: 0; }
 
 /* Language override on the auth screens — narrow and centred, so the menu does
    not span the whole card. */
