@@ -455,6 +455,10 @@ const es: Dict = {
   dashboardAccountsEmpty: 'Sin datos de cuentas todavía',
   dashboardStatementMissingLabel: 'Extracto pendiente',
   dashboardStatementMissingTooltip: (month: string) => `Falta subir el extracto de ${month}`,
+  dashboardNetWorthAccounts: 'Cuentas',
+  dashboardNetWorthInvestments: 'Inversiones',
+  dashboardSavingsRateVsPrevMonth: 'vs mes anterior',
+  dashboardMonthsTracked: (months: number) => `${months} ${months === 1 ? 'mes' : 'meses'} con datos`,
   // ── Investments page ──────────────────────────────────────────────────────
   investmentsTitle: 'Inversiones',
   investmentsKpiTotalValue: 'Valor total',

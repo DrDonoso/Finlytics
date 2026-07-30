@@ -450,6 +450,13 @@ export interface Dict {
   dashboardAccountsEmpty: string
   dashboardStatementMissingLabel: string
   dashboardStatementMissingTooltip: (month: string) => string
+  /** Desglose del patrimonio en la KPI destacada: cuentas vs inversiones. */
+  dashboardNetWorthAccounts: string
+  dashboardNetWorthInvestments: string
+  /** Variación de la tasa de ahorro del último mes con datos frente al anterior. */
+  dashboardSavingsRateVsPrevMonth: string
+  /** Nº de meses sobre los que se calcula el promedio mensual. */
+  dashboardMonthsTracked: (months: number) => string
   // ── Investments page ──────────────────────────────────────────────────────
   investmentsTitle: string
   investmentsKpiTotalValue: string

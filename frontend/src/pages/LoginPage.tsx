@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { login } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
 import { useT } from '../i18n'
+import { Wordmark } from '../components/Brand'
 
 export default function LoginPage() {
   const { onLoginSuccess } = useAuth()
@@ -30,7 +31,7 @@ export default function LoginPage() {
   return (
     <div className="auth-container">
       <div className="auth-card">
-        <img src="/logo_withtext.png" alt="Finlytics" className="auth-logo-img" />
+        <Wordmark size="lg" className="auth-logo" />
         <h1 className="auth-title">{t.authLoginTitle}</h1>
         <form onSubmit={handleSubmit} className="auth-form">
           <div className="auth-field">

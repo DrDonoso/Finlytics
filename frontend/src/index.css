@@ -1,33 +1,98 @@
-/* ─── Design tokens — Light (default) ────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════════════════
+   Tipografía — Geist / Geist Mono (variables, auto-alojadas)
+   SIL Open Font License 1.1 · https://github.com/vercel/geist-font
+   Auto-alojadas a propósito: la app es self-hosted y no debe depender de un
+   CDN externo en tiempo de ejecución.
+   ═══════════════════════════════════════════════════════════════════════════ */
+@font-face {
+  font-family: 'Geist';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/geist-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+                 U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122,
+                 U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Geist';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/geist-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF,
+                 U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF,
+                 U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Geist Mono';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/geist-mono-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+                 U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122,
+                 U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Geist Mono';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/geist-mono-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF,
+                 U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF,
+                 U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Design tokens — Light (default)
+
+   La paleta se deriva del logo (casa + gráfico, degradado navy → teal), no de
+   los valores por defecto de Tailwind.  Recorrido de marca:
+       #123a6b  navy    →  #21639f  azul  →  #12b886  teal
+   ═══════════════════════════════════════════════════════════════════════════ */
 :root {
-  --bg: #f1f5f9;
+  /* ── Marca ── */
+  --brand-navy: #123a6b;
+  --brand-blue: #21639f;
+  --brand-teal: #12b886;
+  --brand-gradient: linear-gradient(135deg, #123a6b 0%, #21639f 48%, #12b886 100%);
+  /* Realce del hero: destello superior derecho, se apila sobre --brand-gradient */
+  --brand-gradient-sheen: radial-gradient(120% 140% at 88% 8%, rgba(255, 255, 255, 0.16), transparent 58%);
+
+  --bg: #f4f6f9;
   --surface: #ffffff;
-  --border: #e2e8f0;
-  --text: #1e293b;
-  --text-muted: #64748b;
-  --primary: #2563eb;
-  --primary-rgb: 37, 99, 235;
-  --primary-hover: #1d4ed8;
-  --primary-bright: #60a5fa;
+  --border: #e3e8ef;
+  --text: #16202e;
+  --text-muted: #5f6b7d;
+  --primary: #1a4d8f;
+  --primary-rgb: 26, 77, 143;
+  --primary-hover: #123a6b;
+  --primary-bright: #4a8fd4;
   --primary-contrast: #fff;
-  --expense: #ef4444;
-  --expense-rgb: 239, 68, 68;
-  --expense-bright: #f87171;
-  --income: #22c55e;
-  --income-rgb: 34, 197, 94;
-  --income-bright: #4ade80;
-  --net-pos: #2563eb;
-  --net-neg: #f97316;
+  --expense: #c2453a;
+  --expense-rgb: 194, 69, 58;
+  --expense-bright: #dd7a70;
+  --income: #0e9d76;
+  --income-rgb: 14, 157, 118;
+  --income-bright: #2ec49a;
+  --net-pos: #1a4d8f;
+  --net-neg: #c2453a;
   --radius: 12px;
-  --shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
-  --font: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --shadow: 0 1px 2px rgba(18, 58, 107, 0.05), 0 1px 3px rgba(18, 58, 107, 0.04);
+  /* Elevación reservada al KPI hero con gradiente */
+  --shadow-hero: 0 6px 20px -6px rgba(18, 58, 107, 0.32);
+  --font: 'Geist', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  /* Toda cifra usa esta pila: mono con dígitos de ancho fijo */
+  --font-num: 'Geist Mono', ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, monospace;
   --sidebar-width: 240px;
   --topbar-height: 52px;
   /* ── Warning family ── */
-  --warning: #f59e0b;
-  --warning-rgb: 245, 158, 11;
-  --warning-bg: rgba(245, 158, 11, 0.10);
-  --warning-text: #b45309;
+  --warning: #b7791f;
+  --warning-rgb: 183, 121, 31;
+  --warning-bg: rgba(183, 121, 31, 0.10);
+  --warning-text: #8a5a12;
   /* ── Notification unread background ── */
   --notif-unread-bg: rgba(var(--primary-rgb), 0.04);
 }
@@ -39,25 +104,27 @@
   --primary-hover: #065f46;
   --primary-bright: #34d399;
   --primary-contrast: #fff;
+  --brand-gradient: linear-gradient(135deg, #064e3b 0%, #047857 48%, #34d399 100%);
   --income: #047857;
   --income-rgb: 4, 120, 87;
   --income-bright: #34d399;
-  --expense: #dc2626;
-  --expense-rgb: 220, 38, 38;
-  --expense-bright: #f87171;
+  --expense: #b03a2c;
+  --expense-rgb: 176, 58, 44;
+  --expense-bright: #d97a6c;
 }
 [data-palette="violet"] {
-  --primary: #7c3aed;
-  --primary-rgb: 124, 58, 237;
-  --primary-hover: #6d28d9;
+  --primary: #6d3ad4;
+  --primary-rgb: 109, 58, 212;
+  --primary-hover: #5b2fb5;
   --primary-bright: #a78bfa;
   --primary-contrast: #fff;
+  --brand-gradient: linear-gradient(135deg, #3b1d78 0%, #6d3ad4 48%, #22b8a6 100%);
   --income: #0f766e;
   --income-rgb: 15, 118, 110;
   --income-bright: #5eead4;
-  --expense: #be123c;
-  --expense-rgb: 190, 18, 60;
-  --expense-bright: #fb7185;
+  --expense: #b0304f;
+  --expense-rgb: 176, 48, 79;
+  --expense-bright: #e26e8a;
 }
 [data-palette="amber"] {
   --primary: #b45309;
@@ -65,12 +132,13 @@
   --primary-hover: #92400e;
   --primary-bright: #fbbf24;
   --primary-contrast: #fff;
+  --brand-gradient: linear-gradient(135deg, #7c2d12 0%, #b45309 48%, #d9a520 100%);
   --income: #4d7c0f;
   --income-rgb: 77, 124, 15;
   --income-bright: #a3e635;
-  --expense: #c2410c;
-  --expense-rgb: 194, 65, 12;
-  --expense-bright: #fb923c;
+  --expense: #a8341a;
+  --expense-rgb: 168, 52, 26;
+  --expense-bright: #e0785c;
 }
 [data-palette="contrast"] {
   --primary: #111827;
@@ -78,12 +146,13 @@
   --primary-hover: #000000;
   --primary-bright: #334155;
   --primary-contrast: #fff;
+  --brand-gradient: linear-gradient(135deg, #000000 0%, #1f2937 48%, #4b5563 100%);
   --income: #14532d;
   --income-rgb: 20, 83, 45;
   --income-bright: #86efac;
-  --expense: #991b1b;
-  --expense-rgb: 153, 27, 27;
-  --expense-bright: #fca5a5;
+  --expense: #8f1d13;
+  --expense-rgb: 143, 29, 19;
+  --expense-bright: #d4776b;
 }
 
 [data-theme="dark"][data-palette="emerald"] {
@@ -92,12 +161,13 @@
   --primary-hover: #10b981;
   --primary-bright: #6ee7b7;
   --primary-contrast: #052e16;
+  --brand-gradient: linear-gradient(135deg, #043d2e 0%, #0a7a5c 48%, #34d399 100%);
   --income: #34d399;
   --income-rgb: 52, 211, 153;
   --income-bright: #6ee7b7;
-  --expense: #f87171;
-  --expense-rgb: 248, 113, 113;
-  --expense-bright: #fca5a5;
+  --expense: #f4806f;
+  --expense-rgb: 244, 128, 111;
+  --expense-bright: #f8a99d;
 }
 [data-theme="dark"][data-palette="violet"] {
   --primary: #a78bfa;
@@ -105,12 +175,13 @@
   --primary-hover: #8b5cf6;
   --primary-bright: #c4b5fd;
   --primary-contrast: #2e1065;
+  --brand-gradient: linear-gradient(135deg, #2b1259 0%, #6d3ad4 48%, #2ed3c4 100%);
   --income: #6ee7b7;
   --income-rgb: 110, 231, 183;
   --income-bright: #99f6e4;
-  --expense: #fb7185;
-  --expense-rgb: 251, 113, 133;
-  --expense-bright: #fda4af;
+  --expense: #f4809a;
+  --expense-rgb: 244, 128, 154;
+  --expense-bright: #f8a9bb;
 }
 [data-theme="dark"][data-palette="amber"] {
   --primary: #fbbf24;
@@ -118,6 +189,7 @@
   --primary-hover: #f59e0b;
   --primary-bright: #fde68a;
   --primary-contrast: #451a03;
+  --brand-gradient: linear-gradient(135deg, #4a1d09 0%, #a2560c 48%, #fbbf24 100%);
   --income: #a3e635;
   --income-rgb: 163, 230, 53;
   --income-bright: #bef264;
@@ -131,6 +203,7 @@
   --primary-hover: #e2e8f0;
   --primary-bright: #ffffff;
   --primary-contrast: #020617;
+  --brand-gradient: linear-gradient(135deg, #1e293b 0%, #475569 48%, #cbd5e1 100%);
   --income: #86efac;
   --income-rgb: 134, 239, 172;
   --income-bright: #bbf7d0;
@@ -141,16 +214,31 @@
 
 /* ─── Design tokens — Dark (explicit) ────────────────────────────── */
 [data-theme="dark"] {
-  --bg: #0f172a;
-  --surface: #1e293b;
-  --border: #334155;
-  --text: #f1f5f9;
-  --text-muted: #94a3b8;
-  --shadow: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
-  --warning: #fbbf24;
-  --warning-rgb: 251, 191, 36;
-  --warning-bg: rgba(251, 191, 36, 0.08);
-  --warning-text: #fbbf24;
+  --bg: #0c1420;
+  --surface: #131d2c;
+  --border: #24334a;
+  --text: #e6edf6;
+  --text-muted: #8b9ab0;
+  --primary: #5aa5ec;
+  --primary-rgb: 90, 165, 236;
+  --primary-hover: #7cbaf2;
+  --primary-bright: #9acbf6;
+  --primary-contrast: #08192b;
+  --income: #2ed3a7;
+  --income-rgb: 46, 211, 167;
+  --income-bright: #6ee7c4;
+  --expense: #f4806f;
+  --expense-rgb: 244, 128, 111;
+  --expense-bright: #f8a99d;
+  --net-pos: #5aa5ec;
+  --net-neg: #f4806f;
+  --brand-gradient: linear-gradient(135deg, #0e2a4f 0%, #155181 48%, #0d8a67 100%);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.34), 0 1px 3px rgba(0, 0, 0, 0.24);
+  --shadow-hero: 0 6px 22px -8px rgba(0, 0, 0, 0.6);
+  --warning: #e0a44a;
+  --warning-rgb: 224, 164, 74;
+  --warning-bg: rgba(224, 164, 74, 0.10);
+  --warning-text: #e0a44a;
   /* Slightly stronger unread tint so the 7% shows on dark surfaces */
   --notif-unread-bg: rgba(var(--primary-rgb), 0.07);
 }
@@ -158,26 +246,96 @@
 /* ─── Design tokens — Dark (system preference, only when explicit not set) ─ */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0f172a;
-    --surface: #1e293b;
-    --border: #334155;
-    --text: #f1f5f9;
-    --text-muted: #94a3b8;
-    --shadow: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
-    --warning: #fbbf24;
-    --warning-rgb: 251, 191, 36;
-    --warning-bg: rgba(251, 191, 36, 0.08);
-    --warning-text: #fbbf24;
+    --bg: #0c1420;
+    --surface: #131d2c;
+    --border: #24334a;
+    --text: #e6edf6;
+    --text-muted: #8b9ab0;
+    --primary: #5aa5ec;
+    --primary-rgb: 90, 165, 236;
+    --primary-hover: #7cbaf2;
+    --primary-bright: #9acbf6;
+    --primary-contrast: #08192b;
+    --income: #2ed3a7;
+    --income-rgb: 46, 211, 167;
+    --income-bright: #6ee7c4;
+    --expense: #f4806f;
+    --expense-rgb: 244, 128, 111;
+    --expense-bright: #f8a99d;
+    --net-pos: #5aa5ec;
+    --net-neg: #f4806f;
+    --brand-gradient: linear-gradient(135deg, #0e2a4f 0%, #155181 48%, #0d8a67 100%);
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.34), 0 1px 3px rgba(0, 0, 0, 0.24);
+    --shadow-hero: 0 6px 22px -8px rgba(0, 0, 0, 0.6);
+    --warning: #e0a44a;
+    --warning-rgb: 224, 164, 74;
+    --warning-bg: rgba(224, 164, 74, 0.10);
+    --warning-text: #e0a44a;
     --notif-unread-bg: rgba(var(--primary-rgb), 0.07);
   }
 }
 
 /* ─── Reset ──────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: var(--font); background: var(--bg); color: var(--text); line-height: 1.5; font-size: 14px; }
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
 button { font-family: inherit; cursor: pointer; }
 input, select { font-family: inherit; font-size: inherit; }
 a { color: var(--primary); text-decoration: none; }
+
+/* ─── Iconos (set propio, ver components/icons.tsx) ──────────────── */
+/* Heredan color y tamaño del contexto — a diferencia de los emojis, que no. */
+.icon {
+  display: inline-block;
+  vertical-align: -0.145em;
+  flex-shrink: 0;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.icon-spin { animation: icon-spin 900ms linear infinite; }
+@keyframes icon-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .icon-spin { animation-duration: 2.4s; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Cifras — sistema único
+
+   Toda cifra de la aplicación se renderiza con la pila mono y dígitos de ancho
+   fijo, de modo que las columnas de una tabla alinean siempre.  Antes esto
+   estaba disperso en ~18 selectores sueltos y faltaba justo en los números
+   más grandes (.kpi-value / .inv-kpi-card__value).
+   ═══════════════════════════════════════════════════════════════════════════ */
+/* Nota: `:is()` toma la especificidad de su argumento MÁS específico, así que
+   los selectores compuestos van aparte para no inflar todo el grupo. */
+:is(
+  .kpi-value, .kpi-sub,
+  .inv-kpi-card__value, .inv-kpi-card__sub,
+  .header-kpi-value, .header-kpi-sub, .header-kpi-delta,
+  .td-amount, .cat-td-num, .cat-td-weight,
+  .tx-total-value,
+  .movers-td-num, .movers-delta,
+  .inv-td-num, .inv-td-weight, .inv-td-isin,
+  .returns-value, .inv-summary-value, .inv-metric-value,
+  .inv-donut-legend-pct
+) {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+}
+.returns-matrix tbody td {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+}
 
 /* ─── Layout — App Shell (sidebar + topbar) ─────────────────────── */
 .app-shell { min-height: 100dvh; }
@@ -196,17 +354,16 @@ a { color: var(--primary); text-decoration: none; }
   padding: 0 16px;
   box-shadow: var(--shadow);
 }
+/* El wordmark toma el degradado de marca, de modo que acompaña al tema y a la
+   paleta de acento en vez de ser un color plano. */
 .topbar-logo {
   font-size: 18px;
-  font-weight: 700;
-  color: var(--primary);
+  font-weight: 600;
   letter-spacing: -0.5px;
-}
-.topbar-logo-img {
-  height: 30px;
-  width: auto;
-  display: block;
-  flex-shrink: 0;
+  background: var(--brand-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 .topbar-logo-link {
   display: flex;
@@ -281,6 +438,9 @@ a { color: var(--primary); text-decoration: none; }
   color: var(--primary);
   font-weight: 600;
 }
+/* Los iconos SVG traen su propio tamaño; `font-size` queda para los pocos
+   sitios donde el "icono" sigue siendo un carácter (p. ej. la inicial de un
+   plugin sin logotipo). */
 .nav-icon { font-size: 16px; flex-shrink: 0; }
 .nav-label { flex: 1; }
 
@@ -336,6 +496,9 @@ a { color: var(--primary); text-decoration: none; }
   display: inline-block;
 }
 .sidebar-arrow.open { transform: rotate(180deg); }
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-arrow { transition: none; }
+}
 .sidebar-subnav {
   display: flex;
   flex-direction: column;
@@ -383,6 +546,9 @@ a { color: var(--primary); text-decoration: none; }
   flex-wrap: wrap;
 }
 .sidebar-username {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 13px;
   color: var(--text-muted);
   font-weight: 500;
@@ -393,6 +559,9 @@ a { color: var(--primary); text-decoration: none; }
   white-space: nowrap;
 }
 .sidebar-logout {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   height: 28px;
   padding: 0 10px;
   background: transparent;
@@ -636,10 +805,13 @@ a { color: var(--primary); text-decoration: none; }
   color: var(--text-muted);
   margin-bottom: 8px;
 }
+/* Cifra grande — misma definición que .inv-kpi-card__value (ver más abajo).
+   El peso baja a 500 porque la mono a 700 pesa demasiado a este tamaño. */
 .kpi-value {
   font-size: 26px;
-  font-weight: 700;
+  font-weight: 500;
   line-height: 1.1;
+  letter-spacing: -0.04em;
 }
 .kpi-sub {
   font-size: 12px;
@@ -1023,6 +1195,8 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
   gap: 8px;
   font-size: 14px;
 }
+/* Los iconos SVG del set propio ya vienen dimensionados desde el componente;
+   la regla `.icon` es sólo un remanente para el tamaño de los antiguos emojis. */
 .state-box .icon { font-size: 32px; }
 .state-box.error { color: var(--expense); }
 
@@ -1874,13 +2048,23 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
   letter-spacing: -0.5px;
   margin-bottom: 6px;
 }
-.auth-logo-img {
-  display: block;
-  width: 100%;
-  max-width: 220px;
-  height: auto;
-  margin: 0 auto 6px;
+.brand-wordmark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
 }
+.brand-wordmark__text {
+  font-weight: 600;
+  letter-spacing: -0.5px;
+  background: var(--brand-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.brand-wordmark--sm .brand-wordmark__text { font-size: 18px; }
+.brand-wordmark--lg .brand-wordmark__text { font-size: 28px; }
+.auth-logo { margin: 0 auto 6px; }
 .auth-title {
   font-size: 20px;
   font-weight: 700;
@@ -5043,6 +5227,11 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
   line-height: 1.5;
   margin-bottom: 16px;
 }
+.espp-reminder-banner__text {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
 .espp-reminder-banner__link {
   font-weight: 600;
   text-decoration: underline;
@@ -6077,10 +6266,12 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
   color: var(--text-muted);
   margin-bottom: 8px;
 }
+/* Cifra grande — misma definición que .kpi-value (ver más arriba). */
 .inv-kpi-card__value {
   font-size: 26px;
-  font-weight: 700;
+  font-weight: 500;
   line-height: 1.1;
+  letter-spacing: -0.04em;
   color: var(--text);
 }
 .inv-kpi-card__sub {
@@ -6099,6 +6290,87 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
 .dashboard-info-tip {
   font-size: 10px;
 }
+
+/* ─── KPI destacada del Inicio ──────────────────────────────────────────────
+   «Patrimonio total» resume toda la aplicación, así que se lleva el degradado
+   de marca y una elevación propia.  Las otras dos KPI quedan planas detrás:
+   es lo que crea jerarquía en una fila que antes eran tres tarjetas idénticas.
+   ─────────────────────────────────────────────────────────────────────────── */
+.dashboard-kpi-strip {
+  grid-template-columns: 1.25fr 1fr 1fr;
+}
+@media (max-width: 900px) {
+  .dashboard-kpi-strip { grid-template-columns: 1fr 1fr; }
+  .dashboard-kpi-hero  { grid-column: 1 / -1; }
+}
+@media (max-width: 600px) {
+  .dashboard-kpi-strip { grid-template-columns: 1fr; }
+}
+
+.dashboard-kpi-hero {
+  position: relative;
+  overflow: hidden;
+  background: var(--brand-gradient);
+  border-color: transparent;
+  box-shadow: var(--shadow-hero);
+  color: #fff;
+}
+/* Destello superior derecho: da volumen al degradado sin añadir otra capa DOM. */
+.dashboard-kpi-hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--brand-gradient-sheen);
+  pointer-events: none;
+}
+.dashboard-kpi-hero > * { position: relative; z-index: 1; }
+.dashboard-kpi-hero .inv-kpi-card__label { color: rgba(255, 255, 255, 0.78); }
+.dashboard-kpi-hero .inv-kpi-card__value { color: #fff; }
+
+/* Desglose cuentas / inversiones bajo la cifra destacada. */
+.dashboard-kpi-breakdown {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  margin-top: 12px;
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.9);
+}
+.dashboard-kpi-breakdown__label {
+  display: block;
+  font-family: var(--font);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.62);
+  margin-bottom: 1px;
+}
+
+/* Badge de variación.  Se expresa en puntos porcentuales, no en %, porque la
+   variación relativa entre dos porcentajes induce a error. */
+.dashboard-kpi-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 10px;
+  padding: 3px 9px;
+  border-radius: 20px;
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  font-size: 11.5px;
+  font-weight: 500;
+}
+.dashboard-kpi-delta__label {
+  font-family: var(--font);
+  font-weight: 400;
+  color: var(--text-muted);
+}
+.dashboard-kpi-delta.is-good { background: rgba(var(--income-rgb), 0.10); color: var(--income); }
+.dashboard-kpi-delta.is-bad  { background: rgba(var(--expense-rgb), 0.10); color: var(--expense); }
+.dashboard-kpi-delta.is-flat { background: rgba(var(--primary-rgb), 0.07); color: var(--text-muted); }
 
 /* Provider cards grid */
 .inv-provider-cards {
