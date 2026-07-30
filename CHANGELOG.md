@@ -4,6 +4,12 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260730.02] - 2026-07-30
+
+- frontend/wrangler.jsonc for Cloudflare Workers. Pure static, no `main`, so no Worker code runs. `not_found_handling: single-page-application` is the SPA fallback for BrowserRouter routes, and is stricter than a blanket `/* -> /index.html` rewrite: a missing ASSET still returns a real 404 instead of HTML.
+- `_redirects` and `_headers` emitted into dist-demo by a vite.config.ts plugin for Pages/Netlify. They are generated rather than committed under public/, because everything in public/ is copied into the PRODUCTION bundle too, where FastAPI serves the SPA and they would be dead weight.
+
+
 ## [20260730] - 2026-07-30
 
 - demo/scenario.ts: seeded generator, 18 months of invented Spanish transactions plus an Indexa portfolio. Dates are relative to today because defaultRange() opens on the previous calendar month - fixed dates would show empty views a month later.
