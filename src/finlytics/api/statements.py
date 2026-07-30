@@ -20,6 +20,7 @@ from finlytics.clock import today as local_today
 from finlytics.config import settings
 from finlytics.db import queries
 from finlytics.db.models import ImportRun
+from finlytics.log_safety import one_line
 
 log = logging.getLogger(__name__)
 
@@ -152,7 +153,9 @@ async def download_statement_original(
 
     path = os.path.join(settings.upload_dir, run.source_path)
     if not os.path.isfile(path):
-        log.warning("PDF file missing on disk: %s (import_run_id=%d)", path, import_run_id)
+        log.warning(
+            "PDF file missing on disk: %s (import_run_id=%d)", one_line(path), import_run_id
+        )
         raise HTTPException(status_code=404, detail="PDF file not found on disk")
 
     return FileResponse(

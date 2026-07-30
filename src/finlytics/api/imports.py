@@ -37,6 +37,7 @@ from finlytics.extraction.rules import apply_rules
 from finlytics.extraction.llm_client import LLMClient
 from finlytics.extraction.parser import parse_statement
 from finlytics.extraction.tag_colors import suggest_tag_colors
+from finlytics.log_safety import one_line
 
 log = logging.getLogger(__name__)
 
@@ -88,7 +89,7 @@ async def _resolve_account(
         account = Account(name=account_name, type="bank", currency="EUR")
         session.add(account)
         await session.flush()
-        log.info("Auto-created account %r (type=bank)", account_name)
+        log.info("Auto-created account %r (type=bank)", one_line(account_name))
     return account
 
 
@@ -311,7 +312,7 @@ async def confirm_import(
                 was_created = True
                 log.info(
                     "Auto-created account %r with IBAN %r",
-                    body.account_name, body.account_number,
+                    one_line(body.account_name), one_line(body.account_number),
                 )
         else:
             if not body.account_name:

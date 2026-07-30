@@ -23,6 +23,7 @@ from finlytics.extraction.prompts import build_system_prompt, build_user_prompt
 from finlytics.extraction.redaction import _IBAN_COMPACT, _IBAN_SPACED, redact_pii
 from finlytics.extraction.schema import ExtractedTransaction
 from finlytics.extraction.taxonomy import BASE_CATEGORIES, BASE_CATEGORY_ES
+from finlytics.log_safety import one_line
 
 log = logging.getLogger(__name__)
 
@@ -380,7 +381,7 @@ async def extract_transactions(
 
     log.info(
         "Extracting transactions: account=%s, input_chars=%d, statement_year=%s, chunks=%d",
-        account_ref,
+        one_line(account_ref),
         len(statement_text),
         effective_year,
         len(chunks),
@@ -403,7 +404,9 @@ async def extract_transactions(
             [t.category for t in proposed],
         )
 
-    log.info("Extracted %d transactions for account=%s", len(transactions), account_ref)
+    log.info(
+        "Extracted %d transactions for account=%s", len(transactions), one_line(account_ref)
+    )
     return transactions
 
 
