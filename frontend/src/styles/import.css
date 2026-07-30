@@ -1,0 +1,261 @@
+/* ─── Import error inline ────────────────────────────────────────────── */
+.import-error {
+  padding: 12px 16px;
+  background: rgba(var(--expense-rgb), 0.08);
+  border: 1px solid rgba(var(--expense-rgb), 0.30);
+  border-radius: 8px;
+  color: var(--expense);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* ─── Preview panel ──────────────────────────────────────────────────── */
+.preview-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  margin-bottom: 14px;
+  color: var(--text-muted);
+}
+.confidence-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  /* Antes eran los ámbar de Tailwind escritos a mano (#fbbf24 / #b45309), que
+     no seguían al tema y quedaban ilegibles en oscuro. */
+  background: var(--warning-bg);
+  border: 1px solid rgba(var(--warning-rgb), 0.4);
+  border-radius: 6px;
+  color: var(--warning-text);
+  font-size: 12px;
+}
+.year-warning-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: rgba(var(--expense-rgb), 0.06);
+  border: 1px solid rgba(var(--expense-rgb), 0.25);
+  border-left: 4px solid var(--expense);
+  border-radius: 8px;
+  color: var(--expense);
+  font-size: 13px;
+  line-height: 1.5;
+  margin-top: 10px;
+  margin-bottom: 4px;
+}
+.preview-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-top: 10px;
+}
+.preview-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.preview-table thead th {
+  padding: 9px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  text-align: left;
+  white-space: nowrap;
+}
+.preview-table tbody tr { border-bottom: 1px solid var(--border); }
+.preview-table tbody tr:last-child { border-bottom: none; }
+.preview-table tbody td { padding: 5px 8px; vertical-align: middle; }
+.row-low-confidence { background: rgba(251, 191, 36, 0.12) !important; }
+.row-duplicate { opacity: 0.55; }
+.import-dup-badge-wrap { margin-top: 2px; }
+.import-dup-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 5px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+/* Confidence badge */
+.conf-badge {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.conf-ok  { background: rgba(var(--income-rgb), 0.12);  color: var(--income); }
+.conf-low { background: var(--warning-bg); color: var(--warning-text); }
+.conf-na  { background: var(--bg); color: var(--text-muted); }
+
+/* Dark mode overrides for light-only colors.
+   `.conf-low` y `.confidence-hint` ya resuelven por token en ambos temas, así
+   que aquí sólo queda lo que de verdad necesita una variante clara. */
+[data-theme="dark"] .conf-ok  { color: var(--income-bright); background: rgba(var(--income-rgb), 0.15); }
+[data-theme="dark"] .btn-row-save:hover { color: var(--income-bright); border-color: var(--income-bright); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .conf-ok  { color: var(--income-bright); background: rgba(var(--income-rgb), 0.15); }
+  :root:not([data-theme="light"]) .btn-row-save:hover { color: var(--income-bright); border-color: var(--income-bright); }
+}
+
+/* Cell inputs in preview table */
+.cell-input {
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  font-size: 12px;
+  color: var(--text);
+  outline: none;
+  font-family: inherit;
+  width: 100%;
+  transition: border-color 0.12s, background 0.12s;
+}
+.cell-input:hover { border-color: var(--border); background: var(--surface); }
+.cell-input:focus { border-color: var(--primary); background: var(--surface); }
+.cell-date     { min-width: 110px; }
+.cell-desc     { min-width: 300px; }
+.cell-merchant { min-width: 140px; }
+.cell-amount   { min-width: 80px;  text-align: right; }
+.cell-category { min-width: 130px; }
+.cell-account  { min-width: 90px;  }
+.amount-cell   { display: flex; align-items: center; gap: 4px; }
+.cell-sign {
+  height: 30px;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  font-size: 11px;
+  color: var(--text-muted);
+  cursor: pointer;
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.12s, background 0.12s;
+}
+.cell-sign:hover, .cell-sign:focus { border-color: var(--border); background: var(--surface); }
+
+/* ─── Import preview — merchant combobox ───────────────────────────── */
+/* .import-merchant-input inherits .cell-input; extra right-padding for native datalist arrow */
+.import-merchant-input { min-width: 120px; padding-right: 20px; }
+
+/* ─── Tag typeahead (import preview) ───────────────────────────────── */
+/* Container: flex wrap for chips + input; matches .cell-input hover/focus ring behavior */
+.tag-typeahead,
+.preview-typeahead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px;
+  min-width: 140px;
+  min-height: 30px;
+  cursor: text;
+  padding: 3px 4px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  transition: border-color 0.12s, background 0.12s;
+}
+.tag-typeahead:hover,
+.preview-typeahead:hover { border-color: var(--border);  background: var(--surface); }
+.tag-typeahead:focus-within,
+.preview-typeahead:focus-within { border-color: var(--primary); background: var(--surface); }
+
+.preview-typeahead {
+  flex-wrap: nowrap;
+  padding: 0;
+}
+
+.preview-typeahead-input {
+  width: 100%;
+  height: 28px;
+  min-width: inherit;
+  padding: 0 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  outline: none;
+}
+
+.preview-typeahead-suggestions li.is-active,
+.preview-typeahead-suggestions li[aria-selected="true"] {
+  background: var(--bg);
+}
+
+.preview-typeahead-option-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tag-typeahead-input-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 60px;
+}
+
+/*
+ * Suggestions dropdown — position:fixed (coordinates injected via inline style in
+ * TagTypeahead.tsx) so it escapes the .preview-table-wrap overflow:auto scroll
+ * container and stays visible above all table/modal content.
+ */
+.tag-typeahead-suggestions {
+  position: fixed;
+  z-index: 9999;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12), 0 1px 6px rgba(0, 0, 0, 0.06);
+  min-width: 160px;
+  max-height: 200px;
+  overflow-y: auto;
+  list-style: none;
+  padding: 4px 0;
+}
+.tag-typeahead-suggestions li {
+  padding: 5px 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  transition: background 0.1s;
+}
+.tag-typeahead-suggestions li:hover  { background: var(--bg); }
+.tag-typeahead-suggestions li:active { background: var(--border); }
+
+/* Boost shadow opacity in dark mode for visibility on dark surfaces */
+[data-theme="dark"] .tag-typeahead-suggestions {
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5), 0 1px 6px rgba(0, 0, 0, 0.4);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .tag-typeahead-suggestions {
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5), 0 1px 6px rgba(0, 0, 0, 0.4);
+  }
+}
+
+/* Preview tag chip — colored chip with assigned background + readable text via tagTextColor() */
+.preview-tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px 2px 8px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  line-height: 1.4;
+  cursor: default;
+}

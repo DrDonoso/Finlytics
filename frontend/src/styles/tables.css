@@ -1,0 +1,136 @@
+/* ─── Table ──────────────────────────────────────────────────────── */
+.table-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+/* Ensure 7-column table scrolls cleanly on narrow screens rather than crushing */
+.table-wrapper table { min-width: 660px; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+thead th {
+  text-align: left;
+  padding: 10px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  border-bottom: 2px solid var(--border);
+  white-space: nowrap;
+}
+tbody tr { border-bottom: 1px solid var(--border); transition: background 0.1s; }
+tbody tr:last-child { border-bottom: none; }
+tbody tr:hover { background: var(--bg); }
+tbody td { padding: 10px 12px; vertical-align: middle; }
+.td-amount { font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
+.td-amount.neg { color: var(--expense); }
+.td-amount.pos { color: var(--income); }
+.td-date { color: var(--text-muted); white-space: nowrap; }
+.td-desc { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tx-detail-subline { display: block; font-size: 11px; color: var(--text-muted); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 260px; }
+/* In import preview the description is an <input> with padding: 0 8px — indent sub-line to match the text start */
+.tx-detail-subline--input-aligned { padding-left: 8px; }
+/* System transaction badge (is_system=true — "Saldo inicial") — subtle, informational, not interactive */
+.tx-system-badge {
+  display: inline-block;
+  margin-top: 3px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  background: var(--bg);
+  color: var(--text-muted);
+  border: 1px dashed var(--border);
+  cursor: default;
+  user-select: none;
+  opacity: 0.85;
+}
+/* Comercio column — dedicated column, secondary but readable */
+.th-merchant { min-width: 100px; }
+.td-merchant {
+  min-width: 100px;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+/* Sortable column headers */
+.th-sortable {
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.15s;
+  white-space: nowrap;
+}
+.th-sortable:hover { color: var(--text); }
+.th-sort-active { color: var(--text); }
+.th-sort-arrow {
+  display: inline-block;
+  margin-left: 4px;
+  font-size: 9px;
+  vertical-align: middle;
+  line-height: 1;
+  color: var(--primary);
+}
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--bg);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+}
+
+/* ─── Pagination ─────────────────────────────────────────────────── */
+.pagination {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 16px;
+  font-size: 13px;
+  color: var(--text-muted);
+  flex-wrap: wrap;
+}
+.pagination button {
+  height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  font-size: 13px;
+  color: var(--text);
+  transition: background 0.15s, border-color 0.15s;
+  min-width: 44px;
+}
+.pagination button:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); }
+.pagination button:disabled { opacity: 0.4; cursor: default; }
+
+/* ─── States ─────────────────────────────────────────────────────── */
+.state-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  color: var(--text-muted);
+  gap: 8px;
+  font-size: 14px;
+}
+/* Los iconos SVG del set propio ya vienen dimensionados desde el componente;
+   la regla `.icon` es sólo un remanente para el tamaño de los antiguos emojis. */
+.state-box .icon { font-size: 32px; }
+.state-box.error { color: var(--expense); }
+
+/* ─── CLS: reserve height for chart state-boxes to prevent layout shift ─────── */
+.heatmap-card   .state-box  { min-height: 180px; }
+.merchants-card .state-box  { min-height: 300px; }
+.cat-card       .state-box  { min-height: 300px; }
+.movers-card    .state-box  { min-height: 180px; }
+.overtime-card  .state-box,
+.byaccount-card .state-box  { min-height: 260px; }
+.cashflow-card  .state-box  { min-height: 340px; }

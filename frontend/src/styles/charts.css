@@ -1,0 +1,262 @@
+/* ─── SpendingHeatmap ─────────────────────────────────────────────────── */
+
+/* Heatmap layout tokens */
+:root {
+  --hm-cell: 14px;
+  --hm-gap:  3px;
+  --hm-radius: 2px;
+  --hm-month-cell: 36px;
+  --hm-month-radius: 6px;
+  /* Expense intensity — light mode (0 = empty, 4 = heaviest) */
+  --hm-c0: #e2e8f0;
+  --hm-c1: rgba(var(--expense-rgb), 0.16);
+  --hm-c2: rgba(var(--expense-rgb), 0.42);
+  --hm-c3: rgba(var(--expense-rgb), 0.72);
+  --hm-c4: var(--expense);
+}
+[data-theme="dark"] {
+  --hm-c0: #334155;
+  --hm-c1: rgba(var(--expense-rgb), 0.22);
+  --hm-c2: rgba(var(--expense-rgb), 0.36);
+  --hm-c3: rgba(var(--expense-rgb), 0.58);
+  --hm-c4: var(--expense-bright);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --hm-c0: #334155;
+    --hm-c1: rgba(var(--expense-rgb), 0.22);
+    --hm-c2: rgba(var(--expense-rgb), 0.36);
+    --hm-c3: rgba(var(--expense-rgb), 0.58);
+    --hm-c4: var(--expense-bright);
+  }
+}
+
+/* ── Card constraint — CRÍTICO para evitar scroll de página ── */
+.heatmap-card {
+  min-width: 0;
+  overflow: hidden;
+}
+.heatmap-card .state-box { min-height: 180px; }
+
+/* ── Scroll wrapper ── */
+.heatmap-outer {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y;
+  padding-bottom: 8px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+.heatmap-outer::-webkit-scrollbar        { height: 6px; }
+.heatmap-outer::-webkit-scrollbar-track  { background: transparent; }
+.heatmap-outer::-webkit-scrollbar-thumb  {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+/* ── Contenido del calendario (diario y compacto) ── */
+.heatmap-wrap {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: min-content;
+  --hm-cell: 14px;
+  --hm-radius: 2px;
+}
+.heatmap-months {
+  display: grid;
+  gap: var(--hm-gap);
+  margin-left: 36px;
+}
+.hm-month-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.heatmap-body {
+  display: flex;
+  gap: 4px;
+  align-items: flex-start;
+}
+.heatmap-weekdays {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hm-gap);
+  width: 32px;
+  flex-shrink: 0;
+  padding-top: 1px;
+}
+.hm-weekday {
+  height: var(--hm-cell);
+  font-size: 9px;
+  color: var(--text-muted);
+  line-height: var(--hm-cell);
+  text-align: right;
+  padding-right: 4px;
+  user-select: none;
+}
+.heatmap-grid {
+  display: grid;
+  grid-template-rows: repeat(7, var(--hm-cell));
+  gap: var(--hm-gap);
+}
+
+/* ── Celdas base ── */
+.hm-cell {
+  width: var(--hm-cell);
+  height: var(--hm-cell);
+  border-radius: var(--hm-radius);
+  cursor: default;
+  flex-shrink: 0;
+  transition: outline 0.1s;
+}
+.hm-cell--0   { background: var(--hm-c0); }
+.hm-cell--1   { background: var(--hm-c1); }
+.hm-cell--2   { background: var(--hm-c2); }
+.hm-cell--3   { background: var(--hm-c3); }
+.hm-cell--4   { background: var(--hm-c4); }
+.hm-cell--out { background: transparent; }
+.hm-cell:not(.hm-cell--out) { cursor: pointer; }
+.hm-cell:not(.hm-cell--out):hover {
+  outline: 1px solid var(--text-muted);
+  outline-offset: 1px;
+}
+.hm-cell--selected {
+  outline: 2px solid var(--primary) !important;
+  outline-offset: 1px;
+}
+.hm-cell:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* ── Zoom-out reset button ── */
+.hm-reset-btn {
+  background: none;
+  border: none;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--primary);
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: background 0.15s;
+  white-space: nowrap;
+  min-height: 28px;
+}
+.hm-reset-btn:hover { background: rgba(var(--primary-rgb), 0.08); }
+.hm-reset-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+
+/* ── Monthly Grid (modo C) ── */
+.heatmap-month-grid-wrap {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: min-content;
+}
+.heatmap-month-header {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  margin-bottom: 2px;
+}
+.hm-year-placeholder {
+  width: 36px;
+  flex-shrink: 0;
+}
+.hm-month-col-label {
+  width: var(--hm-month-cell);
+  font-size: 10px;
+  color: var(--text-muted);
+  text-align: center;
+  user-select: none;
+  flex-shrink: 0;
+}
+.heatmap-month-row {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+}
+.hm-year-label {
+  width: 36px;
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: right;
+  padding-right: 4px;
+  flex-shrink: 0;
+  user-select: none;
+  white-space: nowrap;
+}
+.heatmap-month-row .hm-cell {
+  width: var(--hm-month-cell);
+  height: var(--hm-month-cell);
+  border-radius: var(--hm-month-radius);
+}
+/* Sin cursor pointer en modo monthly — ELIMINADO: ahora también son clickables */
+.heatmap-month-row .hm-cell:not(.hm-cell--out) { cursor: pointer; }
+
+/* ── Leyenda ── */
+.heatmap-legend {
+  display: flex;
+  align-items: center;
+  gap: var(--hm-gap);
+  margin-top: 8px;
+  margin-left: 36px;
+}
+.hm-legend-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin: 0 4px;
+}
+.heatmap-legend .hm-cell:hover { outline: none; }
+
+/* ── Responsive / Mobile ── */
+@media (max-width: 600px) {
+  .heatmap-outer {
+    padding-bottom: 4px;
+  }
+}
+
+/* ─── TopMerchants panel ─────────────────────────────────────────────── */
+.merchants-list  { display: flex; flex-direction: column; }
+.merchants-row   {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.merchants-row:last-child { border-bottom: none; }
+.merchants-name  {
+  font-size: 14px;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-right: 12px;
+}
+.merchants-amount {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--expense);
+  white-space: nowrap;
+}
+
+/* ─── Analytics page title ───────────────────────────────────────────── */
+.analytics-page-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
+}
+
+.skeleton {
+  background: linear-gradient(90deg, var(--bg) 25%, var(--border) 50%, var(--bg) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+  border-radius: 6px;
+  height: 20px;
+}
+@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }

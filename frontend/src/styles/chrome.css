@@ -1,0 +1,83 @@
+/* ─── Toast ──────────────────────────────────────────────────────────── */
+.toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--income);
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+  font-size: 14px;
+  z-index: 1001;
+  max-width: 380px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  animation: slide-in 0.2s ease-out;
+}
+@keyframes slide-in {
+  from { transform: translateX(110%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+.toast-close {
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0;
+  font-size: 15px;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-left: auto;
+  font-family: inherit;
+}
+.toast-close:hover { color: var(--text); }
+/* ─── Language switcher ──────────────────────────────────────────────── */
+.lang-switcher {
+  display: flex;
+  gap: 4px;
+}
+.lang-btn {
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+.lang-btn:hover { border-color: var(--primary); color: var(--primary); }
+.lang-btn.active { background: var(--primary); color: var(--primary-contrast); border-color: var(--primary); }
+
+/* ─── Header right zone (user + logout + lang) ───────────────────────── */
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+.header-username {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+.logout-btn {
+  height: 28px;
+  padding: 0 12px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+  font-family: inherit;
+}
+.logout-btn:hover { border-color: var(--expense); color: var(--expense); }

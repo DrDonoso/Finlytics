@@ -1,0 +1,215 @@
+/* ─── Filter bar ─────────────────────────────────────────────────── */
+.filter-bar {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-end;
+}
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.filter-group label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+.filter-group input,
+.filter-group select {
+  height: 44px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.filter-group input:focus,
+.filter-group select:focus { border-color: var(--primary); }
+
+/* ── Native date input — styled trigger (calendar popup stays native) ─────
+   sure pattern: px-3 py-1.5 border border-primary rounded-lg text-sm
+   bg-container-inset text-primary → translated to Finlytics tokens          */
+.date-input-native {
+  min-width: 130px;
+  cursor: pointer;
+  color-scheme: light dark;
+  /* Compact height matching sure's py-1.5 feel — 36px desktop, 44px mobile */
+  height: 36px;
+  padding: 0 8px 0 12px;
+}
+/* Override the generic .filter-group input height (44px) with our explicit 36px */
+.filter-group input.date-input-native {
+  height: 36px;
+  padding: 0 8px 0 12px;
+}
+/* Calendar icon — subtle default, visible on hover/focus, dark-safe */
+.date-input-native::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.5;
+  border-radius: 3px;
+  padding: 2px;
+  transition: opacity 0.12s;
+}
+.date-input-native::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+/* Dark: pure white icon */
+[data-theme="dark"] .date-input-native { color-scheme: dark; }
+[data-theme="dark"] .date-input-native::-webkit-calendar-picker-indicator {
+  filter: brightness(0) invert(1);
+  opacity: 0.55;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .date-input-native { color-scheme: dark; }
+  :root:not([data-theme="light"]) .date-input-native::-webkit-calendar-picker-indicator {
+    filter: brightness(0) invert(1);
+    opacity: 0.55;
+  }
+}
+
+/* ── Custom DatePicker trigger ────────────────────────────────────────────
+   Replaces <input type="date"> in filter groups. Styled like a compact form
+   control: same 36px height, border/bg matching other inputs.              */
+.date-picker-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-width: 130px;
+  height: 36px;
+  padding: 0 8px 0 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text);
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s, background 0.15s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.date-picker-trigger:hover {
+  border-color: var(--primary);
+  background: rgba(var(--primary-rgb), 0.04);
+}
+.date-picker-trigger:focus-visible,
+.date-picker-trigger.is-open {
+  border-color: var(--primary);
+  outline: 2px solid rgba(var(--primary-rgb), 0.20);
+  outline-offset: 0;
+}
+.date-picker-trigger:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.date-picker-trigger__value {
+  flex: 1;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.date-picker-trigger__placeholder {
+  color: var(--text-muted);
+}
+.date-picker-trigger__icon {
+  color: var(--text-muted);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  transition: color 0.12s;
+}
+.date-picker-trigger:hover .date-picker-trigger__icon,
+.date-picker-trigger.is-open .date-picker-trigger__icon {
+  color: var(--primary);
+}
+/* Fill the filter-group width, matching native date input behaviour */
+.filter-group .date-picker-trigger {
+  width: 100%;
+}
+
+/* ── Date range wrapper — groups from + to in an inset panel ──────────────
+   Mirrors sure's bg-surface-inset p-3 rounded-lg pattern.
+   Uses var(--bg) inside var(--surface) filter-bar → natural sunken/inset look
+   in both themes without any theme-specific override.                        */
+.date-range-wrap {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  background: var(--bg);
+  padding: 10px 12px;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+/* Em-dash separator between from and to fields */
+.date-range-sep {
+  font-size: 14px;
+  color: var(--text-muted);
+  line-height: 1;
+  padding-bottom: 9px;   /* aligns with input center at align-items: flex-end */
+  flex-shrink: 0;
+  user-select: none;
+}
+/* In date-range-wrap, labels use sure's text-sm font-medium text-secondary */
+.date-range-wrap .filter-group label {
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text-muted);
+}
+/* tx-filter-panel uses CSS grid — wrap spans two columns */
+.tx-filter-panel .date-range-wrap {
+  grid-column: span 2;
+}
+
+@media (max-width: 600px) {
+  .filter-bar { padding: 12px; gap: 12px; }
+  .filter-group { width: 100%; }
+  .filter-group input, .filter-group select { width: 100%; }
+  /* Mobile: restore full 44px touch target */
+  .filter-group input.date-input-native { height: 44px; }
+  /* DatePicker trigger — full width + 44px touch target on mobile */
+  .date-picker-trigger { height: 44px; }
+  .filter-group .date-picker-trigger { width: 100%; height: 44px; }
+  /* Mobile: full column stack — filters → KPIs → Import */
+  .dashboard-header { flex-direction: column; align-items: stretch; }
+  /* Switch compact KPI strip to a clean 2-col grid so all 6 items
+     align in equal-width cells (no orphan/dropped cell, no cramping). */
+  .header-kpis {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px 16px;
+    border-left: none;
+    border-top: 1px solid var(--border);
+    align-items: start;
+  }
+  /* Divider between constant-net and filtered KPIs is meaningless in a
+     2-col grid — hide it to avoid occupying an unwanted grid cell. */
+  .header-kpi-divider { display: none; }
+  .dashboard-header-actions { align-self: center; margin: 0 12px 12px; }
+  /* Single column on mobile — span 1 */
+  .tx-filter-panel .date-range-wrap {
+    grid-column: span 1;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  /* Hide the em-dash when stacked vertically */
+  .tx-filter-panel .date-range-wrap .date-range-sep {
+    display: none;
+  }
+}

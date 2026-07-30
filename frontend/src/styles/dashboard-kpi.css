@@ -1,0 +1,374 @@
+/* ─── KPI destacada del Inicio ──────────────────────────────────────────────
+   «Patrimonio total» resume toda la aplicación, así que se lleva el degradado
+   de marca y una elevación propia.  Las otras dos KPI quedan planas detrás:
+   es lo que crea jerarquía en una fila que antes eran tres tarjetas idénticas.
+   ─────────────────────────────────────────────────────────────────────────── */
+.dashboard-kpi-strip {
+  grid-template-columns: 1.25fr 1fr 1fr;
+}
+@media (max-width: 900px) {
+  .dashboard-kpi-strip { grid-template-columns: 1fr 1fr; }
+  .dashboard-kpi-hero  { grid-column: 1 / -1; }
+}
+@media (max-width: 600px) {
+  .dashboard-kpi-strip { grid-template-columns: 1fr; }
+}
+
+.dashboard-kpi-hero {
+  position: relative;
+  overflow: hidden;
+  background: var(--brand-gradient);
+  border-color: transparent;
+  box-shadow: var(--shadow-hero);
+  color: #fff;
+}
+/* Destello superior derecho: da volumen al degradado sin añadir otra capa DOM. */
+.dashboard-kpi-hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--brand-gradient-sheen);
+  pointer-events: none;
+}
+.dashboard-kpi-hero > * { position: relative; z-index: 1; }
+.dashboard-kpi-hero .inv-kpi-card__label { color: rgba(255, 255, 255, 0.78); }
+.dashboard-kpi-hero .inv-kpi-card__value { color: #fff; }
+
+/* Desglose cuentas / inversiones bajo la cifra destacada. */
+.dashboard-kpi-breakdown {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  margin-top: 12px;
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.9);
+}
+.dashboard-kpi-breakdown__label {
+  display: block;
+  font-family: var(--font);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.62);
+  margin-bottom: 1px;
+}
+/* Valor que no se ha podido leer: se marca como texto, no como cifra. */
+.dashboard-kpi-breakdown__missing {
+  font-family: var(--font);
+  font-style: italic;
+  color: rgba(255, 255, 255, 0.62);
+}
+
+/* Aviso de patrimonio incompleto, dentro de la tarjeta con degradado. */
+.dashboard-kpi-hero__notice {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 1px solid rgba(255, 255, 255, 0.18);
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* Badge de variación.  Se expresa en puntos porcentuales, no en %, porque la
+   variación relativa entre dos porcentajes induce a error. */
+.dashboard-kpi-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 10px;
+  padding: 3px 9px;
+  border-radius: 20px;
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  font-size: 11.5px;
+  font-weight: 500;
+}
+.dashboard-kpi-delta__label {
+  font-family: var(--font);
+  font-weight: 400;
+  color: var(--text-muted);
+}
+.dashboard-kpi-delta.is-good { background: rgba(var(--income-rgb), 0.10); color: var(--income); }
+.dashboard-kpi-delta.is-bad  { background: rgba(var(--expense-rgb), 0.10); color: var(--expense); }
+.dashboard-kpi-delta.is-flat { background: rgba(var(--primary-rgb), 0.07); color: var(--text-muted); }
+
+/* Provider cards grid */
+.inv-provider-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+/* Single provider card */
+.inv-provider-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  cursor: pointer;
+  transition: box-shadow 0.15s;
+  text-decoration: none;
+}
+.inv-provider-card:hover {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+.inv-provider-card__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.inv-provider-card__icon {
+  font-size: 20px;
+}
+.inv-provider-card__name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+.inv-provider-card__value {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+}
+.inv-provider-card__gain {
+  font-size: 13px;
+  font-weight: 500;
+}
+.inv-provider-card__gain--positive { color: var(--income); }
+.inv-provider-card__gain--negative { color: var(--expense); }
+.inv-provider-card__cta {
+  font-size: 12px;
+  color: var(--primary);
+  margin-top: 4px;
+}
+/* ── InvestmentSnapshotCard ─────────────────────────────────────────────────── */
+.inv-snapshot-card {
+  margin-top: 16px;
+}
+.inv-snapshot-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.inv-snapshot-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0;
+}
+.inv-snapshot-link {
+  font-size: 13px;
+  color: var(--primary);
+  text-decoration: none;
+}
+.inv-snapshot-link:hover { text-decoration: underline; }
+
+.inv-snapshot-body { display: flex; flex-direction: column; gap: 12px; }
+
+.inv-snapshot-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.inv-snapshot-total-label {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.inv-snapshot-total-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.inv-snapshot-providers {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.inv-snapshot-provider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-top: 1px solid var(--border);
+  color: inherit;
+  text-decoration: none;
+  border-radius: 6px;
+  transition: background 0.15s, color 0.15s;
+}
+.inv-snapshot-provider:hover {
+  background: var(--bg);
+}
+.inv-snapshot-provider-icon { font-size: 18px; }
+.inv-snapshot-provider-name {
+  flex: 1;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.inv-snapshot-provider-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+.inv-snapshot-cta { margin-top: 8px; }
+
+/* ── Centralized platform logo rendering ───────────────────────────────────── */
+.plugin-logo,
+.plugin-logo-fallback {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+.plugin-logo {
+  display: block;
+  object-fit: contain;
+}
+.plugin-logo-fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+.nav-plugin-logo {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+}
+.plugin-card__icon.plugin-logo,
+.plugin-card__icon.plugin-logo-fallback {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+}
+
+/* ── Inicio accounts table ─────────────────────────────────────────────────── */
+.dashboard-accounts-card {
+  overflow: hidden;
+}
+.dashboard-accounts-table-wrap {
+  margin: 0 -8px;
+}
+.dashboard-account-row {
+  cursor: pointer;
+}
+.dashboard-account-row:hover {
+  background: var(--bg);
+}
+.dashboard-account-row:focus-visible {
+  outline: 2px solid rgba(var(--primary-rgb), 0.35);
+  outline-offset: -2px;
+}
+.dashboard-account-row--disabled {
+  cursor: default;
+}
+.dashboard-account-name-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.dashboard-account-name-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.dashboard-account-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.dashboard-statement-warning {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(var(--expense-rgb), 0.28);
+  background: rgba(var(--expense-rgb), 0.08);
+  color: var(--expense);
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1;
+  cursor: help;
+  padding: 0;
+  flex-shrink: 0;
+}
+.dashboard-statement-warning:hover,
+.dashboard-statement-warning:focus-visible {
+  border-color: var(--expense);
+  background: rgba(var(--expense-rgb), 0.12);
+}
+.dashboard-statement-warning:focus-visible {
+  outline: 2px solid rgba(var(--expense-rgb), 0.28);
+  outline-offset: 2px;
+}
+.dashboard-account-mask {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.dashboard-account-net {
+  font-weight: 700;
+}
+
+/* ── ImportSourcePicker modal ───────────────────────────────────────────────── */
+.import-picker-modal { max-width: 420px; width: 100%; }
+
+.import-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 0 4px;
+}
+
+.import-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 16px;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s, border-color 0.15s;
+  color: var(--text);
+}
+.import-picker-row:hover {
+  background: var(--bg);
+  border-color: var(--primary);
+}
+.import-picker-icon { font-size: 22px; flex-shrink: 0; }
+.import-picker-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.import-picker-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+.import-picker-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.import-picker-arrow {
+  font-size: 20px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}

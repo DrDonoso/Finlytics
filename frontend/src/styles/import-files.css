@@ -1,0 +1,192 @@
+/* ─── Styled file picker (ImportModal upload / error-recovery step) ── */
+.file-picker-wrap {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  min-height: 40px;
+}
+
+.file-picker-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.file-picker-btn--error {
+  border-color: var(--expense) !important;
+  color: var(--expense) !important;
+}
+
+.file-picker-chosen {
+  font-size: 13px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+@media (max-width: 600px) {
+  .file-picker-btn { height: 44px; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Batch import — progress, resolve, accordion preview, summary
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Cap warning / exceeded */
+.batch-cap-warning {
+  padding: 8px 12px;
+  background: color-mix(in srgb, var(--warning) 15%, transparent);
+  border: 1px solid var(--warning);
+  border-radius: 6px;
+  color: var(--warning);
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+.batch-cap-exceeded {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 32px 16px;
+  text-align: center;
+}
+.batch-cap-exceeded-icon { font-size: 36px; }
+.batch-cap-exceeded-title { font-size: 17px; font-weight: 600; color: var(--expense); }
+.batch-cap-exceeded-body { font-size: 14px; color: var(--text-muted); max-width: 360px; }
+
+/* Progress wrap */
+.batch-progress-wrap { display: flex; flex-direction: column; gap: 10px; }
+
+.batch-progress-label { font-size: 13px; color: var(--text-muted); }
+
+/* File list (extract + confirm progress) */
+.batch-file-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.batch-file-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--surface);
+  font-size: 13px;
+}
+.batch-file-icon { width: 18px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.batch-file-icon--done    { color: var(--income); }
+.batch-file-icon--error   { color: var(--expense); }
+/* Pendiente: círculo dibujado con borde, antes era el glifo «○». */
+.batch-file-icon--pending {
+  width: 10px;
+  height: 10px;
+  border: 1.6px solid var(--text-muted);
+  border-radius: 50%;
+  opacity: 0.45;
+}
+.batch-extract-header { display: flex; align-items: center; gap: 10px; }
+.batch-file-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.batch-file-error { color: var(--expense); font-size: 12px; flex-shrink: 0; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Resolve step */
+.batch-resolve-section { display: flex; flex-direction: column; gap: 16px; }
+.batch-resolve-list { display: flex; flex-direction: column; gap: 12px; }
+.batch-resolve-matched-banner {
+  padding: 8px 12px;
+  background: color-mix(in srgb, var(--income) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--income) 40%, transparent);
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--income);
+}
+.batch-resolve-new-iban-group,
+.batch-resolve-manual-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.batch-resolve-iban-banner { font-size: 13px; color: var(--text-muted); margin-bottom: 2px; }
+.batch-resolve-manual-label { font-size: 13px; font-weight: 500; }
+
+/* Accordion (preview step) */
+.batch-accordion { display: flex; flex-direction: column; gap: 8px; }
+.batch-accordion-item {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.batch-accordion-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  cursor: pointer;
+  background: var(--surface);
+  border: none;
+  width: 100%;
+  text-align: left;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  min-height: 44px;
+}
+.batch-accordion-header:hover { background: var(--hover, var(--surface)); filter: brightness(0.96); }
+.batch-accordion-chevron {
+  margin-left: auto;
+  font-size: 12px;
+  transition: transform 0.2s;
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+/* El selector era `.batch-accordion-chevron.--open`, que exigía una clase
+   literal `--open`; el marcado emite `batch-accordion-chevron--open`, así que
+   la flecha nunca giraba.  Ahora es un chevron que apunta a la derecha, de
+   modo que abierto son 90°, no 180°. */
+.batch-accordion-chevron--open { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) {
+  .batch-accordion-chevron { transition: none; }
+}
+.batch-accordion-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.batch-accordion-meta { font-size: 12px; font-weight: 400; color: var(--text-muted); flex-shrink: 0; display: flex; align-items: center; gap: 6px; }
+.batch-dup-badge {
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.batch-accordion-body { padding: 0 0 8px; border-top: 1px solid var(--border); }
+.batch-file-sep {
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 8px 0 4px;
+  letter-spacing: 0.04em;
+}
+.batch-accordion-file-content { padding: 0 8px; }
+
+/* Confirming step */
+.batch-confirming-title { font-size: 15px; font-weight: 600; margin-bottom: 10px; }
+
+/* Summary step */
+.batch-summary-section { display: flex; flex-direction: column; gap: 16px; }
+.batch-summary-title { font-size: 16px; font-weight: 700; }
+.batch-summary-totals { display: flex; flex-direction: column; gap: 6px; }
+.batch-summary-total-row { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.batch-summary-total-row--error { color: var(--expense); }
+.batch-detail-title { font-size: 13px; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; }
+.batch-detail-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.batch-detail-row { font-size: 13px; padding: 4px 0; }
+/* Mismo desajuste BEM que en el chevron: el marcado emite
+   `batch-detail-row--done` / `--error`, no una clase suelta `--done`. */
+.batch-detail-row--done { color: var(--income); }
+.batch-detail-row--error { color: var(--expense); }
