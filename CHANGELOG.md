@@ -4,6 +4,12 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260730.03] - 2026-07-30
+
+- wrangler.jsonc documented the deploy command as optional. The docs do call it optional, but the setup form requires it. It now records `npx wrangler@4 deploy` - major pinned because wrangler is deliberately not a devDependency (npm ci also runs in the Docker builds, which never use it), so npx would otherwise pull whatever is latest and a wrangler 5 could break the deploy with no change on our side.
+- docker-deploy.yml now ignores frontend/wrangler.jsonc. It is Cloudflare-only config that never reaches the Docker images, so editing it should not cut a release and republish both.
+
+
 ## [20260730.02] - 2026-07-30
 
 - frontend/wrangler.jsonc for Cloudflare Workers. Pure static, no `main`, so no Worker code runs. `not_found_handling: single-page-application` is the SPA fallback for BrowserRouter routes, and is stricter than a blanket `/* -> /index.html` rewrite: a missing ASSET still returns a real 404 instead of HTML.
