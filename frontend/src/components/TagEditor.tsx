@@ -1,6 +1,7 @@
 import { useState, useRef, useId, useMemo } from 'react'
 import type { Tag } from '../api/types'
 import { DEFAULT_TAG_COLOR, tagTextColor } from '../i18n'
+import { IconClose } from './icons'
 
 interface Props {
   tags: string[]
@@ -73,7 +74,7 @@ export default function TagEditor({ tags, availableTags, onChange, disabled, pla
                 onClick={e => { e.stopPropagation(); removeTag(tag) }}
                 aria-label={`Remove ${tag}`}
                 style={{ color: textC }}
-              >✕</button>
+              ><IconClose size={12} /></button>
             )}
           </span>
         )

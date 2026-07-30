@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from finlytics.api.auth import login_rate_limiter
 from finlytics.api.deps import get_db
 from finlytics.app import app
 from finlytics.auth.security import create_token, hash_password
@@ -497,3 +498,122 @@ async def test_data_endpoint_200_with_valid_cookie(auth_client):
             )
 
     assert resp.status_code == 200
+
+
+# ── POST /api/auth/login — límite de intentos ─────────────────────────────────
+#
+# El endpoint aceptaba intentos ilimitados, así que probar contraseñas por fuerza
+# bruta sólo estaba limitado por el ancho de banda. El contador va por IP y no por
+# usuario: si fuera por usuario, cualquiera podría bloquear una cuenta ajena.
+
+async def test_login_429_after_too_many_failures(auth_client):
+    """Agotado el cupo de intentos, el endpoint responde 429 en lugar de 401."""
+    client, session = auth_client
+    session.scalar = AsyncMock(return_value=None)   # usuario inexistente → 401
+
+    limit = login_rate_limiter.max_attempts
+    for _ in range(limit):
+        resp = await client.post(
+            "/api/auth/login",
+            json={"username": "attacker", "password": "guess-attempt-1"},
+        )
+        assert resp.status_code == 401
+
+    resp = await client.post(
+        "/api/auth/login",
+        json={"username": "attacker", "password": "guess-attempt-2"},
+    )
+
+    assert resp.status_code == 429
+    assert "Retry-After" in resp.headers
+    assert int(resp.headers["Retry-After"]) >= 1
+
+
+async def test_login_429_does_not_leak_whether_the_user_exists(auth_client):
+    """El 429 se devuelve antes de mirar en la base de datos.
+
+    Si el límite se comprobara después de la consulta, el tiempo de respuesta
+    seguiría revelando si el usuario existe pese al bloqueo.
+    """
+    client, session = auth_client
+    session.scalar = AsyncMock(return_value=None)
+
+    for _ in range(login_rate_limiter.max_attempts):
+        await client.post(
+            "/api/auth/login", json={"username": "attacker", "password": "whatever12"}
+        )
+
+    session.scalar.reset_mock()
+    resp = await client.post(
+        "/api/auth/login", json={"username": "drdonoso", "password": "MyStr0ngP@ss!"}
+    )
+
+    assert resp.status_code == 429
+    session.scalar.assert_not_called()
+
+
+async def test_successful_login_clears_the_counter(auth_client):
+    """Equivocarse y acertar después no deja penalización pendiente."""
+    client, session = auth_client
+
+    # Unos cuantos fallos, sin llegar al límite.
+    session.scalar = AsyncMock(return_value=None)
+    for _ in range(login_rate_limiter.max_attempts - 1):
+        await client.post(
+            "/api/auth/login", json={"username": "drdonoso", "password": "wrong-one-12"}
+        )
+
+    # Acierta.
+    session.scalar = AsyncMock(return_value=_fake_user())
+    ok = await client.post(
+        "/api/auth/login", json={"username": "drdonoso", "password": "MyStr0ngP@ss!"}
+    )
+    assert ok.status_code == 200
+
+    # El cupo vuelve a estar entero: el siguiente fallo es 401, no 429.
+    session.scalar = AsyncMock(return_value=None)
+    after = await client.post(
+        "/api/auth/login", json={"username": "drdonoso", "password": "wrong-two-12"}
+    )
+    assert after.status_code == 401
+
+
+async def test_login_limit_can_be_disabled(auth_client, monkeypatch):
+    """AUTH_LOGIN_MAX_ATTEMPTS=0 desactiva el límite por completo."""
+    client, session = auth_client
+    session.scalar = AsyncMock(return_value=None)
+
+    monkeypatch.setattr(login_rate_limiter, "max_attempts", 0)
+
+    for _ in range(25):
+        resp = await client.post(
+            "/api/auth/login", json={"username": "anyone", "password": "attempt-1234"}
+        )
+        assert resp.status_code == 401
+
+
+async def test_forged_forwarded_header_does_not_bypass_the_limit(auth_client):
+    """Variar X-Forwarded-For no debe regalar intentos nuevos.
+
+    Es el motivo por el que la IP se lee de la conexión: si se tomara del
+    encabezado, bastaría con cambiarlo en cada petición para no agotar nunca el
+    cupo y el límite quedaría en nada.
+    """
+    client, session = auth_client
+    session.scalar = AsyncMock(return_value=None)
+
+    for i in range(login_rate_limiter.max_attempts):
+        resp = await client.post(
+            "/api/auth/login",
+            json={"username": "attacker", "password": "guess-attempt"},
+            headers={"X-Forwarded-For": f"10.0.0.{i}"},
+        )
+        assert resp.status_code == 401
+
+    resp = await client.post(
+        "/api/auth/login",
+        json={"username": "attacker", "password": "guess-attempt"},
+        headers={"X-Forwarded-For": "10.0.0.250"},
+    )
+
+    assert resp.status_code == 429

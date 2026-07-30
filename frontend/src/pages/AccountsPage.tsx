@@ -1,14 +1,23 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import type { Account, AccountCreatePayload } from '../api/types'
-import { getAccounts, deleteAccount, patchAccount, createAccount } from '../api/client'
+import { deleteAccount, patchAccount, createAccount } from '../api/client'
+import { useAccounts, queryKeys } from '../api/queries'
+import { errorMessage } from '../api/errors'
 import { useT } from '../i18n'
+import { IconLoading, IconBank, IconPencil, IconTrash, IconClose, IconChevronDown, IconChevronRight } from '../components/icons'
 
 export default function AccountsPage() {
   const { t } = useT()
-  const [accounts, setAccounts] = useState<Account[]>([])
-  const [loading, setLoading] = useState(true)
+  const queryClient = useQueryClient()
+  const accountsQuery = useAccounts()
+  const EMPTY: never[] = useMemo(() => [], [])
+  const accounts = accountsQuery.data ?? EMPTY
+  const loading = accountsQuery.isPending
+  // Sólo errores de las mutaciones; el de la carga lo aporta la consulta.
   const [error, setError] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
+  const shownError = error ?? (accountsQuery.error ? errorMessage(accountsQuery.error, t) : null)
 
   const [deleteTarget, setDeleteTarget] = useState<Account | null>(null)
   const [deleting, setDeleting] = useState(false)
@@ -18,13 +27,6 @@ export default function AccountsPage() {
   const [editSaving, setEditSaving] = useState(false)
 
   const [createOpen, setCreateOpen] = useState(false)
-
-  useEffect(() => {
-    setLoading(true)
-    getAccounts()
-      .then(data => { setAccounts(data); setLoading(false) })
-      .catch(e => { setError(String(e)); setLoading(false) })
-  }, [])
 
   function showToast(msg: string) {
     setToast(msg)
@@ -37,11 +39,11 @@ export default function AccountsPage() {
     setDeleting(true)
     try {
       const result = await deleteAccount(target.id)
-      setAccounts(prev => prev.filter(a => a.id !== target.id))
+      await queryClient.invalidateQueries({ queryKey: queryKeys.accounts })
       setDeleteTarget(null)
       showToast(t.accountsDeleteToast(target.name, result.deleted))
     } catch (e) {
-      setError(String(e))
+      setError(errorMessage(e, t))
     } finally {
       setDeleting(false)
     }
@@ -52,11 +54,11 @@ export default function AccountsPage() {
     setEditSaving(true)
     try {
       const updated = await patchAccount(editTarget.id, editName.trim())
-      setAccounts(prev => prev.map(a => a.id === updated.id ? updated : a))
+      await queryClient.invalidateQueries({ queryKey: queryKeys.accounts })
       setEditTarget(null)
       showToast(t.accountsEditToast(updated.name))
     } catch (e) {
-      setError(String(e))
+      setError(errorMessage(e, t))
     } finally {
       setEditSaving(false)
     }
@@ -64,7 +66,7 @@ export default function AccountsPage() {
 
   function handleCreateSuccess(account: Account) {
     setCreateOpen(false)
-    setAccounts(prev => [...prev, account])
+    queryClient.invalidateQueries({ queryKey: queryKeys.accounts })
     showToast(t.accountsCreateToast(account.name))
   }
 
@@ -73,7 +75,7 @@ export default function AccountsPage() {
       <div className="card settings-card">
         <h2 className="settings-section-title">{t.accountsPageTitle}</h2>
 
-        {error && <div className="import-error" style={{ marginBottom: 16 }}>{error}</div>}
+        {shownError && <div className="import-error" style={{ marginBottom: 16 }}>{shownError}</div>}
 
         <div className="settings-add-form">
           <button className="btn-primary" type="button" onClick={() => setCreateOpen(true)}>
@@ -83,12 +85,12 @@ export default function AccountsPage() {
 
         {loading ? (
           <div className="state-box">
-            <span className="icon">⏳</span>
+            <IconLoading size={18} />
             <span>{t.loading}</span>
           </div>
         ) : accounts.length === 0 ? (
           <div className="state-box">
-            <span className="icon">🏦</span>
+            <IconBank size={18} />
             <span>{t.accountsEmpty}</span>
           </div>
         ) : (
@@ -108,13 +110,13 @@ export default function AccountsPage() {
                     onClick={() => { setEditTarget(account); setEditName(account.name) }}
                     title={t.accountsEditBtn}
                     aria-label={t.accountsEditBtn}
-                  >✏️</button>
+                  ><IconPencil size={15} /></button>
                   <button
                     className="btn-row-icon btn-row-delete"
                     onClick={() => setDeleteTarget(account)}
                     title={t.accountsDeleteBtn}
                     aria-label={t.accountsDeleteBtn}
-                  >🗑</button>
+                  ><IconTrash size={15} /></button>
                 </div>
               </div>
             ))}
@@ -247,7 +249,7 @@ function AccountCreateModal({ onSuccess, onCancel }: CreateModalProps) {
             aria-label={t.modalClose}
             onClick={onCancel}
             disabled={saving}
-          >✕</button>
+          ><IconClose size={16} /></button>
         </div>
 
         <div className="modal-body">
@@ -327,7 +329,7 @@ function AccountCreateModal({ onSuccess, onCancel }: CreateModalProps) {
                 disabled={saving}
                 aria-expanded={showOpening}
               >
-                <span aria-hidden="true">{showOpening ? '▼' : '▶'}</span>
+                {showOpening ? <IconChevronDown size={13} /> : <IconChevronRight size={13} />}
                 {t.accountsCreateOpeningTitle}
               </button>
 
@@ -450,7 +452,7 @@ function AccountEditModal({ account, name, saving, onChangeName, onConfirm, onCa
             aria-label={t.modalClose}
             onClick={onCancel}
             disabled={saving}
-          >✕</button>
+          ><IconClose size={16} /></button>
         </div>
 
         <div className="modal-body">
@@ -547,14 +549,13 @@ function AccountDeleteModal({ account, deleting, onConfirm, onCancel }: DeleteMo
             aria-label={t.modalClose}
             onClick={onCancel}
             disabled={deleting}
-          >✕</button>
+          ><IconClose size={16} /></button>
         </div>
 
         <div className="modal-body">
           <p style={{ fontSize: 14, lineHeight: 1.65, color: 'var(--text)', margin: 0 }}>
             {t.accountsDeleteBody(account.name, account.tx_count)}
-          </p>
-        </div>
+          </p>        </div>
 
         <div className="modal-footer">
           <button
@@ -573,6 +574,7 @@ function AccountDeleteModal({ account, deleting, onConfirm, onCancel }: DeleteMo
             disabled={deleting}
           >
             {deleting && <span className="btn-spinner" aria-hidden="true" />}
+            {!deleting && <IconTrash size={15} />}
             {t.accountsDeleteOk}
           </button>
         </div>

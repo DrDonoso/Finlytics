@@ -1,17 +1,12 @@
-import { useState, useEffect } from 'react'
-import { getAppVersion } from '../api/client'
-import type { AppVersion } from '../api/types'
+import { useAppVersion } from '../api/queries'
 import { useT } from '../i18n'
 
 const REPO = 'https://github.com/DrDonoso/Finlytics'
 
 export default function AboutPage() {
   const { t } = useT()
-  const [appVersion, setAppVersion] = useState<AppVersion | null>(null)
-
-  useEffect(() => {
-    getAppVersion().then(setAppVersion).catch(() => {})
-  }, [])
+  const versionQuery = useAppVersion()
+  const appVersion = versionQuery.data ?? null
 
   const imageTag = appVersion?.image_tag
   const displayVersion = imageTag ?? appVersion?.version ?? __APP_VERSION__

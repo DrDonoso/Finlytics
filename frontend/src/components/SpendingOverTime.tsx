@@ -4,6 +4,7 @@ import {
 } from 'recharts'
 import type { MonthSummary } from '../api/types'
 import { useT, langLocale } from '../i18n'
+import { IconAlert, IconLoading, IconChartBar } from './icons'
 
 interface Props {
   data: MonthSummary[]
@@ -34,21 +35,21 @@ export default function SpendingOverTime({ data, loading, error, selectedFlow, o
 
       {error && (
         <div className="state-box error">
-          <span className="icon">⚠</span>
+          <IconAlert size={18} />
           <span>{error}</span>
         </div>
       )}
 
       {!error && loading && (
         <div className="state-box">
-          <span className="icon">⏳</span>
+          <IconLoading size={18} />
           <span>{t.loading}</span>
         </div>
       )}
 
       {!error && !loading && chartData.length === 0 && (
         <div className="state-box">
-          <span className="icon">📊</span>
+          <IconChartBar size={18} />
           <span>{t.noDataPeriod}</span>
         </div>
       )}

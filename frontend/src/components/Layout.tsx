@@ -1,13 +1,17 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Outlet, NavLink, Link, useLocation, useNavigate } from 'react-router'
 import { useT } from '../i18n'
 import { useAuth } from '../contexts/AuthContext'
-import { getConnections } from '../api/client'
+import { useConnections } from '../api/queries'
 import { getPluginLogo, PLUGIN_VIEW_REGISTRY, pluginInitial } from '../investments/registry'
-import type { InvestmentConnection } from '../api/types'
 import NotificationBell from './NotificationBell'
 import LanguageSelect from './LanguageSelect'
+import { BrandMark } from './Brand'
 import { IS_DEMO } from '../demo/config'
+import {
+  IconMenu, IconHome, IconWallet, IconReceipt, IconChartLine, IconFileText,
+  IconTrendingUp, IconSettings, IconChevronDown, IconUser, IconLogout,
+} from './icons'
 
 const LS_COLLAPSED = 'finlytics_sidebar_collapsed'
 
@@ -36,13 +40,11 @@ export default function Layout() {
   // ── Investments accordion ────────────────────────────────────────────────
   const isOnInvestments = location.pathname.startsWith('/investments')
   const [investmentsExpanded, setInvestmentsExpanded] = useState(isOnInvestments)
-  const [connectedPlugins, setConnectedPlugins] = useState<InvestmentConnection[]>([])
-
-  useEffect(() => {
-    getConnections()
-      .then(conns => setConnectedPlugins(conns.filter(c => c.status === 'active')))
-      .catch(() => {})
-  }, [])
+  const connectionsQuery = useConnections()
+  const connectedPlugins = useMemo(
+    () => (connectionsQuery.data ?? []).filter(c => c.status === 'active'),
+    [connectionsQuery.data],
+  )
 
   useEffect(() => {
     if (isOnInvestments && !investmentsExpanded) setInvestmentsExpanded(true)
@@ -93,10 +95,10 @@ export default function Layout() {
           aria-label="Toggle navigation"
           type="button"
         >
-          <span className="hamburger-icon">☰</span>
+          <span className="hamburger-icon"><IconMenu size={18} /></span>
         </button>
         <Link to="/" className="topbar-logo-link">
-          <img src="/logo.png" alt="Finlytics" className="topbar-logo-img" />
+          <BrandMark size={28} />
           <span className="topbar-logo">Finlytics</span>
         </Link>
         <div className="topbar-actions">
@@ -124,7 +126,7 @@ export default function Layout() {
         {/* Nav */}
         <nav className="sidebar-nav">
           <NavLink to="/" end className={navLinkClass}>
-            <span className="nav-icon">🏠</span>
+            <IconHome size={17} className="nav-icon" />
             <span className="nav-label">{t.navHome}</span>
           </NavLink>
 
@@ -136,7 +138,7 @@ export default function Layout() {
                 className={`sidebar-section-btn${isOnFinances ? ' active' : ''}`}
                 onClick={() => navigate('/finances')}
               >
-                <span className="nav-icon">💳</span>
+                <IconWallet size={17} className="nav-icon" />
                 <span className="nav-label">{t.navFinances}</span>
               </button>
               <button
@@ -146,22 +148,22 @@ export default function Layout() {
                 aria-expanded={financesExpanded}
                 aria-label={t.navFinances}
               >
-                <span className={`sidebar-arrow${financesExpanded ? ' open' : ''}`}>▾</span>
+                <IconChevronDown size={15} className={`sidebar-arrow${financesExpanded ? ' open' : ''}`} />
               </button>
             </div>
             {financesExpanded && (
               <div className="sidebar-subnav">
                 <NavLink to="/transactions" className={navLinkClass}>
-                  <span className="nav-icon">📋</span>
+                  <IconReceipt size={17} className="nav-icon" />
                   <span className="nav-label">{t.navTransactions}</span>
                 </NavLink>
                 <NavLink to="/analytics" className={navLinkClass}>
-                  <span className="nav-icon">📈</span>
+                  <IconChartLine size={17} className="nav-icon" />
                   <span className="nav-label">{t.navAnalytics}</span>
                 </NavLink>
                 {!IS_DEMO && (
                   <NavLink to="/statements" className={navLinkClass}>
-                    <span className="nav-icon">📄</span>
+                    <IconFileText size={17} className="nav-icon" />
                     <span className="nav-label">{t.navStatements}</span>
                   </NavLink>
                 )}
@@ -177,7 +179,7 @@ export default function Layout() {
                 className={`sidebar-section-btn${isOnInvestments ? ' active' : ''}`}
                 onClick={() => navigate('/investments')}
               >
-                <span className="nav-icon">💰</span>
+                <IconTrendingUp size={17} className="nav-icon" />
                 <span className="nav-label">{t.navInvestments}</span>
               </button>
               {connectedPlugins.length > 0 && (
@@ -188,7 +190,7 @@ export default function Layout() {
                   aria-expanded={investmentsExpanded}
                   aria-label={t.navInvestments}
                 >
-                  <span className={`sidebar-arrow${investmentsExpanded ? ' open' : ''}`}>▾</span>
+                  <IconChevronDown size={15} className={`sidebar-arrow${investmentsExpanded ? ' open' : ''}`} />
                 </button>
               )}
             </div>
@@ -223,9 +225,9 @@ export default function Layout() {
               className={`sidebar-section-btn${isOnSettings ? ' active' : ''}`}
               onClick={() => setSettingsExpanded(v => !v)}
             >
-              <span className="nav-icon">⚙️</span>
+              <IconSettings size={17} className="nav-icon" />
               <span className="nav-label">{t.navSettings}</span>
-              <span className={`sidebar-arrow${settingsExpanded ? ' open' : ''}`}>▾</span>
+              <IconChevronDown size={15} className={`sidebar-arrow${settingsExpanded ? ' open' : ''}`} />
             </button>
             {settingsExpanded && (
               <div className="sidebar-subnav">
@@ -241,7 +243,7 @@ export default function Layout() {
                       aria-expanded={sgData}
                     >
                       {t.settingsGroupData}
-                      <span className={`sidebar-arrow${sgData ? ' open' : ''}`}>▾</span>
+                      <IconChevronDown size={14} className={`sidebar-arrow${sgData ? ' open' : ''}`} />
                     </button>
                     {sgData && (
                       <>
@@ -265,7 +267,7 @@ export default function Layout() {
                       aria-expanded={sgRules}
                     >
                       {t.settingsGroupRules}
-                      <span className={`sidebar-arrow${sgRules ? ' open' : ''}`}>▾</span>
+                      <IconChevronDown size={14} className={`sidebar-arrow${sgRules ? ' open' : ''}`} />
                     </button>
                     {sgRules && (
                       <NavLink to="/settings/rules" className={navLinkClass}>
@@ -281,7 +283,7 @@ export default function Layout() {
                       aria-expanded={sgSystem}
                     >
                       {t.settingsGroupSystem}
-                      <span className={`sidebar-arrow${sgSystem ? ' open' : ''}`}>▾</span>
+                      <IconChevronDown size={14} className={`sidebar-arrow${sgSystem ? ' open' : ''}`} />
                     </button>
                     {sgSystem && (
                       <>
@@ -304,7 +306,7 @@ export default function Layout() {
                   aria-expanded={sgApp}
                 >
                   {t.settingsGroupApp}
-                  <span className={`sidebar-arrow${sgApp ? ' open' : ''}`}>▾</span>
+                  <IconChevronDown size={14} className={`sidebar-arrow${sgApp ? ' open' : ''}`} />
                 </button>
                 {sgApp && (
                   <>
@@ -325,12 +327,16 @@ export default function Layout() {
         <div className="sidebar-footer">
           {username && (
             <div className="sidebar-user">
-              <span className="sidebar-username">👤 {username}</span>
+              <span className="sidebar-username">
+                <IconUser size={15} />
+                {username}
+              </span>
               <button
                 className="sidebar-logout"
                 onClick={() => { setMobileOpen(false); void onLogout() }}
                 type="button"
               >
+                <IconLogout size={15} />
                 {t.authLogout}
               </button>
             </div>

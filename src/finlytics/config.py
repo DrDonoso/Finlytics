@@ -87,6 +87,11 @@ class Settings(BaseSettings):
     auth_remember_expire_days: int = 30
     # Set False for localhost (http). Set True when behind an https reverse proxy.
     auth_cookie_secure: bool = False
+    # Failed-login throttling, counted per client IP (never per username: doing
+    # it per username would let anyone lock out the legitimate account).
+    # Set AUTH_LOGIN_MAX_ATTEMPTS=0 to disable the limit entirely.
+    auth_login_max_attempts: int = 10
+    auth_login_window_seconds: int = 300
 
     # ── Investments / connector encryption ───────────────────────────────────
     # App-wide Fernet key for encrypting all connector tokens at rest.

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router'
 import type { ValidatedAccount, InvestmentConnection } from '../api/types'
 import { validateIndexaToken, connectPlugin } from '../api/client'
 import { useT } from '../i18n'
+import { IconClose, IconTrendingUp, IconKey, IconLock, IconAlert, IconCheck } from './icons'
 
 type WizardStep = 1 | 2 | '3-loading' | '3-error' | '3-accounts' | 4
 
@@ -100,7 +101,7 @@ export default function IndexaWizard({ onClose, onConnected }: Props) {
         {/* Modal header */}
         <div className="modal-header">
           <span className="modal-title" id="wizard-title">{t.wizardTitle}</span>
-          <button className="modal-close" onClick={onClose} aria-label={t.wizardClose}>✕</button>
+          <button className="modal-close" onClick={onClose} aria-label={t.wizardClose}><IconClose size={16} /></button>
         </div>
 
         {/* Modal body */}
@@ -108,7 +109,7 @@ export default function IndexaWizard({ onClose, onConnected }: Props) {
 
           {step === 1 && (
             <div className="inv-wizard__body">
-              <span className="inv-wizard__logo" aria-hidden="true">📈</span>
+              <span className="inv-wizard__logo" aria-hidden="true"><IconTrendingUp size={44} /></span>
               <h2 className="inv-wizard__title">{t.wizardStep1Title}</h2>
               <p className="inv-wizard__desc">{t.wizardStep1Desc}</p>
               <a
@@ -117,10 +118,10 @@ export default function IndexaWizard({ onClose, onConnected }: Props) {
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                🔑 {t.wizardStep1Link}
+                <IconKey size={15} /> {t.wizardStep1Link}
               </a>
               <div className="inv-wizard__security-note">
-                <span className="inv-wizard__security-note-icon" aria-hidden="true">🔒</span>
+                <span className="inv-wizard__security-note-icon" aria-hidden="true"><IconLock size={15} /></span>
                 <span>{t.wizardSecurityNote}</span>
               </div>
             </div>
@@ -145,7 +146,7 @@ export default function IndexaWizard({ onClose, onConnected }: Props) {
                 />
               </div>
               <div className="inv-wizard__security-note">
-                <span className="inv-wizard__security-note-icon" aria-hidden="true">🔒</span>
+                <span className="inv-wizard__security-note-icon" aria-hidden="true"><IconLock size={15} /></span>
                 <span>{t.wizardSecurityNote}</span>
               </div>
             </div>
@@ -161,7 +162,7 @@ export default function IndexaWizard({ onClose, onConnected }: Props) {
           {step === '3-error' && (
             <div className="inv-wizard__body">
               <div className="inv-wizard__error-banner" role="alert">
-                <span className="inv-wizard__error-banner-icon" aria-hidden="true">⚠️</span>
+                <span className="inv-wizard__error-banner-icon" aria-hidden="true"><IconAlert size={16} /></span>
                 <span>{errorMsg ?? t.wizardErrorInvalidToken}</span>
               </div>
               <div className="inv-wizard__token-field">
@@ -209,13 +210,13 @@ export default function IndexaWizard({ onClose, onConnected }: Props) {
 
           {step === 4 && (
             <div className="inv-wizard__success">
-              <span className="inv-wizard__success-icon" aria-hidden="true">✅</span>
+              <span className="inv-wizard__success-icon" aria-hidden="true"><IconCheck size={40} /></span>
               <h2 className="inv-wizard__success-title">{t.wizardStep4Title}</h2>
               <p className="inv-wizard__success-desc">{t.wizardStep4Desc}</p>
               <div className="inv-wizard__success-accounts">
                 {connectedAccounts.map(acc => (
                   <div className="inv-wizard__success-account" key={acc.id}>
-                    <em className="inv-wizard__success-account-check" aria-hidden="true">✓</em>
+                    <em className="inv-wizard__success-account-check" aria-hidden="true"><IconCheck size={14} /></em>
                     {acc.account_label_masked}
                   </div>
                 ))}

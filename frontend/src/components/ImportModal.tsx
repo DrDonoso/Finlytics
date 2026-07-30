@@ -10,6 +10,10 @@ import { useT, type Dict, paletteColor } from '../i18n'
 import ImportPreviewTable, { type EditRow } from './ImportPreviewTable'
 import RuleFormModal from './RuleFormModal'
 import { computeLiveImportQuality, type LiveImportQuality } from './importQuality'
+import {
+  IconBan, IconAlert, IconCheck, IconClose, IconChevronRight,
+  IconFileText, IconRefresh,
+} from './icons'
 
 const SOFT_CAP = 12
 const HARD_CAP = 24
@@ -277,7 +281,10 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
     let cancelled = false
 
     async function runExtract() {
-      const previews: (PreviewResponse | null)[] = new Array(initialFiles.length).fill(null)
+      const previews: (PreviewResponse | null)[] = Array.from(
+        { length: initialFiles.length },
+        () => null,
+      )
 
       for (let i = 0; i < initialFiles.length; i++) {
         if (cancelled) break
@@ -588,7 +595,7 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
   function renderCapExceeded() {
     return (
       <div className="batch-cap-exceeded">
-        <div className="batch-cap-exceeded-icon">🚫</div>
+        <div className="batch-cap-exceeded-icon"><IconBan size={32} /></div>
         <div className="batch-cap-exceeded-title">
           {t.batchCapBlocked(initialFiles.length)}
         </div>
@@ -606,7 +613,7 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
       <div className="batch-progress-wrap">
         {initialFiles.length > SOFT_CAP && (
           <div className="batch-cap-warning">
-            ⚠ {t.batchCapWarning(initialFiles.length)}
+            <IconAlert size={15} /> {t.batchCapWarning(initialFiles.length)}
           </div>
         )}
         <div className="batch-extract-header">
@@ -620,9 +627,9 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
             <li key={i} className="batch-file-row">
               <span className="batch-file-icon">
                 {fi.extractStatus === 'running' && <div className="spinner spinner--sm" />}
-                {fi.extractStatus === 'done'    && <span className="batch-file-icon--done">✔</span>}
-                {fi.extractStatus === 'error'   && <span className="batch-file-icon--error">✗</span>}
-                {fi.extractStatus === 'pending' && <span className="batch-file-icon--pending">○</span>}
+                {fi.extractStatus === 'done'    && <span className="batch-file-icon--done"><IconCheck size={14} /></span>}
+                {fi.extractStatus === 'error'   && <span className="batch-file-icon--error"><IconClose size={14} /></span>}
+                {fi.extractStatus === 'pending' && <span className="batch-file-icon--pending" aria-hidden="true" />}
               </span>
               <span className="batch-file-name">{fi.file.name}</span>
               {fi.extractStatus === 'error' && fi.extractError && (
@@ -661,7 +668,7 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
         <div className="batch-resolve-list">
           {matchedEntries.map((e, i) => (
             <div key={i} className="batch-resolve-matched-banner">
-              ✓ {t.importDetectedAccount(e.masked, e.name)}
+              <IconCheck size={14} /> {t.importDetectedAccount(e.masked, e.name)}
             </div>
           ))}
 
@@ -842,11 +849,12 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
                 aria-controls={bodyId}
                 onClick={() => setOpenGroups(prev => {
                   const next = new Set(prev)
-                  isOpen ? next.delete(group.key) : next.add(group.key)
+                  if (isOpen) next.delete(group.key)
+                  else next.add(group.key)
                   return next
                 })}
               >
-                <span className={`batch-accordion-chevron${isOpen ? ' batch-accordion-chevron--open' : ''}`} aria-hidden="true">▶</span>
+                <IconChevronRight size={14} className={`batch-accordion-chevron${isOpen ? ' batch-accordion-chevron--open' : ''}`} />
                 <span className="batch-accordion-label">
                   <strong>{group.displayName}</strong>
                   {group.maskedIban && (
@@ -865,7 +873,7 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
 
               {isOpen && (
                 <div id={bodyId} className="batch-accordion-body" aria-labelledby={headerId}>
-                  {group.fileIndices.map((fileIdx, fi_i) => {
+                  {group.fileIndices.map((fileIdx, _fi_i) => {
                     const fi = fileItems[fileIdx]
                     const showSep = group.fileIndices.length > 1
                     const { name: resolvedName } = getResolvedAccount(fi)
@@ -925,9 +933,9 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
               <li key={i} className="batch-file-row">
                 <span className="batch-file-icon">
                   {fi.confirmStatus === 'running' && <div className="spinner spinner--sm" />}
-                  {fi.confirmStatus === 'done'    && <span className="batch-file-icon--done">✔</span>}
-                  {fi.confirmStatus === 'error'   && <span className="batch-file-icon--error">✗</span>}
-                  {fi.confirmStatus === 'pending' && <span className="batch-file-icon--pending">○</span>}
+                  {fi.confirmStatus === 'done'    && <span className="batch-file-icon--done"><IconCheck size={14} /></span>}
+                  {fi.confirmStatus === 'error'   && <span className="batch-file-icon--error"><IconClose size={14} /></span>}
+                  {fi.confirmStatus === 'pending' && <span className="batch-file-icon--pending" aria-hidden="true" />}
                 </span>
                 <span className="batch-file-name">{fi.file.name}</span>
                 {fi.confirmStatus === 'error' && fi.confirmError && (
@@ -951,11 +959,11 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
       <div className="batch-summary-section">
         <div className="batch-summary-title">{t.batchSummaryTitle}</div>
         <div className="batch-summary-totals">
-          <div className="batch-summary-total-row">📄 <strong>{t.batchSummaryStmts(doneItems.length)}</strong></div>
-          <div className="batch-summary-total-row">✅ <strong>{t.batchSummaryNewTx(totalInserted)}</strong></div>
-          <div className="batch-summary-total-row">🔁 <strong>{t.batchSummaryDupes(totalDupes)}</strong></div>
+          <div className="batch-summary-total-row"><IconFileText size={15} /> <strong>{t.batchSummaryStmts(doneItems.length)}</strong></div>
+          <div className="batch-summary-total-row"><IconCheck size={15} /> <strong>{t.batchSummaryNewTx(totalInserted)}</strong></div>
+          <div className="batch-summary-total-row"><IconRefresh size={15} /> <strong>{t.batchSummaryDupes(totalDupes)}</strong></div>
           {errorItems.length > 0 && (
-            <div className="batch-summary-total-row">❌ <strong>{t.batchSummaryErrors(errorItems.length)}</strong></div>
+            <div className="batch-summary-total-row batch-summary-total-row--error"><IconAlert size={15} /> <strong>{t.batchSummaryErrors(errorItems.length)}</strong></div>
           )}
         </div>
 
@@ -1054,7 +1062,7 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
               disabled={isBlocking}
               aria-label={t.modalClose}
             >
-              ✕
+              <IconClose size={16} />
             </button>
           </div>
 

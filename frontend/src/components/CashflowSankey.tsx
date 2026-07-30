@@ -2,6 +2,7 @@ import { useMemo, useCallback } from 'react'
 import { Sankey, ResponsiveContainer, Tooltip } from 'recharts'
 import type { Category, CashflowSummary } from '../api/types'
 import { useT, categoryLabel, formatCurrency } from '../i18n'
+import { IconAlert, IconLoading, IconChartBar, IconArrowUp, IconArrowDown } from './icons'
 
 type NodeType = 'income' | 'center' | 'expense'
 
@@ -232,21 +233,21 @@ export default function CashflowSankey({ data, loading, error, categories, selec
 
       {error && (
         <div className="state-box error">
-          <span className="icon">⚠</span>
+          <IconAlert size={18} />
           <span>{error}</span>
         </div>
       )}
 
       {!error && loading && (
         <div className="state-box">
-          <span className="icon">⏳</span>
+          <IconLoading size={18} />
           <span>{t.loading}</span>
         </div>
       )}
 
       {!error && !loading && !sankeyData && (
         <div className="state-box">
-          <span className="icon">📊</span>
+          <IconChartBar size={18} />
           <span>{t.noDataPeriod}</span>
         </div>
       )}
@@ -255,10 +256,10 @@ export default function CashflowSankey({ data, loading, error, categories, selec
         <div>
           <div className="cashflow-totals">
             <span style={{ color: 'var(--income)' }}>
-              ↑ {fmtCur(data!.total_income)} {t.legendIncome}
+              <IconArrowUp size={13} /> {fmtCur(data!.total_income)} {t.legendIncome}
             </span>
             <span style={{ color: 'var(--expense)' }}>
-              ↓ {fmtCur(data!.total_expense)} {t.legendExpense}
+              <IconArrowDown size={13} /> {fmtCur(data!.total_expense)} {t.legendExpense}
             </span>
           </div>
           <div className="sankey-scroll-wrapper">

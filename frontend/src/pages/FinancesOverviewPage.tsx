@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useRef, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
-import type { Account, Category, Tag, GlobalFilters, Overview, CategorySummary, ImportResult } from '../api/types'
-import { getAccounts, getCategories, getTags, getOverview, getByCategory,
-  getByAccount, formatEur,
-} from '../api/client'
+import { useQueryClient } from '@tanstack/react-query'
+import type { GlobalFilters, ImportResult } from '../api/types'
+import { formatEur } from '../api/client'
+import { useAccounts, useByAccount, useByCategory, useCategories, useOverview, useTags } from '../api/queries'
+import { errorMessage } from '../api/errors'
 import GlobalFilterBar from '../components/GlobalFilterBar'
 import KpiCards from '../components/KpiCards'
 import SpendingByCategory from '../components/SpendingByCategory'
@@ -14,23 +15,17 @@ import ImportLauncher, { type ImportLauncherHandle } from '../components/ImportL
 import TransactionsTable from '../components/TransactionsTable'
 import { useT, categoryLabel, formatDate } from '../i18n'
 import { defaultRange } from '../utils'
+import { IconClose, IconChevronRight } from '../components/icons'
 import { IS_DEMO } from '../demo/config'
 
 function makeDefaultFilters(): GlobalFilters {
   return { ...defaultRange(), tags: [] }
 }
 
-interface AsyncState<T> {
-  loading: boolean
-  error: string | null
-  data: T | null
-}
-
-function idle<T>(): AsyncState<T> { return { loading: true, error: null, data: null } }
-
 export default function FinancesOverviewPage() {
   const { t, lang } = useT()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [searchParams] = useSearchParams()
   const [filters, setFilters] = useState<GlobalFilters>(() => {
     const next = makeDefaultFilters()
@@ -38,25 +33,28 @@ export default function FinancesOverviewPage() {
     if (Number.isFinite(accountId) && accountId > 0) next.account_id = accountId
     return next
   })
-  const [accounts,   setAccounts]   = useState<Account[]>([])
-  const [categories, setCategories] = useState<Category[]>([])
-  const [allTags,    setAllTags]    = useState<Tag[]>([])
 
-  const [overview,      setOverview]      = useState<AsyncState<Overview>>(idle())
-  const [byCategory,    setByCategory]    = useState<AsyncState<CategorySummary[]>>(idle())
+  const accountsQuery = useAccounts()
+  const categoriesQuery = useCategories()
+  const tagsQuery = useTags()
+  // Se memoizan las listas vacías: `?? []` crea un array nuevo en cada render y
+  // arrastraría a recalcular todo lo que dependa de ellas.
+  const EMPTY: never[] = useMemo(() => [], [])
+  const accounts = accountsQuery.data ?? EMPTY
+  const categories = categoriesQuery.data ?? EMPTY
+  const allTags = tagsQuery.data ?? EMPTY
 
   const [importFiles, setImportFiles] = useState<File[] | null>(null)
   const launcherRef = useRef<ImportLauncherHandle>(null)
-  const [refreshKey, setRefreshKey]   = useState(0)
   const [toast,      setToast]        = useState<string | null>(null)
   const [preZoomFilters, setPreZoomFilters] = useState<GlobalFilters | null>(null)
-  const [historicNet, setHistoricNet] = useState<number | null>(null)
 
   function handleImportSuccess(result: ImportResult) {
     setImportFiles(null)
     setToast(t.toastSuccess(result.num_inserted, result.num_duplicates))
     setTimeout(() => setToast(null), 6000)
-    setRefreshKey(k => k + 1)
+    // Importar cambia las transacciones, así que todo lo derivado deja de valer.
+    void queryClient.invalidateQueries()
   }
 
   function handleSelectPeriod(from: string, to: string) {
@@ -94,38 +92,33 @@ export default function FinancesOverviewPage() {
     }
   }
 
-  useEffect(() => {
-    getAccounts().then(setAccounts).catch(() => {})
-    getCategories().then(setCategories).catch(() => {})
-    getTags().then(setAllTags).catch(() => {})
-    getByAccount()
-      .then(rows => setHistoricNet(rows.reduce((s, r) => s + r.net, 0)))
-      .catch(() => {})
-  }, [])
+  const historicNetQuery = useByAccount()
+  const historicNet = historicNetQuery.data
+    ? historicNetQuery.data.reduce((s, r) => s + r.net, 0)
+    : null
 
-  useEffect(() => {
-    const params = {
-      from:        filters.from || undefined,
-      to:          filters.to   || undefined,
-      account_id:  filters.account_id,
-      category_id: filters.category_id,
-      tags:        filters.tags.length > 0 ? filters.tags : undefined,
-      flow:        filters.flow,
-      merchant:    filters.merchant || undefined,
-      day:         filters.day || undefined,
-    }
+  // Los parámetros forman parte de la clave de caché, así que una respuesta
+  // lenta de un filtro anterior ya no puede pisar a la del filtro activo.
+  const summaryParams = useMemo(() => ({
+    from:        filters.from || undefined,
+    to:          filters.to   || undefined,
+    account_id:  filters.account_id,
+    category_id: filters.category_id,
+    tags:        filters.tags.length > 0 ? filters.tags : undefined,
+    flow:        filters.flow,
+    merchant:    filters.merchant || undefined,
+    day:         filters.day || undefined,
+  }), [filters])
 
-    setOverview(idle())
-    setByCategory(idle())
+  // by-category ignora category_id a propósito: si no, al elegir una categoría
+  // el gráfico se quedaría con un único sector y no habría nada que comparar.
+  const categoryParams = useMemo(() => {
+    const { category_id: _ignored, ...rest } = summaryParams
+    return rest
+  }, [summaryParams])
 
-    getOverview(params)
-      .then(d  => setOverview({ loading: false, error: null,     data: d }))
-      .catch(e => setOverview({ loading: false, error: String(e), data: null }))
-
-    getByCategory({ from: params.from, to: params.to, account_id: params.account_id, tags: params.tags, flow: params.flow, merchant: params.merchant, day: params.day })
-      .then(d  => setByCategory({ loading: false, error: null,     data: d }))
-      .catch(e => setByCategory({ loading: false, error: String(e), data: null }))
-  }, [filters, refreshKey])
+  const overviewQuery = useOverview(summaryParams)
+  const byCategoryQuery = useByCategory(categoryParams)
 
   return (
     <>
@@ -140,9 +133,9 @@ export default function FinancesOverviewPage() {
             onClear={() => { setFilters(makeDefaultFilters()); setPreZoomFilters(null) }}
           />
           <KpiCards
-            overview={overview.data}
-            loading={overview.loading}
-            error={overview.error}
+            overview={overviewQuery.data ?? null}
+            loading={overviewQuery.isPending}
+            error={overviewQuery.error ? errorMessage(overviewQuery.error, t) : null}
             compact
           />
           <div className="dashboard-header-actions">
@@ -156,7 +149,7 @@ export default function FinancesOverviewPage() {
               className="btn-secondary"
               onClick={() => navigate('/transactions')}
             >
-              {t.btnViewTransactions}
+              {t.btnViewTransactions} <IconChevronRight size={14} />
             </button>
             {/* Statement import runs LLM extraction server-side — not available
                 in the static demo. */}
@@ -173,10 +166,10 @@ export default function FinancesOverviewPage() {
 
         <div className="charts-row-category">
           <SpendingByCategory
-            data={byCategory.data ?? []}
+            data={byCategoryQuery.data ?? []}
             categories={categories}
-            loading={byCategory.loading}
-            error={byCategory.error}
+            loading={byCategoryQuery.isPending}
+            error={byCategoryQuery.error ? errorMessage(byCategoryQuery.error, t) : null}
             selectedCategoryId={filters.category_id}
             onCategoryClick={(id) => setFilters(f => ({ ...f, category_id: f.category_id === id ? undefined : id }))}
           />
@@ -184,8 +177,7 @@ export default function FinancesOverviewPage() {
             globalFilters={filters}
             selectedMerchant={filters.merchant}
             onMerchantClick={m => setFilters(f => ({ ...f, merchant: f.merchant === m ? undefined : m }))}
-            refreshKey={refreshKey}
-            periodTotalExpense={overview.data?.total_expense ?? null}
+            periodTotalExpense={overviewQuery.data?.total_expense ?? null}
           />
         </div>
 
@@ -195,7 +187,6 @@ export default function FinancesOverviewPage() {
             globalFilters={filters}
             onSelectPeriod={handleSelectPeriod}
             onResetPeriod={preZoomFilters ? handleResetPeriod : undefined}
-            refreshKey={refreshKey}
           />
         </div>
 
@@ -215,7 +206,7 @@ export default function FinancesOverviewPage() {
                       className="filter-chip-remove"
                       onClick={() => setFilters(f => ({ ...f, category_id: undefined }))}
                       aria-label={t.filterClearChip}
-                    >✕</button>
+                    ><IconClose size={13} /></button>
                   </span>
                 )
               })()}
@@ -228,7 +219,7 @@ export default function FinancesOverviewPage() {
                     className="filter-chip-remove"
                     onClick={() => setFilters(f => ({ ...f, merchant: undefined }))}
                     aria-label={t.filterClearChip}
-                  >✕</button>
+                  ><IconClose size={13} /></button>
                 </span>
               )}
 
@@ -242,7 +233,7 @@ export default function FinancesOverviewPage() {
                     className="filter-chip-remove"
                     onClick={handleResetPeriod}
                     aria-label={t.filterClearChip}
-                  >✕</button>
+                  ><IconClose size={13} /></button>
                 </span>
               )}
 
@@ -254,7 +245,7 @@ export default function FinancesOverviewPage() {
                     className="filter-chip-remove"
                     onClick={() => setFilters(f => ({ ...f, day: undefined }))}
                     aria-label={t.filterClearChip}
-                  >✕</button>
+                  ><IconClose size={13} /></button>
                 </span>
               )}
 
@@ -275,7 +266,7 @@ export default function FinancesOverviewPage() {
             allTags={allTags}
             merchant={filters.merchant}
             hideInternalFilters
-            onEditSuccess={() => setRefreshKey(k => k + 1)}
+            onEditSuccess={() => void queryClient.invalidateQueries()}
           />
         </div>
       </main>
@@ -296,7 +287,7 @@ export default function FinancesOverviewPage() {
       {toast && (
         <div className="toast">
           <span>{toast}</span>
-          <button className="toast-close" onClick={() => setToast(null)} aria-label={t.toastClose}>✕</button>
+          <button className="toast-close" onClick={() => setToast(null)} aria-label={t.toastClose}><IconClose size={14} /></button>
         </div>
       )}
     </>

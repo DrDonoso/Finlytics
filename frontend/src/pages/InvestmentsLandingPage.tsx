@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react'
 import { Link } from 'react-router'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
-import type { CombinedOverview } from '../api/types'
-import { getCombinedOverview } from '../api/client'
+import { useCombinedOverview } from '../api/queries'
+import { errorMessage } from '../api/errors'
 import { getPluginLogo, pluginInitial } from '../investments/registry'
 import { useT } from '../i18n'
+import { IconLoading, IconChartBar, IconChartPie, IconChevronRight, IconAlert } from '../components/icons'
 
 const PROVIDER_COLORS: Record<string, string> = {
   indexa:   '#2563eb',
@@ -38,15 +38,11 @@ function signedEur(n: number): string {
 
 export default function InvestmentsLandingPage() {
   const { t } = useT()
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [overview, setOverview] = useState<CombinedOverview | null>(null)
-
-  useEffect(() => {
-    getCombinedOverview()
-      .then(data => { setOverview(data); setLoading(false) })
-      .catch(e => { setError(String(e)); setLoading(false) })
-  }, [])
+  const overviewQuery = useCombinedOverview()
+  const loading = overviewQuery.isPending
+  // Error en crudo: se traduce al pintar, así sigue al idioma activo.
+  const error = overviewQuery.error
+  const overview = overviewQuery.data ?? null
 
   if (loading) {
     return (
@@ -56,7 +52,7 @@ export default function InvestmentsLandingPage() {
         </div>
         <div className="card">
           <div className="state-box">
-            <span className="icon">⏳</span>
+            <IconLoading size={18} />
             <span>{t.loading}</span>
           </div>
         </div>
@@ -64,7 +60,26 @@ export default function InvestmentsLandingPage() {
     )
   }
 
-  if (error || !overview || overview.providers.length === 0) {
+  // Un fallo al leer no es lo mismo que no tener conectores: antes ambos casos
+  // pintaban «aún no hay inversiones», que induce a pensar que no hay datos
+  // cuando lo que ha ocurrido es que no se han podido consultar.
+  if (error) {
+    return (
+      <main className="dashboard">
+        <div className="investments-header">
+          <h1 className="investments-page-title">{t.invCombinedTitle}</h1>
+        </div>
+        <div className="card">
+          <div className="state-box error">
+            <IconAlert size={18} />
+            <span>{errorMessage(error, t)}</span>
+          </div>
+        </div>
+      </main>
+    )
+  }
+
+  if (!overview || overview.providers.length === 0) {
     return (
       <main className="dashboard">
         <div className="investments-header">
@@ -72,10 +87,10 @@ export default function InvestmentsLandingPage() {
         </div>
         <div className="card investments-holdings-card">
           <div className="investments-empty">
-            <span className="investments-empty__icon" aria-hidden="true">📊</span>
+            <IconChartBar size={28} className="investments-empty__icon" />
             <p className="investments-empty__text">{t.invLandingEmpty}</p>
             <Link to="/settings/connectors" className="btn-primary">
-              {t.investmentsManageConnectors}
+              {t.investmentsManageConnectors} <IconChevronRight size={14} />
             </Link>
           </div>
         </div>
@@ -138,7 +153,7 @@ export default function InvestmentsLandingPage() {
         <div className="card">
           <h3 className="card-title">{t.invCombinedByProvider}</h3>
           {providerDonutData.length === 0 ? (
-            <div className="state-box"><span className="icon">🍩</span><span>{t.noDataPeriod}</span></div>
+            <div className="state-box"><IconChartPie size={18} /><span>{t.noDataPeriod}</span></div>
           ) : (
             <div className="cat-chart-layout">
               <div className="cat-donut-wrap">
@@ -208,7 +223,7 @@ export default function InvestmentsLandingPage() {
         <div className="card">
           <h3 className="card-title">{t.invCombinedByAssetClass}</h3>
           {assetDonutData.length === 0 ? (
-            <div className="state-box"><span className="icon">🍩</span><span>{t.noDataPeriod}</span></div>
+            <div className="state-box"><IconChartPie size={18} /><span>{t.noDataPeriod}</span></div>
           ) : (
             <div className="cat-chart-layout">
               <div className="cat-donut-wrap">
@@ -308,7 +323,9 @@ export default function InvestmentsLandingPage() {
                     </>
                 }
               </div>
-              <span className="inv-provider-card__cta">→ Ver detalle</span>
+              <span className="inv-provider-card__cta">
+                {t.invProviderCta} <IconChevronRight size={13} />
+              </span>
             </Link>
           )
         })}

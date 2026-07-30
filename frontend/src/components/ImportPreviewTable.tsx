@@ -5,6 +5,7 @@ import DateInput from './DateInput'
 import TagTypeahead from './TagTypeahead'
 import PreviewTypeahead, { type PreviewTypeaheadOption } from './PreviewTypeahead'
 import type { LiveImportQuality } from './importQuality'
+import { IconAlert, IconInfo, IconSettings, IconClose, IconLink } from './icons'
 
 export type EditRow = ImportTransaction & {
   _key: number
@@ -44,7 +45,7 @@ export default function ImportPreviewTable({
 
   const signalLabel = (code: string) => t.importQualitySignalLabels[code] ?? t.importQualityUnknownSignal
   const signalMessage = (code: string) => t.importQualitySignalMessages[code] ?? t.importQualityUnknownSignal
-  const severityMark = (severity: string) => severity === 'error' ? '!' : severity === 'warning' ? '⚠' : 'i'
+  const severityMark = (severity: string) => severity === 'info' ? <IconInfo size={12} /> : <IconAlert size={12} />
   const flagBadges = (row: EditRow, field: string) => {
     const flags = (liveQuality.rowFlagsByKey.get(row._key) ?? []).filter(flag => flag.fields.includes(field))
     if (flags.length === 0) return null
@@ -145,10 +146,18 @@ export default function ImportPreviewTable({
             {flaggedOnly ? t.importQualityShowAllRows : t.importQualityFlaggedOnly}
           </button>
         )}
-        {hasLowConf && <span className="confidence-hint" style={{ fontSize: 12 }}>{t.modalLowConfidence}</span>}
+        {hasLowConf && (
+          <span className="confidence-hint" style={{ fontSize: 12 }}>
+            <IconAlert size={13} /> {t.modalLowConfidence}
+          </span>
+        )}
       </div>
 
-      {showYearWarning && <div className="year-warning-banner">{t.modalYearNotFound}</div>}
+      {showYearWarning && (
+        <div className="year-warning-banner">
+          <IconAlert size={15} /> {t.modalYearNotFound}
+        </div>
+      )}
 
       <div className="preview-table-wrap">
         <table className="preview-table">
@@ -289,7 +298,7 @@ export default function ImportPreviewTable({
                           className="rule-match-badge"
                           title={t.ruleMatchTooltip(row.matched_rule_name ?? '')}
                         >
-                          {t.ruleMatchBadge}
+                          <IconLink size={11} /> {t.ruleMatchBadge}
                         </span>
                       )}
                     </div>
@@ -328,12 +337,12 @@ export default function ImportPreviewTable({
                         className="btn-row-icon btn-create-rule"
                         onClick={() => onCreateRule(row)}
                         title={t.createRuleBtn}
-                      >⚙+</button>
+                      ><IconSettings size={15} /></button>
                       <button
                         className="btn-row-delete"
                         onClick={() => onDeleteRow(row._key)}
                         title={t.previewDeleteRow}
-                      >✕</button>
+                      ><IconClose size={15} /></button>
                     </div>
                   </td>
                 </tr>

@@ -1,24 +1,20 @@
-import { useState, useEffect } from 'react'
+import { useMemo, useState } from 'react'
 import type { MouseEvent, ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useNavigate } from 'react-router'
-import type { Account, AccountSummary, CombinedOverview, Overview, StatementReminder } from '../api/types'
 import {
-  getAccounts, getOverview, getOverviewMonths, getByAccount,
-  getCombinedOverview, getStatementReminder,
-} from '../api/client'
+  useAccounts, useByAccount, useCombinedOverview,
+  useOverview, useOverviewMonths, useStatementReminder,
+} from '../api/queries'
+import { errorMessage } from '../api/errors'
 import InvestmentSnapshotCard from '../components/InvestmentSnapshotCard'
 import { useT } from '../i18n'
 import type { Lang } from '../i18n'
 import { useNotifications } from '../contexts/NotificationsContext'
-
-interface AsyncState<T> {
-  loading: boolean
-  error: string | null
-  data: T | null
-}
-
-function idle<T>(): AsyncState<T> { return { loading: true, error: null, data: null } }
+import { savingsRate } from '../utils/comparison'
+import {
+  IconInfo, IconAlert, IconLoading, IconArrowUpRight, IconArrowDownRight,
+} from '../components/icons'
 
 function formatEur(value: number | null | undefined): string {
   if (value === null || value === undefined) return '—'
@@ -42,6 +38,13 @@ function signedCurrency(value: number | null): string {
 
 function accountKey(name: string): string {
   return name.trim().toLowerCase()
+}
+
+/** Rango `from`/`to` de un mes "YYYY-MM" completo, para filtrar el resumen. */
+function monthRange(ym: string): { from: string; to: string } {
+  const [year, month] = ym.split('-').map(Number)
+  const lastDay = new Date(year, month, 0).getDate()
+  return { from: `${ym}-01`, to: `${ym}-${String(lastDay).padStart(2, '0')}` }
 }
 
 function formatMonthLabel(ym: string, lang: Lang): string {
@@ -124,7 +127,7 @@ function PortalTooltipButton({
 function InfoTooltip({ text }: { text: string }) {
   return (
     <PortalTooltipButton text={text} className="inv-info-tip dashboard-info-tip">
-      ⓘ
+      <IconInfo size={13} />
     </PortalTooltipButton>
   )
 }
@@ -137,8 +140,29 @@ function StatementWarning({ label, text }: { label: string; text: string }) {
       className="dashboard-statement-warning"
       onClick={event => event.stopPropagation()}
     >
-      ⚠
+      <IconAlert size={14} />
     </PortalTooltipButton>
+  )
+}
+
+/**
+ * Variación en puntos porcentuales entre dos tasas.
+ *
+ * Se muestra en `pp` y no en `%` a propósito: la variación relativa entre dos
+ * porcentajes se malinterpreta con facilidad (pasar del 10 % al 12 % es +2 pp,
+ * no «+20 %»).
+ */
+function DeltaPill({ points, label }: { points: number | null; label: string }) {
+  if (points === null) return null
+  const rounded = Number(points.toFixed(1))
+  const tone = rounded > 0 ? 'is-good' : rounded < 0 ? 'is-bad' : 'is-flat'
+  const Arrow = rounded > 0 ? IconArrowUpRight : rounded < 0 ? IconArrowDownRight : null
+  return (
+    <div className={`dashboard-kpi-delta ${tone}`}>
+      {Arrow && <Arrow size={12} />}
+      <span>{rounded > 0 ? '+' : ''}{rounded.toFixed(1)} pp</span>
+      <span className="dashboard-kpi-delta__label">{label}</span>
+    </div>
   )
 }
 
@@ -147,66 +171,65 @@ export default function Dashboard() {
   const navigate = useNavigate()
   const { notifications } = useNotifications()
 
-  const [accounts, setAccounts] = useState<AsyncState<Account[]>>(idle())
-  const [overview, setOverview] = useState<AsyncState<Overview>>(idle())
-  const [investmentsOverview, setInvestmentsOverview] = useState<AsyncState<CombinedOverview>>(idle())
-  const [byAccount, setByAccount] = useState<AsyncState<AccountSummary[]>>(idle())
-  const [monthsCount, setMonthsCount] = useState<AsyncState<number>>(idle())
-  const [refreshKey] = useState(0)
-  const [statementReminder, setStatementReminder] = useState<StatementReminder | null>(null)
+  // Estabiliza el array vacío: `?? []` inline crea uno nuevo por render y rompería deps aguas abajo
+  const EMPTY: never[] = useMemo(() => [], [])
 
-  useEffect(() => {
-    getAccounts()
-      .then(d => setAccounts({ loading: false, error: null, data: d }))
-      .catch(e => setAccounts({ loading: false, error: String(e), data: null }))
-    getStatementReminder().then(setStatementReminder).catch(() => setStatementReminder(null))
-  }, [])
+  const accountsQuery = useAccounts()
+  const overviewQuery = useOverview()
+  const investmentsQuery = useCombinedOverview()
+  const byAccountQuery = useByAccount()
+  const monthsQuery = useOverviewMonths()
+  const reminderQuery = useStatementReminder()
 
-  // Fetch available months once for global monthly averages.
-  useEffect(() => {
-    setMonthsCount(idle())
-    getOverviewMonths()
-      .then(({ months }) => setMonthsCount({ loading: false, error: null, data: months.length }))
-      .catch(e => setMonthsCount({ loading: false, error: String(e), data: null }))
-  }, [refreshKey])
+  const accounts = accountsQuery.data ?? EMPTY
+  const byAccount = byAccountQuery.data ?? EMPTY
+  const overview = overviewQuery.data ?? null
+  const monthList = monthsQuery.data?.months ?? EMPTY
+  const statementReminder = reminderQuery.data ?? null
 
-  // Fetch all-time account nets and investment value for the cross-domain KPI strip.
-  useEffect(() => {
-    setInvestmentsOverview(idle())
-    setByAccount(idle())
+  const accountsError = accountsQuery.error ? errorMessage(accountsQuery.error, t) : null
+  const byAccountError = byAccountQuery.error ? errorMessage(byAccountQuery.error, t) : null
 
-    getByAccount()
-      .then(d => setByAccount({ loading: false, error: null, data: d }))
-      .catch(e => setByAccount({ loading: false, error: String(e), data: null }))
+  // Compara la tasa de ahorro de los dos últimos meses con datos.
+  // Son datos reales del backend, no una estimación: si sólo hay un mes, no se
+  // muestra variación en vez de inventar una referencia.
+  const hasTwoMonths = monthList.length >= 2
+  const prevMonth = hasTwoMonths ? monthList[monthList.length - 2] : null
+  const curMonth = hasTwoMonths ? monthList[monthList.length - 1] : null
+  const curRange = useMemo(() => (curMonth ? monthRange(curMonth) : undefined), [curMonth])
+  const prevRange = useMemo(() => (prevMonth ? monthRange(prevMonth) : undefined), [prevMonth])
+  const curSavingsQuery = useOverview(curRange, { enabled: hasTwoMonths })
+  const prevSavingsQuery = useOverview(prevRange, { enabled: hasTwoMonths })
 
-    getCombinedOverview()
-      .then(d => setInvestmentsOverview({ loading: false, error: null, data: d }))
-      .catch(e => setInvestmentsOverview({ loading: false, error: String(e), data: null }))
-  }, [refreshKey])
+  /** Variación de la tasa de ahorro (en pp) del último mes con datos frente al anterior. */
+  const savingsRateShift = useMemo(() => {
+    if (!hasTwoMonths || !curSavingsQuery.data || !prevSavingsQuery.data) return null
+    const current = savingsRate(curSavingsQuery.data)
+    const previous = savingsRate(prevSavingsQuery.data)
+    if (current === null || previous === null) return null
+    return current - previous
+  }, [hasTwoMonths, curSavingsQuery.data, prevSavingsQuery.data])
 
-  // Fetch all-time overview for historical/global KPIs.
-  useEffect(() => {
-    setOverview(idle())
+  const monthsCount = monthList.length > 0 ? monthList.length : null
+  const allTimeSavingsRate = overview ? savingsRate(overview) : null
 
-    getOverview()
-      .then(d => setOverview({ loading: false, error: null, data: d }))
-      .catch(e => setOverview({ loading: false, error: String(e), data: null }))
-  }, [refreshKey])
-
-  const savingsRate = overview.data && overview.data.total_income > 0
-    ? (overview.data.net / overview.data.total_income) * 100
-    : null
-
-  const averageMonthlyNet = overview.data && monthsCount.data && monthsCount.data > 0
-    ? overview.data.net / monthsCount.data
+  const averageMonthlyNet = overview && monthsCount && monthsCount > 0
+    ? overview.net / monthsCount
     : null
 
   const averageMonthlyNetClass = averageMonthlyNet == null ? '' : averageMonthlyNet >= 0 ? 'inv-kpi-card__value--pos' : 'inv-kpi-card__value--neg'
 
-  const accountByName = new Map((accounts.data ?? []).map(account => [accountKey(account.name), account]))
-  const accountNetTotal = byAccount.data?.reduce((sum, row) => sum + row.net, 0) ?? 0
-  const investmentsValue = investmentsOverview.data?.total_value_eur ?? 0
-  const totalNetWorth = accountNetTotal + investmentsValue
+  const accountByName = new Map(accounts.map(account => [accountKey(account.name), account]))
+  const accountNetTotal = byAccount.reduce((sum, row) => sum + row.net, 0)
+  const investmentsValue = investmentsQuery.data?.total_value_eur ?? 0
+
+  // Degradación parcial: un fallo al leer las inversiones no debe ocultar el
+  // neto de las cuentas, que sí está disponible.  Antes cualquiera de los dos
+  // errores dejaba el patrimonio en «—» y se perdía información que sí se tenía.
+  const investmentsFailed = Boolean(investmentsQuery.error)
+  const accountsPending = byAccountQuery.isPending || Boolean(byAccountQuery.error)
+  const netWorthPending = accountsPending || investmentsQuery.isPending
+  const totalNetWorth = accountNetTotal + (investmentsFailed ? 0 : investmentsValue)
   const missingStatementAccountIds = statementReminder?.year != null && statementReminder.month != null
     ? new Set(statementReminder.missing_account_ids)
     : new Set<number>()
@@ -217,11 +240,33 @@ export default function Dashboard() {
   return (
     <main className="dashboard">
       <div className="inv-kpi-strip dashboard-kpi-strip">
-        <div className="inv-kpi-card">
+        {/* Patrimonio total lleva el degradado de marca: es la cifra que resume
+            toda la aplicación, así que deja de ser una tarjeta más entre tres. */}
+        <div className="inv-kpi-card dashboard-kpi-hero">
           <div className="inv-kpi-card__label">{t.dashboardKpiTotalNet}</div>
           <div className="inv-kpi-card__value">
-            {byAccount.loading || investmentsOverview.loading || byAccount.error || investmentsOverview.error ? '—' : formatEur(totalNetWorth)}
+            {netWorthPending ? '—' : formatEur(totalNetWorth)}
           </div>
+          {!netWorthPending && (
+            <div className="dashboard-kpi-breakdown">
+              <span>
+                <span className="dashboard-kpi-breakdown__label">{t.dashboardNetWorthAccounts}</span>
+                {formatEur(accountNetTotal)}
+              </span>
+              <span>
+                <span className="dashboard-kpi-breakdown__label">{t.dashboardNetWorthInvestments}</span>
+                {investmentsFailed
+                  ? <span className="dashboard-kpi-breakdown__missing">{t.dashboardNetWorthUnavailable}</span>
+                  : formatEur(investmentsValue)}
+              </span>
+            </div>
+          )}
+          {!netWorthPending && investmentsFailed && (
+            <div className="dashboard-kpi-hero__notice">
+              <IconAlert size={13} />
+              <span>{t.dashboardNetWorthPartial}</span>
+            </div>
+          )}
         </div>
         <div className="inv-kpi-card">
           <div className="inv-kpi-card__label dashboard-kpi-label">
@@ -229,8 +274,9 @@ export default function Dashboard() {
             <InfoTooltip text={t.dashboardKpiSavingsRateInfo} />
           </div>
           <div className="inv-kpi-card__value">
-            {overview.loading ? '—' : overview.error ? '—' : signedPercent(savingsRate)}
+            {overviewQuery.isPending ? '—' : overviewQuery.error ? '—' : signedPercent(allTimeSavingsRate)}
           </div>
+          <DeltaPill points={savingsRateShift} label={t.dashboardSavingsRateVsPrevMonth} />
         </div>
         <div className="inv-kpi-card">
           <div className="inv-kpi-card__label dashboard-kpi-label">
@@ -238,28 +284,33 @@ export default function Dashboard() {
             <InfoTooltip text={t.dashboardKpiAverageMonthlyNetInfo} />
           </div>
           <div className={`inv-kpi-card__value ${averageMonthlyNetClass}`}>
-            {overview.loading || monthsCount.loading || overview.error || monthsCount.error
+            {overviewQuery.isPending || monthsQuery.isPending || overviewQuery.error || monthsQuery.error
               ? '—'
               : averageMonthlyNet === null
                 ? '—'
                 : `${signedCurrency(averageMonthlyNet)} ${t.dashboardPerMonthSuffix}`}
           </div>
+          {monthsCount !== null && monthsCount > 0 && (
+            <div className="dashboard-kpi-delta is-flat">
+              <span className="dashboard-kpi-delta__label">{t.dashboardMonthsTracked(monthsCount)}</span>
+            </div>
+          )}
         </div>
       </div>
 
       <div className="card dashboard-accounts-card">
         <h3 className="card-title">{t.dashboardAccountsTitle}</h3>
-        {accounts.loading || byAccount.loading ? (
+        {accountsQuery.isPending || byAccountQuery.isPending ? (
           <div className="state-box">
-            <span className="icon">⏳</span>
+            <IconLoading size={18} />
             <span>{t.loading}</span>
           </div>
-        ) : accounts.error || byAccount.error ? (
+        ) : accountsError || byAccountError ? (
           <div className="state-box error">
-            <span className="icon">⚠️</span>
-            <span>{accounts.error ?? byAccount.error}</span>
+            <IconAlert size={18} />
+            <span>{accountsError ?? byAccountError}</span>
           </div>
-        ) : byAccount.data && byAccount.data.length > 0 ? (
+        ) : byAccount.length > 0 ? (
           <div className="cat-table-wrap dashboard-accounts-table-wrap">
             <table className="cat-table dashboard-accounts-table">
               <thead>
@@ -270,11 +321,11 @@ export default function Dashboard() {
                 </tr>
               </thead>
               <tbody>
-                {byAccount.data.map(row => {
+                {byAccount.map(row => {
                   const account = accountByName.get(accountKey(row.account))
                   const rowKey = account?.id ?? row.account
                   const netCls = row.net >= 0 ? 'inv-kpi-card__value--pos' : 'inv-kpi-card__value--neg'
-                  const averageMonthlyExpense = monthsCount.data && monthsCount.data > 0 ? row.expense / monthsCount.data : null
+                  const averageMonthlyExpense = monthsCount && monthsCount > 0 ? row.expense / monthsCount : null
                   return (
                     <tr
                       key={rowKey}
@@ -307,7 +358,7 @@ export default function Dashboard() {
                       </td>
                       <td className={`cat-td-num dashboard-account-net ${netCls}`}>{formatEur(row.net)}</td>
                       <td className="cat-td-num cat-td-weight">
-                        {monthsCount.loading || monthsCount.error ? '—' : formatEur(averageMonthlyExpense)}
+                        {monthsQuery.isPending || monthsQuery.error ? '—' : formatEur(averageMonthlyExpense)}
                       </td>
                     </tr>
                   )
@@ -330,7 +381,10 @@ export default function Dashboard() {
         const period = typeof activeEspp.title_args.period === 'string' ? activeEspp.title_args.period : null
         return (
           <div className="espp-reminder-banner" role="alert">
-            <span>⚠ {t.esppReminderBanner(period)}</span>
+            <span className="espp-reminder-banner__text">
+              <IconAlert size={16} />
+              {t.esppReminderBanner(period)}
+            </span>
             <Link to="/investments/fidelity-espp" className="espp-reminder-banner__link">
               {t.esppReminderAction}
             </Link>

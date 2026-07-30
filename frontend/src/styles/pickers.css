@@ -1,0 +1,857 @@
+/* ─── Color swatch picker ──────────────────────────────────────────────── */
+.color-swatch-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  position: relative;
+}
+.color-swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+  outline: none;
+  transition: transform 0.12s, box-shadow 0.12s;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: inherit;
+  font-size: 13px;
+}
+.color-swatch:hover:not(:disabled) {
+  transform: scale(1.18);
+  z-index: 1;
+}
+.color-swatch-selected {
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px rgba(0, 0, 0, 0.6) !important;
+  transform: scale(1.1);
+}
+[data-theme="dark"] .color-swatch-selected {
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px rgba(255, 255, 255, 0.7) !important;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .color-swatch-selected {
+    box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px rgba(255, 255, 255, 0.7) !important;
+  }
+}
+.color-swatch:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.color-swatch:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.color-swatch-custom {
+  background: conic-gradient(
+    #ef4444, #f97316, #eab308, #84cc16, #10b981,
+    #06b6d4, #3b82f6, #8b5cf6, #ec4899, #ef4444
+  ) !important;
+  color: white;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
+  font-weight: 700;
+  line-height: 1;
+}
+.color-swatch-hidden-input {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+  border: none;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* ─── Tag edit row (column layout) ────────────────────────────────────── */
+.settings-tag-row-editing {
+  background: rgba(var(--primary-rgb), 0.03);
+  border-color: var(--primary);
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  padding: 10px 12px;
+}
+.settings-tag-edit-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.settings-tag-edit-bottom {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* ─── Category edit row (column layout) ───────────────────────────────── */
+.settings-cat-row-editing {
+  flex-direction: column;
+  align-items: stretch;
+  background: rgba(var(--primary-rgb), 0.03);
+  border-color: var(--primary);
+  gap: 8px;
+  padding: 10px 12px;
+}
+.settings-cat-edit-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.settings-cat-edit-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ─── KPI delta badges (compact header) ─────────────────────────────── */
+
+/* Thin vertical rule separating the constant net from the filtered KPIs */
+.header-kpi-divider {
+  align-self: stretch;
+  width: 1px;
+  background: var(--border);
+  margin: 6px 4px;
+  flex-shrink: 0;
+}
+
+.header-kpi-delta {  font-size: 10px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  line-height: 1.3;
+}
+.header-kpi-delta-good    { color: var(--income); }
+.header-kpi-delta-bad     { color: var(--expense); }
+.header-kpi-delta-neutral { color: var(--text-muted); }
+
+/* ─── Category movers table ──────────────────────────────────────────── */
+.movers-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.movers-th {
+  padding: 0 8px 7px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  text-align: right;
+}
+.movers-th-name   { text-align: left; }
+.movers-th-change { text-align: right; }
+.movers-row {
+  border-bottom: 1px solid var(--border);
+  transition: background 0.1s;
+}
+.movers-row:last-child { border-bottom: none; }
+.movers-row:hover { background: var(--bg); }
+.movers-td {
+  padding: 6px 8px;
+  vertical-align: middle;
+}
+.movers-td-name   { font-size: 12px; min-width: 90px; }
+.movers-td-num    { text-align: right; font-variant-numeric: tabular-nums; }
+.movers-td-prev   { color: var(--text-muted); }
+.movers-td-change { text-align: right; }
+.movers-delta {
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.movers-delta-up      { color: var(--expense); }
+.movers-delta-down    { color: var(--income); }
+.movers-delta-neutral { color: var(--text-muted); font-style: italic; }
+.movers-delta-dash    { color: var(--text-muted); }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Statements page (.stmts-*, .month-nav, .month-header, .btn-danger)
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── Month nav bar ──────────────────────────────────────────────────── */
+.month-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.month-nav-arrow {
+  min-width: 44px;
+  min-height: 44px;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 22px;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  font-family: inherit;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.month-nav-arrow:hover:not(:disabled) {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: rgba(var(--primary-rgb), 0.05);
+}
+.month-nav-arrow:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+/* ─── MonthPicker trigger — replaces <input type="month"> in .month-nav ───
+   Matches sure's period nav: a popover trigger button, font-medium, chevron  */
+.month-picker-trigger {
+  min-width: 180px;
+  height: 44px;
+  padding: 0 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s, background 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.month-picker-trigger:hover {
+  border-color: var(--primary);
+  background: rgba(var(--primary-rgb), 0.04);
+}
+.month-picker-trigger:focus-visible,
+.month-picker-trigger.is-open {
+  border-color: var(--primary);
+  outline: 2px solid rgba(var(--primary-rgb), 0.20);
+  outline-offset: 0;
+}
+.month-picker-trigger:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+/* Small chevron ▾ inside the trigger */
+.month-picker-trigger__chevron {
+  font-size: 10px;
+  color: var(--text-muted);
+  transition: transform 0.15s;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.month-picker-trigger.is-open .month-picker-trigger__chevron {
+  transform: rotate(180deg);
+}
+
+/* ─── Picker panel — shared base for MonthPicker (and future DateField) ───
+   Mirrors .tag-typeahead-suggestions: fixed positioning, surface bg, app shadow.
+   Coordinates injected via inline style in React (getBoundingClientRect).     */
+.picker-panel {
+  position: fixed;
+  z-index: 9999;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12), 0 1px 6px rgba(0, 0, 0, 0.06);
+  padding: 12px;
+  min-width: 240px;
+}
+/* Dark: heavier shadow — same pattern as .tag-typeahead-suggestions */
+[data-theme="dark"] .picker-panel {
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5), 0 1px 6px rgba(0, 0, 0, 0.4);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .picker-panel {
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5), 0 1px 6px rgba(0, 0, 0, 0.4);
+  }
+}
+
+/* Panel header: ‹ [title] › */
+.picker-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  gap: 4px;
+}
+.picker-nav-btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 16px;
+  color: var(--text);
+  cursor: pointer;
+  font-family: inherit;
+  line-height: 1;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+  flex-shrink: 0;
+}
+.picker-nav-btn:hover:not(:disabled) {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: rgba(var(--primary-rgb), 0.05);
+}
+.picker-nav-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -1px;
+}
+.picker-nav-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.picker-panel-title {
+  flex: 1;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* ─── Month grid (3×4) ─────────────────────────────────────────── */
+.month-picker-panel {
+  /* inherits .picker-panel; specific size */
+  min-width: 240px;
+}
+.month-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+.month-cell {
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 400;
+  border-radius: 8px;
+  border: none;
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.1s, color 0.1s;
+  text-transform: capitalize;
+}
+.month-cell:hover:not(.is-disabled):not(.is-selected):not(.is-empty) {
+  background: rgba(var(--primary-rgb), 0.08);
+  color: var(--primary);
+}
+.month-cell:active:not(.is-disabled):not(.is-empty) {
+  background: rgba(var(--primary-rgb), 0.15);
+}
+.month-cell:focus-visible:not(.is-disabled):not(.is-empty) {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+/* Current calendar month (today's month, not the selected one) */
+.month-cell.is-current:not(.is-selected) {
+  font-weight: 700;
+  color: var(--primary);
+}
+/* Selected (the month being viewed) */
+.month-cell.is-selected {
+  background: var(--primary);
+  color: var(--primary-contrast);
+  font-weight: 600;
+}
+/* Inactive = outside min/max or no data when activeMonths provided */
+.month-cell.is-inactive {
+  opacity: 0.28;
+}
+/* Months with no data but still in range — clearly gray/inert; NOT pointer-events:none so cursor:not-allowed renders */
+.month-cell.is-empty:not(.is-selected) {
+  color: var(--text-muted);
+  opacity: 0.45;
+  cursor: not-allowed;
+  font-weight: 400;
+}
+/* Hard disabled (outside min/max — non-clickable) */
+.month-cell.is-disabled {
+  opacity: 0.25;
+  cursor: default;
+  pointer-events: none;
+}
+
+/* "Mes actual" shortcut — resets to the current calendar month */
+.picker-today-btn {
+  width: 100%;
+  margin-top: 10px;
+  height: 30px;
+  padding: 0 10px;
+  background: none;
+  color: var(--primary);
+  border: 1px solid rgba(var(--primary-rgb), 0.30);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+.picker-today-btn:hover {
+  background: rgba(var(--primary-rgb), 0.06);
+  border-color: var(--primary);
+}
+.picker-today-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+/* Hide the button when the current month is already selected */
+.picker-today-btn.is-hidden {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* ─── Day picker panel (DatePicker) ────────────────────────────────────────
+   Inherits .picker-panel. Weekday header + 6×7 day grid.                  */
+.day-picker-panel {
+  width: 280px;
+}
+/* Weekday header row: Mon Tue … Sun */
+.day-weekday-header {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  margin-bottom: 4px;
+}
+.day-weekday-cell {
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+/* Day grid — 6 rows × 7 columns */
+.day-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+.day-cell {
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 400;
+  border-radius: 6px;
+  border: none;
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+  font-family: inherit;
+  padding: 0;
+  line-height: 1;
+  transition: background 0.1s, color 0.1s;
+}
+.day-cell:hover:not(.is-disabled):not(.is-selected) {
+  background: rgba(var(--primary-rgb), 0.08);
+}
+.day-cell:active:not(.is-disabled) {
+  background: rgba(var(--primary-rgb), 0.15);
+}
+.day-cell:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+/* Today: bold primary color */
+.day-cell.is-today {
+  font-weight: 700;
+  color: var(--primary);
+}
+/* Selected: primary fill */
+.day-cell.is-selected {
+  background: var(--primary);
+  color: var(--primary-contrast);
+  font-weight: 600;
+}
+/* Outside-month days — muted and slightly transparent */
+.day-cell.is-outside {
+  color: var(--text-muted);
+  opacity: 0.55;
+}
+.day-cell.is-outside.is-today {
+  color: var(--primary);
+  opacity: 1;
+}
+/* Disabled (outside min/max) */
+.day-cell.is-disabled {
+  opacity: 0.25;
+  cursor: default;
+  pointer-events: none;
+}
+
+/* Mobile */
+@media (max-width: 600px) {
+  .month-picker-trigger {
+    /* full touch target already 44px — no change needed */
+  }
+  .month-cell { height: 44px; }
+  .day-cell   { height: 44px; }
+  .picker-panel {
+    min-width: min(240px, calc(100vw - 24px));
+    max-width: calc(100vw - 24px);
+  }
+  .day-picker-panel {
+    width: min(280px, calc(100vw - 24px));
+    max-width: calc(100vw - 24px);
+  }
+}
+
+/* ── Month summary header ───────────────────────────────────────────── */
+/* Flex row: totals fill available width, actions pinned to the right   */
+.month-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+/* Totals group (reuses .tx-totals) takes the available space */
+.month-header > .tx-totals {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* Delete button: small icon-only, low visual weight, red on hover */
+.btn-icon-trash {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  flex-shrink: 0;
+  padding: 0;
+  font-family: inherit;
+}
+.btn-icon-trash:hover {
+  color: var(--expense);
+  border-color: var(--expense);
+  background: rgba(var(--expense-rgb), 0.06);
+}
+
+/* Mobile ≤600px: stack vertically, totals become 2×2 grid */
+@media (max-width: 600px) {
+  .month-header { flex-direction: column; }
+  .month-header > .tx-totals {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    /* .month-header has align-items: flex-start, so children shrink to
+       content width in column-flex mode. Force full width here. */
+    width: 100%;
+  }
+  .month-header > .tx-totals .tx-total {
+    flex: unset;
+  }
+  .btn-icon-trash { width: 44px; height: 44px; }
+}
+
+/* ── Delete confirm modal: compact width ────────────────────────────── */
+.stmt-delete-modal {
+  max-width: 420px !important;
+  width: min(420px, 100%);
+}
+@media (max-width: 600px) {
+  .stmt-delete-modal {
+    width: 100%;
+    max-width: 100% !important;
+  }
+}
+
+/* ── btn-danger: red fill / white text — same shape as btn-primary ───── */
+.btn-danger {
+  height: 38px;
+  padding: 0 18px;
+  background: var(--expense);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: inherit;
+}
+.btn-danger:hover:not(:disabled) { opacity: 0.85; }
+.btn-danger:disabled { opacity: 0.45; cursor: default; }
+
+/* Inline spinner for btn-danger loading state (reuses existing spin keyframe) */
+.btn-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+/* Mobile touch target */
+@media (max-width: 600px) {
+  .btn-danger { height: 44px; }
+}
+
+/* ── Statements empty state ─────────────────────────────────────────── */
+.stmts-empty {
+  min-height: 240px;
+  gap: 12px;
+}
+.stmts-empty .btn-primary { margin-top: 4px; }
+
+/* ── Download-original button & dropdown ─────────────────────────────── */
+.stmts-download-wrap {
+  position: relative;
+  flex-shrink: 0;
+  align-self: flex-start;
+}
+.btn-download-original {
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  font-family: inherit;
+  transition: border-color 0.15s, background 0.15s;
+}
+.btn-download-original:hover {
+  border-color: var(--primary);
+  background: var(--surface-hover);
+}
+.originals-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 220px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  z-index: 200;
+  padding: 4px;
+}
+.originals-dropdown-item {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  text-align: left;
+  width: 100%;
+  font-family: inherit;
+  gap: 2px;
+  transition: background 0.12s;
+}
+.originals-dropdown-item:hover { background: var(--surface-hover); }
+.originals-dropdown-item-filename {
+  font-size: 13px;
+  color: var(--text);
+  font-weight: 500;
+  word-break: break-all;
+}
+.originals-dropdown-item-account {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+@media (max-width: 600px) {
+  .btn-download-original { height: 44px; }
+  .originals-dropdown { min-width: 180px; }
+}
+
+/* ── Statements account selector bar ────────────────────────────────── */
+.stmts-account-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.stmts-account-bar label {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.stmts-account-bar select {
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+  padding: 0 8px;
+  cursor: pointer;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.stmts-account-bar select:focus { border-color: var(--primary); }
+
+.stmts-header-import {
+  margin-left: auto;
+  height: 32px;
+  padding: 0 12px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+@media (max-width: 600px) {
+  .stmts-account-bar { flex-wrap: wrap; }
+  .stmts-header-import { height: 44px; }
+}
+
+/* ── Rule form: preview bar + apply button ───────────────────────────── */
+/* Make the rule modal footer flex-wrap to accommodate the preview bar */
+.modal-footer .rule-preview-bar {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-right: auto;
+}
+.rule-preview-text {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.rule-preview-text--loading { font-style: italic; }
+.rule-preview-text--error   { color: var(--expense); }
+.rule-preview-text--none    { color: var(--text-muted); }
+.rule-preview-text--ok      { color: var(--income); font-weight: 500; }
+
+.btn-apply-rule {
+  height: 34px;
+  padding: 0 14px;
+  background: transparent;
+  color: var(--warning);
+  border: 1.5px solid var(--warning);
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: inherit;
+}
+.btn-apply-rule:hover:not(:disabled) { background: rgba(var(--warning-rgb), 0.1); }
+.btn-apply-rule:disabled { opacity: 0.45; cursor: default; }
+
+/* Amber spinner variant for the apply button */
+.btn-spinner--amber {
+  border-color: rgba(var(--warning-rgb), 0.35);
+  border-top-color: var(--warning);
+}
+
+/* ── Account number chip (AccountsPage) ──────────────────────────────────── */
+.acct-number-chip {
+  font-size: 11px;
+  font-family: monospace;
+  color: var(--text-muted);
+  background: rgba(0,0,0,0.04);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 6px;
+  margin-left: 8px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ── Account create modal — opening balance section ──────────────────────── */
+.acct-create-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.acct-opening-toggle-btn {
+  background: none;
+  border: none;
+  color: var(--primary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: inherit;
+}
+.acct-opening-toggle-btn:hover:not(:disabled) { text-decoration: underline; }
+.acct-opening-toggle-btn:disabled { opacity: 0.5; cursor: default; }
+.acct-opening-section {
+  border-left: 2px solid var(--border);
+  padding-left: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: -4px;
+}
+
+/* ── Import account-resolution banners (Phase 2) ─────────────────────────── */
+.import-acct-banner {
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.import-acct-banner--matched {
+  background: rgba(var(--income-rgb), 0.10);
+  border: 1px solid rgba(var(--income-rgb), 0.35);
+  color: var(--text);
+}
+.import-acct-banner--new {
+  background: rgba(99, 102, 241, 0.1);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  color: var(--text);
+}

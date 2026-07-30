@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import type { CSSProperties, KeyboardEvent } from 'react'
 import { useT } from '../i18n'
 import type { Lang } from '../i18n'
+import { IconChevronDown } from './icons'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -59,7 +60,7 @@ export default function MonthPicker({ value, onChange, min, max, activeMonths, d
 
   const triggerRef = useRef<HTMLButtonElement>(null)
   const panelRef   = useRef<HTMLDivElement>(null)
-  const cellRefs   = useRef<(HTMLButtonElement | null)[]>(new Array(12).fill(null))
+  const cellRefs   = useRef<(HTMLButtonElement | null)[]>(Array.from({ length: 12 }, () => null))
 
   // Flag: only steal focus to month cell when opening or using keyboard nav
   const focusCellOnRender = useRef(false)
@@ -271,7 +272,7 @@ export default function MonthPicker({ value, onChange, min, max, activeMonths, d
         onClick={open ? closePicker : openPicker}
       >
         <span>{formattedValue}</span>
-        <span className="month-picker-trigger__chevron" aria-hidden="true">▾</span>
+        <IconChevronDown size={14} className="month-picker-trigger__chevron" />
       </button>
 
       {open && (

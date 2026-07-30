@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { rm, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { defineConfig, type Plugin } from 'vite'
@@ -102,6 +103,23 @@ export default defineConfig(({ mode }) => {
           target: 'http://localhost:7777',
           changeOrigin: true,
         },
+      },
+    },
+    test: {
+      environment: 'jsdom',
+      globals: true,
+      setupFiles: ['./src/test/setup.ts'],
+      include: ['src/**/*.{test,spec}.{ts,tsx}'],
+      coverage: {
+        provider: 'v8',
+        include: ['src/**/*.{ts,tsx}'],
+        exclude: [
+          'src/**/*.{test,spec}.{ts,tsx}',
+          'src/test/**',
+          'src/api/mock.ts',
+          // La demo es un doble de la API: no tiene sentido medir su cobertura.
+          'src/demo/**',
+        ],
       },
     },
   }

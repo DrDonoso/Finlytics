@@ -9,22 +9,34 @@
     "dev:demo": "vite --mode demo",
     "build": "tsc --noEmit && vite build",
     "build:demo": "tsc --noEmit && vite build --mode demo",
+    "lint": "oxlint src",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "preview": "vite preview",
     "preview:demo": "vite preview --mode demo"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.101.4",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-router": "^8.3.0",
     "recharts": "^3.10.0"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^7.0.0",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.4",
+    "@vitest/coverage-v8": "^4.1.10",
+    "jsdom": "^29.1.1",
     "msw": "^2.15.0",
+    "oxlint": "^1.75.0",
     "typescript": "^7.0.2",
-    "vite": "^8.1.5"
+    "vite": "^8.1.5",
+    "vitest": "^4.1.10"
   },
   "msw": {
     "workerDirectory": [

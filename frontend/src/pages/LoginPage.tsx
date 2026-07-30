@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { login } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
 import { useT } from '../i18n'
+import { Wordmark } from '../components/Brand'
 import { DEMO_PASSWORD, DEMO_USERNAME, IS_DEMO } from '../demo/config'
 import DemoLoginNotice from '../demo/DemoLoginNotice'
 import LanguageSelect from '../components/LanguageSelect'
@@ -25,8 +26,15 @@ export default function LoginPage() {
       const user = await login(username, password, remember)
       onLoginSuccess(user.username)
     } catch (err: unknown) {
-      const status = (err as { status?: number }).status
-      setError(status === 401 ? t.authErrorInvalidCredentials : t.authErrorUnexpected)
+      const { status, retryAfter } = err as { status?: number; retryAfter?: number }
+      if (status === 429) {
+        // Retry-After viene en segundos; se redondea hacia arriba a minutos
+        // porque «espera 247 segundos» no ayuda a nadie.
+        const minutes = Math.max(1, Math.ceil((retryAfter ?? 60) / 60))
+        setError(t.authErrorTooManyAttempts(minutes))
+      } else {
+        setError(status === 401 ? t.authErrorInvalidCredentials : t.authErrorUnexpected)
+      }
     } finally {
       setPending(false)
     }
@@ -35,7 +43,7 @@ export default function LoginPage() {
   return (
     <div className="auth-container">
       <div className="auth-card">
-        <img src="/logo_withtext.png" alt="Finlytics" className="auth-logo-img" />
+        <Wordmark size="lg" className="auth-logo" />
         <h1 className="auth-title">{t.authLoginTitle}</h1>
         {IS_DEMO && <DemoLoginNotice />}
         <form onSubmit={handleSubmit} className="auth-form">

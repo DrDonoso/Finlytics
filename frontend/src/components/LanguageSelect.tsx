@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { LANG_NAMES, useT } from '../i18n'
 import type { Lang } from '../i18n'
+import { IconGlobe, IconChevronDown, IconCheck } from './icons'
 
 const LANGS: readonly Lang[] = ['es', 'en']
 
@@ -60,9 +61,9 @@ export default function LanguageSelect() {
         aria-expanded={open}
         aria-label={t.langSelectLabel}
       >
-        <span className="lang-select-icon" aria-hidden="true">🌐</span>
+        <IconGlobe size={15} className="lang-select-icon" />
         <span className="lang-select-current">{LANG_NAMES[lang]}</span>
-        <span className={`lang-select-arrow${open ? ' open' : ''}`} aria-hidden="true">▾</span>
+        <IconChevronDown size={13} className={`lang-select-arrow${open ? ' open' : ''}`} />
       </button>
 
       {open && (
@@ -78,7 +79,7 @@ export default function LanguageSelect() {
               >
                 <span className="lang-select-option-name">{LANG_NAMES[code]}</span>
                 {code === lang && (
-                  <span className="lang-select-check" aria-hidden="true">✓</span>
+                  <IconCheck size={13} className="lang-select-check" />
                 )}
               </button>
             </li>

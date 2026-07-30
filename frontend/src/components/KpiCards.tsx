@@ -1,6 +1,7 @@
 import type { Overview } from '../api/types'
 import { useT, categoryLabel } from '../i18n'
 import { computeDelta, savingsRate, type DeltaResult } from '../utils/comparison'
+import { IconAlert, TrendArrow } from './icons'
 
 interface Props {
   overview: Overview | null
@@ -38,12 +39,11 @@ function DeltaBadge({ delta, invert }: { delta?: DeltaResult; invert?: boolean }
   const cls = delta.abs === 0
     ? 'header-kpi-delta-neutral'
     : isGood ? 'header-kpi-delta-good' : 'header-kpi-delta-bad'
-  const arrow = isUp ? '↑' : delta.abs < 0 ? '↓' : '→'
   const sign = isUp ? '+' : ''
 
   return (
     <div className={`header-kpi-delta ${cls}`}>
-      {arrow} {sign}{delta.pct.toFixed(1)}%
+      <TrendArrow value={delta.abs} /> {sign}{delta.pct.toFixed(1)}%
     </div>
   )
 }
@@ -96,7 +96,7 @@ export default function KpiCards({ overview, loading, error, compact, previousOv
   // ── Compact variant: horizontal inline group for the dashboard header ─────
   if (compact) {
     if (error) {
-      return <div className="header-kpis"><span style={{ color: 'var(--expense)', fontSize: 12 }}>⚠ KPI</span></div>
+      return <div className="header-kpis"><span style={{ color: 'var(--expense)', fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 4 }}><IconAlert size={13} /> KPI</span></div>
     }
     if (loading || !overview) {
       return (

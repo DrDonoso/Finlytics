@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useCallback, createElement } from 'react'
+import { createContext, useContext, useEffect, useState, useCallback, useMemo, createElement } from 'react'
 import type { ReactNode } from 'react'
 import { getAuthStatus, getMe, logout as apiLogout, registerOn401Handler } from '../api/client'
 
@@ -79,11 +79,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setState(s => ({ ...s, authenticated: false, username: null }))
   }, [])
 
-  return createElement(
-    AuthContext.Provider,
-    { value: { ...state, onSetupSuccess, onLoginSuccess, onLogout } },
-    children,
+  // Memoizado: sin esto el objeto sería nuevo en cada render del proveedor y
+  // arrastraría a re-renderizar toda la aplicación, que cuelga de este contexto.
+  const value = useMemo(
+    () => ({ ...state, onSetupSuccess, onLoginSuccess, onLogout }),
+    [state, onSetupSuccess, onLoginSuccess, onLogout],
   )
+
+  return createElement(AuthContext.Provider, { value }, children)
 }
 
 export function useAuth(): AuthContextValue {

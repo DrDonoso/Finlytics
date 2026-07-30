@@ -1,14 +1,22 @@
-import { useState, useEffect, useMemo } from 'react'
-import type { Category } from '../api/types'
-import { getCategories, updateCategory, createCategory } from '../api/client'
+import { useState, useMemo } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { updateCategory, createCategory } from '../api/client'
+import { useCategories, queryKeys } from '../api/queries'
+import { errorMessage } from '../api/errors'
 import { useT, categoryLabel, DEFAULT_TAG_COLOR, paletteColor, tagTextColor } from '../i18n'
 import ColorSwatchPicker from '../components/ColorSwatchPicker'
+import { IconLoading, IconTag, IconCheck, IconClose, IconPencil } from '../components/icons'
 
 export default function CategoriesPage() {
   const { t, lang } = useT()
-  const [categories, setCategories] = useState<Category[]>([])
-  const [loading, setLoading] = useState(true)
+  const queryClient = useQueryClient()
+  const categoriesQuery = useCategories()
+  const EMPTY: never[] = useMemo(() => [], [])
+  const categories = categoriesQuery.data ?? EMPTY
+  const loading = categoriesQuery.isPending
+  // Sólo errores de las mutaciones; el de la carga lo aporta la consulta.
   const [error, setError] = useState<string | null>(null)
+  const shownError = error ?? (categoriesQuery.error ? errorMessage(categoriesQuery.error, t) : null)
 
   // Save state
   const [savingId, setSavingId] = useState<number | null>(null)
@@ -35,13 +43,6 @@ export default function CategoriesPage() {
     [categories, lang, dynamicEs],
   )
 
-  useEffect(() => {
-    setLoading(true)
-    getCategories()
-      .then(data => { setCategories(data); setLoading(false) })
-      .catch(e  => { setError(String(e)); setLoading(false) })
-  }, [])
-
   async function handleSaveCatColor() {
     if (editCatId === null) return
     const catId = editCatId
@@ -50,13 +51,13 @@ export default function CategoriesPage() {
     setSavedId(null)
     setError(null)
     try {
-      const updated = await updateCategory(catId, { color })
-      setCategories(prev => prev.map(c => c.id === catId ? updated : c))
+      await updateCategory(catId, { color })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.categories })
       setSavedId(catId)
       setTimeout(() => setSavedId(id => id === catId ? null : id), 1800)
       setEditCatId(null)
     } catch (e) {
-      setError(String(e))
+      setError(errorMessage(e, t))
     } finally {
       setSavingId(id => id === catId ? null : id)
     }
@@ -67,12 +68,12 @@ export default function CategoriesPage() {
     setAdding(true)
     setError(null)
     try {
-      const newCat = await createCategory(addName.trim(), addColor)
-      setCategories(prev => [...prev, newCat])
+      await createCategory(addName.trim(), addColor)
+      await queryClient.invalidateQueries({ queryKey: queryKeys.categories })
       setAddName('')
       setAddColor(DEFAULT_TAG_COLOR)
     } catch (e) {
-      setError(String(e))
+      setError(errorMessage(e, t))
     } finally {
       setAdding(false)
     }
@@ -82,7 +83,7 @@ export default function CategoriesPage() {
     <div className="card settings-card">
       <h2 className="settings-section-title">{t.settingsCatsTitle}</h2>
 
-      {error && <div className="import-error" style={{ marginBottom: 16 }}>{error}</div>}
+      {shownError && <div className="import-error" style={{ marginBottom: 16 }}>{shownError}</div>}
 
       {/* Add form */}
       <div className="settings-add-form">
@@ -125,12 +126,12 @@ export default function CategoriesPage() {
 
       {loading ? (
         <div className="state-box">
-          <span className="icon">⏳</span>
+          <IconLoading size={18} />
           <span>{t.loading}</span>
         </div>
       ) : categories.length === 0 ? (
         <div className="state-box">
-          <span className="icon">🏷</span>
+          <IconTag size={18} />
           <span>{t.settingsCatsEmpty}</span>
         </div>
       ) : (
@@ -168,13 +169,13 @@ export default function CategoriesPage() {
                           onClick={handleSaveCatColor}
                           disabled={isSaving}
                           title={t.tableSaveRow}
-                        >✓</button>
+                        ><IconCheck size={15} /></button>
                         <button
                           className="btn-row-icon btn-row-cancel"
                           onClick={() => setEditCatId(null)}
                           disabled={isSaving}
                           title={t.tableCancelEdit}
-                        >✕</button>
+                        ><IconClose size={15} /></button>
                       </div>
                     </div>
                   </div>
@@ -198,7 +199,7 @@ export default function CategoriesPage() {
                     onClick={() => { setEditCatId(cat.id); setEditCatColor(cat.color || DEFAULT_TAG_COLOR) }}
                     disabled={isSaving}
                     title={t.tableEditRow}
-                  >✎</button>
+                  ><IconPencil size={15} /></button>
                 </div>
               </div>
             )

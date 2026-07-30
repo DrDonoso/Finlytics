@@ -4,6 +4,7 @@ import { useMemo } from 'react'
 import TagFilterSelect from './TagFilterSelect'
 import DatePicker from './DatePicker'
 import { defaultRange } from '../utils'
+import { IconClose, IconTag, IconArrowUp, IconArrowDown } from './icons'
 
 interface Props {
   filters: GlobalFilters
@@ -95,13 +96,15 @@ export default function GlobalFilterBar({ filters, accounts, categories, tags, o
         <div className="filter-chips">
           {filters.flow !== undefined && (
             <span className="filter-chip filter-chip-flow">
-              {filters.flow === 'expense' ? `💸 ${t.filterExpenseOnly}` : `💰 ${t.filterIncomeOnly}`}
+              {filters.flow === 'expense'
+                ? <><IconArrowDown size={13} />{t.filterExpenseOnly}</>
+                : <><IconArrowUp size={13} />{t.filterIncomeOnly}</>}
               <button
                 type="button"
                 className="filter-chip-remove"
                 onClick={() => set({ flow: undefined })}
                 aria-label={t.filterClearChip}
-              >✕</button>
+              ><IconClose size={13} /></button>
             </span>
           )}
           {activeCategoryName !== undefined && (
@@ -112,7 +115,7 @@ export default function GlobalFilterBar({ filters, accounts, categories, tags, o
                 className="filter-chip-remove"
                 onClick={() => set({ category_id: undefined })}
                 aria-label={t.filterClearChip}
-              >✕</button>
+              ><IconClose size={13} /></button>
             </span>
           )}
           {filters.merchant !== undefined && (
@@ -123,7 +126,7 @@ export default function GlobalFilterBar({ filters, accounts, categories, tags, o
                 className="filter-chip-remove"
                 onClick={() => set({ merchant: undefined })}
                 aria-label={t.filterClearChip}
-              >✕</button>
+              ><IconClose size={13} /></button>
             </span>
           )}
           {filters.day !== undefined && (
@@ -134,7 +137,7 @@ export default function GlobalFilterBar({ filters, accounts, categories, tags, o
                 className="filter-chip-remove"
                 onClick={() => set({ day: undefined })}
                 aria-label={t.filterClearChip}
-              >✕</button>
+              ><IconClose size={13} /></button>
             </span>
           )}
           {filters.tags.map(tagName => {
@@ -147,14 +150,14 @@ export default function GlobalFilterBar({ filters, accounts, categories, tags, o
                 className="filter-chip filter-chip-tag"
                 style={{ background: color, color: textC, borderColor: color }}
               >
-                {tag?.emoji ? `${tag.emoji} ` : '🏷 '}{tagName}
+                {tag?.emoji ? `${tag.emoji} ` : <IconTag size={13} />}{tagName}
                 <button
                   type="button"
                   className="filter-chip-remove"
                   onClick={() => set({ tags: filters.tags.filter(n => n !== tagName) })}
                   aria-label={t.filterClearChip}
                   style={{ color: textC }}
-                >✕</button>
+                ><IconClose size={13} /></button>
               </span>
             )
           })}

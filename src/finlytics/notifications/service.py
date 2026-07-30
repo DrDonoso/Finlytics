@@ -31,6 +31,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from finlytics.clock import today as local_today
 from finlytics.db.models import Notification, NotificationChannel, NotificationDelivery
 from finlytics.investments.crypto import EncryptionNotConfiguredError, decrypt_token
 from finlytics.notifications.detectors import REGISTRY, DetectedNotification
@@ -59,7 +60,7 @@ async def evaluate_notifications(
     ``deliver_new`` as a delivery seam; calling it is a no-op in Slice 1.
     """
     if today is None:
-        today = date.today()
+        today = local_today()
 
     now = datetime.now(timezone.utc)
     new_notifications: list[Notification] = []

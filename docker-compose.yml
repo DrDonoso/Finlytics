@@ -15,13 +15,19 @@ services:
       OPENAI_MODEL: "${OPENAI_MODEL:-}"
 
       # --- App config ---
+      # TIMEZONE decide el día natural que usa la aplicación (recordatorios de
+      # extractos, ESPP); TZ alinea además el reloj del proceso para que las
+      # marcas de tiempo de los logs no vayan desfasadas respecto a la interfaz.
       TIMEZONE: "${TIMEZONE:-Europe/Madrid}"
+      TZ: "${TIMEZONE:-Europe/Madrid}"
       UPLOAD_DIR: /app/data/uploads
 
       # --- Auth ---
       AUTH_SECRET: "${AUTH_SECRET:-}"
       AUTH_COOKIE_SECURE: "${AUTH_COOKIE_SECURE:-false}"
       AUTH_TOKEN_EXPIRE_DAYS: "${AUTH_TOKEN_EXPIRE_DAYS:-7}"
+      AUTH_LOGIN_MAX_ATTEMPTS: "${AUTH_LOGIN_MAX_ATTEMPTS:-10}"
+      AUTH_LOGIN_WINDOW_SECONDS: "${AUTH_LOGIN_WINDOW_SECONDS:-300}"
       FINLYTICS_ENCRYPTION_KEY: "${FINLYTICS_ENCRYPTION_KEY:-}"
 
     volumes:

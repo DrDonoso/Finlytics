@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, KeyboardEvent } from 'react'
 
 export interface PreviewTypeaheadOption {
@@ -49,17 +49,27 @@ export default function PreviewTypeahead({
     return result
   }, [options])
 
-  const optionLabel = (opt: PreviewTypeaheadOption) => opt.label ?? (getLabel ? getLabel(opt.value) : opt.value)
-  const formatValue = (next: string) => {
-    const match = dedupedOptions.find(opt => opt.value === next)
-    return match ? optionLabel(match) : next
-  }
+  // Memoizadas para poder declararlas como dependencia del efecto y del memo.
+  // Antes se listaban a mano las dependencias internas (getLabel, dedupedOptions);
+  // funcionaba, pero cualquier dependencia nueva dentro de estas funciones habría
+  // dejado de propagarse sin que nada avisara.
+  const optionLabel = useCallback(
+    (opt: PreviewTypeaheadOption) => opt.label ?? (getLabel ? getLabel(opt.value) : opt.value),
+    [getLabel],
+  )
+  const formatValue = useCallback(
+    (next: string) => {
+      const match = dedupedOptions.find(opt => opt.value === next)
+      return match ? optionLabel(match) : next
+    },
+    [dedupedOptions, optionLabel],
+  )
   const [inputValue, setInputValue] = useState(() => formatValue(value))
 
   useEffect(() => {
     if (document.activeElement === inputRef.current) return
     setInputValue(formatValue(value))
-  }, [value, getLabel, dedupedOptions])
+  }, [value, formatValue])
 
   const suggestions = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
@@ -68,7 +78,7 @@ export default function PreviewTypeahead({
       return !query || opt.value.toLowerCase().includes(query) || label.toLowerCase().includes(query)
     })
     return ranked
-  }, [dedupedOptions, getLabel, searchQuery])
+  }, [dedupedOptions, optionLabel, searchQuery])
 
   function openSuggestions() {
     if (wrapRef.current) {

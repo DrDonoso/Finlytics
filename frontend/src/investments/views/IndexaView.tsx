@@ -1,14 +1,15 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { NavLink } from 'react-router'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell,
 } from 'recharts'
-import type { InvestmentPortfolio, InvestmentConnection } from '../../api/types'
-import { getInvestmentPortfolio, getConnections } from '../../api/client'
+import { useInvestmentPortfolio, useConnections } from '../../api/queries'
+import { errorMessage } from '../../api/errors'
 import { useT, langLocale } from '../../i18n'
 import type { Dict } from '../../i18n'
+import { IconLoading, IconAlert, IconChartPie, IconChartLine, IconReceipt, IconBanknote, IconLink, IconChevronUp, IconChevronDown, IconChevronRight } from '../../components/icons'
 
 const ASSET_CLASS_COLORS: Record<string, string> = {
   equity:       '#2563eb',
@@ -84,10 +85,13 @@ export default function IndexaView() {
   const { t, lang, formatCurrency } = useT()
   const locale = langLocale(lang)
 
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [portfolio, setPortfolio] = useState<InvestmentPortfolio | null>(null)
-  const [connections, setConnections] = useState<InvestmentConnection[]>([])
+  const portfolioQuery = useInvestmentPortfolio()
+  const connQuery = useConnections()
+  const portfolio = portfolioQuery.data ?? null
+  const connections = connQuery.data ?? []
+  const loading = portfolioQuery.isPending || connQuery.isPending
+  const queryError = portfolioQuery.error ?? connQuery.error
+  const error = queryError ? errorMessage(queryError, t) : null
 
   const [evPeriod, setEvPeriod] = useState<EvolutionPeriod>('Todo')
   const [evMode,   setEvMode]   = useState<EvolutionMode>('eur')
@@ -98,20 +102,6 @@ export default function IndexaView() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [openTip, setOpenTip] = useState<{ text: string; x: number; y: number } | null>(null)
 
-  useEffect(() => {
-    setLoading(true)
-    setError(null)
-    Promise.all([getInvestmentPortfolio(), getConnections()])
-      .then(([portData, connData]) => {
-        setPortfolio(portData)
-        setConnections(connData)
-        setLoading(false)
-      })
-      .catch(err => {
-        setError(err instanceof Error ? err.message : String(err))
-        setLoading(false)
-      })
-  }, [])
 
   const evolutionYears = useMemo((): string[] => {
     if (!portfolio?.value_series?.length) return []
@@ -231,7 +221,8 @@ export default function IndexaView() {
 
   function SortArrow({ col }: { col: HoldingsSortCol }) {
     if (col !== sortCol) return null
-    return <span aria-hidden="true">{sortDir === 'asc' ? ' ▲' : ' ▼'}</span>
+    const Arrow = sortDir === 'asc' ? IconChevronUp : IconChevronDown
+    return <Arrow size={13} className="inv-sort-arrow" />
   }
 
   const activeConnection = connections.find(
@@ -253,7 +244,7 @@ export default function IndexaView() {
         </div>
         <div className="card">
           <div className="state-box">
-            <span className="icon">⏳</span>
+            <IconLoading size={18} />
             <span>{t.loading}</span>
           </div>
         </div>
@@ -269,7 +260,7 @@ export default function IndexaView() {
         </div>
         <div className="card">
           <div className="state-box error">
-            <span className="icon">⚠️</span>
+            <IconAlert size={18} />
             <span>{t.invErrorLoading}: {error}</span>
           </div>
         </div>
@@ -381,10 +372,10 @@ export default function IndexaView() {
         <div className="card investments-holdings-card">
           <div className="card-title">{t.investmentsHoldingsTitle}</div>
           <div className="investments-empty">
-            <span className="investments-empty__icon" aria-hidden="true">📊</span>
+            <IconChartPie size={30} className="investments-empty__icon" />
             <p className="investments-empty__text">{t.investmentsEmptyHoldings}</p>
             <NavLink to="/settings/connectors" className="btn-primary">
-              {t.investmentsManageConnectors}
+              {t.investmentsManageConnectors} <IconChevronRight size={14} />
             </NavLink>
           </div>
         </div>
@@ -395,7 +386,7 @@ export default function IndexaView() {
           {activeConnection && (
             <div className="inv-account-header">
               <div className="inv-account-header__left">
-                <span className="inv-account-header__icon" aria-hidden="true">🔗</span>
+                <IconLink size={15} className="inv-account-header__icon" />
                 <span className="inv-account-header__label">{activeConnection.account_label_masked}</span>
                 {activeConnection.last_synced_at && (
                   <span className="inv-account-header__updated">
@@ -522,7 +513,7 @@ export default function IndexaView() {
                 <h3 className="card-title">{t.invDonutAssetTitle}</h3>
                 {allocationData.length === 0 ? (
                   <div className="state-box">
-                    <span className="icon">🍩</span>
+                    <IconChartPie size={18} />
                     <span>{t.noDataPeriod}</span>
                   </div>
                 ) : (
@@ -594,7 +585,7 @@ export default function IndexaView() {
                 <h3 className="card-title">{t.invDonutInstrumentTitle}</h3>
                 {instrumentSlices.length === 0 ? (
                   <div className="state-box">
-                    <span className="icon">🍩</span>
+                    <IconChartPie size={18} />
                     <span>{t.noDataPeriod}</span>
                   </div>
                 ) : (
@@ -693,7 +684,7 @@ export default function IndexaView() {
 
             {evolutionData.length === 0 ? (
               <div className="state-box">
-                <span className="icon">📈</span>
+                <IconChartLine size={18} />
                 <span>{t.noDataPeriod}</span>
               </div>
             ) : (
@@ -782,7 +773,7 @@ export default function IndexaView() {
             </div>
             {portfolio!.holdings.length === 0 ? (
               <div className="state-box">
-                <span className="icon">📋</span>
+                <IconReceipt size={18} />
                 <span>{t.invHoldingsEmpty}</span>
               </div>
             ) : (
@@ -953,7 +944,7 @@ export default function IndexaView() {
                 <div className="card-title">{t.invContribTableTitle}</div>
                 {events.length === 0 ? (
                   <div className="state-box">
-                    <span className="icon">💸</span>
+                    <IconBanknote size={18} />
                     <span>{t.invContribEmpty}</span>
                   </div>
                 ) : (

@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import sys
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
@@ -70,10 +71,9 @@ async def _notifications_loop() -> None:
     Wraps each iteration in try/except so a single failure never kills the
     loop.  Cancelled cleanly on application shutdown.
     """
-    from datetime import date
-
     from sqlalchemy import select
 
+    from finlytics.clock import today as local_today
     from finlytics.db.models import User
     from finlytics.db.session import async_session_factory
     from finlytics.notifications.service import evaluate_notifications
@@ -82,13 +82,18 @@ async def _notifications_loop() -> None:
     log.info("Notification loop started (interval=%ds)", interval)
 
     while True:
+        # Se mide desde el arranque de la iteración: dormir el intervalo completo
+        # DESPUÉS de trabajar hace que el periodo real sea intervalo + duración,
+        # y la evaluación se va retrasando un poco más en cada vuelta.
+        started = asyncio.get_running_loop().time()
+
         try:
             # Fetch all users in a short-lived session
             async with async_session_factory() as db:
                 result = await db.execute(select(User))
                 users = result.scalars().all()
 
-            today = date.today()
+            today = local_today()
             for user in users:
                 try:
                     async with async_session_factory() as db:
@@ -102,7 +107,8 @@ async def _notifications_loop() -> None:
         except Exception:
             log.exception("Notification loop iteration failed (non-fatal)")
 
-        await asyncio.sleep(interval)
+        elapsed = asyncio.get_running_loop().time() - started
+        await asyncio.sleep(max(0.0, interval - elapsed))
 
 
 @asynccontextmanager
@@ -113,7 +119,23 @@ async def lifespan(app_: FastAPI):
     # Guard: never run the loop inside pytest (no real DB; httpx may trigger
     # lifespan in newer versions).  Also respect the explicit setting.
     _in_test = "pytest" in sys.modules
+
+    # El bucle vive dentro del proceso web, así que arrancar la aplicación con
+    # varios workers de uvicorn lo pondría a correr una vez por worker: cada
+    # notificación se evaluaría N veces y el usuario recibiría N mensajes de
+    # Telegram. Hoy el entrypoint arranca un único worker, pero eso no es algo
+    # que el bucle pueda dar por supuesto, así que se avisa en el log en lugar
+    # de fallar de forma silenciosa el día que alguien escale el servicio.
     if settings.notifications_loop_enabled and not _in_test:
+        workers = os.environ.get("WEB_CONCURRENCY") or os.environ.get("UVICORN_WORKERS")
+        if workers and workers.isdigit() and int(workers) > 1:
+            log.warning(
+                "Notification loop running with %s workers: notifications will be "
+                "evaluated once per worker and delivered multiple times. Move the "
+                "loop to a dedicated process or set NOTIFICATIONS_LOOP_ENABLED=false "
+                "on all but one instance.",
+                workers,
+            )
         _task = asyncio.create_task(_notifications_loop())
 
     yield  # ← application is running here

@@ -4,6 +4,7 @@ import {
 import { useMemo } from 'react'
 import type { CategorySummary, Category } from '../api/types'
 import { useT, categoryLabel } from '../i18n'
+import { IconAlert, IconLoading, IconChartPie } from './icons'
 
 const FALLBACK_COLORS = [
   '#2563eb', '#ef4444', '#22c55e', '#f59e0b', '#8b5cf6',
@@ -51,21 +52,21 @@ export default function SpendingByCategory({ data, categories, loading, error, s
 
       {error && (
         <div className="state-box error">
-          <span className="icon">⚠</span>
+          <IconAlert size={18} />
           <span>{error}</span>
         </div>
       )}
 
       {!error && loading && (
         <div className="state-box">
-          <span className="icon">⏳</span>
+          <IconLoading size={18} />
           <span>{t.loading}</span>
         </div>
       )}
 
       {!error && !loading && sorted.length === 0 && (
         <div className="state-box">
-          <span className="icon">🍩</span>
+          <IconChartPie size={18} />
           <span>{t.noDataPeriod}</span>
         </div>
       )}

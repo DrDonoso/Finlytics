@@ -4,6 +4,7 @@ import { createRule, updateRule, previewRule, applyRule } from '../api/client'
 import { useT, categoryLabel } from '../i18n'
 import CategorySelect from './CategorySelect'
 import TagTypeahead from './TagTypeahead'
+import { IconClose, IconCheck, IconChevronDown, IconChevronRight } from './icons'
 
 interface FormState {
   name: string
@@ -65,7 +66,7 @@ export default function RuleFormModal({
   const { t, lang } = useT()
 
   const baseCategories = useMemo(
-    () => [...categories.filter(c => c.is_base)].sort((a, b) =>
+    () => categories.filter(c => c.is_base).sort((a, b) =>
       categoryLabel(a.name, lang).localeCompare(categoryLabel(b.name, lang), lang)
     ),
     [categories, lang],
@@ -251,7 +252,7 @@ export default function RuleFormModal({
 
         <div className="modal-header">
           <h2 className="modal-title" id="rfm-title">{title}</h2>
-          <button className="modal-close" onClick={onClose} disabled={saving} aria-label={t.modalClose}>✕</button>
+          <button className="modal-close" onClick={onClose} disabled={saving} aria-label={t.modalClose}><IconClose size={16} /></button>
         </div>
 
         <div className="modal-body">
@@ -270,7 +271,7 @@ export default function RuleFormModal({
             >
               <span>{t.rulesSectionIdentity}</span>
               <span className="rules-section-chevron" aria-hidden="true">
-                {open.identity ? '▾' : '▸'}
+                {open.identity ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
               </span>
             </button>
             <div className="rules-section" style={open.identity ? undefined : { display: 'none' }}>
@@ -325,7 +326,7 @@ export default function RuleFormModal({
             >
               <span>{t.rulesSectionMatch}</span>
               <span className="rules-section-chevron" aria-hidden="true">
-                {open.conditions ? '▾' : '▸'}
+                {open.conditions ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
               </span>
             </button>
             <div className="rules-section" style={open.conditions ? undefined : { display: 'none' }}>
@@ -478,7 +479,7 @@ export default function RuleFormModal({
             >
               <span>{t.rulesSectionActions}</span>
               <span className="rules-section-chevron" aria-hidden="true">
-                {open.actions ? '▾' : '▸'}
+                {open.actions ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
               </span>
             </button>
             <div className="rules-section" style={open.actions ? undefined : { display: 'none' }}>
@@ -520,7 +521,7 @@ export default function RuleFormModal({
                       disabled={saving}
                     />
                     <label htmlFor="rfm-skip-ai" className="rules-toggle-label">
-                      {form.skip_ai ? '✓' : '—'}
+                      {form.skip_ai ? <IconCheck size={14} /> : '—'}
                     </label>
                   </div>
                   <span className="rules-field-hint">{t.rulesFieldSkipAiHint}</span>

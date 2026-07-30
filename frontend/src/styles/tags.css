@@ -1,0 +1,458 @@
+/* ─── Category cell in preview table ────────────────────────────────── */
+.category-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* ─── Editable transactions table ────────────────────────────────────── */
+.row-editing td { background: rgba(var(--primary-rgb), 0.04); }
+.td-edit-input {
+  height: 28px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  font-size: 12px;
+  color: var(--text);
+  outline: none;
+  font-family: inherit;
+  width: 100%;
+  transition: border-color 0.12s;
+}
+.td-edit-input:focus { border-color: var(--primary); }
+.td-edit-input:disabled { opacity: 0.6; }
+.td-actions {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+  white-space: nowrap;
+}
+.btn-row-icon {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  font-family: inherit;
+  color: var(--text-muted);
+}
+.btn-row-edit:hover  { background: rgba(var(--primary-rgb), 0.08);  color: var(--primary); border-color: var(--primary); }
+.btn-row-save:hover  { background: rgba(var(--income-rgb), 0.10);   color: var(--income);        border-color: var(--income); }
+.btn-row-cancel:hover{ background: rgba(var(--expense-rgb), 0.08);  color: var(--expense); border-color: var(--expense); }
+.btn-row-icon:disabled { opacity: 0.4; cursor: default; }
+.save-error {
+  font-size: 11px;
+  color: var(--expense);
+  margin-top: 2px;
+  white-space: nowrap;
+}
+
+/* ─── Cashflow Sankey ────────────────────────────────────────────────── */
+.cashflow-totals {
+  display: flex;
+  gap: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.sankey-scroll-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.sankey-inner {
+  min-width: 480px;
+}
+
+/* ─── Tag chips (read-only display) ─────────────────────────────────── */
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  background: rgba(var(--primary-rgb), 0.09);
+  color: var(--primary);
+  border: 1px solid rgba(var(--primary-rgb), 0.22);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.tag-chip-sm {
+  font-size: 10px;
+  padding: 1px 6px;
+}
+.tag-chip-remove {
+  width: 13px;
+  height: 13px;
+  padding: 0;
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  border-radius: 999px;
+  opacity: 0.65;
+  font-family: inherit;
+  line-height: 1;
+}
+.tag-chip-remove:hover { opacity: 1; background: rgba(128, 128, 128, 0.25); }
+
+.tag-chips-readonly {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+/* ─── Tag editor (interactive) ───────────────────────────────────────── */
+.tag-editor {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-height: 28px;
+  padding: 2px 6px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: text;
+  background: transparent;
+  transition: border-color 0.12s, background 0.12s;
+}
+.tag-editor:hover { border-color: var(--border); background: var(--surface); }
+.tag-editor:focus-within { border-color: var(--primary); background: var(--surface); }
+
+.tag-editor-input {
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 12px;
+  color: var(--text);
+  min-width: 80px;
+  flex: 1;
+  font-family: inherit;
+  padding: 0;
+  height: 20px;
+}
+.tag-editor-input::placeholder { color: var(--text-muted); }
+
+/* ─── Active filter chips (GlobalFilterBar) ──────────────────────────── */
+.filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  width: 100%;
+  padding-top: 4px;
+}
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  background: rgba(var(--primary-rgb), 0.1);
+  color: var(--primary);
+  border: 1px solid rgba(var(--primary-rgb), 0.28);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.filter-chip-tag {
+  background: rgba(var(--cat-alt-rgb), 0.09);
+  color: var(--cat-alt);
+  border-color: rgba(var(--cat-alt-rgb), 0.28);
+}
+.filter-chip-flow {
+  background: rgba(var(--primary-rgb), 0.09);
+  color: var(--primary-hover);
+  border-color: rgba(var(--primary-rgb), 0.28);
+}
+.filter-chip-remove {
+  width: 15px;
+  height: 15px;
+  padding: 0;
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  border-radius: 999px;
+  opacity: 0.7;
+  font-family: inherit;
+  line-height: 1;
+}
+.filter-chip-remove:hover { opacity: 1; background: rgba(128, 128, 128, 0.2); }
+.filter-chip-tag .filter-chip-remove:hover { background: rgba(128, 128, 128, 0.2); }
+
+/* Clear-all button inside the chips row */
+.btn-clear-filters {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: inherit;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.btn-clear-filters:hover { border-color: var(--expense); color: var(--expense); background: rgba(var(--expense-rgb), 0.06); }
+.btn-clear-filters:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+
+/* ─── Drill-down active filter chips (Finanzas overview) ─────────────────── */
+.drill-down-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  padding: 2px 0;
+}
+.drill-down-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 500;
+  white-space: nowrap;
+  margin-right: 2px;
+}
+
+/* ─── Tags column in transactions table ──────────────────────────────── */
+.td-tags { min-width: 120px; max-width: 200px; }
+
+/* ─── Navigation links ───────────────────────────────────────────────── */
+.app-nav {
+  display: flex;
+  gap: 2px;
+  margin-left: 16px;
+}
+.app-nav-link {
+  display: flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: background 0.15s, color 0.15s;
+}
+.app-nav-link:hover { background: var(--bg); color: var(--text); }
+.app-nav-link.active { background: rgba(var(--primary-rgb), 0.1); color: var(--primary); font-weight: 600; }
+
+/* ─── Tag toggle buttons (GlobalFilterBar multi-select) ──────────────── */
+.tag-multi-select {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-items: center;
+  min-height: 36px;
+}
+.tag-toggle-btn {
+  height: 36px;
+  padding: 0 12px;
+  border: 1.5px solid;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.15s;
+  font-family: inherit;
+  background: transparent;
+}
+.tag-toggle-btn:hover { opacity: 0.75; }
+
+/* ─── Tag filter typeahead (filter bars) ───────────────────────────── */
+/* Input wrapper in the filter group — stretches naturally inside .filter-group */
+.tag-filter-select {
+  position: relative;
+  width: 100%;
+}
+.tag-filter-input {
+  width: 100%;
+  box-sizing: border-box;
+  height: 36px;
+  padding: 0 10px;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.12s;
+}
+.tag-filter-input:focus { border-color: var(--primary); }
+/* Section heading in the suggestions list ("Most used" / "Más usadas") */
+.tag-filter-suggestions-header {
+  padding: 4px 10px 2px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted, var(--text));
+  opacity: 0.55;
+  cursor: default;
+  user-select: none;
+}
+/* Keyboard-highlighted option */
+.tag-filter-option-active { background: var(--bg) !important; }
+
+
+.cat-chart-layout {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  gap: 16px;
+  align-items: center;
+}
+
+.cat-donut-wrap {
+  position: relative;
+  flex-shrink: 0;
+  width: 100%;
+  max-width: 280px;
+  height: 280px;
+}
+
+.cat-donut-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  gap: 2px;
+}
+
+.cat-donut-label {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  text-align: center;
+  line-height: 1.2;
+  max-width: 100px;
+}
+
+.cat-donut-total {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  text-align: center;
+  line-height: 1.2;
+}
+
+.cat-donut-coverage {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-align: center;
+  margin-top: 1px;
+  line-height: 1.2;
+}
+
+.cat-table-wrap {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  align-self: stretch;
+  overflow-x: auto;
+}
+
+/* Override global table styles for the category table */
+.cat-table {
+  width: 100%;
+  min-width: 210px;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.cat-table thead th {
+  padding: 0 8px 7px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.cat-th-name { text-align: left; }
+.cat-th-num  { text-align: right; }
+
+.cat-table tbody tr {
+  border-bottom: 1px solid var(--border);
+  transition: background 0.1s, opacity 0.15s;
+  cursor: pointer;
+}
+.cat-table tbody tr:last-child { border-bottom: none; }
+.cat-table tbody tr:hover { background: var(--bg); }
+.cat-table tbody td { padding: 5px 8px; vertical-align: middle; }
+
+.cat-row-selected { background: rgba(var(--primary-rgb), 0.07) !important; font-weight: 600; }
+
+.cat-td-name { max-width: 120px; }
+.cat-td-name-inner {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.cat-swatch {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.cat-td-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cat-td-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.cat-td-weight {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+/* Mobile: keep wrap tall enough for the 232px-diameter donut and never
+   wider than the container (width: 100% handles that). The 220px cap was
+   narrower than the donut, causing left/right clipping on phones ≥360px. */
+@media (max-width: 500px) {
+  .cat-donut-wrap {
+    max-width: 280px;
+    height: 240px;
+  }
+}

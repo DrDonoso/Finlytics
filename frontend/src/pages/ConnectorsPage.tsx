@@ -7,6 +7,7 @@ import type { Dict } from '../i18n'
 import IndexaWizard from '../components/IndexaWizard'
 import TelegramWizard from '../components/TelegramWizard'
 import { getPluginLogo, pluginInitial } from '../investments/registry'
+import { IconCheck, IconAlert, IconSend, IconLoading } from '../components/icons'
 
 // Map plugin.id → i18n key for localized descriptions (fallback: backend description)
 const PLUGIN_DESC_KEYS: Partial<Record<string, keyof Dict>> = {
@@ -96,7 +97,7 @@ export default function ConnectorsPage() {
           {renderPluginIcon(plugin)}
           <span className="plugin-card__name">{plugin.name}</span>
           <p className="plugin-card__description">{pluginDesc(plugin)}</p>
-          <span className="connected-badge">✓ {t.connectorConnected}</span>
+          <span className="connected-badge"><IconCheck size={13} /> {t.connectorConnected}</span>
           <button
             className="btn-disconnect"
             onClick={() => handleDisconnect(conn)}
@@ -130,7 +131,7 @@ export default function ConnectorsPage() {
           {renderPluginIcon(plugin)}
           <span className="plugin-card__name">{plugin.name}</span>
           <p className="plugin-card__description">{pluginDesc(plugin)}</p>
-          <span className="connected-badge">✓ {t.connectorConnected}</span>
+          <span className="connected-badge"><IconCheck size={13} /> {t.connectorConnected}</span>
           <button
             className="btn-disconnect"
             onClick={() => conn && handleDisconnect(conn)}
@@ -148,7 +149,7 @@ export default function ConnectorsPage() {
           {renderPluginIcon(plugin)}
           <span className="plugin-card__name">{plugin.name}</span>
           <p className="plugin-card__description">{pluginDesc(plugin)}</p>
-          <span className="error-badge">⚠ {t.connectorError}</span>
+          <span className="error-badge"><IconAlert size={13} /> {t.connectorError}</span>
           <button className="btn-primary" onClick={() => setWizardOpen(true)}>
             {t.connectorErrorRetry}
           </button>
@@ -175,12 +176,12 @@ export default function ConnectorsPage() {
     if (ch) {
       return (
         <div className="plugin-card connector-card--connected">
-          <span className="plugin-card__icon" aria-hidden="true">✈️</span>
+          <IconSend size={26} className="plugin-card__icon" />
           <span className="plugin-card__name">{t.notifSettingsTelegramLabel}</span>
           <p className="plugin-card__description">
             {ch.label ? `${ch.label}` : t.notifSettingsEnabled}
           </p>
-          <span className="connected-badge">✓ {t.notifSettingsEnabled}</span>
+          <span className="connected-badge"><IconCheck size={13} /> {t.notifSettingsEnabled}</span>
           <button
             type="button"
             className="btn-primary"
@@ -202,7 +203,7 @@ export default function ConnectorsPage() {
 
     return (
       <div className="plugin-card">
-        <span className="plugin-card__icon" aria-hidden="true">✈️</span>
+        <IconSend size={26} className="plugin-card__icon" />
         <span className="plugin-card__name">{t.notifSettingsTelegramLabel}</span>
         <p className="plugin-card__description">{t.notifSettingsNoChannels}</p>
         <button
@@ -223,12 +224,12 @@ export default function ConnectorsPage() {
         <h2 className="settings-section-title">{t.connectorsInvestmentsTitle}</h2>
         {loading ? (
           <div className="state-box">
-            <span className="icon">⏳</span>
+            <IconLoading size={18} />
             <span>{t.loading}</span>
           </div>
         ) : error ? (
           <div className="state-box error">
-            <span className="icon">⚠️</span>
+            <IconAlert size={18} />
             <span>{error}</span>
           </div>
         ) : (
@@ -257,12 +258,12 @@ export default function ConnectorsPage() {
         <h2 className="settings-section-title">{t.connectorsNotificationsTitle}</h2>
         {notifLoading ? (
           <div className="state-box">
-            <span className="icon">⏳</span>
+            <IconLoading size={18} />
             <span>{t.loading}</span>
           </div>
         ) : notifError ? (
           <div className="state-box error">
-            <span className="icon">⚠️</span>
+            <IconAlert size={18} />
             <span>{notifError}</span>
           </div>
         ) : (

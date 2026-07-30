@@ -8,6 +8,7 @@ import TagEditor from './TagEditor'
 import RuleFormModal from './RuleFormModal'
 import TransactionDetailModal from './TransactionDetailModal'
 import { useIsMobile } from '../hooks/useIsMobile'
+import { IconAlert, IconReceipt, IconCheck, IconClose, IconSettings, IconPencil, IconChevronUp, IconChevronDown, IconArrowLeft, IconArrowRight } from './icons'
 
 interface Props {
   globalFilters: GlobalFilters
@@ -197,7 +198,7 @@ export default function TransactionsTable({ globalFilters, categories, allTags, 
 
   function sortIndicator(col: string) {
     if (col !== sortCol) return null
-    return <span className="th-sort-arrow">{sortOrder === 'asc' ? '▲' : '▼'}</span>
+    return <span className="th-sort-arrow">{sortOrder === 'asc' ? <IconChevronUp size={12} /> : <IconChevronDown size={12} />}</span>
   }
 
   return (
@@ -227,7 +228,7 @@ export default function TransactionsTable({ globalFilters, categories, allTags, 
 
       {error && (
         <div className="state-box error">
-          <span className="icon">⚠</span>
+          <IconAlert size={18} />
           <span>{t.tableErrorLoading}{error}</span>
         </div>
       )}
@@ -242,7 +243,7 @@ export default function TransactionsTable({ globalFilters, categories, allTags, 
 
       {!error && !loading && data && data.items.length === 0 && (
         <div className="state-box">
-          <span className="icon">📋</span>
+          <IconReceipt size={18} />
           <span>{t.tableNoData}</span>
         </div>
       )}
@@ -368,13 +369,13 @@ export default function TransactionsTable({ globalFilters, categories, allTags, 
                               onClick={() => commitEdit(tx)}
                               disabled={saving}
                               title={t.tableSaveRow}
-                            >✓</button>
+                            ><IconCheck size={15} /></button>
                             <button
                               className="btn-row-icon btn-row-cancel"
                               onClick={cancelEdit}
                               disabled={saving}
                               title={t.tableCancelEdit}
-                            >✕</button>
+                            ><IconClose size={15} /></button>
                           </div>
                         </td>
                       </tr>
@@ -434,12 +435,12 @@ export default function TransactionsTable({ globalFilters, categories, allTags, 
                             className="btn-row-icon btn-create-rule"
                             onClick={e => { e.stopPropagation(); setCreateRuleFor(tx) }}
                             title={t.createRuleBtn}
-                          >⚙+</button>
+                          ><IconSettings size={15} /></button>
                           <button
                             className="btn-row-icon btn-row-edit"
                             onClick={e => { e.stopPropagation(); startEdit(tx) }}
                             title={t.tableEditRow}
-                          >✎</button>
+                          ><IconPencil size={15} /></button>
                         </div>
                       </td>
                     </tr>
@@ -452,10 +453,10 @@ export default function TransactionsTable({ globalFilters, categories, allTags, 
           <div className="pagination">
             <span>{data.total > 0 ? t.tablePaginationInfo(start, end, data.total) : '0'}</span>
             <button onClick={() => setPage(p => p - 1)} disabled={page === 0}>
-              {t.tablePrev}
+              <IconArrowLeft size={14} /> {t.tablePrev}
             </button>
             <button onClick={() => setPage(p => p + 1)} disabled={page >= totalPages - 1}>
-              {t.tableNext}
+              {t.tableNext} <IconArrowRight size={14} />
             </button>
           </div>
         </>

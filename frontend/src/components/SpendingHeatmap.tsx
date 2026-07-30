@@ -1,15 +1,16 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useMemo } from 'react'
 import type { CSSProperties } from 'react'
-import type { DaySummary, GlobalFilters } from '../api/types'
-import { getByDay } from '../api/client'
+import type { GlobalFilters } from '../api/types'
+import { useByDay } from '../api/queries'
+import { errorMessage } from '../api/errors'
 import { useT } from '../i18n'
 import type { Lang } from '../i18n'
+import { IconAlert, IconLoading, IconCalendar } from './icons'
 
 interface Props {
   globalFilters: GlobalFilters
   onSelectPeriod: (from: string, to: string) => void
   onResetPeriod?: () => void
-  refreshKey?: number
 }
 
 // ─── Date utilities ────────────────────────────────────────────────────────────
@@ -107,28 +108,24 @@ function isMonthInRange(year: number, monthIdx: number, fromStr: string, toStr: 
 
 // ─── Component ─────────────────────────────────────────────────────────────────
 
-export default function SpendingHeatmap({ globalFilters, onSelectPeriod, onResetPeriod, refreshKey = 0 }: Props) {
+export default function SpendingHeatmap({ globalFilters, onSelectPeriod, onResetPeriod }: Props) {
   const { t, lang, formatCurrency } = useT()
-  const [loading, setLoading] = useState(true)
-  const [error, setError]     = useState<string | null>(null)
-  const [data, setData]       = useState<DaySummary[]>([])
 
-  useEffect(() => {
-    setLoading(true)
-    setError(null)
-    // byDay: pass merchant (+ existing incl. category_id). Do NOT pass day (it's the source).
-    getByDay({
-      from:        globalFilters.from  || undefined,
-      to:          globalFilters.to    || undefined,
-      account_id:  globalFilters.account_id,
-      category_id: globalFilters.category_id,
-      tags:        globalFilters.tags.length > 0 ? globalFilters.tags : undefined,
-      flow:        globalFilters.flow,
-      merchant:    globalFilters.merchant,
-    })
-      .then(rows => { setData(rows); setLoading(false) })
-      .catch(e   => { setError(String(e)); setLoading(false) })
-  }, [globalFilters, refreshKey])
+  // byDay: pass merchant (+ existing incl. category_id). Do NOT pass day (it's the source).
+  const params = useMemo(() => ({
+    from:        globalFilters.from  || undefined,
+    to:          globalFilters.to    || undefined,
+    account_id:  globalFilters.account_id,
+    category_id: globalFilters.category_id,
+    tags:        globalFilters.tags.length > 0 ? globalFilters.tags : undefined,
+    flow:        globalFilters.flow,
+    merchant:    globalFilters.merchant,
+  }), [globalFilters])
+
+  const query = useByDay(params)
+  const loading = query.isPending
+  const error = query.error ? errorMessage(query.error, t) : null
+  const data = useMemo(() => query.data ?? [], [query.data])
 
   const grid = useMemo(() => {
     if (data.length === 0) return null
@@ -143,7 +140,7 @@ export default function SpendingHeatmap({ globalFilters, onSelectPeriod, onReset
     const maxExp = Math.max(0, ...data.map(d => d.expense))
 
     // One month label per week column, placed at the first week of each new month
-    const monthCols = new Array<string>(weeks.length).fill('')
+    const monthCols = Array.from({ length: weeks.length }, () => '')
     let prevMonth   = -1
     for (let wi = 0; wi < weeks.length; wi++) {
       const first = weeks[wi].find(c => c.date !== null)
@@ -229,21 +226,21 @@ export default function SpendingHeatmap({ globalFilters, onSelectPeriod, onReset
 
       {error && (
         <div className="state-box error">
-          <span className="icon">⚠</span>
+          <IconAlert size={18} />
           <span>{error}</span>
         </div>
       )}
 
       {!error && loading && (
         <div className="state-box">
-          <span className="icon">⏳</span>
+          <IconLoading size={18} />
           <span>{t.loading}</span>
         </div>
       )}
 
       {isEmpty && (
         <div className="state-box">
-          <span className="icon">📅</span>
+          <IconCalendar size={18} />
           <span>{t.heatmapEmpty}</span>
         </div>
       )}

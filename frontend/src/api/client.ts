@@ -1,7 +1,7 @@
 import type {
   Account, Category, Tag, TransactionPage, Overview,
   CategorySummary, MonthSummary, DaySummary, AccountSummary, ImportResult,
-  ImportTransaction, PreviewResponse, ConfirmRequest,
+  PreviewResponse, ConfirmRequest,
   TransactionsParams, SummaryParams, MonthSummaryParams,
   Transaction, TransactionPatch, CashflowSummary, CategoryPatch,
   AuthStatus, AuthUser, BackupDocument, BackupExportSelection, BackupImportSummary,
@@ -74,7 +74,7 @@ async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
 }
 
 /** POST to an auth endpoint without triggering the global 401 handler.
- *  Attaches status to thrown errors so callers can branch on 401 / 409. */
+ *  Attaches status to thrown errors so callers can branch on 401 / 409 / 429. */
 async function authPost<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(path, {
     method: 'POST',
@@ -84,7 +84,14 @@ async function authPost<T>(path: string, body: unknown): Promise<T> {
   })
   if (!res.ok) {
     const data: { detail?: string } = await res.json().catch(() => ({}))
-    throw Object.assign(new Error(data.detail ?? `HTTP ${res.status}`), { status: res.status })
+    // Retry-After acompaña al 429 del límite de intentos: sin él sólo se puede
+    // decir «demasiados intentos», no cuánto hay que esperar.
+    const retryAfterHeader = res.headers.get('Retry-After')
+    const retryAfter = retryAfterHeader === null ? undefined : Number(retryAfterHeader)
+    throw Object.assign(new Error(data.detail ?? `HTTP ${res.status}`), {
+      status: res.status,
+      retryAfter: Number.isFinite(retryAfter) ? retryAfter : undefined,
+    })
   }
   return res.json() as Promise<T>
 }

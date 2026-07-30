@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react'
 import { Link } from 'react-router'
-import { getCombinedOverview } from '../api/client'
-import type { CombinedOverview } from '../api/types'
+import { errorMessage } from '../api/errors'
+import { useCombinedOverview } from '../api/queries'
 import { getPluginLogo, pluginInitial } from '../investments/registry'
 import { useT } from '../i18n'
+import { IconAlert, IconLoading, IconChevronRight } from './icons'
 
 function fmtEur(value: number | null): string {
   if (value === null || value === undefined) return '—'
@@ -17,32 +17,27 @@ function fmtEur(value: number | null): string {
 
 export default function InvestmentSnapshotCard() {
   const { t } = useT()
-  const [loading, setLoading] = useState(true)
-  const [error, setError]   = useState<string | null>(null)
-  const [data, setData]     = useState<CombinedOverview | null>(null)
-
-  useEffect(() => {
-    getCombinedOverview()
-      .then(d  => { setData(d);          setLoading(false) })
-      .catch(e => { setError(String(e)); setLoading(false) })
-  }, [])
+  const overviewQuery = useCombinedOverview()
+  const loading = overviewQuery.isPending
+  const error = overviewQuery.error
+  const data = overviewQuery.data ?? null
 
   return (
     <div className="card inv-snapshot-card">
       <div className="inv-snapshot-header">
         <h3 className="inv-snapshot-title">{t.invSnapshotTitle}</h3>
-        <Link to="/investments" className="inv-snapshot-link">{t.invSnapshotGoTo}</Link>
+        <Link to="/investments" className="inv-snapshot-link">{t.invSnapshotGoTo} <IconChevronRight size={14} /></Link>
       </div>
 
       {loading ? (
         <div className="state-box">
-          <span className="icon">⏳</span>
+          <IconLoading size={18} />
           <span>{t.loading}</span>
         </div>
       ) : error ? (
         <div className="state-box error">
-          <span className="icon">⚠️</span>
-          <span>{error}</span>
+          <IconAlert size={18} />
+          <span>{errorMessage(error, t)}</span>
         </div>
       ) : data && data.providers.length > 0 ? (
         <div className="inv-snapshot-body">
@@ -68,7 +63,7 @@ export default function InvestmentSnapshotCard() {
         <div className="state-box">
           <span>{t.invSnapshotNoConnections}</span>
           <Link to="/investments" className="btn-secondary inv-snapshot-cta">
-            {t.invSnapshotGoTo}
+            {t.invSnapshotGoTo} <IconChevronRight size={14} />
           </Link>
         </div>
       )}

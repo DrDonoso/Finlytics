@@ -113,7 +113,7 @@ export default function DatePicker({ value, onChange, min, max, ariaLabel, place
 
   const triggerRef        = useRef<HTMLButtonElement>(null)
   const panelRef          = useRef<HTMLDivElement>(null)
-  const cellRefs          = useRef<(HTMLButtonElement | null)[]>(new Array(42).fill(null))
+  const cellRefs          = useRef<(HTMLButtonElement | null)[]>(Array.from({ length: 42 }, () => null))
   const focusCellOnRender = useRef(false)
 
   // ── Disabled-day check ───────────────────────────────────────────────────────

@@ -131,6 +131,8 @@ export interface Dict {
   authErrorPasswordTooShort: string
   authErrorUsernameTooShort: string
   authErrorAlreadySetup: string
+  /** 429: se ha agotado el cupo de intentos de acceso desde esta red. */
+  authErrorTooManyAttempts: (minutes: number) => string
   authErrorUnexpected: string
   authRememberMe: string
   // ── Flow filter ───────────────────────────────────────────────────────────
@@ -458,6 +460,17 @@ export interface Dict {
   dashboardAccountsEmpty: string
   dashboardStatementMissingLabel: string
   dashboardStatementMissingTooltip: (month: string) => string
+  /** Desglose del patrimonio en la KPI destacada: cuentas vs inversiones. */
+  dashboardNetWorthAccounts: string
+  dashboardNetWorthInvestments: string
+  /** Se muestra en el desglose cuando el valor de inversiones no se ha podido leer. */
+  dashboardNetWorthUnavailable: string
+  /** Aviso cuando el patrimonio excluye las inversiones por un fallo de lectura. */
+  dashboardNetWorthPartial: string
+  /** Variación de la tasa de ahorro del último mes con datos frente al anterior. */
+  dashboardSavingsRateVsPrevMonth: string
+  /** Nº de meses sobre los que se calcula el promedio mensual. */
+  dashboardMonthsTracked: (months: number) => string
   // ── Investments page ──────────────────────────────────────────────────────
   investmentsTitle: string
   investmentsKpiTotalValue: string
@@ -642,6 +655,8 @@ export interface Dict {
   invSnapshotTitle: string
   invSnapshotNoConnections: string
   invSnapshotGoTo: string
+  /** CTA de la tarjeta de proveedor en la portada de Inversiones. */
+  invProviderCta: string
   // ── ImportSourcePicker (Inicio import prompt) ─────────────────────────────
   importPickerTitle: string
   importPickerStatements: string

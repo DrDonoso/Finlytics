@@ -22,7 +22,6 @@ from finlytics.api.schemas import (
     CombinedOverviewOut,
     ConnectionOut,
     ConnectCreate,
-    DiscoveredAccountOut,
     InvestmentPluginOut,
     InvestmentPortfolioOut,
     ProviderAllocationItem,
