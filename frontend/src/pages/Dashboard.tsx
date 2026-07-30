@@ -263,9 +263,14 @@ export default function Dashboard() {
   const accountByName = new Map((accounts.data ?? []).map(account => [accountKey(account.name), account]))
   const accountNetTotal = byAccount.data?.reduce((sum, row) => sum + row.net, 0) ?? 0
   const investmentsValue = investmentsOverview.data?.total_value_eur ?? 0
-  const totalNetWorth = accountNetTotal + investmentsValue
-  const netWorthPending = byAccount.loading || investmentsOverview.loading
-    || Boolean(byAccount.error) || Boolean(investmentsOverview.error)
+
+  // Degradación parcial: un fallo al leer las inversiones no debe ocultar el
+  // neto de las cuentas, que sí está disponible.  Antes cualquiera de los dos
+  // errores dejaba el patrimonio en «—» y se perdía información que sí se tenía.
+  const investmentsFailed = Boolean(investmentsOverview.error)
+  const accountsPending = byAccount.loading || Boolean(byAccount.error)
+  const netWorthPending = accountsPending || investmentsOverview.loading
+  const totalNetWorth = accountNetTotal + (investmentsFailed ? 0 : investmentsValue)
   const missingStatementAccountIds = statementReminder?.year != null && statementReminder.month != null
     ? new Set(statementReminder.missing_account_ids)
     : new Set<number>()
@@ -291,8 +296,16 @@ export default function Dashboard() {
               </span>
               <span>
                 <span className="dashboard-kpi-breakdown__label">{t.dashboardNetWorthInvestments}</span>
-                {formatEur(investmentsValue)}
+                {investmentsFailed
+                  ? <span className="dashboard-kpi-breakdown__missing">{t.dashboardNetWorthUnavailable}</span>
+                  : formatEur(investmentsValue)}
               </span>
+            </div>
+          )}
+          {!netWorthPending && investmentsFailed && (
+            <div className="dashboard-kpi-hero__notice">
+              <IconAlert size={13} />
+              <span>{t.dashboardNetWorthPartial}</span>
             </div>
           )}
         </div>

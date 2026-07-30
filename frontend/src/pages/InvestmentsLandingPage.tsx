@@ -3,9 +3,10 @@ import { Link } from 'react-router'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 import type { CombinedOverview } from '../api/types'
 import { getCombinedOverview } from '../api/client'
+import { errorMessage } from '../api/errors'
 import { getPluginLogo, pluginInitial } from '../investments/registry'
 import { useT } from '../i18n'
-import { IconLoading, IconChartBar, IconChartPie, IconChevronRight } from '../components/icons'
+import { IconLoading, IconChartBar, IconChartPie, IconChevronRight, IconAlert } from '../components/icons'
 
 const PROVIDER_COLORS: Record<string, string> = {
   indexa:   '#2563eb',
@@ -40,13 +41,14 @@ function signedEur(n: number): string {
 export default function InvestmentsLandingPage() {
   const { t } = useT()
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  // Error en crudo: se traduce al pintar, así sigue al idioma activo.
+  const [error, setError] = useState<unknown>(null)
   const [overview, setOverview] = useState<CombinedOverview | null>(null)
 
   useEffect(() => {
     getCombinedOverview()
       .then(data => { setOverview(data); setLoading(false) })
-      .catch(e => { setError(String(e)); setLoading(false) })
+      .catch(e => { setError(e); setLoading(false) })
   }, [])
 
   if (loading) {
@@ -65,7 +67,26 @@ export default function InvestmentsLandingPage() {
     )
   }
 
-  if (error || !overview || overview.providers.length === 0) {
+  // Un fallo al leer no es lo mismo que no tener conectores: antes ambos casos
+  // pintaban «aún no hay inversiones», que induce a pensar que no hay datos
+  // cuando lo que ha ocurrido es que no se han podido consultar.
+  if (error) {
+    return (
+      <main className="dashboard">
+        <div className="investments-header">
+          <h1 className="investments-page-title">{t.invCombinedTitle}</h1>
+        </div>
+        <div className="card">
+          <div className="state-box error">
+            <IconAlert size={18} />
+            <span>{errorMessage(error, t)}</span>
+          </div>
+        </div>
+      </main>
+    )
+  }
+
+  if (!overview || overview.providers.length === 0) {
     return (
       <main className="dashboard">
         <div className="investments-header">

@@ -453,6 +453,10 @@ export interface Dict {
   /** Desglose del patrimonio en la KPI destacada: cuentas vs inversiones. */
   dashboardNetWorthAccounts: string
   dashboardNetWorthInvestments: string
+  /** Se muestra en el desglose cuando el valor de inversiones no se ha podido leer. */
+  dashboardNetWorthUnavailable: string
+  /** Aviso cuando el patrimonio excluye las inversiones por un fallo de lectura. */
+  dashboardNetWorthPartial: string
   /** Variación de la tasa de ahorro del último mes con datos frente al anterior. */
   dashboardSavingsRateVsPrevMonth: string
   /** Nº de meses sobre los que se calcula el promedio mensual. */

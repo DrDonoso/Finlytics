@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router'
 import { getCombinedOverview } from '../api/client'
+import { errorMessage } from '../api/errors'
 import type { CombinedOverview } from '../api/types'
 import { getPluginLogo, pluginInitial } from '../investments/registry'
 import { useT } from '../i18n'
@@ -19,13 +20,15 @@ function fmtEur(value: number | null): string {
 export default function InvestmentSnapshotCard() {
   const { t } = useT()
   const [loading, setLoading] = useState(true)
-  const [error, setError]   = useState<string | null>(null)
+  // Se guarda el error en crudo y se traduce al pintar, para que el mensaje
+  // acompañe al cambio de idioma en vez de quedarse congelado.
+  const [error, setError]   = useState<unknown>(null)
   const [data, setData]     = useState<CombinedOverview | null>(null)
 
   useEffect(() => {
     getCombinedOverview()
-      .then(d  => { setData(d);          setLoading(false) })
-      .catch(e => { setError(String(e)); setLoading(false) })
+      .then(d  => { setData(d);      setLoading(false) })
+      .catch(e => { setError(e);     setLoading(false) })
   }, [])
 
   return (
@@ -43,7 +46,7 @@ export default function InvestmentSnapshotCard() {
       ) : error ? (
         <div className="state-box error">
           <IconAlert size={18} />
-          <span>{error}</span>
+          <span>{errorMessage(error, t)}</span>
         </div>
       ) : data && data.providers.length > 0 ? (
         <div className="inv-snapshot-body">

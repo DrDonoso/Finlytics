@@ -6354,6 +6354,25 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
   color: rgba(255, 255, 255, 0.62);
   margin-bottom: 1px;
 }
+/* Valor que no se ha podido leer: se marca como texto, no como cifra. */
+.dashboard-kpi-breakdown__missing {
+  font-family: var(--font);
+  font-style: italic;
+  color: rgba(255, 255, 255, 0.62);
+}
+
+/* Aviso de patrimonio incompleto, dentro de la tarjeta con degradado. */
+.dashboard-kpi-hero__notice {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 1px solid rgba(255, 255, 255, 0.18);
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.8);
+}
 
 /* Badge de variación.  Se expresa en puntos porcentuales, no en %, porque la
    variación relativa entre dos porcentajes induce a error. */
