@@ -16,6 +16,12 @@ RUN npm run build
 # ─── Stage 2: Python runtime ──────────────────────────────────────────────────
 FROM python:3.14-slim AS base
 
+# La imagen base corre en UTC. La aplicación resuelve su día natural con
+# TIMEZONE (ver finlytics/clock.py), pero conviene alinear también el reloj del
+# proceso para que las marcas de tiempo de los logs coincidan con lo que muestra
+# la interfaz. TZ lo inyecta docker-compose junto a TIMEZONE.
+ENV TZ=Europe/Madrid
+
 # Create non-root user
 RUN groupadd --gid 1000 app && \
     useradd --uid 1000 --gid app --create-home app

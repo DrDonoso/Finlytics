@@ -22,6 +22,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from finlytics.api.deps import get_current_user, get_db
+from finlytics.clock import today as local_today
 from finlytics.api.schemas import (
     FidelityEvolutionOut,
     FidelityImportResult,
@@ -196,7 +197,7 @@ def _expected_espp_dates(start_year: int = 2020, end_date: date | None = None) -
     Dates are the last weekday of Mar / Jun / Sep / Dec each year.
     """
     if end_date is None:
-        end_date = date.today()
+        end_date = local_today()
     result: list[date] = []
     for year in range(start_year, end_date.year + 1):
         for month in _ESPP_QUARTER_MONTHS:
@@ -207,8 +208,8 @@ def _expected_espp_dates(start_year: int = 2020, end_date: date | None = None) -
 
 
 def _get_today() -> date:
-    """Indirection for date.today(); monkeypatched in tests for determinism."""
-    return date.today()
+    """Indirection for the app's local date; monkeypatched in tests for determinism."""
+    return local_today()
 
 
 def compute_espp_reminder(
@@ -220,7 +221,8 @@ def compute_espp_reminder(
 
     Args:
         lots:       EsppLot rows with ``.purchase_date`` and ``.share_source``.
-        today:      Override for deterministic testing; defaults to date.today().
+        today:      Override for deterministic testing; defaults to the app's
+                    local date (see finlytics.clock).
         grace_days: Days after the expected purchase before marking overdue.
 
     Returns:
@@ -228,7 +230,7 @@ def compute_espp_reminder(
         no SP lot exists with purchase_date ≥ the expected quarter-end date.
     """
     if today is None:
-        today = date.today()
+        today = local_today()
 
     expected_dates = _expected_espp_dates(end_date=today)
     if not expected_dates:
@@ -438,7 +440,7 @@ async def fidelity_kpis(
             usd_eur_rate=None,
             last_price_date=None,
             price_stale=True,
-            as_of_date=date.today().isoformat(),
+            as_of_date=local_today().isoformat(),
         )
 
     lots = (
@@ -459,7 +461,7 @@ async def fidelity_kpis(
             usd_eur_rate=None,
             last_price_date=None,
             price_stale=True,
-            as_of_date=date.today().isoformat(),
+            as_of_date=local_today().isoformat(),
         )
 
     current_value_eur = total_shares * price.close_usd * price.fx_eur_usd
@@ -476,7 +478,7 @@ async def fidelity_kpis(
         usd_eur_rate=round(price.fx_eur_usd, 6),
         last_price_date=price.price_date.isoformat(),
         price_stale=price.price_stale,
-        as_of_date=date.today().isoformat(),
+        as_of_date=local_today().isoformat(),
     )
 
 
@@ -513,7 +515,7 @@ async def fidelity_evolution(
         return FidelityEvolutionOut(value_series=[], contributions_series=[])
 
     min_date = min(lot.purchase_date for lot in lots)
-    max_date = date.today()
+    max_date = local_today()
 
     def _price_query():
         return (

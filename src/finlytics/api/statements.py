@@ -16,6 +16,7 @@ from finlytics.api.schemas import (
     StatementOriginal,
     StatementReminderOut,
 )
+from finlytics.clock import today as local_today
 from finlytics.config import settings
 from finlytics.db import queries
 from finlytics.db.models import ImportRun
@@ -26,8 +27,8 @@ router = APIRouter(prefix="/statements", tags=["statements"])
 
 
 def _get_today() -> date:
-    """Indirection for date.today(); monkeypatched in tests for determinism."""
-    return date.today()
+    """Indirection for the app's local date; monkeypatched in tests for determinism."""
+    return local_today()
 
 
 def compute_statement_reminder(
