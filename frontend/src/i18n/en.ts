@@ -737,5 +737,9 @@ const en: Dict = {
   invContribTypeContribution: 'Contribution',
   invContribTypeWithdrawal: 'Withdrawal',
   invContribEmpty: 'No contributions recorded',
+  langSelectLabel: 'Language',
+  demoNoticeTitle: 'Demo with fictional data.',
+  demoNoticeBody: 'No figure here is real and nothing is saved: reloading the page restores the initial scenario.',
+  demoNoticeCredentials: 'Sign in with',
 }
 export default en

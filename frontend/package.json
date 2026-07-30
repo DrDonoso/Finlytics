@@ -6,8 +6,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:demo": "vite --mode demo",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview"
+    "build:demo": "tsc --noEmit && vite build --mode demo",
+    "preview": "vite preview",
+    "preview:demo": "vite preview --mode demo"
   },
   "dependencies": {
     "react": "^19.2.8",
@@ -19,7 +22,13 @@
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.4",
+    "msw": "^2.15.0",
     "typescript": "^7.0.2",
     "vite": "^8.1.5"
+  },
+  "msw": {
+    "workerDirectory": [
+      "public"
+    ]
   }
 }

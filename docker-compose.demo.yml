@@ -1,0 +1,40 @@
+# Finlytics — public demo stack (Dockge-ready)
+#
+# Serves the STATIC demo build: a single nginx container with the SPA and a
+# synthetic dataset that lives in the visitor's browser. There is deliberately
+# no API container and no database — the demo cannot read or write real data,
+# so there is nothing to reset and nothing to leak.
+#
+#   docker compose -f docker-compose.demo.yml pull
+#   docker compose -f docker-compose.demo.yml up -d
+#
+# ⚠️ MUST be served over HTTPS (or localhost). The demo's API layer is a Service
+# Worker, and browsers only register those in a secure context. Behind a plain
+# HTTP address the worker never starts and every screen fails to load its data.
+# Put it behind your reverse proxy with TLS.
+
+services:
+  demo:
+    image: drdonoso/finlytics-demo:latest
+    restart: unless-stopped
+
+    ports:
+      # Same port on both sides — nginx listens on 7778 inside the container.
+      # Publish to the reverse proxy, not to the internet directly.
+      - "${FINLYTICS_DEMO_PORT:-7778}:7778"
+
+    # No environment, no volumes, no secrets: everything the demo shows is
+    # generated in the browser at page load.
+
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:7778/healthz"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

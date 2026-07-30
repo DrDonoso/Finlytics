@@ -12,7 +12,6 @@ on:
       - '.squad/**'
       - '.github/**'
       - 'tests/**'
-      - 'Dockerfile.local'
       - 'docker-compose.local.yml'
       - '.env.example'
       - '.gitignore'
@@ -122,6 +121,10 @@ jobs:
       uses: docker/setup-buildx-action@v4
 
     - name: Log in to Docker Hub
+      # Repository secrets, set under Settings → Secrets and variables → Actions:
+      #   DOCKER_USERNAME — Docker Hub username
+      #   DOCKER_PASSWORD — a Docker Hub *Access Token*, not the account password
+      #                     (https://hub.docker.com/settings/security)
       uses: docker/login-action@v4.4.0
       with:
         username: ${{ secrets.DOCKER_USERNAME }}
@@ -146,6 +149,31 @@ jobs:
         tags: |
           drdonoso/finlytics:latest
           drdonoso/finlytics:${{ steps.calver.outputs.version }}
+        build-args: |
+          IMAGE_TAG=${{ steps.calver.outputs.version }}
+          BUILD_DATE=${{ steps.build_date.outputs.date }}
+
+    # Same Dockerfile, different target: `demo` is the nginx stage serving the
+    # VITE_DEMO=1 bundle. It shares the `npm ci` layer with the production build
+    # above, and cannot be a *mode* of the main image — that one ships the
+    # production SPA and migrates on boot, so it needs Postgres and would put
+    # the real API on the public internet.
+    - name: Build and push demo Docker image
+      uses: docker/build-push-action@v7
+      with:
+        context: .
+        target: demo
+        push: true
+        provenance: false
+        cache-from: |
+          type=gha
+          type=registry,ref=drdonoso/finlytics-demo:latest
+        cache-to: |
+          type=gha,mode=max
+          type=inline
+        tags: |
+          drdonoso/finlytics-demo:latest
+          drdonoso/finlytics-demo:${{ steps.calver.outputs.version }}
         build-args: |
           IMAGE_TAG=${{ steps.calver.outputs.version }}
           BUILD_DATE=${{ steps.build_date.outputs.date }}
