@@ -3,12 +3,22 @@
 from __future__ import annotations
 
 from datetime import date
-from typing import Any, Literal
+from typing import Literal
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from finlytics.db.models import Account, Category, Transaction
+from finlytics.db.queries.types import (
+    AccountSummaryRow,
+    CashflowItem,
+    CashflowSummary,
+    CategorySummaryRow,
+    DaySummaryRow,
+    MerchantSummaryRow,
+    MonthSummaryRow,
+    OverviewSummary,
+)
 
 from finlytics.db.queries._filters import (
     _apply_filters,
@@ -33,7 +43,7 @@ async def get_overview(
     amount_max: float | None = None,
     merchant: str | None = None,
     day: date | None = None,
-) -> dict[str, Any]:
+) -> OverviewSummary:
     stmt = _apply_filters(
         select(
             _expense_expr().label("total_expense"),
@@ -116,7 +126,7 @@ async def get_by_category(
     flow: Literal["expense", "income"] | None = None,
     merchant: str | None = None,
     day: date | None = None,
-) -> list[dict[str, Any]]:
+) -> list[CategorySummaryRow]:
     """Expenses by category, sorted descending by magnitude."""
     stmt = _apply_filters(
         select(
@@ -155,7 +165,7 @@ async def get_by_merchant(
     flow: Literal["expense", "income"] | None = None,
     category_id: int | None = None,
     day: date | None = None,
-) -> list[dict[str, Any]]:
+) -> list[MerchantSummaryRow]:
     """Expenses by merchant, sorted descending by magnitude."""
     stmt = _apply_filters(
         select(
@@ -193,7 +203,7 @@ async def get_by_month(
     category_id: int | None = None,
     tags: list[str] | None = None,
     flow: Literal["expense", "income"] | None = None,
-) -> list[dict[str, Any]]:
+) -> list[MonthSummaryRow]:
     """Expense / income / net grouped by calendar month (chronological)."""
     month_expr = func.to_char(Transaction.transaction_date, "YYYY-MM")
     stmt = _apply_filters(
@@ -234,7 +244,7 @@ async def get_by_day(
     tags: list[str] | None = None,
     flow: Literal["expense", "income"] | None = None,
     merchant: str | None = None,
-) -> list[dict[str, Any]]:
+) -> list[DaySummaryRow]:
     """Expense / income / net grouped by calendar day (chronological)."""
     day_expr = func.to_char(Transaction.transaction_date, "YYYY-MM-DD")
     stmt = _apply_filters(
@@ -274,7 +284,7 @@ async def get_by_account(
     category_id: int | None = None,
     tags: list[str] | None = None,
     flow: Literal["expense", "income"] | None = None,
-) -> list[dict[str, Any]]:
+) -> list[AccountSummaryRow]:
     """Expense / income / net grouped by account."""
     stmt = _apply_filters(
         select(
@@ -316,7 +326,7 @@ async def get_cashflow(
     category_id: int | None = None,
     tags: list[str] | None = None,
     flow: Literal["expense", "income"] | None = None,
-) -> dict[str, Any]:
+) -> CashflowSummary:
     """Income and expense totals per category, for a Sankey diagram.
 
     * ``income``  — list of ``{category, amount}`` where amount > 0, sorted desc.
@@ -364,8 +374,12 @@ async def get_cashflow(
     income_rows = (await session.execute(income_stmt)).all()
     expense_rows = (await session.execute(expense_stmt)).all()
 
-    income = [{"category": r.category, "amount": float(r.amount)} for r in income_rows]
-    expense = [{"category": r.category, "amount": float(r.amount)} for r in expense_rows]
+    income: list[CashflowItem] = [
+        {"category": r.category, "amount": float(r.amount)} for r in income_rows
+    ]
+    expense: list[CashflowItem] = [
+        {"category": r.category, "amount": float(r.amount)} for r in expense_rows
+    ]
 
     # Currency: specific account's currency, or EUR as default
     currency = "EUR"

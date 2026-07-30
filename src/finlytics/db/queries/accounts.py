@@ -2,18 +2,18 @@
 
 from __future__ import annotations
 
-from typing import Any
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from finlytics.db.models import Account, ImportRun, Transaction
+from finlytics.db.queries.types import AccountRow
 
 
 
 # ── Account queries ───────────────────────────────────────────────────────────
 
-async def get_accounts(session: AsyncSession) -> list[dict[str, Any]]:
+async def get_accounts(session: AsyncSession) -> list[AccountRow]:
     stmt = (
         select(
             Account.id,
@@ -38,7 +38,7 @@ async def get_accounts(session: AsyncSession) -> list[dict[str, Any]]:
     ]
 
 
-async def get_account_by_id(session: AsyncSession, account_id: int) -> dict[str, Any] | None:
+async def get_account_by_id(session: AsyncSession, account_id: int) -> AccountRow | None:
     """Return a single account row with tx_count, or None if not found."""
     stmt = (
         select(

@@ -23,8 +23,9 @@ from finlytics.config import settings
 
 __all__ = ["local_timezone", "now", "today"]
 
-_UNSET = object()
-_cached_zone: object = _UNSET
+# None = todavía no resuelta. No hace falta un centinela aparte porque la
+# función siempre acaba asignando una zona válida (UTC en el peor caso).
+_cached_zone: ZoneInfo | timezone | None = None
 
 
 def local_timezone() -> ZoneInfo | timezone:
@@ -34,8 +35,8 @@ def local_timezone() -> ZoneInfo | timezone:
     que la aplicación arranque, y el aviso queda en el log.
     """
     global _cached_zone
-    if _cached_zone is not _UNSET:
-        return _cached_zone  # type: ignore[return-value]
+    if _cached_zone is not None:
+        return _cached_zone
 
     try:
         _cached_zone = ZoneInfo(settings.timezone)
@@ -47,7 +48,7 @@ def local_timezone() -> ZoneInfo | timezone:
             settings.timezone,
         )
         _cached_zone = timezone.utc
-    return _cached_zone  # type: ignore[return-value]
+    return _cached_zone
 
 
 def now() -> datetime:
@@ -68,4 +69,4 @@ def today() -> date:
 def reset_cache() -> None:
     """Olvida la zona memorizada. Pensado para tests que cambian TIMEZONE."""
     global _cached_zone
-    _cached_zone = _UNSET
+    _cached_zone = None

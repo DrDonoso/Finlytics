@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from finlytics.db.models import Account, Category, Tag, Transaction, transaction_tags
+from finlytics.db.queries.types import TransactionRow, UpdatedTransactionRow
 from finlytics.db.queries._filters import DedupCollisionError, _apply_filters
 from finlytics.db.repository import compute_dedup_hash, get_or_create_category, get_or_create_tag
 
@@ -45,7 +46,7 @@ async def get_transactions(
     offset: int = 0,
     sort_by: str = "date",
     sort_dir: str = "desc",
-) -> tuple[list[dict[str, Any]], int]:
+) -> tuple[list[TransactionRow], int]:
     """Return ``(items, total)`` for the transactions list endpoint.
 
     ``sort_by`` must be one of the keys in ``_SORT_COLUMNS``; unknown values
@@ -125,7 +126,7 @@ async def get_transactions(
         for tx_id, tname in tag_rows:
             tag_map.setdefault(tx_id, []).append(tname)
 
-    items = [
+    items: list[TransactionRow] = [
         {
             "id": row["id"],
             "transaction_date": row["transaction_date"].isoformat(),
@@ -159,7 +160,7 @@ async def update_transaction(
     category_name: str | None = None,
     tags: list[str] | None = None,
     merchant: str | None = None,
-) -> dict[str, Any] | None:
+) -> UpdatedTransactionRow | None:
     """Apply a partial update to a transaction.
 
     Returns the updated transaction as a ``TransactionOut``-compatible dict,

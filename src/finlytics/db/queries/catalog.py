@@ -12,6 +12,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from finlytics.db.models import Category, Tag, Transaction, transaction_tags
+from finlytics.db.queries.types import CategoryRow, CategoryUpdateRow, TagRow, TagWithCountRow
 
 from finlytics.db.queries._filters import (
     _split_leading_emoji,
@@ -20,7 +21,7 @@ from finlytics.db.queries._filters import (
 
 # ── Category queries ──────────────────────────────────────────────────────────
 
-async def get_categories(session: AsyncSession) -> list[dict[str, Any]]:
+async def get_categories(session: AsyncSession) -> list[CategoryRow]:
     stmt = (
         select(
             Category.id,
@@ -49,7 +50,7 @@ async def get_categories(session: AsyncSession) -> list[dict[str, Any]]:
     ]
 
 
-async def get_tags(session: AsyncSession) -> list[dict[str, Any]]:
+async def get_tags(session: AsyncSession) -> list[TagWithCountRow]:
     """Return all tags sorted alphabetically, each with a transaction count."""
     stmt = (
         select(
@@ -80,7 +81,7 @@ async def create_tag(
     name: str,
     color: str | None = None,
     emoji: str | None = None,
-) -> dict[str, Any]:
+) -> TagRow:
     """Create a new tag.  Raises ``TagNameConflictError`` if name already exists.
 
     Leading emoji is auto-split from *name* (e.g. "💡 luz" → name="luz",
@@ -123,7 +124,7 @@ async def update_tag(
     name: str | None = None,
     color: str | None = None,
     emoji: Any = _FIELD_UNSET,
-) -> dict[str, Any] | None:
+) -> TagRow | None:
     """Rename and/or recolour/re-emoji a tag.
 
     Returns ``None`` if the tag does not exist.
@@ -193,7 +194,7 @@ async def update_category(
     category_id: int,
     *,
     color: str | None = None,
-) -> dict[str, Any] | None:
+) -> CategoryUpdateRow | None:
     """Update a category's color.
 
     Returns the updated category dict, or ``None`` if not found.

@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from calendar import monthrange
 from datetime import date
-from typing import Any
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from finlytics.db.models import Account, ImportRun, Transaction
+from finlytics.db.queries.types import StatementMonthRow, StatementOriginalRow
 
 
 
@@ -19,7 +19,7 @@ async def get_statement_months(
     session: AsyncSession,
     *,
     account_id: int | None = None,
-) -> list[dict[str, Any]]:
+) -> list[StatementMonthRow]:
     """Return one entry per (year, month) that has ≥1 transaction, sorted DESC.
 
     When *account_id* is provided, restricts results to that account only.
@@ -81,7 +81,7 @@ async def get_statement_originals(
     year: int,
     month: int,
     account_id: int | None = None,
-) -> list[dict[str, Any]]:
+) -> list[StatementOriginalRow]:
     """Return ImportRuns that have an original PDF on disk for the given month.
 
     Filters by ``period == "YYYY-MM"`` and ``source_path IS NOT NULL``.
