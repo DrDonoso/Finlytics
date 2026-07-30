@@ -2,6 +2,7 @@ import { Suspense } from 'react'
 import { useParams, Link } from 'react-router'
 import { PLUGIN_VIEW_REGISTRY } from './registry'
 import { useT } from '../i18n'
+import { IconPlug, IconLoading, IconChevronRight } from '../components/icons'
 
 export default function PluginViewWrapper() {
   const { pluginId } = useParams<{ pluginId: string }>()
@@ -14,10 +15,10 @@ export default function PluginViewWrapper() {
       <main className="dashboard">
         <div className="card">
           <div className="state-box">
-            <span className="icon">🔌</span>
+            <IconPlug size={18} />
             <p>{t.invPluginNotAvailable}</p>
             <Link to="/settings/connectors" className="btn-primary">
-              {t.investmentsManageConnectors}
+              {t.investmentsManageConnectors} <IconChevronRight size={14} />
             </Link>
           </div>
         </div>
@@ -32,7 +33,7 @@ export default function PluginViewWrapper() {
       <main className="dashboard">
         <div className="card">
           <div className="state-box">
-            <span className="icon">⏳</span>
+            <IconLoading size={18} />
             <span>{t.loading}</span>
           </div>
         </div>

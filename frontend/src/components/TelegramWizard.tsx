@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { createTelegramChannel, testTelegramChannel } from '../api/client'
 import { useT } from '../i18n'
+import { IconClose, IconLock, IconAlert, IconSend, IconCheck, IconChevronRight } from './icons'
 
 type TelegramStep = 1 | 2 | 3
 type SaveState = 'idle' | 'saving' | 'success' | 'error'
@@ -108,7 +109,7 @@ export default function TelegramWizard({ onClose, onConnected }: Props) {
         {/* Modal header */}
         <div className="modal-header">
           <span className="modal-title" id="tg-wizard-title">{t.tgWizardTitle}</span>
-          <button className="modal-close" onClick={onClose} aria-label={t.tgWizardClose}>✕</button>
+          <button className="modal-close" onClick={onClose} aria-label={t.tgWizardClose}><IconClose size={16} /></button>
         </div>
 
         {/* Modal body */}
@@ -130,7 +131,7 @@ export default function TelegramWizard({ onClose, onConnected }: Props) {
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  {t.tgWizardBotFatherLink}
+                  {t.tgWizardBotFatherLink} <IconChevronRight size={13} />
                 </a>
               </div>
               <div className="inv-wizard__token-field">
@@ -149,7 +150,7 @@ export default function TelegramWizard({ onClose, onConnected }: Props) {
                 />
               </div>
               <div className="inv-wizard__security-note">
-                <span className="inv-wizard__security-note-icon" aria-hidden="true">🔒</span>
+                <span className="inv-wizard__security-note-icon" aria-hidden="true"><IconLock size={15} /></span>
                 <span>{t.tgWizardSecurityNote}</span>
               </div>
             </div>
@@ -178,7 +179,7 @@ export default function TelegramWizard({ onClose, onConnected }: Props) {
                 <span className="inv-wizard__field-hint">{t.tgWizardStep3ChatIdHint}</span>
                 {showChatIdError && (
                   <div className="inv-wizard__error-banner" role="alert" style={{ marginTop: '0.5rem' }}>
-                    <span className="inv-wizard__error-banner-icon" aria-hidden="true">⚠️</span>
+                    <span className="inv-wizard__error-banner-icon" aria-hidden="true"><IconAlert size={16} /></span>
                     <span>{t.tgWizardChatIdValidationError}</span>
                   </div>
                 )}
@@ -198,7 +199,7 @@ export default function TelegramWizard({ onClose, onConnected }: Props) {
               </div>
               {testState === 'error' && testError && (
                 <div className="inv-wizard__error-banner" role="alert">
-                  <span className="inv-wizard__error-banner-icon" aria-hidden="true">⚠️</span>
+                  <span className="inv-wizard__error-banner-icon" aria-hidden="true"><IconAlert size={16} /></span>
                   <span>{testError}</span>
                 </div>
               )}
@@ -208,12 +209,12 @@ export default function TelegramWizard({ onClose, onConnected }: Props) {
           {/* Step 3: Confirm + connect */}
           {step === 3 && saveState !== 'success' && (
             <div className="inv-wizard__body">
-              <span className="inv-wizard__logo" aria-hidden="true">✈️</span>
+              <span className="inv-wizard__logo" aria-hidden="true"><IconSend size={44} /></span>
               <h2 className="inv-wizard__title">{t.tgWizardStep4Title}</h2>
               <p className="inv-wizard__desc">{t.tgWizardStep4Desc}</p>
               {saveState === 'error' && saveError && (
                 <div className="inv-wizard__error-banner" role="alert">
-                  <span className="inv-wizard__error-banner-icon" aria-hidden="true">⚠️</span>
+                  <span className="inv-wizard__error-banner-icon" aria-hidden="true"><IconAlert size={16} /></span>
                   <span>{saveError}</span>
                 </div>
               )}
@@ -222,7 +223,7 @@ export default function TelegramWizard({ onClose, onConnected }: Props) {
 
           {step === 3 && saveState === 'success' && (
             <div className="inv-wizard__success">
-              <span className="inv-wizard__success-icon" aria-hidden="true">✅</span>
+              <span className="inv-wizard__success-icon" aria-hidden="true"><IconCheck size={40} /></span>
               <h2 className="inv-wizard__success-title">{t.tgWizardStep4Title}</h2>
               <p className="inv-wizard__success-desc">{t.tgWizardStep4Desc}</p>
             </div>

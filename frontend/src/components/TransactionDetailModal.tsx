@@ -4,6 +4,7 @@ import { updateTransaction } from '../api/client'
 import { useT, categoryLabel, formatDate, DEFAULT_TAG_COLOR, tagTextColor } from '../i18n'
 import CategorySelect from './CategorySelect'
 import TagEditor from './TagEditor'
+import { IconClose } from './icons'
 
 interface EditData {
   description: string
@@ -109,7 +110,7 @@ export default function TransactionDetailModal({
             onClick={onClose}
             disabled={saving}
             aria-label={t.modalClose}
-          >✕</button>
+          ><IconClose size={16} /></button>
         </div>
 
         <div className="modal-body tx-detail-body">

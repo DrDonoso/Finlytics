@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import type { CSSProperties, KeyboardEvent } from 'react'
 import { useT } from '../i18n'
 import type { Lang } from '../i18n'
+import { IconChevronDown } from './icons'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -271,7 +272,7 @@ export default function MonthPicker({ value, onChange, min, max, activeMonths, d
         onClick={open ? closePicker : openPicker}
       >
         <span>{formattedValue}</span>
-        <span className="month-picker-trigger__chevron" aria-hidden="true">▾</span>
+        <IconChevronDown size={14} className="month-picker-trigger__chevron" />
       </button>
 
       {open && (

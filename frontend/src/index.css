@@ -95,6 +95,13 @@
   --warning-text: #8a5a12;
   /* ── Notification unread background ── */
   --notif-unread-bg: rgba(var(--primary-rgb), 0.04);
+  /* ── Colores categóricos ──
+     Para clasificar (clase de activo, etc.), no para señalar estado: por eso
+     no reutilizan --income / --expense.  Al ser tokens siguen al tema y hacen
+     innecesarios los overrides de modo oscuro. */
+  --cat-neutral-rgb: 95, 107, 125;
+  --cat-alt: #5b2fb5;
+  --cat-alt-rgb: 109, 58, 212;
 }
 
 /* ─── Accent palette tokens ───────────────────────────────────────── */
@@ -241,6 +248,9 @@
   --warning-text: #e0a44a;
   /* Slightly stronger unread tint so the 7% shows on dark surfaces */
   --notif-unread-bg: rgba(var(--primary-rgb), 0.07);
+  --cat-neutral-rgb: 139, 154, 176;
+  --cat-alt: #a78bfa;
+  --cat-alt-rgb: 167, 139, 250;
 }
 
 /* ─── Design tokens — Dark (system preference, only when explicit not set) ─ */
@@ -272,6 +282,9 @@
     --warning-bg: rgba(224, 164, 74, 0.10);
     --warning-text: #e0a44a;
     --notif-unread-bg: rgba(var(--primary-rgb), 0.07);
+    --cat-neutral-rgb: 139, 154, 176;
+    --cat-alt: #a78bfa;
+    --cat-alt-rgb: 167, 139, 250;
   }
 }
 
@@ -1705,14 +1718,22 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
   color: var(--text-muted);
 }
 .confidence-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 4px 10px;
-  background: rgba(251, 191, 36, 0.15);
-  border: 1px solid rgba(251, 191, 36, 0.4);
+  /* Antes eran los ámbar de Tailwind escritos a mano (#fbbf24 / #b45309), que
+     no seguían al tema y quedaban ilegibles en oscuro. */
+  background: var(--warning-bg);
+  border: 1px solid rgba(var(--warning-rgb), 0.4);
   border-radius: 6px;
-  color: #b45309;
+  color: var(--warning-text);
   font-size: 12px;
 }
 .year-warning-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 10px 16px;
   background: rgba(var(--expense-rgb), 0.06);
   border: 1px solid rgba(var(--expense-rgb), 0.25);
@@ -1771,18 +1792,16 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
   white-space: nowrap;
 }
 .conf-ok  { background: rgba(var(--income-rgb), 0.12);  color: var(--income); }
-.conf-low { background: rgba(251,191,36,0.2);   color: #b45309; }
+.conf-low { background: var(--warning-bg); color: var(--warning-text); }
 .conf-na  { background: var(--bg); color: var(--text-muted); }
 
-/* Dark mode overrides for light-only colors */
+/* Dark mode overrides for light-only colors.
+   `.conf-low` y `.confidence-hint` ya resuelven por token en ambos temas, así
+   que aquí sólo queda lo que de verdad necesita una variante clara. */
 [data-theme="dark"] .conf-ok  { color: var(--income-bright); background: rgba(var(--income-rgb), 0.15); }
-[data-theme="dark"] .conf-low { color: #fbbf24; background: rgba(251,191,36,0.15); }
-[data-theme="dark"] .confidence-hint { color: #fbbf24; }
 [data-theme="dark"] .btn-row-save:hover { color: var(--income-bright); border-color: var(--income-bright); }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .conf-ok  { color: var(--income-bright); background: rgba(var(--income-rgb), 0.15); }
-  :root:not([data-theme="light"]) .conf-low { color: #fbbf24; background: rgba(251,191,36,0.15); }
-  :root:not([data-theme="light"]) .confidence-hint { color: #fbbf24; }
   :root:not([data-theme="light"]) .btn-row-save:hover { color: var(--income-bright); border-color: var(--income-bright); }
 }
 
@@ -2322,9 +2341,9 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
   font-weight: 600;
 }
 .filter-chip-tag {
-  background: rgba(139, 92, 246, 0.09);
-  color: #7c3aed;
-  border-color: rgba(139, 92, 246, 0.28);
+  background: rgba(var(--cat-alt-rgb), 0.09);
+  color: var(--cat-alt);
+  border-color: rgba(var(--cat-alt-rgb), 0.28);
 }
 .filter-chip-flow {
   background: rgba(var(--primary-rgb), 0.09);
@@ -4483,8 +4502,8 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
   height: 34px;
   padding: 0 14px;
   background: transparent;
-  color: #f59e0b;
-  border: 1.5px solid #f59e0b;
+  color: var(--warning);
+  border: 1.5px solid var(--warning);
   border-radius: 8px;
   font-size: 12px;
   font-weight: 600;
@@ -4496,13 +4515,13 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
   gap: 6px;
   font-family: inherit;
 }
-.btn-apply-rule:hover:not(:disabled) { background: rgba(245, 158, 11, 0.1); }
+.btn-apply-rule:hover:not(:disabled) { background: rgba(var(--warning-rgb), 0.1); }
 .btn-apply-rule:disabled { opacity: 0.45; cursor: default; }
 
 /* Amber spinner variant for the apply button */
 .btn-spinner--amber {
-  border-color: rgba(245, 158, 11, 0.35);
-  border-top-color: #f59e0b;
+  border-color: rgba(var(--warning-rgb), 0.35);
+  border-top-color: var(--warning);
 }
 
 /* ── Account number chip (AccountsPage) ──────────────────────────────────── */
@@ -4608,10 +4627,10 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
 /* Cap warning / exceeded */
 .batch-cap-warning {
   padding: 8px 12px;
-  background: color-mix(in srgb, var(--warning, #f59e0b) 15%, transparent);
-  border: 1px solid var(--warning, #f59e0b);
+  background: color-mix(in srgb, var(--warning) 15%, transparent);
+  border: 1px solid var(--warning);
   border-radius: 6px;
-  color: var(--warning, #f59e0b);
+  color: var(--warning);
   font-size: 13px;
   margin-bottom: 12px;
 }
@@ -4647,7 +4666,14 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
 .batch-file-icon { width: 18px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .batch-file-icon--done    { color: var(--income); }
 .batch-file-icon--error   { color: var(--expense); }
-.batch-file-icon--pending { color: var(--text-muted); opacity: 0.45; }
+/* Pendiente: círculo dibujado con borde, antes era el glifo «○». */
+.batch-file-icon--pending {
+  width: 10px;
+  height: 10px;
+  border: 1.6px solid var(--text-muted);
+  border-radius: 50%;
+  opacity: 0.45;
+}
 .batch-extract-header { display: flex; align-items: center; gap: 10px; }
 .batch-file-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .batch-file-error { color: var(--expense); font-size: 12px; flex-shrink: 0; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -4706,7 +4732,14 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
   flex-shrink: 0;
   color: var(--text-muted);
 }
-.batch-accordion-chevron.--open { transform: rotate(180deg); }
+/* El selector era `.batch-accordion-chevron.--open`, que exigía una clase
+   literal `--open`; el marcado emite `batch-accordion-chevron--open`, así que
+   la flecha nunca giraba.  Ahora es un chevron que apunta a la derecha, de
+   modo que abierto son 90°, no 180°. */
+.batch-accordion-chevron--open { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) {
+  .batch-accordion-chevron { transition: none; }
+}
 .batch-accordion-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .batch-accordion-meta { font-size: 12px; font-weight: 400; color: var(--text-muted); flex-shrink: 0; display: flex; align-items: center; gap: 6px; }
 .batch-dup-badge {
@@ -4737,11 +4770,14 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
 .batch-summary-title { font-size: 16px; font-weight: 700; }
 .batch-summary-totals { display: flex; flex-direction: column; gap: 6px; }
 .batch-summary-total-row { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.batch-summary-total-row--error { color: var(--expense); }
 .batch-detail-title { font-size: 13px; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; }
 .batch-detail-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .batch-detail-row { font-size: 13px; padding: 4px 0; }
-.batch-detail-row.--done { color: var(--income); }
-.batch-detail-row.--error { color: var(--expense); }
+/* Mismo desajuste BEM que en el chevron: el marcado emite
+   `batch-detail-row--done` / `--error`, no una clase suelta `--done`. */
+.batch-detail-row--done { color: var(--income); }
+.batch-detail-row--error { color: var(--expense); }
 
 /* ─── Investments Page ────────────────────────────────────────────────── */
 
@@ -5439,48 +5475,18 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
   border-color: rgba(var(--income-rgb), 0.22);
 }
 .inv-asset-class-badge--cash {
-  background: rgba(100, 116, 139, 0.10);
+  background: rgba(var(--cat-neutral-rgb), 0.10);
   color: var(--text-muted);
-  border-color: rgba(100, 116, 139, 0.20);
+  border-color: rgba(var(--cat-neutral-rgb), 0.20);
 }
 .inv-asset-class-badge--other {
-  background: rgba(139, 92, 246, 0.10);
-  color: #7c3aed;
-  border-color: rgba(139, 92, 246, 0.22);
+  background: rgba(var(--cat-alt-rgb), 0.10);
+  color: var(--cat-alt);
+  border-color: rgba(var(--cat-alt-rgb), 0.22);
 }
 
-[data-theme="dark"] .inv-asset-class-badge--equity {
-  color: var(--primary-bright);
-  background: rgba(96, 165, 250, 0.12);
-  border-color: rgba(96, 165, 250, 0.22);
-}
-[data-theme="dark"] .inv-asset-class-badge--fixed-income {
-  color: var(--income-bright);
-  background: rgba(var(--income-rgb), 0.12);
-  border-color: rgba(var(--income-rgb), 0.22);
-}
-[data-theme="dark"] .inv-asset-class-badge--other {
-  color: #a78bfa;
-  background: rgba(167, 139, 250, 0.12);
-  border-color: rgba(167, 139, 250, 0.22);
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .inv-asset-class-badge--equity {
-    color: var(--primary-bright);
-    background: rgba(96, 165, 250, 0.12);
-    border-color: rgba(96, 165, 250, 0.22);
-  }
-  :root:not([data-theme="light"]) .inv-asset-class-badge--fixed-income {
-    color: var(--income-bright);
-    background: rgba(var(--income-rgb), 0.12);
-    border-color: rgba(var(--income-rgb), 0.22);
-  }
-  :root:not([data-theme="light"]) .inv-asset-class-badge--other {
-    color: #a78bfa;
-    background: rgba(167, 139, 250, 0.12);
-    border-color: rgba(167, 139, 250, 0.22);
-  }
-}
+/* Sin overrides de modo oscuro: los cuatro modificadores resuelven por token,
+   que ya cambia con el tema. */
 
 /* ═══════════════════════════════════════════════════════════════════════
    Connectors page — card state modifiers

@@ -3,6 +3,7 @@ import type { Tag } from '../api/types'
 import { getTags, createTag, updateTag, deleteTag } from '../api/client'
 import { useT, DEFAULT_TAG_COLOR, tagTextColor, paletteColor } from '../i18n'
 import ColorSwatchPicker from '../components/ColorSwatchPicker'
+import { IconLoading, IconTag, IconCheck, IconClose, IconPencil, IconTrash } from '../components/icons'
 
 function tagLabel(tag: Tag): string {
   return tag.emoji ? `${tag.emoji} ${tag.name}` : tag.name
@@ -144,12 +145,12 @@ export default function SettingsPage() {
 
       {loading ? (
         <div className="state-box">
-          <span className="icon">⏳</span>
+          <IconLoading size={18} />
           <span>{t.loading}</span>
         </div>
       ) : tags.length === 0 ? (
         <div className="state-box">
-          <span className="icon">🏷</span>
+          <IconTag size={18} />
           <span>{t.settingsTagsEmpty}</span>
         </div>
       ) : (
@@ -181,13 +182,13 @@ export default function SettingsPage() {
                         onClick={handleSave}
                         disabled={saving}
                         title={t.tableSaveRow}
-                      >✓</button>
+                      ><IconCheck size={15} /></button>
                       <button
                         className="btn-row-icon btn-row-cancel"
                         onClick={() => setEditId(null)}
                         disabled={saving}
                         title={t.tableCancelEdit}
-                      >✕</button>
+                      ><IconClose size={15} /></button>
                     </div>
                   </div>
                   <div className="settings-tag-edit-bottom">
@@ -217,13 +218,13 @@ export default function SettingsPage() {
                       onClick={() => handleDelete(tag.id)}
                       disabled={deleting}
                       title={t.settingsTagsDelete}
-                    >✓</button>
+                    ><IconCheck size={15} /></button>
                     <button
                       className="btn-row-icon btn-row-edit"
                       onClick={() => setConfirmDeleteId(null)}
                       disabled={deleting}
                       title={t.tableCancelEdit}
-                    >✕</button>
+                    ><IconClose size={15} /></button>
                   </div>
                 </div>
               )
@@ -243,12 +244,12 @@ export default function SettingsPage() {
                     className="btn-row-icon btn-row-edit"
                     onClick={() => startEdit(tag)}
                     title={t.tableEditRow}
-                  >✎</button>
+                  ><IconPencil size={15} /></button>
                   <button
                     className="btn-row-icon btn-row-delete"
                     onClick={() => { setConfirmDeleteId(tag.id); setEditId(null) }}
                     title={t.settingsTagsDelete}
-                  >🗑</button>
+                  ><IconTrash size={15} /></button>
                 </div>
               </div>
             )

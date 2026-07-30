@@ -356,3 +356,16 @@ export type IconName = keyof typeof ICONS
 export function IconLoading({ size = 16, ...rest }: IconProps) {
   return <IconSpinner size={size} className="icon-spin" {...rest} />
 }
+
+/**
+ * Flecha de tendencia para los badges de variación.
+ *
+ * Sube / baja / sin cambio.  Existe para que los tres sitios que muestran un
+ * delta (KPI del Inicio, movimientos por categoría y extractos) no repitan la
+ * misma cadena de ternarios con «↑ ↓ →».
+ */
+export function TrendArrow({ value, size = 12, ...rest }: IconProps & { value: number }) {
+  if (value > 0) return <IconArrowUp size={size} {...rest} />
+  if (value < 0) return <IconArrowDown size={size} {...rest} />
+  return <IconArrowRight size={size} {...rest} />
+}

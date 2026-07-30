@@ -1,5 +1,6 @@
 import { useRef, useEffect } from 'react'
 import { useT } from '../i18n'
+import { IconClose, IconTrash } from './icons'
 
 interface Props {
   monthLabel: string
@@ -47,7 +48,7 @@ export default function StatementsDeleteModal({ monthLabel, count, deleting, onC
             aria-label={t.modalClose}
             onClick={onCancel}
             disabled={deleting}
-          >✕</button>
+          ><IconClose size={16} /></button>
         </div>
 
         <div className="modal-body">
@@ -73,6 +74,7 @@ export default function StatementsDeleteModal({ monthLabel, count, deleting, onC
             disabled={deleting}
           >
             {deleting && <span className="btn-spinner" aria-hidden="true" />}
+            {!deleting && <IconTrash size={15} />}
             {t.stmtsDeleteBtn}
           </button>
         </div>

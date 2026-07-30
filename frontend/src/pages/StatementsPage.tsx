@@ -9,6 +9,7 @@ import {
 } from '../api/client'
 import { useT } from '../i18n'
 import type { Lang } from '../i18n'
+import { IconAlert, IconDownload, IconFileText, TrendArrow } from '../components/icons'
 import TransactionsTable from '../components/TransactionsTable'
 import CategoryMovers from '../components/CategoryMovers'
 import StatementsDeleteModal from '../components/StatementsDeleteModal'
@@ -49,9 +50,8 @@ function TxDeltaBadge({ delta, invert, neutral }: { delta: DeltaResult | null; i
   const cls = neutral || delta.abs === 0
     ? 'header-kpi-delta-neutral'
     : (invert ? !isUp : isUp) ? 'header-kpi-delta-good' : 'header-kpi-delta-bad'
-  const arrow = isUp ? '↑' : delta.abs < 0 ? '↓' : '→'
   const sign  = isUp ? '+' : ''
-  return <span className={`header-kpi-delta ${cls}`}>{arrow} {sign}{delta.pct.toFixed(1)}%</span>
+  return <span className={`header-kpi-delta ${cls}`}><TrendArrow value={delta.abs} /> {sign}{delta.pct.toFixed(1)}%</span>
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -300,7 +300,7 @@ export default function StatementsPage() {
     return (
       <main className="tx-page">
         <div className="state-box error">
-          <span className="icon">⚠</span>
+          <IconAlert size={18} />
           <span>{t.kpiErrorLoading}{monthsError}</span>
         </div>
       </main>
@@ -429,7 +429,7 @@ export default function StatementsPage() {
                 }
               }}
             >
-              ⬇ {t.stmtsDownloadOriginal}
+              <IconDownload size={15} /> {t.stmtsDownloadOriginal}
             </button>
             {originals.length > 1 && originalsDropdownOpen && (
               <div className="originals-dropdown" role="menu" aria-label={t.stmtsDownloadOriginalDropdown}>
@@ -444,7 +444,7 @@ export default function StatementsPage() {
                       downloadStatementOriginal(o.import_run_id, o.source_filename).catch(() => {})
                     }}
                   >
-                    <span className="originals-dropdown-item-filename">📄 {o.source_filename}</span>
+                    <span className="originals-dropdown-item-filename"><IconFileText size={14} /> {o.source_filename}</span>
                     <span className="originals-dropdown-item-account">{o.account_name}</span>
                   </button>
                 ))}
@@ -458,7 +458,7 @@ export default function StatementsPage() {
       {/* ── Empty state ───────────────────────────────────────── */}
       {isEmpty && (
         <div className="state-box stmts-empty">
-          <span className="icon">📄</span>
+          <IconFileText size={18} />
           <strong style={{ fontSize: 16 }}>{t.stmtsEmptyTitle(monthLabel)}</strong>
           <span>{t.stmtsEmptyHint}</span>
           <button

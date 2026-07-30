@@ -6,6 +6,7 @@ import { useT, categoryLabel, formatDate, DEFAULT_TAG_COLOR, tagTextColor } from
 import TransactionsTable from '../components/TransactionsTable'
 import TagFilterSelect from '../components/TagFilterSelect'
 import DatePicker from '../components/DatePicker'
+import { IconClose, IconTag } from '../components/icons'
 
 const DEFAULT_FILTERS: TransactionsViewFilters = {
   from: '',
@@ -311,7 +312,7 @@ export default function TransactionsPage() {
                 className="filter-chip-remove"
                 onClick={() => setFilters(f => ({ ...f, from: DEFAULT_FILTERS.from }))}
                 aria-label={t.filterClearChip}
-              >✕</button>
+              ><IconClose size={13} /></button>
             </span>
           )}
           {filters.to !== DEFAULT_FILTERS.to && (
@@ -322,7 +323,7 @@ export default function TransactionsPage() {
                 className="filter-chip-remove"
                 onClick={() => setFilters(f => ({ ...f, to: DEFAULT_FILTERS.to }))}
                 aria-label={t.filterClearChip}
-              >✕</button>
+              ><IconClose size={13} /></button>
             </span>
           )}
           {activeAccountName !== undefined && (
@@ -333,7 +334,7 @@ export default function TransactionsPage() {
                 className="filter-chip-remove"
                 onClick={() => setFilters(f => ({ ...f, account_id: undefined }))}
                 aria-label={t.filterClearChip}
-              >✕</button>
+              ><IconClose size={13} /></button>
             </span>
           )}
           {activeCategoryName !== undefined && (
@@ -344,7 +345,7 @@ export default function TransactionsPage() {
                 className="filter-chip-remove"
                 onClick={() => setFilters(f => ({ ...f, category_id: undefined }))}
                 aria-label={t.filterClearChip}
-              >✕</button>
+              ><IconClose size={13} /></button>
             </span>
           )}
           {filters.tags.map(tagName => {
@@ -357,14 +358,14 @@ export default function TransactionsPage() {
                 className="filter-chip filter-chip-tag"
                 style={{ background: color, color: textC, borderColor: color }}
               >
-                {tag?.emoji ? `${tag.emoji} ` : '🏷 '}{tagName}
+                {tag?.emoji ? `${tag.emoji} ` : <IconTag size={13} />}{tagName}
                 <button
                   type="button"
                   className="filter-chip-remove"
                   onClick={() => setFilters(f => ({ ...f, tags: f.tags.filter(n => n !== tagName) }))}
                   aria-label={t.filterClearChip}
                   style={{ color: textC }}
-                >✕</button>
+                ><IconClose size={13} /></button>
               </span>
             )
           })}
@@ -376,7 +377,7 @@ export default function TransactionsPage() {
                 className="filter-chip-remove"
                 onClick={() => { setAmountMinRaw(''); setFilters(f => ({ ...f, amount_min: undefined })) }}
                 aria-label={t.filterClearChip}
-              >✕</button>
+              ><IconClose size={13} /></button>
             </span>
           )}
           {filters.amount_max !== undefined && (
@@ -387,7 +388,7 @@ export default function TransactionsPage() {
                 className="filter-chip-remove"
                 onClick={() => { setAmountMaxRaw(''); setFilters(f => ({ ...f, amount_max: undefined })) }}
                 aria-label={t.filterClearChip}
-              >✕</button>
+              ><IconClose size={13} /></button>
             </span>
           )}
           {filters.merchant !== undefined && (
@@ -398,7 +399,7 @@ export default function TransactionsPage() {
                 className="filter-chip-remove"
                 onClick={() => { setMerchantRaw(''); setFilters(f => ({ ...f, merchant: undefined })) }}
                 aria-label={t.filterClearChip}
-              >✕</button>
+              ><IconClose size={13} /></button>
             </span>
           )}
           <button type="button" className="btn-secondary" onClick={clearFilters}>

@@ -1,22 +1,23 @@
 import { useRef, useState } from 'react'
-import type { ChangeEvent } from 'react'
+import type { ChangeEvent, ComponentType } from 'react'
 import { useT } from '../i18n'
 import type { Dict } from '../i18n'
 import { exportBackup, importBackup } from '../api/client'
 import type { BackupDocument, BackupExportSelection, BackupImportSummary } from '../api/types'
+import { IconReceipt, IconBank, IconFolder, IconTag, IconSettings, IconTrendingUp, type IconProps } from '../components/icons'
 
-const BACKUP_SECTIONS: Array<{ key: keyof BackupExportSelection; label: keyof Dict; icon: string }> = [
-  { key: 'transactions', label: 'backupSectionTransactions', icon: '📋' },
-  { key: 'accounts', label: 'backupSectionAccounts', icon: '🏦' },
-  { key: 'categories', label: 'backupSectionCategories', icon: '🗂️' },
-  { key: 'tags', label: 'backupSectionTags', icon: '🏷️' },
-  { key: 'rules', label: 'backupSectionRules', icon: '🧩' },
-  { key: 'investments', label: 'backupSectionInvestments', icon: '💰' },
+const BACKUP_SECTIONS: Array<{ key: keyof BackupExportSelection; label: keyof Dict; icon: ComponentType<IconProps> }> = [
+  { key: 'transactions', label: 'backupSectionTransactions', icon: IconReceipt },
+  { key: 'accounts', label: 'backupSectionAccounts', icon: IconBank },
+  { key: 'categories', label: 'backupSectionCategories', icon: IconFolder },
+  { key: 'tags', label: 'backupSectionTags', icon: IconTag },
+  { key: 'rules', label: 'backupSectionRules', icon: IconSettings },
+  { key: 'investments', label: 'backupSectionInvestments', icon: IconTrendingUp },
 ]
 
 const BACKUP_SECTION_ICON_BY_KEY = Object.fromEntries(
   BACKUP_SECTIONS.map(section => [section.key, section.icon]),
-) as Record<keyof BackupExportSelection, string>
+) as Record<keyof BackupExportSelection, ComponentType<IconProps>>
 
 const DEFAULT_SELECTION: BackupExportSelection = {
   accounts: true,
@@ -142,7 +143,8 @@ export default function BackupPage() {
   }
 
   function SectionIcon({ sectionKey }: { sectionKey: keyof BackupExportSelection }) {
-    return <span className="nav-icon" aria-hidden="true">{BACKUP_SECTION_ICON_BY_KEY[sectionKey]}</span>
+    const Icon = BACKUP_SECTION_ICON_BY_KEY[sectionKey]
+    return <Icon className="nav-icon" size={16} />
   }
 
   return (

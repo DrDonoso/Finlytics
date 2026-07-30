@@ -5,6 +5,7 @@ import type { CombinedOverview } from '../api/types'
 import { getCombinedOverview } from '../api/client'
 import { getPluginLogo, pluginInitial } from '../investments/registry'
 import { useT } from '../i18n'
+import { IconLoading, IconChartBar, IconChartPie, IconChevronRight } from '../components/icons'
 
 const PROVIDER_COLORS: Record<string, string> = {
   indexa:   '#2563eb',
@@ -56,7 +57,7 @@ export default function InvestmentsLandingPage() {
         </div>
         <div className="card">
           <div className="state-box">
-            <span className="icon">⏳</span>
+            <IconLoading size={18} />
             <span>{t.loading}</span>
           </div>
         </div>
@@ -72,10 +73,10 @@ export default function InvestmentsLandingPage() {
         </div>
         <div className="card investments-holdings-card">
           <div className="investments-empty">
-            <span className="investments-empty__icon" aria-hidden="true">📊</span>
+            <IconChartBar size={28} className="investments-empty__icon" />
             <p className="investments-empty__text">{t.invLandingEmpty}</p>
             <Link to="/settings/connectors" className="btn-primary">
-              {t.investmentsManageConnectors}
+              {t.investmentsManageConnectors} <IconChevronRight size={14} />
             </Link>
           </div>
         </div>
@@ -138,7 +139,7 @@ export default function InvestmentsLandingPage() {
         <div className="card">
           <h3 className="card-title">{t.invCombinedByProvider}</h3>
           {providerDonutData.length === 0 ? (
-            <div className="state-box"><span className="icon">🍩</span><span>{t.noDataPeriod}</span></div>
+            <div className="state-box"><IconChartPie size={18} /><span>{t.noDataPeriod}</span></div>
           ) : (
             <div className="cat-chart-layout">
               <div className="cat-donut-wrap">
@@ -208,7 +209,7 @@ export default function InvestmentsLandingPage() {
         <div className="card">
           <h3 className="card-title">{t.invCombinedByAssetClass}</h3>
           {assetDonutData.length === 0 ? (
-            <div className="state-box"><span className="icon">🍩</span><span>{t.noDataPeriod}</span></div>
+            <div className="state-box"><IconChartPie size={18} /><span>{t.noDataPeriod}</span></div>
           ) : (
             <div className="cat-chart-layout">
               <div className="cat-donut-wrap">
@@ -308,7 +309,9 @@ export default function InvestmentsLandingPage() {
                     </>
                 }
               </div>
-              <span className="inv-provider-card__cta">→ Ver detalle</span>
+              <span className="inv-provider-card__cta">
+                {t.invProviderCta} <IconChevronRight size={13} />
+              </span>
             </Link>
           )
         })}

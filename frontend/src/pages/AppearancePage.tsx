@@ -1,15 +1,17 @@
 import { useTheme } from '../contexts/ThemeContext'
 import type { AccentPalette, ThemeMode } from '../contexts/ThemeContext'
+import type { ReactNode } from 'react'
 import { useT } from '../i18n'
+import { IconSun, IconMoon, IconMonitor } from '../components/icons'
 
 export default function AppearancePage() {
   const { t } = useT()
   const { mode, setMode, palette, setPalette } = useTheme()
 
-  const options: { value: ThemeMode; label: string; icon: string }[] = [
-    { value: 'light', label: t.themeLight, icon: '☀️' },
-    { value: 'dark',  label: t.themeDark,  icon: '🌙' },
-    { value: 'system', label: t.themeSystem, icon: '💻' },
+  const options: { value: ThemeMode; label: string; icon: ReactNode }[] = [
+    { value: 'light', label: t.themeLight, icon: <IconSun size={16} /> },
+    { value: 'dark',  label: t.themeDark,  icon: <IconMoon size={16} /> },
+    { value: 'system', label: t.themeSystem, icon: <IconMonitor size={16} /> },
   ]
 
   const paletteOptions: { value: AccentPalette; label: string; swatches: string[] }[] = [

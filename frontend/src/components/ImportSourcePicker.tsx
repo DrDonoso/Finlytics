@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router'
 import { getInvestmentPlugins } from '../api/client'
 import type { InvestmentPlugin } from '../api/types'
 import { useT } from '../i18n'
+import { getPluginLogo, pluginInitial } from '../investments/registry'
+import { IconClose, IconFileText, IconChevronRight } from './icons'
 
 interface ImportSourcePickerProps {
   onClose: () => void
@@ -52,7 +54,7 @@ export default function ImportSourcePicker({ onClose, onStatements }: ImportSour
             aria-label={t.importPickerClose}
             type="button"
           >
-            ✕
+            <IconClose size={16} />
           </button>
         </div>
 
@@ -63,30 +65,39 @@ export default function ImportSourcePicker({ onClose, onStatements }: ImportSour
             className="import-picker-row"
             onClick={() => { onClose(); onStatements() }}
           >
-            <span className="import-picker-icon" aria-hidden="true">📄</span>
+            <span className="import-picker-icon"><IconFileText size={20} /></span>
             <div className="import-picker-text">
               <span className="import-picker-name">{t.importPickerStatements}</span>
               <span className="import-picker-desc">{t.importPickerStatementsDesc}</span>
             </div>
-            <span className="import-picker-arrow" aria-hidden="true">›</span>
+            <IconChevronRight size={16} className="import-picker-arrow" />
           </button>
 
           {/* Dynamic: investment plugins that expose an import_route */}
-          {plugins.map(p => (
-            <button
-              key={p.id}
-              type="button"
-              className="import-picker-row"
-              onClick={() => { onClose(); navigate(p.import_route!) }}
-            >
-              <span className="import-picker-icon" aria-hidden="true">{p.icon}</span>
-              <div className="import-picker-text">
-                <span className="import-picker-name">{p.name}</span>
-                <span className="import-picker-desc">{p.description}</span>
-              </div>
-              <span className="import-picker-arrow" aria-hidden="true">›</span>
-            </button>
-          ))}
+          {plugins.map(p => {
+            // El backend manda un emoji en `icon`; se prefiere el logotipo real
+            // del proveedor y, si no lo hay, su inicial — nunca el emoji.
+            const logo = getPluginLogo(p.id)
+            return (
+              <button
+                key={p.id}
+                type="button"
+                className="import-picker-row"
+                onClick={() => { onClose(); navigate(p.import_route!) }}
+              >
+                <span className="import-picker-icon" aria-hidden="true">
+                  {logo
+                    ? <img src={logo} alt="" className="plugin-logo" />
+                    : <span className="plugin-logo-fallback">{pluginInitial(p.name)}</span>}
+                </span>
+                <div className="import-picker-text">
+                  <span className="import-picker-name">{p.name}</span>
+                  <span className="import-picker-desc">{p.description}</span>
+                </div>
+                <IconChevronRight size={16} className="import-picker-arrow" />
+              </button>
+            )
+          })}
         </div>
       </div>
     </div>

@@ -6,6 +6,7 @@ import type { NotificationOut } from '../api/types'
 import { useNotifications } from '../contexts/NotificationsContext'
 import { useT } from '../i18n'
 import type { Dict } from '../i18n'
+import { IconAlert, IconInfo, IconClose, IconBell, IconChevronRight } from './icons'
 
 // ─── Relative-time helper ─────────────────────────────────────────────────────
 
@@ -92,7 +93,7 @@ function NotifItem({ notif, onDismiss, onAction, onMarkRead, t }: NotifItemProps
         />
       )}
       <span className="notif-item__icon" aria-hidden="true">
-        {isWarning ? '⚠' : 'ℹ'}
+        {isWarning ? <IconAlert size={16} /> : <IconInfo size={16} />}
       </span>
       <div className="notif-item__body">
         <div className={`notif-item__title ${isUnread ? 'notif-item__title--unread' : 'notif-item__title--read'}`}>
@@ -108,7 +109,7 @@ function NotifItem({ notif, onDismiss, onAction, onMarkRead, t }: NotifItemProps
             className="notif-item__action"
             onClick={() => onAction(notif.id, notif.action_link!)}
           >
-            {t.notifActionView}
+            {t.notifActionView} <IconChevronRight size={13} />
           </button>
         )}
       </div>
@@ -119,7 +120,7 @@ function NotifItem({ notif, onDismiss, onAction, onMarkRead, t }: NotifItemProps
         onClick={() => onDismiss(notif.id)}
         title={t.notifDismiss}
       >
-        ✕
+        <IconClose size={14} />
       </button>
     </div>
   )
@@ -191,7 +192,7 @@ export default function NotificationBell() {
         aria-expanded={open}
         onClick={handleBellClick}
       >
-        🔔
+        <IconBell size={20} />
         {unreadCount > 0 && (
           <span className="notif-badge" aria-hidden="true">{badgeLabel}</span>
         )}
@@ -226,7 +227,7 @@ export default function NotificationBell() {
             <div className="notif-panel__list">
               {notifications.length === 0 ? (
                 <div className="notif-empty">
-                  <span className="notif-empty__icon">🔔</span>
+                  <IconBell size={28} className="notif-empty__icon" />
                   <span>{t.notifEmpty}</span>
                 </div>
               ) : (

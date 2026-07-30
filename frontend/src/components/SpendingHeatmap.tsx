@@ -4,6 +4,7 @@ import type { DaySummary, GlobalFilters } from '../api/types'
 import { getByDay } from '../api/client'
 import { useT } from '../i18n'
 import type { Lang } from '../i18n'
+import { IconAlert, IconLoading, IconCalendar } from './icons'
 
 interface Props {
   globalFilters: GlobalFilters
@@ -229,21 +230,21 @@ export default function SpendingHeatmap({ globalFilters, onSelectPeriod, onReset
 
       {error && (
         <div className="state-box error">
-          <span className="icon">⚠</span>
+          <IconAlert size={18} />
           <span>{error}</span>
         </div>
       )}
 
       {!error && loading && (
         <div className="state-box">
-          <span className="icon">⏳</span>
+          <IconLoading size={18} />
           <span>{t.loading}</span>
         </div>
       )}
 
       {isEmpty && (
         <div className="state-box">
-          <span className="icon">📅</span>
+          <IconCalendar size={18} />
           <span>{t.heatmapEmpty}</span>
         </div>
       )}

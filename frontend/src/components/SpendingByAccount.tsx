@@ -4,6 +4,7 @@ import {
 } from 'recharts'
 import type { AccountSummary } from '../api/types'
 import { useT } from '../i18n'
+import { IconAlert, IconLoading, IconBank } from './icons'
 
 interface Props {
   data: AccountSummary[]
@@ -26,21 +27,21 @@ export default function SpendingByAccount({ data, loading, error, selectedFlow, 
 
       {error && (
         <div className="state-box error">
-          <span className="icon">⚠</span>
+          <IconAlert size={18} />
           <span>{error}</span>
         </div>
       )}
 
       {!error && loading && (
         <div className="state-box">
-          <span className="icon">⏳</span>
+          <IconLoading size={18} />
           <span>{t.loading}</span>
         </div>
       )}
 
       {!error && !loading && data.length === 0 && (
         <div className="state-box">
-          <span className="icon">🏦</span>
+          <IconBank size={18} />
           <span>{t.noDataPeriod}</span>
         </div>
       )}

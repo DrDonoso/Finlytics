@@ -4,6 +4,7 @@ import { getCombinedOverview } from '../api/client'
 import type { CombinedOverview } from '../api/types'
 import { getPluginLogo, pluginInitial } from '../investments/registry'
 import { useT } from '../i18n'
+import { IconAlert, IconLoading, IconChevronRight } from './icons'
 
 function fmtEur(value: number | null): string {
   if (value === null || value === undefined) return '—'
@@ -31,17 +32,17 @@ export default function InvestmentSnapshotCard() {
     <div className="card inv-snapshot-card">
       <div className="inv-snapshot-header">
         <h3 className="inv-snapshot-title">{t.invSnapshotTitle}</h3>
-        <Link to="/investments" className="inv-snapshot-link">{t.invSnapshotGoTo}</Link>
+        <Link to="/investments" className="inv-snapshot-link">{t.invSnapshotGoTo} <IconChevronRight size={14} /></Link>
       </div>
 
       {loading ? (
         <div className="state-box">
-          <span className="icon">⏳</span>
+          <IconLoading size={18} />
           <span>{t.loading}</span>
         </div>
       ) : error ? (
         <div className="state-box error">
-          <span className="icon">⚠️</span>
+          <IconAlert size={18} />
           <span>{error}</span>
         </div>
       ) : data && data.providers.length > 0 ? (
@@ -68,7 +69,7 @@ export default function InvestmentSnapshotCard() {
         <div className="state-box">
           <span>{t.invSnapshotNoConnections}</span>
           <Link to="/investments" className="btn-secondary inv-snapshot-cta">
-            {t.invSnapshotGoTo}
+            {t.invSnapshotGoTo} <IconChevronRight size={14} />
           </Link>
         </div>
       )}

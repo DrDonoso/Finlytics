@@ -15,6 +15,7 @@ import {
 } from '../../api/client'
 import { useT, langLocale } from '../../i18n'
 import { useNotifications } from '../../contexts/NotificationsContext'
+import { IconChevronUp, IconChevronDown, IconLoading, IconAlert, IconBriefcase, IconChartLine, IconReceipt, IconClose, IconFolder, IconCheck, IconArrowLeft, IconArrowRight } from '../../components/icons'
 
 // ── Date helpers (mirrored from IndexaView) ────────────────────────────────────
 
@@ -174,7 +175,7 @@ export default function FidelityView() {
 
   function LotsSortArrow({ col }: { col: LotsSortCol }) {
     if (col !== lotsSortCol) return null
-    return <span aria-hidden="true">{lotsSortDir === 'asc' ? ' ▲' : ' ▼'}</span>
+    return <span aria-hidden="true"> {lotsSortDir === 'asc' ? <IconChevronUp size={12} /> : <IconChevronDown size={12} />}</span>
   }
 
   // ── Evolution data: period-filtered with carry-forward contributions ───────
@@ -305,7 +306,7 @@ export default function FidelityView() {
         </div>
         <div className="card">
           <div className="state-box">
-            <span className="icon">⏳</span>
+            <IconLoading size={18} />
             <span>{t.loading}</span>
           </div>
         </div>
@@ -322,7 +323,7 @@ export default function FidelityView() {
         </div>
         <div className="card">
           <div className="state-box error">
-            <span className="icon">⚠️</span>
+            <IconAlert size={18} />
             <span>{t.invErrorLoading}: {error}</span>
           </div>
         </div>
@@ -350,7 +351,7 @@ export default function FidelityView() {
         const period = typeof activeEspp.title_args.period === 'string' ? activeEspp.title_args.period : null
         return (
           <div className="espp-reminder-banner" role="alert">
-            <span>⚠ {t.esppReminderBanner(period)}</span>
+            <span><IconAlert size={15} /> {t.esppReminderBanner(period)}</span>
             <Link to="/investments/fidelity-espp" className="espp-reminder-banner__link">
               {t.esppReminderAction}
             </Link>
@@ -363,7 +364,7 @@ export default function FidelityView() {
         /* ── Empty state ── */
         <div className="card investments-holdings-card">
           <div className="investments-empty">
-            <span className="investments-empty__icon" aria-hidden="true">💼</span>
+            <span className="investments-empty__icon" aria-hidden="true"><IconBriefcase size={28} /></span>
             <p className="investments-empty__text">{t.fidelityEmptyTitle}</p>
             <button className="btn-primary" type="button" onClick={openImport}>
               {t.fidelityImportBtn}
@@ -376,7 +377,7 @@ export default function FidelityView() {
           {/* ── Account header strip ── */}
           <div className="inv-account-header">
             <div className="inv-account-header__left">
-              <span className="inv-account-header__icon" aria-hidden="true">💼</span>
+              <span className="inv-account-header__icon" aria-hidden="true"><IconBriefcase size={18} /></span>
               <span className="inv-account-header__label">Fidelity ESPP – MSFT</span>
               {kpis?.as_of_date && (
                 <span className="inv-account-header__updated">
@@ -386,7 +387,7 @@ export default function FidelityView() {
             </div>
             {kpis?.price_stale && (
               <span className="inv-account-header__updated inv-account-header__updated--stale" role="alert">
-                ⚠ {t.fidelityPriceStale}
+                <IconAlert size={14} /> {t.fidelityPriceStale}
               </span>
             )}
           </div>
@@ -479,7 +480,7 @@ export default function FidelityView() {
 
             {evolutionData.length === 0 ? (
               <div className="state-box">
-                <span className="icon">📈</span>
+                <IconChartLine size={18} />
                 <span>{t.noDataPeriod}</span>
               </div>
             ) : (
@@ -571,7 +572,7 @@ export default function FidelityView() {
             </div>
             {lots.length === 0 ? (
               <div className="state-box">
-                <span className="icon">📋</span>
+                <IconReceipt size={18} />
                 <span>{t.noDataPeriod}</span>
               </div>
             ) : (
@@ -690,13 +691,13 @@ export default function FidelityView() {
                       type="button"
                       onClick={() => setLotsPage(p => Math.max(0, p - 1))}
                       disabled={lotsPage === 0}
-                    >{t.tablePrev}</button>
+                    ><IconArrowLeft size={14} /> {t.tablePrev}</button>
                     <span>{t.tablePaginationInfo(lotsPage * LOTS_PAGE_SIZE + 1, Math.min((lotsPage + 1) * LOTS_PAGE_SIZE, sortedLots.length), sortedLots.length)}</span>
                     <button
                       type="button"
                       onClick={() => setLotsPage(p => Math.min(lotsPageCount - 1, p + 1))}
                       disabled={lotsPage >= lotsPageCount - 1}
-                    >{t.tableNext}</button>
+                    >{t.tableNext} <IconArrowRight size={14} /></button>
                   </div>
                 )}
               </div>
@@ -723,7 +724,7 @@ export default function FidelityView() {
                 type="button"
                 onClick={closeImport}
                 aria-label={t.modalClose}
-              >✕</button>
+              ><IconClose size={16} /></button>
             </div>
 
             <div className="modal-body">
@@ -731,7 +732,7 @@ export default function FidelityView() {
               {/* Step 1: Upload CSV */}
               {wizStep === 'upload' && (
                 <div className="inv-wizard__body">
-                  <span className="inv-wizard__logo" aria-hidden="true">📂</span>
+                  <span className="inv-wizard__logo" aria-hidden="true"><IconFolder size={44} /></span>
                   <h2 className="inv-wizard__title">{t.fidelityImportTitle}</h2>
                   <p className="inv-wizard__desc">{t.fidelityImportStep1Hint}</p>
                   <div className="inv-wizard__token-field">
@@ -759,7 +760,7 @@ export default function FidelityView() {
                   </div>
                   {importError && (
                     <div className="inv-wizard__error-banner" role="alert">
-                      <span className="inv-wizard__error-banner-icon" aria-hidden="true">⚠️</span>
+                      <span className="inv-wizard__error-banner-icon" aria-hidden="true"><IconAlert size={16} /></span>
                       <span>{importError}</span>
                     </div>
                   )}
@@ -822,7 +823,7 @@ export default function FidelityView() {
                   )}
                   {importError && (
                     <div className="inv-wizard__error-banner" role="alert">
-                      <span className="inv-wizard__error-banner-icon" aria-hidden="true">⚠️</span>
+                      <span className="inv-wizard__error-banner-icon" aria-hidden="true"><IconAlert size={16} /></span>
                       <span>{importError}</span>
                     </div>
                   )}
@@ -840,7 +841,7 @@ export default function FidelityView() {
               {/* Step 4: Done */}
               {wizStep === 'done' && importResult && (
                 <div className="inv-wizard__success">
-                  <span className="inv-wizard__success-icon" aria-hidden="true">✅</span>
+                  <span className="inv-wizard__success-icon" aria-hidden="true"><IconCheck size={40} /></span>
                   <h2 className="inv-wizard__success-title">{t.fidelityImportSuccessTitle}</h2>
                   <p className="inv-wizard__success-desc">
                     {t.fidelityImportSuccessSub(importResult.inserted, importResult.duplicates)}

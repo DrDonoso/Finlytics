@@ -2,6 +2,7 @@ import { useState, useRef, useId, useMemo } from 'react'
 import type { CSSProperties, KeyboardEvent } from 'react'
 import type { Tag } from '../api/types'
 import { tagTextColor, paletteColor } from '../i18n'
+import { IconClose } from './icons'
 
 interface Props {
   tags: string[]
@@ -136,7 +137,7 @@ export default function TagTypeahead({ tags, availableTags, suggestedColors, pre
               onClick={e => { e.stopPropagation(); removeTag(tag) }}
               aria-label={`Remove ${tag}`}
               style={{ color: textC }}
-            >✕</button>
+            ><IconClose size={12} /></button>
           </span>
         )
       })}

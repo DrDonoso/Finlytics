@@ -641,6 +641,8 @@ export interface Dict {
   invSnapshotTitle: string
   invSnapshotNoConnections: string
   invSnapshotGoTo: string
+  /** CTA de la tarjeta de proveedor en la portada de Inversiones. */
+  invProviderCta: string
   // ── ImportSourcePicker (Inicio import prompt) ─────────────────────────────
   importPickerTitle: string
   importPickerStatements: string

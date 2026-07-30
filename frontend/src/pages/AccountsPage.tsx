@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import type { Account, AccountCreatePayload } from '../api/types'
 import { getAccounts, deleteAccount, patchAccount, createAccount } from '../api/client'
 import { useT } from '../i18n'
+import { IconLoading, IconBank, IconPencil, IconTrash, IconClose, IconChevronDown, IconChevronRight } from '../components/icons'
 
 export default function AccountsPage() {
   const { t } = useT()
@@ -83,12 +84,12 @@ export default function AccountsPage() {
 
         {loading ? (
           <div className="state-box">
-            <span className="icon">⏳</span>
+            <IconLoading size={18} />
             <span>{t.loading}</span>
           </div>
         ) : accounts.length === 0 ? (
           <div className="state-box">
-            <span className="icon">🏦</span>
+            <IconBank size={18} />
             <span>{t.accountsEmpty}</span>
           </div>
         ) : (
@@ -108,13 +109,13 @@ export default function AccountsPage() {
                     onClick={() => { setEditTarget(account); setEditName(account.name) }}
                     title={t.accountsEditBtn}
                     aria-label={t.accountsEditBtn}
-                  >✏️</button>
+                  ><IconPencil size={15} /></button>
                   <button
                     className="btn-row-icon btn-row-delete"
                     onClick={() => setDeleteTarget(account)}
                     title={t.accountsDeleteBtn}
                     aria-label={t.accountsDeleteBtn}
-                  >🗑</button>
+                  ><IconTrash size={15} /></button>
                 </div>
               </div>
             ))}
@@ -247,7 +248,7 @@ function AccountCreateModal({ onSuccess, onCancel }: CreateModalProps) {
             aria-label={t.modalClose}
             onClick={onCancel}
             disabled={saving}
-          >✕</button>
+          ><IconClose size={16} /></button>
         </div>
 
         <div className="modal-body">
@@ -327,7 +328,7 @@ function AccountCreateModal({ onSuccess, onCancel }: CreateModalProps) {
                 disabled={saving}
                 aria-expanded={showOpening}
               >
-                <span aria-hidden="true">{showOpening ? '▼' : '▶'}</span>
+                {showOpening ? <IconChevronDown size={13} /> : <IconChevronRight size={13} />}
                 {t.accountsCreateOpeningTitle}
               </button>
 
@@ -450,7 +451,7 @@ function AccountEditModal({ account, name, saving, onChangeName, onConfirm, onCa
             aria-label={t.modalClose}
             onClick={onCancel}
             disabled={saving}
-          >✕</button>
+          ><IconClose size={16} /></button>
         </div>
 
         <div className="modal-body">
@@ -547,14 +548,13 @@ function AccountDeleteModal({ account, deleting, onConfirm, onCancel }: DeleteMo
             aria-label={t.modalClose}
             onClick={onCancel}
             disabled={deleting}
-          >✕</button>
+          ><IconClose size={16} /></button>
         </div>
 
         <div className="modal-body">
           <p style={{ fontSize: 14, lineHeight: 1.65, color: 'var(--text)', margin: 0 }}>
             {t.accountsDeleteBody(account.name, account.tx_count)}
-          </p>
-        </div>
+          </p>        </div>
 
         <div className="modal-footer">
           <button
@@ -573,6 +573,7 @@ function AccountDeleteModal({ account, deleting, onConfirm, onCancel }: DeleteMo
             disabled={deleting}
           >
             {deleting && <span className="btn-spinner" aria-hidden="true" />}
+            {!deleting && <IconTrash size={15} />}
             {t.accountsDeleteOk}
           </button>
         </div>

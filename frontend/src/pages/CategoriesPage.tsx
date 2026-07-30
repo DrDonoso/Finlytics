@@ -3,6 +3,7 @@ import type { Category } from '../api/types'
 import { getCategories, updateCategory, createCategory } from '../api/client'
 import { useT, categoryLabel, DEFAULT_TAG_COLOR, paletteColor, tagTextColor } from '../i18n'
 import ColorSwatchPicker from '../components/ColorSwatchPicker'
+import { IconLoading, IconTag, IconCheck, IconClose, IconPencil } from '../components/icons'
 
 export default function CategoriesPage() {
   const { t, lang } = useT()
@@ -125,12 +126,12 @@ export default function CategoriesPage() {
 
       {loading ? (
         <div className="state-box">
-          <span className="icon">⏳</span>
+          <IconLoading size={18} />
           <span>{t.loading}</span>
         </div>
       ) : categories.length === 0 ? (
         <div className="state-box">
-          <span className="icon">🏷</span>
+          <IconTag size={18} />
           <span>{t.settingsCatsEmpty}</span>
         </div>
       ) : (
@@ -168,13 +169,13 @@ export default function CategoriesPage() {
                           onClick={handleSaveCatColor}
                           disabled={isSaving}
                           title={t.tableSaveRow}
-                        >✓</button>
+                        ><IconCheck size={15} /></button>
                         <button
                           className="btn-row-icon btn-row-cancel"
                           onClick={() => setEditCatId(null)}
                           disabled={isSaving}
                           title={t.tableCancelEdit}
-                        >✕</button>
+                        ><IconClose size={15} /></button>
                       </div>
                     </div>
                   </div>
@@ -198,7 +199,7 @@ export default function CategoriesPage() {
                     onClick={() => { setEditCatId(cat.id); setEditCatColor(cat.color || DEFAULT_TAG_COLOR) }}
                     disabled={isSaving}
                     title={t.tableEditRow}
-                  >✎</button>
+                  ><IconPencil size={15} /></button>
                 </div>
               </div>
             )

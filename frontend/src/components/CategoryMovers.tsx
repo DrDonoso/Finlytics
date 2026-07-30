@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import type { CategorySummary, Category } from '../api/types'
 import { useT, categoryLabel } from '../i18n'
 import { selectTopMovers, type MoverRow } from '../utils/comparison'
+import { IconAlert, IconLoading, IconChartBar, TrendArrow } from './icons'
 
 interface Props {
   current: CategorySummary[]
@@ -24,12 +25,11 @@ function DeltaCell({ row }: { row: MoverRow }) {
   const isUp = row.delta.abs > 0
   // Expense semantics: categories track spending, so ↑ = more expense = bad
   const cls = isUp ? 'movers-delta-up' : 'movers-delta-down'
-  const arrow = isUp ? '↑' : '↓'
   const sign = isUp ? '+' : ''
 
   return (
     <span className={`movers-delta ${cls}`}>
-      {arrow} {sign}{formatCurrency(row.delta.abs)} ({sign}{row.delta.pct.toFixed(1)}%)
+      <TrendArrow value={row.delta.abs} /> {sign}{formatCurrency(row.delta.abs)} ({sign}{row.delta.pct.toFixed(1)}%)
     </span>
   )
 }
@@ -54,28 +54,28 @@ export default function CategoryMovers({
 
       {error && (
         <div className="state-box error">
-          <span className="icon">⚠</span>
+          <IconAlert size={18} />
           <span>{error}</span>
         </div>
       )}
 
       {!error && isLoading && (
         <div className="state-box">
-          <span className="icon">⏳</span>
+          <IconLoading size={18} />
           <span>{t.loading}</span>
         </div>
       )}
 
       {!error && !isLoading && previous.length === 0 && (
         <div className="state-box">
-          <span className="icon">📊</span>
+          <IconChartBar size={18} />
           <span>{t.moversNoPrevious}</span>
         </div>
       )}
 
       {!error && !isLoading && previous.length > 0 && rows.length === 0 && (
         <div className="state-box">
-          <span className="icon">📊</span>
+          <IconChartBar size={18} />
           <span>{t.noDataPeriod}</span>
         </div>
       )}

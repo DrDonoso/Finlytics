@@ -6,6 +6,7 @@ import {
 } from '../api/client'
 import { useT, categoryLabel } from '../i18n'
 import RuleFormModal from '../components/RuleFormModal'
+import { IconLoading, IconSettings, IconCheck, IconClose, IconPencil, IconTrash } from '../components/icons'
 
 export default function RulesPage() {
   const { t, lang } = useT()
@@ -129,12 +130,12 @@ export default function RulesPage() {
         {/* ── List ─────────────────────────────────────────────────────────────── */}
       {loading ? (
         <div className="state-box">
-          <span className="icon">⏳</span>
+          <IconLoading size={18} />
           <span>{t.loading}</span>
         </div>
       ) : rules.length === 0 ? (
         <div className="state-box">
-          <span className="icon">⚙️</span>
+          <IconSettings size={18} />
           <span>{t.rulesEmpty}</span>
         </div>
       ) : (
@@ -168,13 +169,13 @@ export default function RulesPage() {
                             style={{ color: 'var(--expense)', borderColor: 'transparent' }}
                             onClick={() => handleDelete(rule.id)}
                             disabled={deleting}
-                          >✓</button>
+                          ><IconCheck size={15} /></button>
                           <button
                             type="button"
                             className="btn-row-icon btn-row-edit"
                             onClick={() => setConfirmDeleteId(null)}
                             disabled={deleting}
-                          >✕</button>
+                          ><IconClose size={15} /></button>
                         </div>
                       </td>
                     </tr>
@@ -222,7 +223,7 @@ export default function RulesPage() {
                           className="btn-row-icon btn-row-edit"
                          onClick={() => openEdit(rule)}
                           title={t.rulesBtnEdit}
-                        >✎</button>
+                        ><IconPencil size={15} /></button>
                         <button
                           type="button"
                           className="btn-row-icon btn-row-delete"
@@ -231,7 +232,7 @@ export default function RulesPage() {
                              if (ruleModalTarget?.id === rule.id) closeModal()
                            }}
                           title={t.rulesBtnDelete}
-                        >🗑</button>
+                        ><IconTrash size={15} /></button>
                       </div>
                     </td>
                   </tr>

@@ -14,6 +14,7 @@ import ImportLauncher, { type ImportLauncherHandle } from '../components/ImportL
 import TransactionsTable from '../components/TransactionsTable'
 import { useT, categoryLabel, formatDate } from '../i18n'
 import { defaultRange } from '../utils'
+import { IconClose, IconChevronRight } from '../components/icons'
 
 function makeDefaultFilters(): GlobalFilters {
   return { ...defaultRange(), tags: [] }
@@ -155,7 +156,7 @@ export default function FinancesOverviewPage() {
               className="btn-secondary"
               onClick={() => navigate('/transactions')}
             >
-              {t.btnViewTransactions}
+              {t.btnViewTransactions} <IconChevronRight size={14} />
             </button>
             <button
               className="btn-primary"
@@ -210,7 +211,7 @@ export default function FinancesOverviewPage() {
                       className="filter-chip-remove"
                       onClick={() => setFilters(f => ({ ...f, category_id: undefined }))}
                       aria-label={t.filterClearChip}
-                    >✕</button>
+                    ><IconClose size={13} /></button>
                   </span>
                 )
               })()}
@@ -223,7 +224,7 @@ export default function FinancesOverviewPage() {
                     className="filter-chip-remove"
                     onClick={() => setFilters(f => ({ ...f, merchant: undefined }))}
                     aria-label={t.filterClearChip}
-                  >✕</button>
+                  ><IconClose size={13} /></button>
                 </span>
               )}
 
@@ -237,7 +238,7 @@ export default function FinancesOverviewPage() {
                     className="filter-chip-remove"
                     onClick={handleResetPeriod}
                     aria-label={t.filterClearChip}
-                  >✕</button>
+                  ><IconClose size={13} /></button>
                 </span>
               )}
 
@@ -249,7 +250,7 @@ export default function FinancesOverviewPage() {
                     className="filter-chip-remove"
                     onClick={() => setFilters(f => ({ ...f, day: undefined }))}
                     aria-label={t.filterClearChip}
-                  >✕</button>
+                  ><IconClose size={13} /></button>
                 </span>
               )}
 
@@ -291,7 +292,7 @@ export default function FinancesOverviewPage() {
       {toast && (
         <div className="toast">
           <span>{toast}</span>
-          <button className="toast-close" onClick={() => setToast(null)} aria-label={t.toastClose}>✕</button>
+          <button className="toast-close" onClick={() => setToast(null)} aria-label={t.toastClose}><IconClose size={14} /></button>
         </div>
       )}
     </>
