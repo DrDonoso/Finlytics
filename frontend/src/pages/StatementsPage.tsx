@@ -1,12 +1,13 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import type { Overview, Account, Category, Tag, GlobalFilters, ImportResult, CategorySummary } from '../api/types'
-import type { StatementMonth, StatementOriginal } from '../api/types'
+import type { GlobalFilters, ImportResult, SummaryParams } from '../api/types'
+import { deleteStatementMonth, downloadStatementOriginal } from '../api/client'
+import { useQueryClient } from '@tanstack/react-query'
 import {
-  getStatementMonths, deleteStatementMonth, getOverview,
-  getAccounts, getCategories, getTags,
-  getStatementOriginals, downloadStatementOriginal,
-  getByCategory,
-} from '../api/client'
+  useAccounts, useCategories, useTags,
+  useStatementMonths, useStatementOriginals,
+  useOverview, useByCategory,
+} from '../api/queries'
+import { errorMessage } from '../api/errors'
 import { useT } from '../i18n'
 import type { Lang } from '../i18n'
 import { IconAlert, IconDownload, IconFileText, TrendArrow } from '../components/icons'
@@ -59,10 +60,10 @@ function TxDeltaBadge({ delta, invert, neutral }: { delta: DeltaResult | null; i
 export default function StatementsPage() {
   const { t, lang, formatCurrency } = useT()
 
-  // Statement months list (from API — sorted DESC)
-  const [months,       setMonths]       = useState<StatementMonth[]>([])
-  const [monthsLoading, setMonthsLoading] = useState(true)
-  const [monthsError,  setMonthsError]  = useState<string | null>(null)
+  const queryClient = useQueryClient()
+
+  // Estabiliza el array vacío: `?? []` crea uno nuevo por render y rompería las deps de abajo
+  const EMPTY: never[] = useMemo(() => [], [])
 
   // Selected month
   const [selY, setSelY] = useState(0)
@@ -71,24 +72,16 @@ export default function StatementsPage() {
   // Selected account filter (undefined = all accounts)
   const [selAccountId, setSelAccountId] = useState<number | undefined>(undefined)
 
-  // Overview for the selected month (income / expense / net / count)
-  const [overview,        setOverview]        = useState<Overview | null>(null)
-  const [overviewLoading, setOverviewLoading] = useState(false)
-  const [overviewRefKey,  setOverviewRefKey]  = useState(0)
-  // Previous calendar month's overview for KPI deltas
-  const [prevOverview,    setPrevOverview]    = useState<Overview | null>(null)
-
-  // Category breakdown for CategoryMovers (selected month vs previous month)
-  const [selByCat,         setSelByCat]         = useState<CategorySummary[]>([])
-  const [selByCatLoading,  setSelByCatLoading]  = useState(false)
-  const [prevByCat,        setPrevByCat]        = useState<CategorySummary[]>([])
-  const [prevByCatLoading, setPrevByCatLoading] = useState(false)
-  const [byCatError,       setByCatError]       = useState<string | null>(null)
-
   // Reference data for TransactionsTable / ImportModal
-  const [accounts,   setAccounts]   = useState<Account[]>([])
-  const [categories, setCategories] = useState<Category[]>([])
-  const [allTags,    setAllTags]    = useState<Tag[]>([])
+  const accounts   = useAccounts().data   ?? EMPTY
+  const categories = useCategories().data ?? EMPTY
+  const allTags    = useTags().data       ?? EMPTY
+
+  // Statement months list (from API — sorted DESC)
+  const monthsQuery = useStatementMonths(selAccountId)
+  const months = monthsQuery.data ?? EMPTY
+  const monthsLoading = monthsQuery.isPending
+  const monthsError = monthsQuery.error ? errorMessage(monthsQuery.error, t) : null
 
   // Modal / UX state
   const [showDelete, setShowDelete] = useState(false)
@@ -97,48 +90,25 @@ export default function StatementsPage() {
   const launcherRef = useRef<ImportLauncherHandle>(null)
   const [toast,      setToast]      = useState<string | null>(null)
 
-  // refreshKey triggers re-fetch of both the months list and the transactions table
+  // refreshKey refresca la tabla de transacciones, que todavía no usa react-query
   const [refreshKey, setRefreshKey] = useState(0)
 
-  // Original PDFs available for the selected month
-  const [originals,             setOriginals]             = useState<StatementOriginal[]>([])
+  // Originals dropdown UI state
   const [originalsDropdownOpen, setOriginalsDropdownOpen] = useState(false)
   const originalsDropdownRef = useRef<HTMLDivElement>(null)
 
-  // ── Load reference data once ────────────────────────────────────────────────
+  // Al cambiar la lista de meses (carga inicial o tras importar/borrar) aterriza en el más reciente.
+  // react-query comparte estructura: un refetch con los mismos datos mantiene la referencia y no dispara esto.
   useEffect(() => {
-    getAccounts().then(setAccounts).catch(() => {})
-    getCategories().then(setCategories).catch(() => {})
-    getTags().then(setAllTags).catch(() => {})
-  }, [])
-
-  // ── Load statement months (re-runs on full refresh after delete/import, or account change) ─
-  useEffect(() => {
-    let cancelled = false
-    setMonthsLoading(true)
-    setMonthsError(null)
-    getStatementMonths(selAccountId)
-      .then(data => {
-        if (cancelled) return
-        setMonths(data)
-        setMonthsLoading(false)
-        // Land on the most recent month with data, or current calendar month if none
-        if (data.length > 0) {
-          setSelY(data[0].year)
-          setSelM(data[0].month)
-        } else {
-          const { y, m } = todayYM()
-          setSelY(y)
-          setSelM(m)
-        }
-      })
-      .catch(e => {
-        if (cancelled) return
-        setMonthsError(String(e))
-        setMonthsLoading(false)
-      })
-    return () => { cancelled = true }
-  }, [refreshKey, selAccountId]) // eslint-disable-line react-hooks/exhaustive-deps
+    if (months.length > 0) {
+      setSelY(months[0].year)
+      setSelM(months[0].month)
+    } else if (!monthsLoading) {
+      const { y, m } = todayYM()
+      setSelY(y)
+      setSelM(m)
+    }
+  }, [months, monthsLoading])
 
   // ── Derived date strings ────────────────────────────────────────────────────
   const from = selY ? `${selY}-${pad2(selM)}-01` : ''
@@ -150,68 +120,39 @@ export default function StatementsPage() {
   // Whether the selected month has any data (avoids unnecessary overview fetch)
   const currentMonthHasData = months.some(s => s.year === selY && s.month === selM)
 
-  // ── Fetch overview whenever month changes or an edit/refresh occurs ─────────
-  useEffect(() => {
-    if (!from || !to || !currentMonthHasData) {
-      setOverview(null)
-      setPrevOverview(null)
-      setOverviewLoading(false)
-      return
-    }
-    let cancelled = false
-    setOverviewLoading(true)
-    setOverview(null)
-    setPrevOverview(null)
-    getOverview({ from, to, account_id: selAccountId })
-      .then(d  => { if (!cancelled) { setOverview(d);  setOverviewLoading(false) } })
-      .catch(() => { if (!cancelled) { setOverviewLoading(false) } })
-    const prevRange = previousCalendarMonth(from)
-    if (prevRange) {
-      getOverview({ from: prevRange.from, to: prevRange.to, account_id: selAccountId })
-        .then(d  => { if (!cancelled) setPrevOverview(d) })
-        .catch(() => { if (!cancelled) setPrevOverview(null) })
-    }
-    return () => { cancelled = true }
-  }, [from, to, currentMonthHasData, refreshKey, overviewRefKey, selAccountId]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Parámetros del mes seleccionado y del anterior (deltas KPI). En useMemo para que la clave no cambie cada render.
+  const monthParams: SummaryParams = useMemo(() => ({ from, to, account_id: selAccountId }), [from, to, selAccountId])
+  const prevRange = useMemo(() => (from ? previousCalendarMonth(from) : null), [from])
+  const prevParams: SummaryParams | undefined = useMemo(
+    () => (prevRange ? { from: prevRange.from, to: prevRange.to, account_id: selAccountId } : undefined),
+    [prevRange, selAccountId],
+  )
 
-  // ── Fetch category breakdown for CategoryMovers ──────────────────────────────
-  useEffect(() => {
-    if (!from || !to || !currentMonthHasData) {
-      setSelByCat([])
-      setPrevByCat([])
-      setByCatError(null)
-      return
-    }
-    let cancelled = false
-    setSelByCatLoading(true)
-    setPrevByCatLoading(true)
-    setByCatError(null)
-    getByCategory({ from, to, account_id: selAccountId })
-      .then(d  => { if (!cancelled) { setSelByCat(d);  setSelByCatLoading(false) } })
-      .catch(e => { if (!cancelled) { setByCatError(String(e)); setSelByCatLoading(false) } })
-    const prevRange = previousCalendarMonth(from)
-    if (prevRange) {
-      getByCategory({ from: prevRange.from, to: prevRange.to, account_id: selAccountId })
-        .then(d  => { if (!cancelled) { setPrevByCat(d);  setPrevByCatLoading(false) } })
-        .catch(() => { if (!cancelled) { setPrevByCat([]); setPrevByCatLoading(false) } })
-    } else {
-      setPrevByCat([])
-      setPrevByCatLoading(false)
-    }
-    return () => { cancelled = true }
-  }, [from, to, currentMonthHasData, refreshKey, overviewRefKey, selAccountId]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Los resúmenes solo se consultan cuando el mes seleccionado tiene datos
+  const summaryEnabled = Boolean(from && to && currentMonthHasData)
 
-  // ── Fetch available original PDFs for the selected month ────────────────────
+  const overviewQuery     = useOverview(monthParams, { enabled: summaryEnabled })
+  const prevOverviewQuery = useOverview(prevParams,  { enabled: summaryEnabled && Boolean(prevParams) })
+  const overview        = overviewQuery.data ?? null
+  const overviewLoading = overviewQuery.isPending
+  const prevOverview    = prevOverviewQuery.data ?? null
+
+  const selByCatQuery  = useByCategory(monthParams, { enabled: summaryEnabled })
+  const prevByCatQuery = useByCategory(prevParams,  { enabled: summaryEnabled && Boolean(prevParams) })
+  const selByCat         = selByCatQuery.data  ?? EMPTY
+  const prevByCat        = prevByCatQuery.data  ?? EMPTY
+  const selByCatLoading  = selByCatQuery.isPending
+  const prevByCatLoading = prevByCatQuery.isPending
+  const byCatError       = selByCatQuery.error ? errorMessage(selByCatQuery.error, t) : null
+
+  // Original PDFs available for the selected month
+  const originalsQuery = useStatementOriginals(selY, selM, selAccountId, { enabled: Boolean(selY && selM) })
+  const originals = originalsQuery.data ?? EMPTY
+
+  // Cierra el desplegable de originales al cambiar de mes o de cuenta
   useEffect(() => {
-    let cancelled = false
-    setOriginals([])
     setOriginalsDropdownOpen(false)
-    if (!selY || !selM) return
-    getStatementOriginals(selY, selM, selAccountId)
-      .then(data => { if (!cancelled) setOriginals(data) })
-      .catch(() => {})
-    return () => { cancelled = true }
-  }, [selY, selM, selAccountId, refreshKey]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selY, selM, selAccountId])
 
   // ── Close originals dropdown on outside click ────────────────────────────────
   useEffect(() => {
@@ -259,6 +200,13 @@ export default function StatementsPage() {
   const hasData  = currentMonthHasData
   const count    = overview?.num_transactions ?? months.find(s => s.year === selY && s.month === selM)?.count ?? 0
 
+  // Tras borrar o importar: refresca meses, resúmenes y originales, y la tabla (que aún no usa react-query)
+  function refreshMonthData() {
+    setRefreshKey(k => k + 1)
+    queryClient.invalidateQueries({ queryKey: ['statements'] })
+    queryClient.invalidateQueries({ queryKey: ['summary'] })
+  }
+
   // ── Delete handler ──────────────────────────────────────────────────────────
   async function handleDeleteConfirm() {
     setDeleting(true)
@@ -266,7 +214,7 @@ export default function StatementsPage() {
       await deleteStatementMonth(selY, selM, selAccountId)
       setShowDelete(false)
       showToast(t.stmtsDeleteOk)
-      setRefreshKey(k => k + 1)
+      refreshMonthData()
     } catch {
       // keep modal open; future: could surface error inline
     } finally {
@@ -278,7 +226,7 @@ export default function StatementsPage() {
   function handleImportSuccess(result: ImportResult) {
     setImportFiles(null)
     showToast(t.toastSuccess(result.num_inserted, result.num_duplicates))
-    setRefreshKey(k => k + 1)
+    refreshMonthData()
   }
 
   function showToast(msg: string) {
@@ -494,7 +442,11 @@ export default function StatementsPage() {
           refreshKey={refreshKey}
           pageSize={25}
           hideInternalFilters
-          onEditSuccess={() => setOverviewRefKey(k => k + 1)}
+          onEditSuccess={() => {
+            // Editar una transacción cambia los KPIs del mes actual (y del anterior en los deltas)
+            queryClient.invalidateQueries({ queryKey: ['summary', 'overview'] })
+            queryClient.invalidateQueries({ queryKey: ['summary', 'by-category'] })
+          }}
           headerAction={
             <button
               type="button"

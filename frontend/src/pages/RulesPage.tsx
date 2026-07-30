@@ -1,20 +1,28 @@
-import { useState, useEffect, useMemo } from 'react'
-import type { Rule, DescriptionMode, Category, Tag } from '../api/types'
-import {
-  getRules, updateRule, deleteRule,
-  getCategories, getTags,
-} from '../api/client'
+import { useState, useMemo } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import type { Rule, DescriptionMode } from '../api/types'
+import { updateRule, deleteRule } from '../api/client'
+import { useRules, useCategories, useTags, queryKeys } from '../api/queries'
+import { errorMessage } from '../api/errors'
 import { useT, categoryLabel } from '../i18n'
 import RuleFormModal from '../components/RuleFormModal'
 import { IconLoading, IconSettings, IconCheck, IconClose, IconPencil, IconTrash } from '../components/icons'
 
 export default function RulesPage() {
   const { t, lang } = useT()
-  const [rules, setRules] = useState<Rule[]>([])
-  const [categories, setCategories] = useState<Category[]>([])
-  const [availableTags, setAvailableTags] = useState<Tag[]>([])
-  const [loading, setLoading] = useState(true)
+  const queryClient = useQueryClient()
+  const rulesQuery = useRules()
+  const categoriesQuery = useCategories()
+  const tagsQuery = useTags()
+  const EMPTY: never[] = useMemo(() => [], [])
+  const rules = rulesQuery.data ?? EMPTY
+  const categories = categoriesQuery.data ?? EMPTY
+  const availableTags = tagsQuery.data ?? EMPTY
+  const loading = rulesQuery.isPending || categoriesQuery.isPending || tagsQuery.isPending
+  // Sólo errores de las mutaciones; el de la carga lo aportan las consultas.
   const [error, setError] = useState<string | null>(null)
+  const firstQueryError = rulesQuery.error ?? categoriesQuery.error ?? tagsQuery.error
+  const shownError = error ?? (firstQueryError ? errorMessage(firstQueryError, t) : null)
 
   // Rule form modal
   const [ruleModalOpen, setRuleModalOpen]     = useState(false)
@@ -38,18 +46,6 @@ export default function RulesPage() {
     [categories],
   )
 
-  useEffect(() => {
-    setLoading(true)
-    Promise.all([getRules(), getCategories(), getTags()])
-      .then(([r, c, tg]) => {
-        setRules(r)
-        setCategories(c)
-        setAvailableTags(tg)
-        setLoading(false)
-      })
-      .catch(e => { setError(String(e)); setLoading(false) })
-  }, [])
-
   function openAdd() {
     setRuleModalTarget(undefined)
     setRuleModalOpen(true)
@@ -67,13 +63,8 @@ export default function RulesPage() {
     setRuleModalTarget(undefined)
   }
 
-  function handleRuleSaved(rule: Rule) {
-    setRules(prev => {
-      const idx = prev.findIndex(r => r.id === rule.id)
-      return idx >= 0
-        ? prev.map(r => r.id === rule.id ? rule : r)
-        : [...prev, rule]
-    })
+  function handleRuleSaved() {
+    queryClient.invalidateQueries({ queryKey: queryKeys.rules })
     closeModal()
   }
 
@@ -81,10 +72,10 @@ export default function RulesPage() {
 
   async function handleToggleEnabled(rule: Rule) {
     try {
-      const updated = await updateRule(rule.id, { enabled: !rule.enabled })
-      setRules(prev => prev.map(r => r.id === rule.id ? updated : r))
+      await updateRule(rule.id, { enabled: !rule.enabled })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.rules })
     } catch (e) {
-      setError(String(e))
+      setError(errorMessage(e, t))
     }
   }
 
@@ -93,11 +84,11 @@ export default function RulesPage() {
     setError(null)
     try {
       await deleteRule(id)
-      setRules(prev => prev.filter(r => r.id !== id))
+      await queryClient.invalidateQueries({ queryKey: queryKeys.rules })
       setConfirmDeleteId(null)
       if (ruleModalTarget?.id === id) closeModal()
     } catch (e) {
-      setError(String(e))
+      setError(errorMessage(e, t))
     } finally {
       setDeleting(false)
     }
@@ -120,7 +111,7 @@ export default function RulesPage() {
           <div className="card settings-card rules-card">
         <h2 className="settings-section-title">{t.rulesTitle}</h2>
 
-        {error && <div className="import-error" style={{ marginBottom: 16 }}>{error}</div>}
+        {shownError && <div className="import-error" style={{ marginBottom: 16 }}>{shownError}</div>}
 
         <div className="settings-add-form">
           <button className="btn-primary" type="button" onClick={openAdd}>

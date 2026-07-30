@@ -1,7 +1,9 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useSearchParams } from 'react-router'
-import type { Account, Category, Tag, Overview, TransactionsViewFilters } from '../api/types'
-import { getAccounts, getCategories, getTags, getOverview } from '../api/client'
+import { useQueryClient } from '@tanstack/react-query'
+import type { TransactionsViewFilters, SummaryParams } from '../api/types'
+import { useAccounts, useCategories, useTags, useOverview, queryKeys } from '../api/queries'
+import { errorMessage } from '../api/errors'
 import { useT, categoryLabel, formatDate, DEFAULT_TAG_COLOR, tagTextColor } from '../i18n'
 import TransactionsTable from '../components/TransactionsTable'
 import TagFilterSelect from '../components/TagFilterSelect'
@@ -40,10 +42,12 @@ function filtersFromParams(params: URLSearchParams): TransactionsViewFilters | n
 export default function TransactionsPage() {
   const { t, lang, formatCurrency } = useT()
   const [searchParams] = useSearchParams()
+  const queryClient = useQueryClient()
 
-  const [accounts,   setAccounts]   = useState<Account[]>([])
-  const [categories, setCategories] = useState<Category[]>([])
-  const [allTags,    setAllTags]    = useState<Tag[]>([])
+  const EMPTY: never[] = useMemo(() => [], [])
+  const accounts   = useAccounts().data   ?? EMPTY
+  const categories = useCategories().data ?? EMPTY
+  const allTags    = useTags().data       ?? EMPTY
 
   const [panelOpen, setPanelOpen] = useState(false)
 
@@ -59,19 +63,6 @@ export default function TransactionsPage() {
   const [merchantRaw,  setMerchantRaw]  = useState(
     () => filtersFromParams(searchParams)?.merchant ?? '',
   )
-
-  // Overview / totals
-  const [overview,        setOverview]        = useState<Overview | null>(null)
-  const [overviewLoading, setOverviewLoading] = useState(true)
-  const [overviewError,   setOverviewError]   = useState<string | null>(null)
-  const [overviewRefKey,  setOverviewRefKey]  = useState(0)
-
-  // Load reference data once
-  useEffect(() => {
-    getAccounts().then(setAccounts).catch(() => {})
-    getCategories().then(setCategories).catch(() => {})
-    getTags().then(setAllTags).catch(() => {})
-  }, [])
 
   // Debounce description → 300 ms
   useEffect(() => {
@@ -107,27 +98,23 @@ export default function TransactionsPage() {
     return () => clearTimeout(timer)
   }, [merchantRaw])
 
-  // Fetch overview whenever filters or overviewRefKey change
-  useEffect(() => {
-    let cancelled = false
-    setOverviewLoading(true)
-    setOverviewError(null)
-    getOverview({
-      from:        filters.from || undefined,
-      to:          filters.to   || undefined,
-      account_id:  filters.account_id,
-      category_id: filters.category_id,
-      tags:        filters.tags.length > 0 ? filters.tags : undefined,
-      flow:        filters.flow,
-      description: filters.description,
-      amount_min:  filters.amount_min,
-      amount_max:  filters.amount_max,
-      merchant:    filters.merchant,
-    })
-      .then(d  => { if (!cancelled) { setOverview(d);        setOverviewLoading(false) } })
-      .catch(e => { if (!cancelled) { setOverviewError(String(e)); setOverviewLoading(false) } })
-    return () => { cancelled = true }
-  }, [filters, overviewRefKey])
+  // Overview / totales — la clave de consulta incluye los filtros, evitando respuestas fuera de orden
+  const overviewParams: SummaryParams = useMemo(() => ({
+    from:        filters.from || undefined,
+    to:          filters.to   || undefined,
+    account_id:  filters.account_id,
+    category_id: filters.category_id,
+    tags:        filters.tags.length > 0 ? filters.tags : undefined,
+    flow:        filters.flow,
+    description: filters.description,
+    amount_min:  filters.amount_min,
+    amount_max:  filters.amount_max,
+    merchant:    filters.merchant,
+  }), [filters])
+  const overviewQuery = useOverview(overviewParams)
+  const overview = overviewQuery.data ?? null
+  const overviewLoading = overviewQuery.isPending
+  const overviewError = overviewQuery.error ? errorMessage(overviewQuery.error, t) : null
 
   function clearFilters() {
     setFilters({ from: '', to: '', tags: [] })
@@ -446,7 +433,7 @@ export default function TransactionsPage() {
         amountMax={filters.amount_max}
         merchant={filters.merchant}
         hideInternalFilters
-        onEditSuccess={() => setOverviewRefKey(k => k + 1)}
+        onEditSuccess={() => queryClient.invalidateQueries({ queryKey: queryKeys.overview(overviewParams) })}
       />
     </main>
   )

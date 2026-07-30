@@ -1,12 +1,12 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { NavLink } from 'react-router'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell,
 } from 'recharts'
-import type { InvestmentPortfolio, InvestmentConnection } from '../../api/types'
-import { getInvestmentPortfolio, getConnections } from '../../api/client'
+import { useInvestmentPortfolio, useConnections } from '../../api/queries'
+import { errorMessage } from '../../api/errors'
 import { useT, langLocale } from '../../i18n'
 import type { Dict } from '../../i18n'
 import { IconLoading, IconAlert, IconChartPie, IconChartLine, IconReceipt, IconBanknote, IconLink, IconChevronUp, IconChevronDown, IconChevronRight } from '../../components/icons'
@@ -85,10 +85,13 @@ export default function IndexaView() {
   const { t, lang, formatCurrency } = useT()
   const locale = langLocale(lang)
 
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [portfolio, setPortfolio] = useState<InvestmentPortfolio | null>(null)
-  const [connections, setConnections] = useState<InvestmentConnection[]>([])
+  const portfolioQuery = useInvestmentPortfolio()
+  const connQuery = useConnections()
+  const portfolio = portfolioQuery.data ?? null
+  const connections = connQuery.data ?? []
+  const loading = portfolioQuery.isPending || connQuery.isPending
+  const queryError = portfolioQuery.error ?? connQuery.error
+  const error = queryError ? errorMessage(queryError, t) : null
 
   const [evPeriod, setEvPeriod] = useState<EvolutionPeriod>('Todo')
   const [evMode,   setEvMode]   = useState<EvolutionMode>('eur')
@@ -99,20 +102,6 @@ export default function IndexaView() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [openTip, setOpenTip] = useState<{ text: string; x: number; y: number } | null>(null)
 
-  useEffect(() => {
-    setLoading(true)
-    setError(null)
-    Promise.all([getInvestmentPortfolio(), getConnections()])
-      .then(([portData, connData]) => {
-        setPortfolio(portData)
-        setConnections(connData)
-        setLoading(false)
-      })
-      .catch(err => {
-        setError(err instanceof Error ? err.message : String(err))
-        setLoading(false)
-      })
-  }, [])
 
   const evolutionYears = useMemo((): string[] => {
     if (!portfolio?.value_series?.length) return []

@@ -1,7 +1,6 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router'
-import { getInvestmentPlugins } from '../api/client'
-import type { InvestmentPlugin } from '../api/types'
+import { useInvestmentPlugins } from '../api/queries'
 import { useT } from '../i18n'
 import { getPluginLogo, pluginInitial } from '../investments/registry'
 import { IconClose, IconFileText, IconChevronRight } from './icons'
@@ -20,13 +19,12 @@ interface ImportSourcePickerProps {
 export default function ImportSourcePicker({ onClose, onStatements }: ImportSourcePickerProps) {
   const { t } = useT()
   const navigate = useNavigate()
-  const [plugins, setPlugins] = useState<InvestmentPlugin[]>([])
-
-  useEffect(() => {
-    getInvestmentPlugins()
-      .then(ps => setPlugins(ps.filter(p => p.import_route !== null)))
-      .catch(() => {})
-  }, [])
+  const pluginsQuery = useInvestmentPlugins()
+  // Sólo las fuentes con ruta de importación; el resto no se puede importar aquí.
+  const plugins = useMemo(
+    () => (pluginsQuery.data ?? []).filter(p => p.import_route !== null),
+    [pluginsQuery.data],
+  )
 
   const handleBackdrop = useCallback((e: React.MouseEvent) => {
     if (e.target === e.currentTarget) onClose()

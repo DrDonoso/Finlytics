@@ -1,12 +1,12 @@
-import { useState, useEffect } from 'react'
+import { useMemo, useState } from 'react'
 import type { MouseEvent, ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useNavigate } from 'react-router'
-import type { Account, AccountSummary, CombinedOverview, Overview, StatementReminder } from '../api/types'
 import {
-  getAccounts, getOverview, getOverviewMonths, getByAccount,
-  getCombinedOverview, getStatementReminder,
-} from '../api/client'
+  useAccounts, useByAccount, useCombinedOverview,
+  useOverview, useOverviewMonths, useStatementReminder,
+} from '../api/queries'
+import { errorMessage } from '../api/errors'
 import InvestmentSnapshotCard from '../components/InvestmentSnapshotCard'
 import { useT } from '../i18n'
 import type { Lang } from '../i18n'
@@ -15,14 +15,6 @@ import { savingsRate } from '../utils/comparison'
 import {
   IconInfo, IconAlert, IconLoading, IconArrowUpRight, IconArrowDownRight,
 } from '../components/icons'
-
-interface AsyncState<T> {
-  loading: boolean
-  error: string | null
-  data: T | null
-}
-
-function idle<T>(): AsyncState<T> { return { loading: true, error: null, data: null } }
 
 function formatEur(value: number | null | undefined): string {
   if (value === null || value === undefined) return '—'
@@ -179,97 +171,64 @@ export default function Dashboard() {
   const navigate = useNavigate()
   const { notifications } = useNotifications()
 
-  const [accounts, setAccounts] = useState<AsyncState<Account[]>>(idle())
-  const [overview, setOverview] = useState<AsyncState<Overview>>(idle())
-  const [investmentsOverview, setInvestmentsOverview] = useState<AsyncState<CombinedOverview>>(idle())
-  const [byAccount, setByAccount] = useState<AsyncState<AccountSummary[]>>(idle())
-  const [months, setMonths] = useState<AsyncState<string[]>>(idle())
-  /** Variación de la tasa de ahorro (en pp) del último mes con datos frente al anterior. */
-  const [savingsRateShift, setSavingsRateShift] = useState<number | null>(null)
-  const [refreshKey] = useState(0)
-  const [statementReminder, setStatementReminder] = useState<StatementReminder | null>(null)
+  // Estabiliza el array vacío: `?? []` inline crea uno nuevo por render y rompería deps aguas abajo
+  const EMPTY: never[] = useMemo(() => [], [])
 
-  useEffect(() => {
-    getAccounts()
-      .then(d => setAccounts({ loading: false, error: null, data: d }))
-      .catch(e => setAccounts({ loading: false, error: String(e), data: null }))
-    getStatementReminder().then(setStatementReminder).catch(() => setStatementReminder(null))
-  }, [])
+  const accountsQuery = useAccounts()
+  const overviewQuery = useOverview()
+  const investmentsQuery = useCombinedOverview()
+  const byAccountQuery = useByAccount()
+  const monthsQuery = useOverviewMonths()
+  const reminderQuery = useStatementReminder()
 
-  // Fetch available months once for global monthly averages.
-  useEffect(() => {
-    setMonths(idle())
-    getOverviewMonths()
-      .then(({ months: list }) => setMonths({ loading: false, error: null, data: list }))
-      .catch(e => setMonths({ loading: false, error: String(e), data: null }))
-  }, [refreshKey])
+  const accounts = accountsQuery.data ?? EMPTY
+  const byAccount = byAccountQuery.data ?? EMPTY
+  const overview = overviewQuery.data ?? null
+  const monthList = monthsQuery.data?.months ?? EMPTY
+  const statementReminder = reminderQuery.data ?? null
+
+  const accountsError = accountsQuery.error ? errorMessage(accountsQuery.error, t) : null
+  const byAccountError = byAccountQuery.error ? errorMessage(byAccountQuery.error, t) : null
 
   // Compara la tasa de ahorro de los dos últimos meses con datos.
   // Son datos reales del backend, no una estimación: si sólo hay un mes, no se
   // muestra variación en vez de inventar una referencia.
-  const monthList = months.data
-  useEffect(() => {
-    if (!monthList || monthList.length < 2) { setSavingsRateShift(null); return }
+  const hasTwoMonths = monthList.length >= 2
+  const prevMonth = hasTwoMonths ? monthList[monthList.length - 2] : null
+  const curMonth = hasTwoMonths ? monthList[monthList.length - 1] : null
+  const curRange = useMemo(() => (curMonth ? monthRange(curMonth) : undefined), [curMonth])
+  const prevRange = useMemo(() => (prevMonth ? monthRange(prevMonth) : undefined), [prevMonth])
+  const curSavingsQuery = useOverview(curRange, { enabled: hasTwoMonths })
+  const prevSavingsQuery = useOverview(prevRange, { enabled: hasTwoMonths })
 
-    const [previous, current] = monthList.slice(-2)
-    let cancelled = false
+  /** Variación de la tasa de ahorro (en pp) del último mes con datos frente al anterior. */
+  const savingsRateShift = useMemo(() => {
+    if (!hasTwoMonths || !curSavingsQuery.data || !prevSavingsQuery.data) return null
+    const current = savingsRate(curSavingsQuery.data)
+    const previous = savingsRate(prevSavingsQuery.data)
+    if (current === null || previous === null) return null
+    return current - previous
+  }, [hasTwoMonths, curSavingsQuery.data, prevSavingsQuery.data])
 
-    Promise.all([getOverview(monthRange(current)), getOverview(monthRange(previous))])
-      .then(([currentOverview, previousOverview]) => {
-        if (cancelled) return
-        const currentRate = savingsRate(currentOverview)
-        const previousRate = savingsRate(previousOverview)
-        if (currentRate === null || previousRate === null) { setSavingsRateShift(null); return }
-        setSavingsRateShift(currentRate - previousRate)
-      })
-      .catch(() => { if (!cancelled) setSavingsRateShift(null) })
+  const monthsCount = monthList.length > 0 ? monthList.length : null
+  const allTimeSavingsRate = overview ? savingsRate(overview) : null
 
-    // Evita que una respuesta lenta pise el estado tras cambiar de mes.
-    return () => { cancelled = true }
-  }, [monthList])
-
-  // Fetch all-time account nets and investment value for the cross-domain KPI strip.
-  useEffect(() => {
-    setInvestmentsOverview(idle())
-    setByAccount(idle())
-
-    getByAccount()
-      .then(d => setByAccount({ loading: false, error: null, data: d }))
-      .catch(e => setByAccount({ loading: false, error: String(e), data: null }))
-
-    getCombinedOverview()
-      .then(d => setInvestmentsOverview({ loading: false, error: null, data: d }))
-      .catch(e => setInvestmentsOverview({ loading: false, error: String(e), data: null }))
-  }, [refreshKey])
-
-  // Fetch all-time overview for historical/global KPIs.
-  useEffect(() => {
-    setOverview(idle())
-
-    getOverview()
-      .then(d => setOverview({ loading: false, error: null, data: d }))
-      .catch(e => setOverview({ loading: false, error: String(e), data: null }))
-  }, [refreshKey])
-
-  const monthsCount = months.data?.length ?? null
-  const allTimeSavingsRate = overview.data ? savingsRate(overview.data) : null
-
-  const averageMonthlyNet = overview.data && monthsCount && monthsCount > 0
-    ? overview.data.net / monthsCount
+  const averageMonthlyNet = overview && monthsCount && monthsCount > 0
+    ? overview.net / monthsCount
     : null
 
   const averageMonthlyNetClass = averageMonthlyNet == null ? '' : averageMonthlyNet >= 0 ? 'inv-kpi-card__value--pos' : 'inv-kpi-card__value--neg'
 
-  const accountByName = new Map((accounts.data ?? []).map(account => [accountKey(account.name), account]))
-  const accountNetTotal = byAccount.data?.reduce((sum, row) => sum + row.net, 0) ?? 0
-  const investmentsValue = investmentsOverview.data?.total_value_eur ?? 0
+  const accountByName = new Map(accounts.map(account => [accountKey(account.name), account]))
+  const accountNetTotal = byAccount.reduce((sum, row) => sum + row.net, 0)
+  const investmentsValue = investmentsQuery.data?.total_value_eur ?? 0
 
   // Degradación parcial: un fallo al leer las inversiones no debe ocultar el
   // neto de las cuentas, que sí está disponible.  Antes cualquiera de los dos
   // errores dejaba el patrimonio en «—» y se perdía información que sí se tenía.
-  const investmentsFailed = Boolean(investmentsOverview.error)
-  const accountsPending = byAccount.loading || Boolean(byAccount.error)
-  const netWorthPending = accountsPending || investmentsOverview.loading
+  const investmentsFailed = Boolean(investmentsQuery.error)
+  const accountsPending = byAccountQuery.isPending || Boolean(byAccountQuery.error)
+  const netWorthPending = accountsPending || investmentsQuery.isPending
   const totalNetWorth = accountNetTotal + (investmentsFailed ? 0 : investmentsValue)
   const missingStatementAccountIds = statementReminder?.year != null && statementReminder.month != null
     ? new Set(statementReminder.missing_account_ids)
@@ -315,7 +274,7 @@ export default function Dashboard() {
             <InfoTooltip text={t.dashboardKpiSavingsRateInfo} />
           </div>
           <div className="inv-kpi-card__value">
-            {overview.loading ? '—' : overview.error ? '—' : signedPercent(allTimeSavingsRate)}
+            {overviewQuery.isPending ? '—' : overviewQuery.error ? '—' : signedPercent(allTimeSavingsRate)}
           </div>
           <DeltaPill points={savingsRateShift} label={t.dashboardSavingsRateVsPrevMonth} />
         </div>
@@ -325,7 +284,7 @@ export default function Dashboard() {
             <InfoTooltip text={t.dashboardKpiAverageMonthlyNetInfo} />
           </div>
           <div className={`inv-kpi-card__value ${averageMonthlyNetClass}`}>
-            {overview.loading || months.loading || overview.error || months.error
+            {overviewQuery.isPending || monthsQuery.isPending || overviewQuery.error || monthsQuery.error
               ? '—'
               : averageMonthlyNet === null
                 ? '—'
@@ -341,17 +300,17 @@ export default function Dashboard() {
 
       <div className="card dashboard-accounts-card">
         <h3 className="card-title">{t.dashboardAccountsTitle}</h3>
-        {accounts.loading || byAccount.loading ? (
+        {accountsQuery.isPending || byAccountQuery.isPending ? (
           <div className="state-box">
             <IconLoading size={18} />
             <span>{t.loading}</span>
           </div>
-        ) : accounts.error || byAccount.error ? (
+        ) : accountsError || byAccountError ? (
           <div className="state-box error">
             <IconAlert size={18} />
-            <span>{accounts.error ?? byAccount.error}</span>
+            <span>{accountsError ?? byAccountError}</span>
           </div>
-        ) : byAccount.data && byAccount.data.length > 0 ? (
+        ) : byAccount.length > 0 ? (
           <div className="cat-table-wrap dashboard-accounts-table-wrap">
             <table className="cat-table dashboard-accounts-table">
               <thead>
@@ -362,7 +321,7 @@ export default function Dashboard() {
                 </tr>
               </thead>
               <tbody>
-                {byAccount.data.map(row => {
+                {byAccount.map(row => {
                   const account = accountByName.get(accountKey(row.account))
                   const rowKey = account?.id ?? row.account
                   const netCls = row.net >= 0 ? 'inv-kpi-card__value--pos' : 'inv-kpi-card__value--neg'
@@ -399,7 +358,7 @@ export default function Dashboard() {
                       </td>
                       <td className={`cat-td-num dashboard-account-net ${netCls}`}>{formatEur(row.net)}</td>
                       <td className="cat-td-num cat-td-weight">
-                        {months.loading || months.error ? '—' : formatEur(averageMonthlyExpense)}
+                        {monthsQuery.isPending || monthsQuery.error ? '—' : formatEur(averageMonthlyExpense)}
                       </td>
                     </tr>
                   )

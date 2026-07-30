@@ -1,15 +1,23 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import type { Account, AccountCreatePayload } from '../api/types'
-import { getAccounts, deleteAccount, patchAccount, createAccount } from '../api/client'
+import { deleteAccount, patchAccount, createAccount } from '../api/client'
+import { useAccounts, queryKeys } from '../api/queries'
+import { errorMessage } from '../api/errors'
 import { useT } from '../i18n'
 import { IconLoading, IconBank, IconPencil, IconTrash, IconClose, IconChevronDown, IconChevronRight } from '../components/icons'
 
 export default function AccountsPage() {
   const { t } = useT()
-  const [accounts, setAccounts] = useState<Account[]>([])
-  const [loading, setLoading] = useState(true)
+  const queryClient = useQueryClient()
+  const accountsQuery = useAccounts()
+  const EMPTY: never[] = useMemo(() => [], [])
+  const accounts = accountsQuery.data ?? EMPTY
+  const loading = accountsQuery.isPending
+  // Sólo errores de las mutaciones; el de la carga lo aporta la consulta.
   const [error, setError] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
+  const shownError = error ?? (accountsQuery.error ? errorMessage(accountsQuery.error, t) : null)
 
   const [deleteTarget, setDeleteTarget] = useState<Account | null>(null)
   const [deleting, setDeleting] = useState(false)
@@ -19,13 +27,6 @@ export default function AccountsPage() {
   const [editSaving, setEditSaving] = useState(false)
 
   const [createOpen, setCreateOpen] = useState(false)
-
-  useEffect(() => {
-    setLoading(true)
-    getAccounts()
-      .then(data => { setAccounts(data); setLoading(false) })
-      .catch(e => { setError(String(e)); setLoading(false) })
-  }, [])
 
   function showToast(msg: string) {
     setToast(msg)
@@ -38,11 +39,11 @@ export default function AccountsPage() {
     setDeleting(true)
     try {
       const result = await deleteAccount(target.id)
-      setAccounts(prev => prev.filter(a => a.id !== target.id))
+      await queryClient.invalidateQueries({ queryKey: queryKeys.accounts })
       setDeleteTarget(null)
       showToast(t.accountsDeleteToast(target.name, result.deleted))
     } catch (e) {
-      setError(String(e))
+      setError(errorMessage(e, t))
     } finally {
       setDeleting(false)
     }
@@ -53,11 +54,11 @@ export default function AccountsPage() {
     setEditSaving(true)
     try {
       const updated = await patchAccount(editTarget.id, editName.trim())
-      setAccounts(prev => prev.map(a => a.id === updated.id ? updated : a))
+      await queryClient.invalidateQueries({ queryKey: queryKeys.accounts })
       setEditTarget(null)
       showToast(t.accountsEditToast(updated.name))
     } catch (e) {
-      setError(String(e))
+      setError(errorMessage(e, t))
     } finally {
       setEditSaving(false)
     }
@@ -65,7 +66,7 @@ export default function AccountsPage() {
 
   function handleCreateSuccess(account: Account) {
     setCreateOpen(false)
-    setAccounts(prev => [...prev, account])
+    queryClient.invalidateQueries({ queryKey: queryKeys.accounts })
     showToast(t.accountsCreateToast(account.name))
   }
 
@@ -74,7 +75,7 @@ export default function AccountsPage() {
       <div className="card settings-card">
         <h2 className="settings-section-title">{t.accountsPageTitle}</h2>
 
-        {error && <div className="import-error" style={{ marginBottom: 16 }}>{error}</div>}
+        {shownError && <div className="import-error" style={{ marginBottom: 16 }}>{shownError}</div>}
 
         <div className="settings-add-form">
           <button className="btn-primary" type="button" onClick={() => setCreateOpen(true)}>

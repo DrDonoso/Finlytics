@@ -8,10 +8,12 @@
  * tanto es fácil que vuelva sin que nadie lo note.
  */
 import { render, screen, waitFor, within } from '@testing-library/react'
+import { QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import Dashboard from './Dashboard'
+import { createQueryClient } from '../api/queryClient'
 import type { AccountSummary, CombinedOverview, Overview } from '../api/types'
 
 // ── Dobles de la capa de API ─────────────────────────────────────────────────
@@ -71,10 +73,19 @@ const COMBINED: CombinedOverview = {
 } as unknown as CombinedOverview
 
 function renderDashboard() {
+  // Cliente nuevo por render para aislar la caché entre tests.  Sin reintentos:
+  // los tests de degradación rechazan con TypeError y el retry por defecto
+  // agotaría el waitFor antes de que la query llegue a su estado de error.
+  const client = createQueryClient()
+  client.setDefaultOptions({
+    queries: { ...client.getDefaultOptions().queries, retry: false },
+  })
   return render(
-    <MemoryRouter>
-      <Dashboard />
-    </MemoryRouter>,
+    <QueryClientProvider client={client}>
+      <MemoryRouter>
+        <Dashboard />
+      </MemoryRouter>
+    </QueryClientProvider>,
   )
 }
 

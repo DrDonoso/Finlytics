@@ -1,10 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Outlet, NavLink, Link, useLocation, useNavigate } from 'react-router'
 import { useT } from '../i18n'
 import { useAuth } from '../contexts/AuthContext'
-import { getConnections } from '../api/client'
+import { useConnections } from '../api/queries'
 import { getPluginLogo, PLUGIN_VIEW_REGISTRY, pluginInitial } from '../investments/registry'
-import type { InvestmentConnection } from '../api/types'
 import NotificationBell from './NotificationBell'
 import { BrandMark } from './Brand'
 import {
@@ -39,13 +38,11 @@ export default function Layout() {
   // ── Investments accordion ────────────────────────────────────────────────
   const isOnInvestments = location.pathname.startsWith('/investments')
   const [investmentsExpanded, setInvestmentsExpanded] = useState(isOnInvestments)
-  const [connectedPlugins, setConnectedPlugins] = useState<InvestmentConnection[]>([])
-
-  useEffect(() => {
-    getConnections()
-      .then(conns => setConnectedPlugins(conns.filter(c => c.status === 'active')))
-      .catch(() => {})
-  }, [])
+  const connectionsQuery = useConnections()
+  const connectedPlugins = useMemo(
+    () => (connectionsQuery.data ?? []).filter(c => c.status === 'active'),
+    [connectionsQuery.data],
+  )
 
   useEffect(() => {
     if (isOnInvestments && !investmentsExpanded) setInvestmentsExpanded(true)

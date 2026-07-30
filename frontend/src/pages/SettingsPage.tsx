@@ -1,6 +1,9 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import type { Tag } from '../api/types'
-import { getTags, createTag, updateTag, deleteTag } from '../api/client'
+import { createTag, updateTag, deleteTag } from '../api/client'
+import { useTags, queryKeys } from '../api/queries'
+import { errorMessage } from '../api/errors'
 import { useT, DEFAULT_TAG_COLOR, tagTextColor, paletteColor } from '../i18n'
 import ColorSwatchPicker from '../components/ColorSwatchPicker'
 import { IconLoading, IconTag, IconCheck, IconClose, IconPencil, IconTrash } from '../components/icons'
@@ -11,9 +14,14 @@ function tagLabel(tag: Tag): string {
 
 export default function SettingsPage() {
   const { t, lang } = useT()
-  const [tags, setTags] = useState<Tag[]>([])
-  const [loading, setLoading] = useState(true)
+  const queryClient = useQueryClient()
+  const tagsQuery = useTags()
+  const EMPTY: never[] = useMemo(() => [], [])
+  const tags = tagsQuery.data ?? EMPTY
+  const loading = tagsQuery.isPending
+  // Sólo errores de las mutaciones; el de la carga lo aporta la consulta.
   const [error, setError] = useState<string | null>(null)
+  const shownError = error ?? (tagsQuery.error ? errorMessage(tagsQuery.error, t) : null)
 
   // Add form
   const [addName,         setAddName]         = useState('')
@@ -35,24 +43,17 @@ export default function SettingsPage() {
     [tags, lang],
   )
 
-  useEffect(() => {
-    setLoading(true)
-    getTags()
-      .then(data => { setTags(data); setLoading(false) })
-      .catch(e  => { setError(String(e)); setLoading(false) })
-  }, [])
-
   async function handleAdd() {
     if (!addName.trim()) return
     setAdding(true)
     setError(null)
     try {
-      const newTag = await createTag(addName.trim(), addColor)
-      setTags(prev => [...prev, newTag])
+      await createTag(addName.trim(), addColor)
+      await queryClient.invalidateQueries({ queryKey: queryKeys.tags })
       setAddName('')
       setAddColor(DEFAULT_TAG_COLOR)
     } catch (e) {
-      setError(String(e))
+      setError(errorMessage(e, t))
     } finally {
       setAdding(false)
     }
@@ -70,14 +71,14 @@ export default function SettingsPage() {
     setSaving(true)
     setError(null)
     try {
-      const updated = await updateTag(editId, {
+      await updateTag(editId, {
         name:  editName.trim() || undefined,
         color: editColor || undefined,
       })
-      setTags(prev => prev.map(tg => tg.id === editId ? updated : tg))
+      await queryClient.invalidateQueries({ queryKey: queryKeys.tags })
       setEditId(null)
     } catch (e) {
-      setError(String(e))
+      setError(errorMessage(e, t))
     } finally {
       setSaving(false)
     }
@@ -88,11 +89,11 @@ export default function SettingsPage() {
     setError(null)
     try {
       await deleteTag(id)
-      setTags(prev => prev.filter(tg => tg.id !== id))
+      await queryClient.invalidateQueries({ queryKey: queryKeys.tags })
       setConfirmDeleteId(null)
       if (editId === id) setEditId(null)
     } catch (e) {
-      setError(String(e))
+      setError(errorMessage(e, t))
     } finally {
       setDeleting(false)
     }
@@ -102,7 +103,7 @@ export default function SettingsPage() {
     <div className="card settings-card">
       <h2 className="settings-section-title">{t.settingsTagsTitle}</h2>
 
-      {error && <div className="import-error" style={{ marginBottom: 16 }}>{error}</div>}
+      {shownError && <div className="import-error" style={{ marginBottom: 16 }}>{shownError}</div>}
 
       {/* Add form */}
       <div className="settings-add-form">

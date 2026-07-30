@@ -1,8 +1,6 @@
-import { useState, useEffect } from 'react'
 import { Link } from 'react-router'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
-import type { CombinedOverview } from '../api/types'
-import { getCombinedOverview } from '../api/client'
+import { useCombinedOverview } from '../api/queries'
 import { errorMessage } from '../api/errors'
 import { getPluginLogo, pluginInitial } from '../investments/registry'
 import { useT } from '../i18n'
@@ -40,16 +38,11 @@ function signedEur(n: number): string {
 
 export default function InvestmentsLandingPage() {
   const { t } = useT()
-  const [loading, setLoading] = useState(true)
+  const overviewQuery = useCombinedOverview()
+  const loading = overviewQuery.isPending
   // Error en crudo: se traduce al pintar, así sigue al idioma activo.
-  const [error, setError] = useState<unknown>(null)
-  const [overview, setOverview] = useState<CombinedOverview | null>(null)
-
-  useEffect(() => {
-    getCombinedOverview()
-      .then(data => { setOverview(data); setLoading(false) })
-      .catch(e => { setError(e); setLoading(false) })
-  }, [])
+  const error = overviewQuery.error
+  const overview = overviewQuery.data ?? null
 
   if (loading) {
     return (

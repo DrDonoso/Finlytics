@@ -16,6 +16,7 @@ import type { UseQueryResult } from '@tanstack/react-query'
 
 import {
   getAccounts,
+  getAppVersion,
   getByAccount,
   getByCategory,
   getByDay,
@@ -25,33 +26,49 @@ import {
   getCategories,
   getCombinedOverview,
   getConnections,
+  getInvestmentPlugins,
+  getInvestmentPortfolio,
   getOverview,
   getOverviewMonths,
   getRules,
   getStatementMonths,
+  getStatementOriginals,
   getStatementReminder,
   getTags,
 } from './client'
 import type {
   Account,
   AccountSummary,
+  AppVersion,
   CashflowSummary,
   Category,
   CategorySummary,
   CombinedOverview,
   DaySummary,
   InvestmentConnection,
+  InvestmentPlugin,
+  InvestmentPortfolio,
   MerchantSummary,
   MonthSummary,
   MonthSummaryParams,
   Overview,
   Rule,
   StatementMonth,
+  StatementOriginal,
   StatementReminder,
   SummaryMonths,
   SummaryParams,
   Tag,
 } from './types'
+
+/**
+ * Opciones comunes a las consultas que a veces no deben lanzarse todavía
+ * (por ejemplo, mientras no se conoce el mes a comparar). `enabled` sin definir
+ * equivale a activada, así que las llamadas existentes no cambian.
+ */
+interface QueryOptions {
+  enabled?: boolean
+}
 
 /**
  * Claves de caché.
@@ -76,6 +93,11 @@ export const queryKeys = {
   byMonth: (params?: MonthSummaryParams) => ['summary', 'by-month', params ?? null] as const,
   byDay: (params?: MonthSummaryParams) => ['summary', 'by-day', params ?? null] as const,
   cashflow: (params?: SummaryParams) => ['summary', 'cashflow', params ?? null] as const,
+  statementOriginals: (year: number, month: number, accountId?: number) =>
+    ['statements', 'originals', year, month, accountId ?? null] as const,
+  investmentPlugins: ['investment-plugins'] as const,
+  investmentPortfolio: ['investments', 'portfolio'] as const,
+  appVersion: ['app-version'] as const,
 }
 
 // ── Catálogos ────────────────────────────────────────────────────────────────
@@ -126,17 +148,19 @@ export function useConnections(): UseQueryResult<InvestmentConnection[]> {
 // ── Resúmenes ────────────────────────────────────────────────────────────────
 // Dependen de los filtros activos: es donde importaba el orden de llegada.
 
-export function useOverview(params?: SummaryParams): UseQueryResult<Overview> {
+export function useOverview(params?: SummaryParams, options?: QueryOptions): UseQueryResult<Overview> {
   return useQuery({
     queryKey: queryKeys.overview(params),
     queryFn: () => getOverview(params),
+    enabled: options?.enabled,
   })
 }
 
-export function useByCategory(params?: SummaryParams): UseQueryResult<CategorySummary[]> {
+export function useByCategory(params?: SummaryParams, options?: QueryOptions): UseQueryResult<CategorySummary[]> {
   return useQuery({
     queryKey: queryKeys.byCategory(params),
     queryFn: () => getByCategory(params),
+    enabled: options?.enabled,
   })
 }
 
@@ -199,10 +223,46 @@ export function useStatementMonths(accountId?: number): UseQueryResult<Statement
   })
 }
 
+export function useStatementOriginals(
+  year: number,
+  month: number,
+  accountId?: number,
+  options?: QueryOptions,
+): UseQueryResult<StatementOriginal[]> {
+  return useQuery({
+    queryKey: queryKeys.statementOriginals(year, month, accountId),
+    queryFn: () => getStatementOriginals(year, month, accountId),
+    enabled: options?.enabled,
+  })
+}
+
 export function useStatementReminder(): UseQueryResult<StatementReminder> {
   return useQuery({
     queryKey: queryKeys.statementReminder,
     queryFn: getStatementReminder,
+    staleTime: CATALOG_STALE_MS,
+  })
+}
+
+export function useInvestmentPlugins(): UseQueryResult<InvestmentPlugin[]> {
+  return useQuery({
+    queryKey: queryKeys.investmentPlugins,
+    queryFn: getInvestmentPlugins,
+    staleTime: CATALOG_STALE_MS,
+  })
+}
+
+export function useInvestmentPortfolio(): UseQueryResult<InvestmentPortfolio> {
+  return useQuery({
+    queryKey: queryKeys.investmentPortfolio,
+    queryFn: getInvestmentPortfolio,
+  })
+}
+
+export function useAppVersion(): UseQueryResult<AppVersion> {
+  return useQuery({
+    queryKey: queryKeys.appVersion,
+    queryFn: getAppVersion,
     staleTime: CATALOG_STALE_MS,
   })
 }

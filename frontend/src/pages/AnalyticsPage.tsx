@@ -1,12 +1,10 @@
-import { useState, useEffect } from 'react'
-import type {
-  Account, Category, Tag, GlobalFilters,
-  MonthSummary, AccountSummary, CashflowSummary,
-} from '../api/types'
+import { useState, useMemo } from 'react'
+import type { GlobalFilters, SummaryParams } from '../api/types'
 import {
-  getAccounts, getCategories, getTags,
-  getByMonth, getByAccount, getCashflow,
-} from '../api/client'
+  useAccounts, useCategories, useTags,
+  useByMonth, useByAccount, useCashflow,
+} from '../api/queries'
+import { errorMessage } from '../api/errors'
 import GlobalFilterBar from '../components/GlobalFilterBar'
 import SpendingOverTime from '../components/SpendingOverTime'
 import SpendingByAccount from '../components/SpendingByAccount'
@@ -18,58 +16,36 @@ function makeDefaultFilters(): GlobalFilters {
   return { ...defaultRange(), tags: [] }
 }
 
-interface AsyncState<T> {
-  loading: boolean
-  error: string | null
-  data: T | null
-}
-
-function idle<T>(): AsyncState<T> { return { loading: true, error: null, data: null } }
-
 export default function AnalyticsPage() {
   const { t } = useT()
   const [filters, setFilters] = useState<GlobalFilters>(makeDefaultFilters)
-  const [accounts,   setAccounts]   = useState<Account[]>([])
-  const [categories, setCategories] = useState<Category[]>([])
-  const [allTags,    setAllTags]    = useState<Tag[]>([])
 
-  const [byMonth,   setByMonth]   = useState<AsyncState<MonthSummary[]>>(idle())
-  const [byAccount, setByAccount] = useState<AsyncState<AccountSummary[]>>(idle())
-  const [cashflow,  setCashflow]  = useState<AsyncState<CashflowSummary>>(idle())
+  const EMPTY: never[] = useMemo(() => [], [])
+  const accounts   = useAccounts().data   ?? EMPTY
+  const categories = useCategories().data ?? EMPTY
+  const allTags    = useTags().data       ?? EMPTY
 
-  useEffect(() => {
-    getAccounts().then(setAccounts).catch(() => {})
-    getCategories().then(setCategories).catch(() => {})
-    getTags().then(setAllTags).catch(() => {})
-  }, [])
+  const params: SummaryParams = useMemo(() => ({
+    from:        filters.from || undefined,
+    to:          filters.to   || undefined,
+    account_id:  filters.account_id,
+    category_id: filters.category_id,
+    tags:        filters.tags.length > 0 ? filters.tags : undefined,
+    flow:        filters.flow,
+  }), [filters])
 
-  useEffect(() => {
-    const params = {
-      from:        filters.from || undefined,
-      to:          filters.to   || undefined,
-      account_id:  filters.account_id,
-      category_id: filters.category_id,
-      tags:        filters.tags.length > 0 ? filters.tags : undefined,
-      flow:        filters.flow,
-    }
+  // by-account: sin account_id para que muestre todas las cuentas, pero con categoría + tags + flow
+  const byAccountParams: SummaryParams = useMemo(() => ({
+    from:        params.from,
+    to:          params.to,
+    category_id: params.category_id,
+    tags:        params.tags,
+    flow:        params.flow,
+  }), [params])
 
-    setByMonth(idle())
-    setByAccount(idle())
-    setCashflow(idle())
-
-    getByMonth(params)
-      .then(d  => setByMonth({ loading: false, error: null,     data: d }))
-      .catch(e => setByMonth({ loading: false, error: String(e), data: null }))
-
-    // by-account: no account_id so chart shows all accounts, but apply category + tag + flow
-    getByAccount({ from: params.from, to: params.to, category_id: params.category_id, tags: params.tags, flow: params.flow })
-      .then(d  => setByAccount({ loading: false, error: null,     data: d }))
-      .catch(e => setByAccount({ loading: false, error: String(e), data: null }))
-
-    getCashflow(params)
-      .then(d  => setCashflow({ loading: false, error: null,     data: d }))
-      .catch(e => setCashflow({ loading: false, error: String(e), data: null }))
-  }, [filters])
+  const byMonth   = useByMonth(params)
+  const byAccount = useByAccount(byAccountParams)
+  const cashflow  = useCashflow(params)
 
   function handleFlowClick(flow: 'expense' | 'income' | undefined) {
     setFilters(f => ({ ...f, flow }))
@@ -92,15 +68,15 @@ export default function AnalyticsPage() {
       <div className="charts-row">
         <SpendingByAccount
           data={byAccount.data ?? []}
-          loading={byAccount.loading}
-          error={byAccount.error}
+          loading={byAccount.isPending}
+          error={byAccount.error ? errorMessage(byAccount.error, t) : null}
           selectedFlow={filters.flow}
           onFlowClick={handleFlowClick}
         />
         <SpendingOverTime
           data={byMonth.data ?? []}
-          loading={byMonth.loading}
-          error={byMonth.error}
+          loading={byMonth.isPending}
+          error={byMonth.error ? errorMessage(byMonth.error, t) : null}
           selectedFlow={filters.flow}
           onFlowClick={handleFlowClick}
         />
@@ -108,8 +84,8 @@ export default function AnalyticsPage() {
 
       <CashflowSankey
         data={cashflow.data ?? null}
-        loading={cashflow.loading}
-        error={cashflow.error}
+        loading={cashflow.isPending}
+        error={cashflow.error ? errorMessage(cashflow.error, t) : null}
         categories={categories}
         selectedCategoryId={filters.category_id}
         onCategoryClick={(id) => setFilters(f => ({ ...f, category_id: id }))}
