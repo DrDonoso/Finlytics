@@ -60,7 +60,7 @@ export default function MonthPicker({ value, onChange, min, max, activeMonths, d
 
   const triggerRef = useRef<HTMLButtonElement>(null)
   const panelRef   = useRef<HTMLDivElement>(null)
-  const cellRefs   = useRef<(HTMLButtonElement | null)[]>(new Array(12).fill(null))
+  const cellRefs   = useRef<(HTMLButtonElement | null)[]>(Array.from({ length: 12 }, () => null))
 
   // Flag: only steal focus to month cell when opening or using keyboard nav
   const focusCellOnRender = useRef(false)

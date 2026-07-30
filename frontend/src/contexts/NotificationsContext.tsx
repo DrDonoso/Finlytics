@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import type { ReactNode } from 'react'
 import type { NotificationOut } from '../api/types'
 import {
@@ -86,10 +86,24 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     fetchList()
   }, [fetchList])
 
+  // Sin memoizar, el objeto sería nuevo en cada render y obligaría a
+  // re-renderizar a todos los consumidores del contexto aunque nada hubiera
+  // cambiado — y aquí hay un sondeo cada 60 s que dispara renders.
+  const value = useMemo(
+    () => ({
+      notifications,
+      unreadCount,
+      loading,
+      refresh: fetchList,
+      markRead,
+      markAllRead,
+      dismiss,
+    }),
+    [notifications, unreadCount, loading, fetchList, markRead, markAllRead, dismiss],
+  )
+
   return (
-    <NotificationsContext.Provider
-      value={{ notifications, unreadCount, loading, refresh: fetchList, markRead, markAllRead, dismiss }}
-    >
+    <NotificationsContext.Provider value={value}>
       {children}
     </NotificationsContext.Provider>
   )

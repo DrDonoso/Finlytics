@@ -144,7 +144,7 @@ export default function SpendingHeatmap({ globalFilters, onSelectPeriod, onReset
     const maxExp = Math.max(0, ...data.map(d => d.expense))
 
     // One month label per week column, placed at the first week of each new month
-    const monthCols = new Array<string>(weeks.length).fill('')
+    const monthCols = Array.from({ length: weeks.length }, () => '')
     let prevMonth   = -1
     for (let wi = 0; wi < weeks.length; wi++) {
       const first = weeks[wi].find(c => c.date !== null)

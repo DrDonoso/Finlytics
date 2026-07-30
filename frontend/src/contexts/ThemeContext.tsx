@@ -1,4 +1,4 @@
-import { createContext, createElement, useContext, useState, useEffect, useCallback } from 'react'
+import { createContext, createElement, useContext, useState, useEffect, useCallback, useMemo } from 'react'
 import type { ReactNode } from 'react'
 
 export type ThemeMode = 'light' | 'dark' | 'system'
@@ -93,7 +93,14 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   useEffect(() => { applyTheme(resolved) }, [resolved])
   useEffect(() => { applyPalette(palette) }, [palette])
 
-  return createElement(ThemeContext.Provider, { value: { mode, setMode, resolved, palette, setPalette } }, children)
+  // Memoizado para no forzar un render de todos los consumidores cada vez que
+  // se renderiza el proveedor: el objeto sería nuevo aunque el tema no cambie.
+  const value = useMemo(
+    () => ({ mode, setMode, resolved, palette, setPalette }),
+    [mode, setMode, resolved, palette, setPalette],
+  )
+
+  return createElement(ThemeContext.Provider, { value }, children)
 }
 
 export function useTheme(): ThemeContextValue {

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import type { Category, Tag, Transaction } from '../api/types'
 import { updateTransaction } from '../api/client'
-import { useT, categoryLabel, formatDate, DEFAULT_TAG_COLOR, tagTextColor } from '../i18n'
+import { useT, categoryLabel, formatDate } from '../i18n'
 import CategorySelect from './CategorySelect'
 import TagEditor from './TagEditor'
 import { IconClose } from './icons'
@@ -36,7 +36,7 @@ export default function TransactionDetailModal({
   onClose,
   onSaved,
 }: Props) {
-  const { t, lang, formatCurrency } = useT()
+  const { t, lang } = useT()
 
   const [editData, setEditData] = useState<EditData>({
     description: tx.description,
@@ -85,7 +85,7 @@ export default function TransactionDetailModal({
         merchant: editData.merchant,
       })
       onSaved(updated)
-    } catch (e) {
+    } catch {
       setSaveError(t.tableSaveError)
     } finally {
       setSaving(false)

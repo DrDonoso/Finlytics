@@ -281,7 +281,10 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
     let cancelled = false
 
     async function runExtract() {
-      const previews: (PreviewResponse | null)[] = new Array(initialFiles.length).fill(null)
+      const previews: (PreviewResponse | null)[] = Array.from(
+        { length: initialFiles.length },
+        () => null,
+      )
 
       for (let i = 0; i < initialFiles.length; i++) {
         if (cancelled) break
@@ -846,7 +849,8 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
                 aria-controls={bodyId}
                 onClick={() => setOpenGroups(prev => {
                   const next = new Set(prev)
-                  isOpen ? next.delete(group.key) : next.add(group.key)
+                  if (isOpen) next.delete(group.key)
+                  else next.add(group.key)
                   return next
                 })}
               >
@@ -869,7 +873,7 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
 
               {isOpen && (
                 <div id={bodyId} className="batch-accordion-body" aria-labelledby={headerId}>
-                  {group.fileIndices.map((fileIdx, fi_i) => {
+                  {group.fileIndices.map((fileIdx, _fi_i) => {
                     const fi = fileItems[fileIdx]
                     const showSep = group.fileIndices.length > 1
                     const { name: resolvedName } = getResolvedAccount(fi)

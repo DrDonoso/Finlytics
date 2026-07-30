@@ -1,7 +1,7 @@
 import type {
   Account, Category, Tag, TransactionPage, Overview,
   CategorySummary, MonthSummary, DaySummary, AccountSummary, ImportResult,
-  ImportTransaction, PreviewResponse, ConfirmRequest,
+  PreviewResponse, ConfirmRequest,
   TransactionsParams, SummaryParams, MonthSummaryParams,
   Transaction, TransactionPatch, CashflowSummary, CategoryPatch,
   AuthStatus, AuthUser, BackupDocument, BackupExportSelection, BackupImportSummary,

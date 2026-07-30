@@ -66,7 +66,7 @@ export default function RuleFormModal({
   const { t, lang } = useT()
 
   const baseCategories = useMemo(
-    () => [...categories.filter(c => c.is_base)].sort((a, b) =>
+    () => categories.filter(c => c.is_base).sort((a, b) =>
       categoryLabel(a.name, lang).localeCompare(categoryLabel(b.name, lang), lang)
     ),
     [categories, lang],
