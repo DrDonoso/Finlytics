@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import re
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 
+import regex
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -197,8 +197,8 @@ def _validate_rule_fields(
         )
     if description_mode == "regex":
         try:
-            re.compile(description_value)
-        except re.error as exc:
+            regex.compile(description_value)
+        except regex.error as exc:
             raise HTTPException(
                 status_code=422,
                 detail=f"description_value is not a valid regular expression: {exc}",
@@ -217,8 +217,8 @@ def _validate_rule_fields(
             )
     if detail_mode == "regex" and detail_value:
         try:
-            re.compile(detail_value)
-        except re.error as exc:
+            regex.compile(detail_value)
+        except regex.error as exc:
             raise HTTPException(
                 status_code=422,
                 detail=f"detail_value is not a valid regular expression: {exc}",

@@ -30,18 +30,29 @@ Tag-guard bypass
 Rules are user-authored, not LLM-generated.  Tags added via ``add_tags``
 intentionally bypass the LLM tag guards (``_drop_merchant_tags`` /
 ``_drop_category_tags`` in extractor.py).
+
+Regex engine
+------------
+Patterns come from the UI, so they run through the ``regex`` package rather
+than the stdlib ``re``: it accepts a per-call ``timeout``, which is the only
+way to stop a catastrophically-backtracking pattern.  See ``_BoundedPattern``.
 """
 
 from __future__ import annotations
 
 import logging
-import re
 from decimal import Decimal
 from typing import Iterable, Optional, Protocol, runtime_checkable
+
+import regex
 
 from finlytics.contracts import ExtractedTransaction
 
 logger = logging.getLogger(__name__)
+
+# Generous by three or four orders of magnitude for any sane pattern: a rule
+# regex over a transaction description normally resolves in microseconds.
+REGEX_TIMEOUT_SECONDS = 1.0
 
 
 # ---------------------------------------------------------------------------
@@ -89,15 +100,58 @@ class RuleProtocol(Protocol):
 # ---------------------------------------------------------------------------
 
 
-def _compile_regex(rule: RuleProtocol) -> re.Pattern[str] | None:
+class _BoundedPattern:
+    """A user-authored regex that gives up instead of hanging the process.
+
+    Rule patterns are typed into the UI, and a shape like ``(a|a)*$`` backtracks
+    exponentially.  CPython holds the GIL for the whole of a regex match, so
+    such a pattern does not merely stall its own import: it freezes the event
+    loop, and with it every other request the app is serving.  Threads do not
+    help for the same reason — only a timeout inside the engine does.
+
+    A pattern that blows up does so on every input, and both callers evaluate it
+    in a loop (once per transaction, once per statement line).  So the first
+    timeout disables the pattern for the remainder of the run: a pathological
+    rule costs one timeout per import, not one per line.
+    """
+
+    __slots__ = ("_field", "_gave_up", "_pattern", "_rule_id", "_rule_name")
+
+    def __init__(self, pattern: regex.Pattern[str], rule: RuleProtocol, field: str) -> None:
+        self._pattern = pattern
+        self._rule_id = rule.id
+        self._rule_name = rule.name
+        self._field = field
+        self._gave_up = False
+
+    def search(self, text: str) -> bool:
+        """Return whether the pattern matches *text*; False once it has given up."""
+        if self._gave_up:
+            return False
+        try:
+            return self._pattern.search(text, timeout=REGEX_TIMEOUT_SECONDS) is not None
+        except TimeoutError:
+            self._gave_up = True
+            logger.warning(
+                "Rule %d (%r): %s regex exceeded %.1fs on a single input — pattern "
+                "disabled for the rest of this run. Simplify it to re-enable it.",
+                self._rule_id,
+                self._rule_name,
+                self._field,
+                REGEX_TIMEOUT_SECONDS,
+            )
+            return False
+
+
+def _compile_regex(rule: RuleProtocol) -> _BoundedPattern | None:
     """Compile *rule.description_value* as a case-insensitive regex.
 
-    Returns ``None`` (and logs a warning) on ``re.error``; the caller must
+    Returns ``None`` (and logs a warning) on ``regex.error``; the caller must
     treat ``None`` as "this rule never matches".
     """
     try:
-        return re.compile(rule.description_value, re.IGNORECASE)
-    except re.error as exc:
+        compiled = regex.compile(rule.description_value, regex.IGNORECASE)
+    except regex.error as exc:
         logger.warning(
             "Rule %d (%r): invalid regex %r — rule skipped. Error: %s",
             rule.id,
@@ -106,19 +160,20 @@ def _compile_regex(rule: RuleProtocol) -> re.Pattern[str] | None:
             exc,
         )
         return None
+    return _BoundedPattern(compiled, rule, "description")
 
 
-def _compile_detail_regex(rule: RuleProtocol) -> re.Pattern[str] | None:
+def _compile_detail_regex(rule: RuleProtocol) -> _BoundedPattern | None:
     """Compile *rule.detail_value* as a case-insensitive regex.
 
-    Returns ``None`` (and logs a warning) on ``re.error``; the caller must
+    Returns ``None`` (and logs a warning) on ``regex.error``; the caller must
     treat ``None`` as "this detail condition never matches".
     """
     if not rule.detail_value:
         return None
     try:
-        return re.compile(rule.detail_value, re.IGNORECASE)
-    except re.error as exc:
+        compiled = regex.compile(rule.detail_value, regex.IGNORECASE)
+    except regex.error as exc:
         logger.warning(
             "Rule %d (%r): invalid detail regex %r — detail condition skipped. Error: %s",
             rule.id,
@@ -127,13 +182,14 @@ def _compile_detail_regex(rule: RuleProtocol) -> re.Pattern[str] | None:
             exc,
         )
         return None
+    return _BoundedPattern(compiled, rule, "detail")
 
 
 def _value_matches(
     text: str,
     mode: str,
     value: str,
-    compiled: re.Pattern[str] | None,
+    compiled: _BoundedPattern | None,
 ) -> bool | None:
     """Case-insensitive field matcher shared by description and detail conditions.
 
@@ -154,7 +210,7 @@ def _value_matches(
     if mode == "regex":
         if compiled is None:
             return False
-        return bool(compiled.search(text))
+        return compiled.search(text)
 
     return None  # unknown mode
 
@@ -162,7 +218,7 @@ def _value_matches(
 def _description_matches(
     description: str,
     rule: RuleProtocol,
-    compiled_regex: re.Pattern[str] | None,
+    compiled_regex: _BoundedPattern | None,
 ) -> bool:
     """Return True if *description* satisfies the rule's description condition."""
     result = _value_matches(
@@ -182,8 +238,8 @@ def _description_matches(
 def _matches(
     tx: ExtractedTransaction,
     rule: RuleProtocol,
-    compiled_regex: re.Pattern[str] | None,
-    compiled_detail_regex: re.Pattern[str] | None = None,
+    compiled_regex: _BoundedPattern | None,
+    compiled_detail_regex: _BoundedPattern | None = None,
 ) -> bool:
     """Return True if *tx* satisfies ALL conditions of *rule*.
 
@@ -299,12 +355,12 @@ def apply_rules(
     )
 
     # Pre-compile regex patterns once (avoids re-compiling per transaction)
-    compiled: dict[int, re.Pattern[str] | None] = {
+    compiled: dict[int, _BoundedPattern | None] = {
         r.id: _compile_regex(r)
         for r in enabled_rules
         if r.description_mode == "regex"
     }
-    compiled_detail: dict[int, re.Pattern[str] | None] = {
+    compiled_detail: dict[int, _BoundedPattern | None] = {
         r.id: _compile_detail_regex(r)
         for r in enabled_rules
         if r.detail_mode == "regex"
