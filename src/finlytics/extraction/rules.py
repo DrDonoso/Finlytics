@@ -47,6 +47,7 @@ from typing import Iterable, Optional, Protocol, runtime_checkable
 import regex
 
 from finlytics.contracts import ExtractedTransaction
+from finlytics.log_safety import one_line
 
 logger = logging.getLogger(__name__)
 
@@ -136,7 +137,7 @@ class _BoundedPattern:
                 "Rule %d (%r): %s regex exceeded %.1fs on a single input — pattern "
                 "disabled for the rest of this run. Simplify it to re-enable it.",
                 self._rule_id,
-                self._rule_name,
+                one_line(self._rule_name),
                 self._field,
                 REGEX_TIMEOUT_SECONDS,
             )
@@ -155,8 +156,8 @@ def _compile_regex(rule: RuleProtocol) -> _BoundedPattern | None:
         logger.warning(
             "Rule %d (%r): invalid regex %r — rule skipped. Error: %s",
             rule.id,
-            rule.name,
-            rule.description_value,
+            one_line(rule.name),
+            one_line(rule.description_value),
             exc,
         )
         return None
@@ -177,8 +178,8 @@ def _compile_detail_regex(rule: RuleProtocol) -> _BoundedPattern | None:
         logger.warning(
             "Rule %d (%r): invalid detail regex %r — detail condition skipped. Error: %s",
             rule.id,
-            rule.name,
-            rule.detail_value,
+            one_line(rule.name),
+            one_line(rule.detail_value),
             exc,
         )
         return None
@@ -228,8 +229,8 @@ def _description_matches(
         logger.warning(
             "Rule %d (%r): unknown description_mode %r — rule skipped.",
             rule.id,
-            rule.name,
-            rule.description_mode,
+            one_line(rule.name),
+            one_line(rule.description_mode),
         )
         return False
     return result
@@ -261,8 +262,8 @@ def _matches(
             logger.warning(
                 "Rule %d (%r): unknown detail_mode %r — detail condition treated as no-match.",
                 rule.id,
-                rule.name,
-                rule.detail_mode,
+                one_line(rule.name),
+                one_line(rule.detail_mode),
             )
             return False
         if not result:

@@ -64,6 +64,7 @@ from finlytics.extraction.rules import (
     _compile_regex,
     _description_matches,
 )
+from finlytics.log_safety import one_line
 
 logger = logging.getLogger(__name__)
 
@@ -338,8 +339,8 @@ def pre_match_rules(
                     "Rule %d (%r): description matched but date/amount extraction "
                     "failed — line kept for LLM. Line: %r",
                     rule.id,
-                    rule.name,
-                    line[:100],
+                    one_line(rule.name),
+                    one_line(line[:100]),
                 )
                 break  # Stop evaluating rules for this line; safety net applies.
 
