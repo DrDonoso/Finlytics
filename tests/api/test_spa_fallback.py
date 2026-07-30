@@ -4,6 +4,8 @@ Verifies:
 * GET to a non-API path (e.g. /settings) returns index.html when dist exists.
 * GET to a nested client route (/settings/tags) also returns index.html.
 * Real static assets (/assets/main.js) are served directly, not as index.html.
+* Paths escaping frontend/dist (`..`, absolute, sibling-prefix) never serve the
+  target file — they fall through to index.html.
 * When frontend/dist is absent the catch-all returns a graceful 200/JSON.
 * /health still returns its liveness JSON (not shadowed by the catch-all).
 * /api/... routes return API JSON, not HTML (not shadowed by the catch-all).
@@ -18,7 +20,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from finlytics.api.deps import get_current_user, get_db
-from finlytics.app import app
+from finlytics.app import app, spa_fallback
 
 
 @pytest.fixture
@@ -76,6 +78,48 @@ async def test_static_asset_served_directly(dist_dir: Path) -> None:
     assert resp.status_code == 200
     assert "console.log" in resp.text
     assert "<html>" not in resp.text
+
+
+# ── Traversal containment ────────────────────────────────────────────────────
+#
+# The handler is called directly: an HTTP client (and Starlette's router) would
+# collapse `..` before it ever reaches `full_path`, which is exactly the input
+# these tests need to exercise.
+
+async def test_relative_traversal_falls_back_to_index(dist_dir: Path, tmp_path: Path) -> None:
+    """`../secret.txt` escapes dist, so index.html is served instead of the file."""
+    (tmp_path / "secret.txt").write_text("TOP SECRET", encoding="utf-8")
+
+    with patch("finlytics.app._SPA_DIR", dist_dir):
+        resp = await spa_fallback("../secret.txt")
+
+    assert getattr(resp, "path", None) == str(dist_dir / "index.html")
+
+
+async def test_absolute_path_falls_back_to_index(dist_dir: Path, tmp_path: Path) -> None:
+    """An absolute path would make os.path.join discard the root — still contained."""
+    secret = tmp_path / "secret.txt"
+    secret.write_text("TOP SECRET", encoding="utf-8")
+
+    with patch("finlytics.app._SPA_DIR", dist_dir):
+        resp = await spa_fallback(str(secret))
+
+    assert getattr(resp, "path", None) == str(dist_dir / "index.html")
+
+
+async def test_sibling_directory_sharing_prefix_is_rejected(tmp_path: Path) -> None:
+    """`<root>-backup` shares the string prefix of `<root>` but is outside it."""
+    dist = tmp_path / "dist"
+    dist.mkdir()
+    (dist / "index.html").write_text("<html><body>SPA</body></html>", encoding="utf-8")
+    sibling = tmp_path / "dist-backup"
+    sibling.mkdir()
+    (sibling / "secret.txt").write_text("TOP SECRET", encoding="utf-8")
+
+    with patch("finlytics.app._SPA_DIR", dist):
+        resp = await spa_fallback("../dist-backup/secret.txt")
+
+    assert getattr(resp, "path", None) == str(dist / "index.html")
 
 
 # ── Absent dist → graceful fallback ──────────────────────────────────────────
