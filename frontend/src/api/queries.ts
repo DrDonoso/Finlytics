@@ -15,6 +15,10 @@ import type { UseQueryResult } from '@tanstack/react-query'
 import {
   getAccounts,
   getAppVersion,
+  getAssistantConversation,
+  getAssistantConversations,
+  getAssistantStatus,
+  getAssistantSuggestions,
   getByAccount,
   getByCategory,
   getByDay,
@@ -38,6 +42,10 @@ import type {
   Account,
   AccountSummary,
   AppVersion,
+  AssistantConversation,
+  AssistantConversationDetail,
+  AssistantStatus,
+  AssistantSuggestions,
   CashflowSummary,
   Category,
   CategorySummary,
@@ -96,6 +104,10 @@ export const queryKeys = {
   investmentPlugins: ['investment-plugins'] as const,
   investmentPortfolio: ['investments', 'portfolio'] as const,
   appVersion: ['app-version'] as const,
+  assistantStatus: ['assistant', 'status'] as const,
+  assistantSuggestions: ['assistant', 'suggestions'] as const,
+  assistantConversations: ['assistant', 'conversations'] as const,
+  assistantConversation: (id: number) => ['assistant', 'conversation', id] as const,
 }
 
 // ── Catalogs ─────────────────────────────────────────────────────────────────
@@ -262,5 +274,49 @@ export function useAppVersion(): UseQueryResult<AppVersion> {
     queryKey: queryKeys.appVersion,
     queryFn: getAppVersion,
     staleTime: CATALOG_STALE_MS,
+  })
+}
+
+// ── Finance assistant ────────────────────────────────────────────────────────
+//
+// Only the non-streaming parts live here. The answer stream is imperative by
+// nature — it mutates a buffer token by token — so it stays outside react-query.
+
+export function useAssistantStatus(): UseQueryResult<AssistantStatus> {
+  return useQuery({
+    queryKey: queryKeys.assistantStatus,
+    queryFn: getAssistantStatus,
+    // Whether OPENAI_* is configured only changes on a restart, so there is no
+    // point re-checking it while the user is in the app.
+    staleTime: Infinity,
+    retry: false,
+  })
+}
+
+export function useAssistantSuggestions(options?: QueryOptions): UseQueryResult<AssistantSuggestions> {
+  return useQuery({
+    queryKey: queryKeys.assistantSuggestions,
+    queryFn: getAssistantSuggestions,
+    staleTime: Infinity,
+    enabled: options?.enabled,
+  })
+}
+
+export function useAssistantConversations(options?: QueryOptions): UseQueryResult<AssistantConversation[]> {
+  return useQuery({
+    queryKey: queryKeys.assistantConversations,
+    queryFn: getAssistantConversations,
+    enabled: options?.enabled,
+  })
+}
+
+export function useAssistantConversation(
+  id: number | null,
+  options?: QueryOptions,
+): UseQueryResult<AssistantConversationDetail> {
+  return useQuery({
+    queryKey: queryKeys.assistantConversation(id ?? 0),
+    queryFn: () => getAssistantConversation(id as number),
+    enabled: (options?.enabled ?? true) && id !== null,
   })
 }

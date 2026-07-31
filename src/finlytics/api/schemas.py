@@ -946,3 +946,70 @@ class TelegramTestOut(BaseModel):
     ok: bool
     error: str | None = None
 
+
+# ── Finance assistant ─────────────────────────────────────────────────────────
+
+class AssistantStatusOut(BaseModel):
+    """Response for GET /api/assistant/status.
+
+    ``enabled`` is false when the OPENAI_* variables are unset or the feature is
+    switched off.  The frontend hides the launcher on that basis, which is
+    friendlier than a chat panel whose first message is a 503.
+    """
+
+    enabled: bool
+    reason: str | None = None
+
+
+class AssistantSuggestionsOut(BaseModel):
+    """Starter prompts for an empty thread, as i18n keys (never prose)."""
+
+    suggestions: list[str]
+
+
+class AssistantToolCall(BaseModel):
+    """Audit record of one tool the assistant ran while composing an answer."""
+
+    name: str
+    arguments: str
+    ok: bool = True
+
+
+class AssistantMessageOut(BaseModel):
+    """One stored turn of a conversation."""
+
+    id: int
+    role: Literal["user", "assistant"]
+    content: str
+    tool_calls: list[AssistantToolCall] | None = None
+    created_at: datetime
+
+
+class AssistantConversationOut(BaseModel):
+    """Conversation header, as listed in the thread picker."""
+
+    id: int
+    title: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class AssistantConversationDetailOut(AssistantConversationOut):
+    """Conversation header plus its full message list."""
+
+    messages: list[AssistantMessageOut]
+
+
+class AssistantMessageIn(BaseModel):
+    """Request body for POST /api/assistant/conversations/{id}/messages."""
+
+    content: str
+
+    @field_validator("content")
+    @classmethod
+    def validate_content(cls, v: str) -> str:
+        text = v.strip()
+        if not text:
+            raise ValueError("Message cannot be empty.")
+        return text
+

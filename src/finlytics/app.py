@@ -23,6 +23,7 @@ Route layout:
   POST /api/imports       — upload statement → parse → LLM extract → persist
   GET  /api/version       — app version + optional build metadata (PROTECTED)
   /api/notifications      — notification list, badge count, read/dismiss
+  /api/assistant          — finance chat assistant (SSE streaming, read-only tools)
 
   /{full_path:path}       — React SPA catch-all (GET only; registered AFTER /api)
                             Serves frontend/dist/<path> when the file exists;
@@ -43,6 +44,7 @@ from fastapi import Depends, FastAPI
 from fastapi.responses import FileResponse, JSONResponse, Response
 
 from finlytics.api.accounts import router as accounts_router
+from finlytics.api.assistant import router as assistant_router
 from finlytics.api.auth import router as auth_router
 from finlytics.api.backup import router as backup_router
 from finlytics.api.categories import router as categories_router
@@ -165,6 +167,7 @@ app.include_router(auth_router, prefix="/api")
 _auth = [Depends(get_current_user)]
 
 app.include_router(accounts_router,      prefix="/api", dependencies=_auth)
+app.include_router(assistant_router,     prefix="/api", dependencies=_auth)
 app.include_router(backup_router,        prefix="/api", dependencies=_auth)
 app.include_router(categories_router,    prefix="/api", dependencies=_auth)
 app.include_router(rules_router,         prefix="/api", dependencies=_auth)

@@ -334,6 +334,17 @@ export const IconGlobe = make('IconGlobe', <>
   <path d="M12 2.9a13.6 13.6 0 0 1 0 18.2 13.6 13.6 0 0 1 0-18.2Z" />
 </>)
 
+/* ── Finance assistant ──────────────────────────────────────────────────── */
+
+export const IconSparkles = make('IconSparkles', <>
+  <path d="M12 3.2l1.9 4.9 4.9 1.9-4.9 1.9L12 16.8l-1.9-4.9-4.9-1.9 4.9-1.9Z" />
+  <path d="M18.4 15.2l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8Z" />
+</>)
+
+export const IconChat = make('IconChat', <>
+  <path d="M20.4 13.4a2.6 2.6 0 0 1-2.6 2.6H8.4L4 19.6V6a2.6 2.6 0 0 1 2.6-2.6h11.2A2.6 2.6 0 0 1 20.4 6Z" />
+</>)
+
 /** Index by name, useful when the icon is chosen at runtime. */
 export const ICONS = {
   home: IconHome, dashboard: IconDashboard, wallet: IconWallet, receipt: IconReceipt,

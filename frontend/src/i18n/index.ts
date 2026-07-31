@@ -763,6 +763,34 @@ export interface Dict {
   demoNoticeTitle: string
   demoNoticeBody: string
   demoNoticeCredentials: string
+
+  // ── Finance assistant ─────────────────────────────────────────────────────
+  assistantTitle: string
+  assistantOpen: string
+  assistantClose: string
+  assistantNewChat: string
+  assistantThreads: string
+  assistantNoThreads: string
+  assistantDeleteThread: string
+  assistantDeleteConfirm: string
+  assistantPlaceholder: string
+  assistantSend: string
+  assistantStop: string
+  assistantThinking: string
+  assistantEmptyTitle: string
+  assistantEmptyBody: string
+  assistantDisclaimer: string
+  assistantErrorGeneric: string
+  assistantErrorRateLimited: string
+  assistantErrorTooLong: string
+  assistantToolsUsed: (count: number) => string
+  assistantUntitled: string
+  suggestionSpendingLastMonth: string
+  suggestionBiggestCategory: string
+  suggestionCompareQuarters: string
+  suggestionSubscriptions: string
+  suggestionWhereToCut: string
+  suggestionInvestProjection: string
 }
 
 const ES_LABELS: Record<string, string> = {
@@ -791,6 +819,23 @@ const ES_LABELS: Record<string, string> = {
 export function categoryLabel(canonical: string, lang: Lang, dynamicEs?: Record<string, string>): string {
   if (lang !== 'es') return canonical
   return ES_LABELS[canonical] ?? dynamicEs?.[canonical] ?? canonical
+}
+
+/** Resolve a backend `assistant.suggestion.*` key into a translated prompt.
+ *
+ *  The backend sends keys rather than prose so the starter prompts appear in the
+ *  user's language. An unknown key returns null and the caller drops it: adding
+ *  a suggestion server-side should not render a raw identifier in the panel. */
+export function assistantSuggestion(key: string, t: Dict): string | null {
+  switch (key) {
+    case 'assistant.suggestion.spendingLastMonth': return t.suggestionSpendingLastMonth
+    case 'assistant.suggestion.biggestCategory':   return t.suggestionBiggestCategory
+    case 'assistant.suggestion.compareQuarters':   return t.suggestionCompareQuarters
+    case 'assistant.suggestion.subscriptions':     return t.suggestionSubscriptions
+    case 'assistant.suggestion.whereToCut':        return t.suggestionWhereToCut
+    case 'assistant.suggestion.investProjection':  return t.suggestionInvestProjection
+    default: return null
+  }
 }
 
 const LOCALES: Record<Lang, string> = { es: 'es-ES', en: 'en-GB' }

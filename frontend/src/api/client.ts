@@ -13,6 +13,8 @@ import type {
   CombinedOverview, SummaryMonths, AppVersion, NotificationOut,
   NotificationChannelOut, TelegramChannelIn, TelegramTestIn, TelegramTestOut,
   AccountCreatePayload,
+  AssistantConversation, AssistantConversationDetail, AssistantStatus,
+  AssistantStreamEvent, AssistantSuggestions,
 } from './types'
 import {
   mockGetAccounts, mockGetCategories, mockGetTags, mockGetTransactions,
@@ -671,3 +673,128 @@ export async function testTelegramChannel(body: TelegramTestIn): Promise<Telegra
     body: JSON.stringify(body),
   })
 }
+
+// ─── Finance assistant ────────────────────────────────────────────────────────
+//
+// Deliberately no mock fallback anywhere below. A `catch { return mockGetX() }`
+// here would answer a question about the user's money with invented figures,
+// which is the one failure mode this feature cannot have.
+
+/** GET /api/assistant/status → whether the assistant is usable on this instance. */
+export async function getAssistantStatus(): Promise<AssistantStatus> {
+  return apiFetch<AssistantStatus>('/api/assistant/status')
+}
+
+/** GET /api/assistant/suggestions → starter prompts as i18n keys. */
+export async function getAssistantSuggestions(): Promise<AssistantSuggestions> {
+  return apiFetch<AssistantSuggestions>('/api/assistant/suggestions')
+}
+
+/** GET /api/assistant/conversations → thread list, most recently active first. */
+export async function getAssistantConversations(): Promise<AssistantConversation[]> {
+  return apiFetch<AssistantConversation[]>('/api/assistant/conversations')
+}
+
+/** POST /api/assistant/conversations → 201, a new empty thread. */
+export async function createAssistantConversation(): Promise<AssistantConversation> {
+  return apiFetch<AssistantConversation>('/api/assistant/conversations', { method: 'POST' })
+}
+
+/** GET /api/assistant/conversations/{id} → thread with its full message history. */
+export async function getAssistantConversation(id: number): Promise<AssistantConversationDetail> {
+  return apiFetch<AssistantConversationDetail>(`/api/assistant/conversations/${id}`)
+}
+
+/** DELETE /api/assistant/conversations/{id} → 204. */
+export async function deleteAssistantConversation(id: number): Promise<void> {
+  const res = await fetch(`/api/assistant/conversations/${id}`, {
+    method: 'DELETE',
+    credentials: 'same-origin',
+  })
+  if (res.status === 401) { _on401?.(); throw new Error('HTTP 401 Unauthorized') }
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+}
+
+/** Split an SSE buffer into complete frames, returning the unterminated remainder.
+ *  A chunk boundary can land mid-frame, so anything after the last blank line has
+ *  to be carried over rather than parsed. */
+function splitSseFrames(buffer: string): { frames: string[]; rest: string } {
+  const parts = buffer.split('\n\n')
+  return { frames: parts.slice(0, -1), rest: parts[parts.length - 1] ?? '' }
+}
+
+/** Parse one SSE frame into a typed event, or null when it is not one we know. */
+function parseSseFrame(frame: string): AssistantStreamEvent | null {
+  let event = ''
+  const dataLines: string[] = []
+  for (const line of frame.split('\n')) {
+    if (line.startsWith('event:')) event = line.slice(6).trim()
+    else if (line.startsWith('data:')) dataLines.push(line.slice(5).trim())
+  }
+  if (!event || dataLines.length === 0) return null
+  try {
+    const payload = JSON.parse(dataLines.join('\n')) as Record<string, never>
+    return { type: event, ...payload } as AssistantStreamEvent
+  } catch {
+    return null
+  }
+}
+
+/**
+ * POST /api/assistant/conversations/{id}/messages — ask a question, stream the answer.
+ *
+ * Uses fetch + a ReadableStream reader rather than EventSource, which cannot
+ * POST and so cannot carry the message body.
+ *
+ * `onEvent` fires for every frame as it arrives. Pass an AbortSignal to let the
+ * user stop a long answer; aborting resolves normally rather than throwing,
+ * since a deliberate cancel is not an error.
+ */
+export async function streamAssistantMessage(
+  conversationId: number,
+  content: string,
+  onEvent: (event: AssistantStreamEvent) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const res = await fetch(`/api/assistant/conversations/${conversationId}/messages`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content }),
+    signal,
+  })
+
+  if (res.status === 401) { _on401?.(); throw new Error('HTTP 401 Unauthorized') }
+  if (!res.ok) {
+    const data: { detail?: string } = await res.json().catch(() => ({}))
+    throw Object.assign(new Error(data.detail ?? `HTTP ${res.status}`), { status: res.status })
+  }
+  if (!res.body) throw new Error('The assistant response carried no body.')
+
+  const reader = res.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+
+  try {
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      const { frames, rest } = splitSseFrames(buffer)
+      buffer = rest
+      for (const frame of frames) {
+        const parsed = parseSseFrame(frame)
+        if (parsed) onEvent(parsed)
+      }
+    }
+    // A stream that ends without a trailing blank line still owes us its last frame.
+    const trailing = parseSseFrame(buffer)
+    if (trailing) onEvent(trailing)
+  } catch (err) {
+    if (signal?.aborted) return
+    throw err
+  } finally {
+    reader.releaseLock()
+  }
+}
+

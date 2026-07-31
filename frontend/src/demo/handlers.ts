@@ -15,6 +15,7 @@
 import { http, HttpResponse } from 'msw'
 import type { Filters } from './store'
 import * as store from './store'
+import { answerFor } from './assistantAnswers'
 import { DEMO_PASSWORD, DEMO_USERNAME } from './config'
 
 // ─── Query-string helpers ─────────────────────────────────────────────────────
@@ -184,6 +185,163 @@ const notifications = [
   http.post('/api/notifications/:id/dismiss', () => new HttpResponse(null, { status: 204 })),
 ]
 
+// ─── Finance assistant ────────────────────────────────────────────────────────
+//
+// There is no model here, so the answers are scripted (see assistantAnswers.ts)
+// and the stream is faked with delays. The panel is the most sellable thing in
+// the app; leaving it out of the demo, or leaving it visibly broken, would be
+// worse than scripting it — as long as the fallback is honest about what it is.
+
+interface DemoConversation {
+  id: number
+  title: string
+  created_at: string
+  updated_at: string
+  messages: {
+    id: number
+    role: 'user' | 'assistant'
+    content: string
+    tool_calls: { name: string; arguments: string; ok: boolean }[] | null
+    created_at: string
+  }[]
+}
+
+// Module-level like `authenticated`: survives navigation, resets on reload,
+// which is the demo's contract everywhere else too.
+const conversations = new Map<number, DemoConversation>()
+let nextConversationId = 1
+let nextMessageId = 1
+
+/** Delay between streamed chunks. Long enough to read as typing, short enough
+ *  that a visitor does not think it has hung. */
+const TOKEN_DELAY_MS = 18
+const TOOL_DELAY_MS = 420
+
+function sseFrame(event: string, payload: unknown): Uint8Array {
+  return new TextEncoder().encode(
+    `event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`,
+  )
+}
+
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
+/** Split an answer into word-sized chunks so it arrives like real token output. */
+function chunksOf(text: string): string[] {
+  return text.split(/(\s+)/).filter(chunk => chunk !== '')
+}
+
+const assistant = [
+  http.get('/api/assistant/status', () =>
+    HttpResponse.json({ enabled: true, reason: null })),
+
+  http.get('/api/assistant/suggestions', () =>
+    HttpResponse.json({
+      suggestions: [
+        'assistant.suggestion.spendingLastMonth',
+        'assistant.suggestion.biggestCategory',
+        'assistant.suggestion.compareQuarters',
+        'assistant.suggestion.subscriptions',
+        'assistant.suggestion.whereToCut',
+        'assistant.suggestion.investProjection',
+      ],
+    })),
+
+  http.get('/api/assistant/conversations', () =>
+    HttpResponse.json(
+      [...conversations.values()]
+        // The list endpoint returns headers only; the underscore marks the
+        // destructured `messages` as deliberately discarded.
+        .map(({ messages: _messages, ...header }) => header)
+        .sort((a, b) => b.updated_at.localeCompare(a.updated_at)),
+    )),
+
+  http.post('/api/assistant/conversations', () => {
+    const now = new Date().toISOString()
+    const conversation: DemoConversation = {
+      id: nextConversationId++,
+      title: '',
+      created_at: now,
+      updated_at: now,
+      messages: [],
+    }
+    conversations.set(conversation.id, conversation)
+    const { messages: _messages, ...header } = conversation
+    return HttpResponse.json(header, { status: 201 })
+  }),
+
+  http.get('/api/assistant/conversations/:id', ({ params }) => {
+    const conversation = conversations.get(Number(params.id))
+    if (!conversation) {
+      return HttpResponse.json({ detail: 'Conversation not found' }, { status: 404 })
+    }
+    return HttpResponse.json(conversation)
+  }),
+
+  http.delete('/api/assistant/conversations/:id', ({ params }) => {
+    conversations.delete(Number(params.id))
+    return new HttpResponse(null, { status: 204 })
+  }),
+
+  http.post('/api/assistant/conversations/:id/messages', async ({ params, request }) => {
+    const conversation = conversations.get(Number(params.id))
+    if (!conversation) {
+      return HttpResponse.json({ detail: 'Conversation not found' }, { status: 404 })
+    }
+
+    const body = await request.json() as { content?: string }
+    const question = (body?.content ?? '').trim()
+    const answer = answerFor(question)
+
+    const now = new Date().toISOString()
+    conversation.messages.push({
+      id: nextMessageId++,
+      role: 'user',
+      content: question,
+      tool_calls: null,
+      created_at: now,
+    })
+    if (!conversation.title) {
+      conversation.title = question.length > 60 ? `${question.slice(0, 59)}…` : question
+    }
+    conversation.updated_at = now
+
+    const stream = new ReadableStream({
+      async start(controller) {
+        for (const tool of answer.tools) {
+          controller.enqueue(sseFrame('tool', tool))
+          await sleep(TOOL_DELAY_MS)
+        }
+        for (const chunk of chunksOf(answer.text)) {
+          controller.enqueue(sseFrame('token', { text: chunk }))
+          await sleep(TOKEN_DELAY_MS)
+        }
+
+        const stored = {
+          id: nextMessageId++,
+          role: 'assistant' as const,
+          content: answer.text,
+          tool_calls: answer.tools.map(t => ({ name: t.name, arguments: '{}', ok: true })),
+          created_at: new Date().toISOString(),
+        }
+        conversation.messages.push(stored)
+        conversation.updated_at = stored.created_at
+
+        controller.enqueue(
+          sseFrame('done', { message_id: stored.id, title: conversation.title }),
+        )
+        controller.close()
+      },
+    })
+
+    return new HttpResponse(stream, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+      },
+    })
+  }),
+]
+
 // ─── Misc ─────────────────────────────────────────────────────────────────────
 
 const misc = [
@@ -216,6 +374,7 @@ export const handlers = [
   ...statements,
   ...investments,
   ...notifications,
+  ...assistant,
   ...misc,
   unhandledApi,
 ]

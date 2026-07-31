@@ -19,6 +19,7 @@ import PluginViewWrapper from './investments/PluginViewWrapper'
 import ConnectorsPage from './pages/ConnectorsPage'
 import AboutPage from './pages/AboutPage'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
+import { AssistantProvider } from './contexts/AssistantContext'
 import { NotificationsProvider } from './contexts/NotificationsContext'
 import { useT } from './i18n'
 import { IS_DEMO } from './demo/config'
@@ -98,9 +99,11 @@ function AppContent() {
 
   return (
     <NotificationsProvider>
-      <BrowserRouter>
-        {IS_DEMO ? <DemoRoutes /> : <FullRoutes />}
-      </BrowserRouter>
+      <AssistantProvider>
+        <BrowserRouter>
+          {IS_DEMO ? <DemoRoutes /> : <FullRoutes />}
+        </BrowserRouter>
+      </AssistantProvider>
     </NotificationsProvider>
   )
 }

@@ -80,6 +80,16 @@ vi.mock('../api/client', () => {
     getUnreadCount: empty({ count: 0 }),
     getNotificationChannels: empty([]),
     getBackupPreview: empty(null),
+    // The assistant reports itself disabled here, so Layout mounts the launcher
+    // and the launcher correctly renders nothing — which is the path a route
+    // smoke test should exercise, not a live chat panel.
+    getAssistantStatus: empty({ enabled: false, reason: 'LLM not configured' }),
+    getAssistantSuggestions: empty({ suggestions: [] }),
+    getAssistantConversations: empty([]),
+    getAssistantConversation: empty({ id: 1, title: '', created_at: '', updated_at: '', messages: [] }),
+    createAssistantConversation: vi.fn(),
+    deleteAssistantConversation: vi.fn(),
+    streamAssistantMessage: vi.fn(),
     updateTransaction: vi.fn(),
     createAccount: vi.fn(),
     deleteAccount: vi.fn(),

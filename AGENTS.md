@@ -47,13 +47,65 @@ The `IMAGE_TAG` / `BUILD_DATE` build args are injected there and surfaced by
 
 ## Migrations
 
-Alembic migrations live in `alembic/versions/`. The current head is `0017_add_transaction_is_system.py`.
+Alembic migrations live in `alembic/versions/`. The current head is `0018_add_assistant_conversations.py`.
 
-- Always create a new numbered migration (`0018_...`) for schema changes.
+- Always create a new numbered migration (`0019_...`) for schema changes.
 - Verify the head before writing one — this file goes stale. `down_revision` in the
   highest-numbered file is the source of truth, not this document.
 - The entrypoint runs `alembic upgrade head` automatically on container start.
 - Never modify an existing migration that has been deployed.
+
+---
+
+## Finance assistant architecture
+
+`src/finlytics/assistant/` is a **read-only, tool-calling agent** over the user's own
+data, surfaced as a slide-out chat panel.
+
+| Module | Role |
+|--------|------|
+| `tools.py` | The tool catalogue: an OpenAI function schema paired with an async executor per tool |
+| `projections.py` | Deterministic compound interest. No LLM, no I/O, pure functions |
+| `prompts.py` | The system prompt, version-controlled like `extraction/prompts.py` |
+| `context.py` | Compact "what data exists" header (account/category ids, date coverage) injected into the prompt |
+| `service.py` | The bounded agent loop, yielding `ToolStarted` / `AnswerDelta` / `Completed` / `Failed` events |
+
+`api/assistant.py` turns those events into SSE frames. `LLMClient.stream_with_tools()`
+handles the streaming call; `complete()` and `parse()` are untouched, so the extraction
+pipeline is unaffected.
+
+> **Every tool goes through `finlytics.db.queries`.** That is the whole design: the chat
+> reads the same aggregation code as the dashboards, so an answer cannot disagree with the
+> chart next to it. Do not add a tool that runs its own SQL — add the query to the query
+> layer first and wrap it.
+
+> **There are no write tools, and adding one is not a small change.** A write needs a
+> confirmation step in the UI before it executes; a model that deletes a transaction
+> because it misread "remove that from the total" is not a recoverable failure. The
+> registry is shaped so a write class can be added later, deliberately, not by accident.
+
+> **Tool results are never persisted or replayed.** `AssistantMessage` stores only `user`
+> and `assistant` turns; the `tool_calls` JSON column is an audit trail for the UI, not
+> conversation state. Replaying old results would grow the token bill without bound *and*
+> let the model answer a **new** question from a **previous** query's data. The system
+> prompt tells it to re-query on follow-ups for exactly this reason — if you change that
+> storage decision, change the prompt with it.
+
+> **Never let the model estimate a return.** `project_investment` exists so *"what would I
+> have in 10 years"* is arithmetic. A hallucinated figure is indistinguishable, to the
+> reader, from a calculated one, and this is someone's savings.
+
+> **Statement text is data, not instructions.** Descriptions, merchants and tags come from
+> imported PDFs and are attacker-influencable in principle. The system prompt says so
+> explicitly; keep that clause if you rewrite it.
+
+Cost guards live in `config.py` (`ASSISTANT_*`): iteration cap, history window, result-row
+cap, message length, conversation count and a per-user rate limit. They are not decoration —
+each message is one to three paid LLM calls.
+
+The frontend client has **no mock fallback** on any assistant endpoint. The
+`catch { return mockGetX() }` pattern documented below would answer a question about the
+user's money with invented figures.
 
 ---
 
@@ -135,6 +187,7 @@ bundle, where FastAPI serves the SPA and it would be dead weight.
 | `scenario.ts` | Seeded generator — accounts, transactions, Indexa portfolio and Fidelity ESPP lots. **Dates are relative to today** because `defaultRange()` opens on the previous calendar month; hardcoded dates would go stale. ESPP purchases land on the last weekday of Mar/Jun/Sep/Dec, mirroring `api/fidelity.py`. |
 | `store.ts` | Single source of truth: the ledger AND every aggregate derive from one transaction list, so an edit is reflected in the KPIs. Filter semantics mirror `db/queries.py::_apply_filters`. |
 | `handlers.ts` | MSW routes, plus a catch-all that answers 501 and logs `[demo] Unhandled API request:` |
+| `assistantAnswers.ts` | Scripted chat answers. There is no model in the demo, so replies are keyword-matched against the suggested prompts — but every figure is read from `store.ts` at answer time, so the assistant never contradicts the charts beside it. The fallback says plainly that the public demo has no live model. |
 | `browser.ts` | Worker startup — awaited in `main.tsx` **before** React mounts (AuthProvider fetches on its first effect) |
 | `DemoLoginNotice.tsx` | The demo disclaimer, shown **only** on the login card |
 | `nginx.demo.conf` | Serves the demo image. SPA fallback for deep links; `mockServiceWorker.js` must never be cached. Only the demo uses nginx — in production FastAPI serves the SPA itself. |
