@@ -4,6 +4,11 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260731.06] - 2026-07-31
+
+- feat(assistant): settings page with custom instructions, token usage and a spend cap (#46)
+
+
 ## [20260731.05] - 2026-07-31
 
 - fix(assistant): follow the UI language in the demo and the tool chips (#45)
