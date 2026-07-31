@@ -4,6 +4,11 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260731.05] - 2026-07-31
+
+- fix(assistant): follow the UI language in the demo and the tool chips (#45)
+
+
 ## [20260731.04] - 2026-07-31
 
 - fix(llm): stop sending temperature, which newer models reject outright (#44)
