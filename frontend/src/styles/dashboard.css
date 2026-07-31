@@ -44,21 +44,40 @@
 
 .header-kpis {
   flex: 1 1 0;
-  min-width: 0;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-evenly;
-  gap: 8px 20px;
+  /* No `min-width: 0` here: that let the flex row shrink this block below its
+     own content, which a wrapping flex layout survived (items just wrapped) but
+     a fixed 3-column grid cannot — the columns overlap instead. With the default
+     `auto` minimum the block keeps its content width and `.dashboard-header`
+     wraps it onto its own row when the filter bar leaves too little. */
+  /* Grid, not a wrapping flex row: the six KPIs need ~780px to sit on one line,
+     and below that a flex row broke them into ragged rows whose labels and
+     values no longer lined up. Three columns always resolve to a tidy 3x2.
+     (The 600px breakpoint drops this to two columns.)
+
+     `1fr`, never `minmax(0, 1fr)`: the labels and values are `nowrap`, so an
+     auto minimum is what reserves real width for this block when the flex row
+     above shares out space. Zero-minimum tracks collapse and the text of the
+     three columns runs together. */
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  align-items: start;
+  gap: 14px 20px;
   padding: 16px 20px;
   border-left: 1px solid var(--border);
 }
+
+/* Same reasoning as the mobile rule: a vertical divider between the constant
+   net and the filtered KPIs is meaningless in a grid, where it would just
+   occupy a cell. The column gap separates them instead. */
+.header-kpis .header-kpi-divider { display: none; }
 
 .header-kpi-item {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  min-width: 0;
+  /* Deliberately no `min-width: 0`: labels and values are `nowrap`, so their
+     min-content IS the text width, and that is what makes the grid track — and
+     through it the whole KPI block — refuse to shrink into an overlap. */
 }
 
 .header-kpi-label {

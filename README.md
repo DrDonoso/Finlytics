@@ -107,9 +107,9 @@ Categories, tags and accounts are editable from Settings, along with the connect
 | Portfolio value, TWR / MWR / volatility, monthly returns table and allocation by instrument. | MSFT shares and lots, EUR cost basis, daily valuation and the invested-vs-value evolution chart. |
 
 > 📌 **Footer note on every image above: this is demo data.** All the figures come from
-> [the demo environment](https://demo.finlytics.drdonoso.com) — a synthetic dataset generated in the
-> browser, with no backend and no database behind it. No real account, balance, holding or
-> transaction is shown anywhere in this README.
+> [demo.finlytics.drdonoso.com](https://demo.finlytics.drdonoso.com) — a synthetic dataset
+> generated in the browser, with no backend and no database behind it. No real account,
+> balance, holding or transaction is shown anywhere in this README.
 
 ---
 
@@ -233,25 +233,6 @@ Same stack, but built from the current checkout instead of the published image �
 ### 3. Open
 
 Navigate to **http://localhost:7777** and create the initial user account.
-
-### The public demo
-
-[demo.finlytics.drdonoso.com](https://demo.finlytics.drdonoso.com) runs a
-second, backend-less build of the same SPA: MSW intercepts every `/api/*` call
-in the browser and answers from a synthetic dataset generated at page load, so
-there is no API container, no database and nothing to reset — a reload restores
-everything. Log in with `demo` / `demo`.
-
-Every screenshot in this README was taken from it — see [Screenshots](#-screenshots).
-To host it yourself:
-
-```bash
-docker compose -f docker-compose.demo.yml up -d      # drdonoso/finlytics-demo, nginx only
-```
-
-> ⚠️ The demo **only works over HTTPS** (or `localhost`). Its API layer is a
-> Service Worker, and browsers refuse to register those outside a secure
-> context. On plain HTTP nothing loads.
 
 ---
 
