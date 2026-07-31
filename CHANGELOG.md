@@ -4,6 +4,12 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260731] - 2026-07-31
+
+- refactor: write the whole codebase in English (#41)
+- ci: serialise deploys so concurrent runs stop colliding on the CalVer tag (#40)
+
+
 ## [20260730.08] - 2026-07-30
 
 - fix(logging): flatten user-controlled values before they enter log lines (#39)
