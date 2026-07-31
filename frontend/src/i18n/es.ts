@@ -785,5 +785,15 @@ const es: Dict = {
   suggestionSubscriptions: '¿Qué suscripciones recurrentes tengo?',
   suggestionWhereToCut: '¿Dónde podría recortar gastos?',
   suggestionInvestProjection: 'Si invierto 200 € al mes, ¿cuánto tendría en 10 años?',
+  assistantToolReferenceData: 'Leyendo cuentas y categorías',
+  assistantToolSummary: 'Calculando totales',
+  assistantToolByCategory: 'Desglosando por categoría',
+  assistantToolByMonth: 'Construyendo la evolución mensual',
+  assistantToolByMerchant: 'Ordenando comercios',
+  assistantToolCashflow: 'Analizando el flujo de caja',
+  assistantToolSearch: 'Buscando movimientos',
+  assistantToolCompare: 'Comparando periodos',
+  assistantToolInvestments: 'Leyendo la cartera',
+  assistantToolProjection: 'Proyectando rentabilidad',
 }
 export default es

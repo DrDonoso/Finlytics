@@ -785,5 +785,15 @@ const en: Dict = {
   suggestionSubscriptions: 'Which recurring subscriptions do I have?',
   suggestionWhereToCut: 'Where could I cut back?',
   suggestionInvestProjection: 'If I invest €200 a month, what would I have in 10 years?',
+  assistantToolReferenceData: 'Reading accounts and categories',
+  assistantToolSummary: 'Calculating totals',
+  assistantToolByCategory: 'Breaking down by category',
+  assistantToolByMonth: 'Building the monthly trend',
+  assistantToolByMerchant: 'Ranking merchants',
+  assistantToolCashflow: 'Analysing cash flow',
+  assistantToolSearch: 'Searching transactions',
+  assistantToolCompare: 'Comparing periods',
+  assistantToolInvestments: 'Reading the portfolio',
+  assistantToolProjection: 'Projecting returns',
 }
 export default en

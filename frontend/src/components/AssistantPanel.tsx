@@ -15,7 +15,7 @@ import {
 } from '../api/queries'
 import type { AssistantMessage } from '../api/types'
 import { useAssistant } from '../contexts/AssistantContext'
-import { assistantSuggestion, useT } from '../i18n'
+import { assistantSuggestion, assistantToolLabel, useT } from '../i18n'
 import AssistantMessageView from './AssistantMessage'
 import {
   IconChat, IconClose, IconPlus, IconSend, IconSparkles, IconSpinner, IconTrash,
@@ -244,7 +244,7 @@ export default function AssistantPanel() {
               {activeTools.map(tool => (
                 <span className="assistant-tool-chip" key={tool.id}>
                   <IconSpinner size={12} className="icon-spin" />
-                  {tool.label}
+                  {assistantToolLabel(tool.name, tool.label, t)}
                 </span>
               ))}
             </div>
