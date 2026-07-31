@@ -827,7 +827,7 @@ const en: Dict = {
   assistantPromptSafetyNote: 'You can save it anyway — this is your instance. Just be aware that if the model starts inventing numbers you will see no error: the answer will read exactly as confidently as always.',
   assistantLimitsLabel: 'Limits',
   assistantLimitsHint: 'Every message costs money. These are the caps.',
-  assistantLimitsInheritHint: 'Leave a field empty to inherit the environment value (shown greyed out).',
+  assistantLimitsInheritHint: 'Leave a field empty to use the default value (shown greyed out).',
   assistantLimitMessages: 'Messages per window',
   assistantLimitWindow: 'Window (seconds)',
   assistantBudgetField: 'Monthly budget (tokens)',

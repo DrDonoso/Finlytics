@@ -14,12 +14,12 @@ from unittest.mock import MagicMock
 import pytest
 
 from finlytics.assistant import prompts
+from finlytics.assistant import settings as assistant_settings
 from finlytics.assistant.settings import (
     EffectiveSettings,
     month_start,
     resolve_settings,
 )
-from finlytics.config import Settings
 
 
 def row(**kwargs) -> MagicMock:
@@ -129,10 +129,9 @@ class TestCustomInstructionsInThePrompt:
 
 
 class TestSettingsDefaults:
-    def test_environment_supplies_the_fallbacks(self):
-        env = Settings(auth_secret="x" * 32)
-        assert env.assistant_rate_limit_messages > 0
-        assert env.assistant_rate_limit_window_seconds > 0
+    def test_shipped_defaults_are_usable(self):
+        assert assistant_settings.DEFAULT_RATE_LIMIT_MESSAGES > 0
+        assert assistant_settings.DEFAULT_RATE_LIMIT_WINDOW_SECONDS > 0
 
 
 class TestEditableSystemPrompt:

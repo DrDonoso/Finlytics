@@ -1049,7 +1049,7 @@ class AssistantSettingsIn(BaseModel):
     """Request body for PUT /api/assistant/settings.
 
     Every field is optional and ``None`` means "clear the override and fall back
-    to the environment default" — not "set to zero".
+    to the shipped default" — not "set to zero".
     """
 
     custom_instructions: str | None = None

@@ -52,7 +52,6 @@ jobs:
       - name: Run test suite
         env:
           AUTH_SECRET: ci-only-not-a-real-secret-value-000000
-          NOTIFICATIONS_LOOP_ENABLED: "false"
         run: pytest -q
 
       # Only the query layer and the modules with their own types: that is the

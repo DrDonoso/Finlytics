@@ -852,7 +852,7 @@ export type AssistantStreamEvent =
 // ─── Assistant settings and usage ─────────────────────────────────────────────
 
 export interface AssistantSettings {
-  /** null means "no override" — the environment default applies. */
+  /** null means "no override" — the shipped default applies. */
   custom_instructions: string | null
   /** null means "use the shipped prompt". */
   system_prompt: string | null
@@ -860,7 +860,7 @@ export interface AssistantSettings {
   rate_limit_window_seconds: number | null
   monthly_token_budget: number | null
 
-  /** What is actually in force once the environment defaults are resolved. */
+  /** What is actually in force once the shipped defaults are resolved. */
   effective_rate_limit_messages: number
   effective_rate_limit_window_seconds: number
   max_custom_instructions_chars: number

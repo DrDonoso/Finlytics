@@ -3,7 +3,7 @@ services:
     image: drdonoso/finlytics
     restart: unless-stopped
     ports:
-      - "${FINLYTICS_PORT:-7777}:7777"
+      - "7777:7777"
 
     environment:
       # --- PostgreSQL connection ---
@@ -31,7 +31,7 @@ services:
       FINLYTICS_ENCRYPTION_KEY: "${FINLYTICS_ENCRYPTION_KEY:-}"
 
     volumes:
-      - "${FINLYTICS_DATA_DIR:-./data}:/app/data"
+      - "./data:/app/data"
 
     depends_on:
       db:

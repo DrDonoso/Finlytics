@@ -111,11 +111,6 @@ class TestStatus:
         assert body["enabled"] is False
         assert "OPENAI_API_KEY" in body["reason"]
 
-    async def test_disabled_by_setting(self, client, enabled):
-        with patch.object(assistant_api.settings, "assistant_enabled", False):
-            resp = await client.get("/api/assistant/status")
-        assert resp.json()["enabled"] is False
-
 
 class TestSuggestions:
     async def test_returns_i18n_keys_not_prose(self, client):
@@ -153,7 +148,7 @@ class TestConversationCrud:
 
     async def test_create_is_capped(self, client, mock_session, enabled):
         mock_session.scalar = AsyncMock(
-            return_value=assistant_api.settings.assistant_max_conversations
+            return_value=assistant_api.assistant_settings.MAX_CONVERSATIONS
         )
         resp = await client.post("/api/assistant/conversations")
         assert resp.status_code == 409
@@ -208,15 +203,19 @@ class TestSendMessageGuards:
     async def test_oversized_message_is_rejected(self, client, enabled):
         resp = await client.post(
             "/api/assistant/conversations/1/messages",
-            json={"content": "x" * (assistant_api.settings.assistant_max_message_chars + 1)},
+            json={
+                "content": "x" * (assistant_api.assistant_settings.MAX_MESSAGE_CHARS + 1)
+            },
         )
         assert resp.status_code == 413
 
     async def test_rate_limit_returns_429_with_retry_after(self, client, mock_session, enabled):
         mock_session.scalar = AsyncMock(return_value=None)  # 404s after the limiter
-        # Drive the limit through the env default, which is what the limiter is
-        # now built from — there is no module-level limiter to patch any more.
-        with patch.object(assistant_api.settings, "assistant_rate_limit_messages", 1):
+        # Drive the limit through the shipped default, which is what the limiter
+        # is now built from — there is no module-level limiter to patch any more.
+        with patch.object(
+            assistant_api.assistant_settings, "DEFAULT_RATE_LIMIT_MESSAGES", 1
+        ):
             first = await client.post(
                 "/api/assistant/conversations/1/messages", json={"content": "hi"}
             )
@@ -228,7 +227,7 @@ class TestSendMessageGuards:
         assert second.status_code == 429
         assert second.headers["Retry-After"]
 
-    async def test_a_stored_override_takes_precedence_over_the_env(
+    async def test_a_stored_override_takes_precedence_over_the_default(
         self, client, mock_session, enabled
     ):
         """A limit saved in Settings must apply without a restart."""
@@ -243,7 +242,9 @@ class TestSendMessageGuards:
             assistant_api.assistant_settings,
             "get_settings_row",
             AsyncMock(return_value=stored),
-        ), patch.object(assistant_api.settings, "assistant_rate_limit_messages", 500):
+        ), patch.object(
+            assistant_api.assistant_settings, "DEFAULT_RATE_LIMIT_MESSAGES", 500
+        ):
             first = await client.post(
                 "/api/assistant/conversations/1/messages", json={"content": "hi"}
             )
@@ -251,7 +252,7 @@ class TestSendMessageGuards:
                 "/api/assistant/conversations/1/messages", json={"content": "hi"}
             )
 
-        # The env would have allowed 500; the stored override allows 1.
+        # The default would have allowed 500; the stored override allows 1.
         assert first.status_code == 404
         assert second.status_code == 429
 
