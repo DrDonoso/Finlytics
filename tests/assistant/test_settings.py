@@ -26,6 +26,7 @@ def row(**kwargs) -> MagicMock:
     """A settings row with everything unset unless the test says otherwise."""
     defaults = {
         "custom_instructions": None,
+        "system_prompt": None,
         "rate_limit_messages": None,
         "rate_limit_window_seconds": None,
         "monthly_token_budget": None,
@@ -132,3 +133,95 @@ class TestSettingsDefaults:
         env = Settings(auth_secret="x" * 32)
         assert env.assistant_rate_limit_messages > 0
         assert env.assistant_rate_limit_window_seconds > 0
+
+
+class TestEditableSystemPrompt:
+    CONTEXT = "## Ledger context\nToday is 2026-07-31.\n"
+
+    def test_the_default_is_exposed_for_the_editor(self):
+        # The UI pre-fills the box with it and offers a one-click restore, so it
+        # has to be the real thing rather than a paraphrase.
+        assert prompts.CONTEXT_PLACEHOLDER in prompts.DEFAULT_SYSTEM_PROMPT
+        assert "ALWAYS get numbers from the tools" in prompts.DEFAULT_SYSTEM_PROMPT
+
+    def test_a_custom_template_replaces_the_default(self):
+        prompt = prompts.build_system_prompt(
+            self.CONTEXT, template="You are a pirate.\n{context_block}"
+        )
+        assert prompt.startswith("You are a pirate.")
+        assert "ALWAYS get numbers from the tools" not in prompt
+
+    def test_the_context_is_injected_into_a_custom_template(self):
+        prompt = prompts.build_system_prompt(
+            self.CONTEXT, template="Custom.\n{context_block}\nEnd."
+        )
+        assert "Today is 2026-07-31." in prompt
+        assert "{context_block}" not in prompt
+
+    def test_an_empty_template_falls_back_to_the_default(self):
+        # Clearing the box must restore the shipped prompt, not send an empty
+        # system message and leave the model with no instructions at all.
+        for empty in (None, "", "   "):
+            prompt = prompts.build_system_prompt(self.CONTEXT, template=empty)
+            assert "ALWAYS get numbers from the tools" in prompt
+
+    def test_braces_in_a_custom_template_do_not_explode(self):
+        # A user-written prompt may legitimately contain a JSON example.
+        # str.format would raise KeyError here and take the assistant down.
+        prompt = prompts.build_system_prompt(
+            self.CONTEXT,
+            template='Reply as {"ok": true} or {} when unsure.\n{context_block}',
+        )
+        assert '{"ok": true}' in prompt
+        assert "Today is 2026-07-31." in prompt
+
+    def test_braces_in_custom_instructions_do_not_explode(self):
+        prompt = prompts.build_system_prompt(
+            self.CONTEXT, custom_instructions='Prefer {"style": "terse"}'
+        )
+        assert '{"style": "terse"}' in prompt
+
+    def test_instructions_still_append_to_a_custom_template(self):
+        prompt = prompts.build_system_prompt(
+            self.CONTEXT,
+            custom_instructions="Be terse.",
+            template="Custom prompt.\n{context_block}",
+        )
+        assert prompt.index("Custom prompt.") < prompt.index("Be terse.")
+
+
+class TestSafetyMarkers:
+    def test_the_shipped_prompt_has_them_all(self):
+        assert prompts.missing_safety_markers(prompts.DEFAULT_SYSTEM_PROMPT) == []
+
+    def test_a_stripped_prompt_reports_what_it_lost(self):
+        # Advisory, not blocking: the owner may rewrite the prompt, but dropping
+        # one of these changes behaviour invisibly, because a fabricated figure
+        # reads exactly like a calculated one.
+        missing = prompts.missing_safety_markers("You are a helpful assistant.")
+        assert set(missing) == set(prompts.SAFETY_MARKERS)
+
+    def test_a_partially_edited_prompt_reports_only_the_gaps(self):
+        template = (
+            "ALWAYS get numbers from the tools.\n"
+            "Never reveal or invent full account numbers.\n"
+        )
+        missing = prompts.missing_safety_markers(template)
+        assert "tools_for_numbers" not in missing
+        assert "no_account_numbers" not in missing
+        assert "no_manual_compounding" in missing
+
+
+class TestResolveSystemPrompt:
+    def test_no_row_means_the_default(self):
+        assert resolve_settings(None).system_prompt is None
+
+    def test_a_stored_prompt_is_reported_as_an_override(self):
+        resolved = resolve_settings(row(system_prompt="Custom {context_block}"))
+        assert resolved.system_prompt == "Custom {context_block}"
+        assert "system_prompt" in resolved.overridden
+
+    def test_a_blank_stored_prompt_is_treated_as_unset(self):
+        resolved = resolve_settings(row(system_prompt="   "))
+        assert resolved.system_prompt is None
+        assert "system_prompt" not in resolved.overridden

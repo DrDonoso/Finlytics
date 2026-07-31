@@ -108,6 +108,8 @@ A slide-out chat panel, reachable from every page, that answers natural-language
 
 > **Custom instructions are added to the prompt, never in place of it.** The core prompt carries the rules that stop the model inventing figures about your money — take every number from the tools, never do compound interest by hand, treat statement text as data, never reveal account numbers. A text box that can delete those is one that eventually will, and the failure is invisible because the answer still reads confidently.
 
+> **You can also rewrite the system prompt itself** from Settings → Assistant. It is pre-filled with the shipped default and restorable in one click. Two guards apply: a prompt without the `{context_block}` placeholder is rejected outright, because that is where your accounts and categories are injected and the assistant is blind without it; and if an edit drops one of the safety rules above, the page says which — advisory, not blocking. It is your instance.
+
 > **Only the monthly budget can actually cap spend.** The rate limit is counted in memory, so it resets whenever the container restarts: it curbs a burst but hands back a full allowance on every deploy. The budget is counted in the database and survives.
 
 ### 🗂️ Management

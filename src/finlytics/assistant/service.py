@@ -119,6 +119,7 @@ async def run_turn(
     today: date,
     limits: AgentLimits | None = None,
     custom_instructions: str | None = None,
+    system_prompt_template: str | None = None,
     background_tasks=None,  # noqa: ANN001 — FastAPI type, kept out of the import graph
 ) -> AsyncIterator[AssistantEvent]:
     """Run one user turn to completion, yielding events as they happen.
@@ -128,7 +129,8 @@ async def run_turn(
     part of it — see ``AssistantMessage`` for why.
 
     ``custom_instructions`` is the user's own preference text, appended to the
-    prompt rather than replacing any of it.
+    prompt. ``system_prompt_template`` replaces the shipped prompt outright;
+    falsy falls back to the default.
     """
     limits = limits or AgentLimits()
 
@@ -146,6 +148,7 @@ async def run_turn(
     system_prompt = prompts.build_system_prompt(
         ctx_module.render_context(financial_context),
         custom_instructions=custom_instructions,
+        template=system_prompt_template,
     )
 
     messages: list[dict] = [

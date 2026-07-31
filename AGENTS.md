@@ -47,9 +47,9 @@ The `IMAGE_TAG` / `BUILD_DATE` build args are injected there and surfaced by
 
 ## Migrations
 
-Alembic migrations live in `alembic/versions/`. The current head is `0019_add_assistant_settings_and_usage.py`.
+Alembic migrations live in `alembic/versions/`. The current head is `0020_add_assistant_system_prompt.py`.
 
-- Always create a new numbered migration (`0020_...`) for schema changes.
+- Always create a new numbered migration (`0021_...`) for schema changes.
 - Verify the head before writing one — this file goes stale. `down_revision` in the
   highest-numbered file is the source of truth, not this document.
 - The entrypoint runs `alembic upgrade head` automatically on container start.
@@ -111,12 +111,30 @@ each message is one to three paid LLM calls.
 > which is the only reason it works. If you move the limiter to Redis some day, that does not
 > change — the budget still belongs in the database.
 
-> **Custom instructions are appended, never substituted.** `build_system_prompt` puts the
-> user's text in a delimited block AFTER the core rules, with an explicit statement that
-> preferences lose to them. Do not add a way to replace the core prompt: it carries the rules
-> that keep the model from inventing figures, and losing one of them produces confident wrong
-> numbers rather than a visible error. `tests/assistant/test_settings.py` asserts the rules
-> survive and the ordering holds.
+> **The system prompt is editable from Settings → Assistant**, pre-filled with the shipped
+> default and restorable in one click. Stored per user; null means "use the default", so
+> clearing the box restores it rather than sending an empty system message. Store the
+> override only when it *differs* from the default — the UI does this — or an untouched
+> editor freezes today's prompt and the instance stops receiving improvements to it.
+> Custom instructions still exist alongside it and are appended to whatever prompt is in
+> force, so a small tweak does not require rewriting the whole thing.
+
+> **`{context_block}` is mandatory in a custom prompt and the API rejects one without it.**
+> Not a style rule: it is where the accounts, categories and date coverage are injected.
+> Without it the model has no ids and starts inventing the ones the prompt tells it never to
+> invent, so the assistant is simply broken — which is why this one is a hard 422 rather
+> than a warning.
+
+> **Substitute with `str.replace`, never `str.format`.** A user-written prompt may contain
+> braces — a JSON example, a literal `{}` — and `format` raises KeyError on them, taking the
+> whole assistant down over a character.
+
+> **Dropping a safety rule is warned about, not blocked.** `SAFETY_MARKERS` in `prompts.py`
+> lists the phrases that stop the model inventing figures; the API reports which a custom
+> prompt no longer contains and the UI shows it beside the editor. It stays advisory because
+> this is a self-hosted app and its owner is entitled to rewrite the prompt — but the
+> consequence is invisible in the output, since a fabricated figure reads exactly like a
+> calculated one, so it has to be visible at the moment the choice is made.
 
 > **`stream_options.include_usage` is required to see token counts at all.** A streamed
 > response carries no usage otherwise, and the usage chunk arrives with an EMPTY `choices`

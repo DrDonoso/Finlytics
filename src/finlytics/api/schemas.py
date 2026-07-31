@@ -1053,6 +1053,7 @@ class AssistantSettingsIn(BaseModel):
     """
 
     custom_instructions: str | None = None
+    system_prompt: str | None = None
     rate_limit_messages: int | None = Field(default=None, ge=1, le=10_000)
     rate_limit_window_seconds: int | None = Field(default=None, ge=60, le=86_400)
     monthly_token_budget: int | None = Field(default=None, ge=1_000)
@@ -1072,6 +1073,31 @@ class AssistantSettingsIn(BaseModel):
             )
         return text
 
+    @field_validator("system_prompt")
+    @classmethod
+    def validate_system_prompt(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        text = v.strip()
+        if not text:
+            # Blank means "restore the default", not "send an empty prompt".
+            return None
+        if len(text) > 20_000:
+            raise ValueError(
+                "The system prompt is limited to 20000 characters — it is resent "
+                "to the model on every message."
+            )
+        if "{context_block}" not in text:
+            # Not a style rule: this placeholder is how the assistant learns
+            # which accounts and categories exist. Without it the model has no
+            # ids and starts guessing the ones it is told never to invent.
+            raise ValueError(
+                "The prompt must contain the {context_block} placeholder — it is "
+                "where your accounts, categories and date range are injected. "
+                "Without it the assistant cannot see what data you have."
+            )
+        return text
+
 
 class AssistantSettingsOut(BaseModel):
     """Current settings, showing both what was stored and what is in force.
@@ -1082,6 +1108,7 @@ class AssistantSettingsOut(BaseModel):
     """
 
     custom_instructions: str | None = None
+    system_prompt: str | None = None
     rate_limit_messages: int | None = None
     rate_limit_window_seconds: int | None = None
     monthly_token_budget: int | None = None
@@ -1089,6 +1116,14 @@ class AssistantSettingsOut(BaseModel):
     effective_rate_limit_messages: int
     effective_rate_limit_window_seconds: int
     max_custom_instructions_chars: int
+
+    # The shipped prompt, so the editor can pre-fill it and offer a restore.
+    default_system_prompt: str
+    max_system_prompt_chars: int
+    # Safety rules the saved prompt no longer contains. Advisory: the save is
+    # allowed, but dropping one changes behaviour invisibly, because a
+    # fabricated figure reads exactly like a calculated one.
+    missing_safety_markers: list[str] = []
 
 
 class AssistantUsagePeriod(BaseModel):

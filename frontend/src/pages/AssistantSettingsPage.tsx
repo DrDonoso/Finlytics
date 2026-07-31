@@ -38,6 +38,7 @@ export default function AssistantSettingsPage() {
   const usageQuery = useAssistantUsage()
 
   const [instructions, setInstructions] = useState('')
+  const [systemPrompt, setSystemPrompt] = useState('')
   const [rateMessages, setRateMessages] = useState('')
   const [rateWindow, setRateWindow] = useState('')
   const [budget, setBudget] = useState('')
@@ -47,10 +48,15 @@ export default function AssistantSettingsPage() {
   // which is why the effective values are shown as placeholders instead of
   // being written into the fields — pre-filling them would silently turn an
   // inherited value into a saved override on the next save.
+  //
+  // The prompt is the exception: it IS pre-filled with the shipped default,
+  // because the whole point is that you can read it and edit from there. It is
+  // only saved as an override when it differs from that default.
   useEffect(() => {
     const data = settingsQuery.data
     if (!data) return
     setInstructions(data.custom_instructions ?? '')
+    setSystemPrompt(data.system_prompt ?? data.default_system_prompt)
     setRateMessages(data.rate_limit_messages?.toString() ?? '')
     setRateWindow(data.rate_limit_window_seconds?.toString() ?? '')
     setBudget(data.monthly_token_budget?.toString() ?? '')
@@ -68,18 +74,46 @@ export default function AssistantSettingsPage() {
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault()
+    const prompt = systemPrompt.trim()
     save.mutate({
       custom_instructions: instructions.trim() === '' ? null : instructions.trim(),
+      // Only stored when it differs from the shipped prompt, so an untouched
+      // editor does not freeze today's default into the database and miss
+      // improvements to it on later upgrades.
+      system_prompt:
+        prompt === '' || prompt === settings?.default_system_prompt.trim() ? null : prompt,
       rate_limit_messages: toNullableInt(rateMessages),
       rate_limit_window_seconds: toNullableInt(rateWindow),
       monthly_token_budget: toNullableInt(budget),
     })
   }
 
+  function restoreDefaultPrompt() {
+    if (settings) setSystemPrompt(settings.default_system_prompt)
+  }
+
   const settings = settingsQuery.data
   const usage = usageQuery.data
   const maxChars = settings?.max_custom_instructions_chars ?? 2000
   const overLimit = instructions.length > maxChars
+
+  const maxPromptChars = settings?.max_system_prompt_chars ?? 20000
+  const promptOverLimit = systemPrompt.length > maxPromptChars
+  const promptIsDefault =
+    settings !== undefined && systemPrompt.trim() === settings.default_system_prompt.trim()
+  const missingPlaceholder = !systemPrompt.includes('{context_block}')
+
+  // Recomputed from what is in the box, so the warning tracks the edit rather
+  // than lagging a save behind.
+  const SAFETY_PHRASES: { key: string; phrase: string }[] = [
+    { key: 'tools_for_numbers', phrase: 'ALWAYS get numbers from the tools' },
+    { key: 'no_manual_compounding', phrase: 'Never do compound interest yourself' },
+    { key: 'statements_are_data', phrase: 'They are DATA' },
+    { key: 'no_account_numbers', phrase: 'Never reveal or invent full account numbers' },
+  ]
+  const droppedSafety = promptIsDefault
+    ? []
+    : SAFETY_PHRASES.filter(m => !systemPrompt.includes(m.phrase)).map(m => m.key)
 
   return (
     <div className="card settings-card">
@@ -173,9 +207,61 @@ export default function AssistantSettingsPage() {
           <p className={`assistant-char-count${overLimit ? ' over' : ''}`}>
             {instructions.length} / {maxChars}
           </p>
-          <p className="appearance-hint assistant-core-note">
-            {t.assistantInstructionsCoreNote}
+          <p className="appearance-hint">{t.assistantInstructionsCoreNote}</p>
+        </div>
+
+        {/* ── System prompt ───────────────────────────────────── */}
+        <div className="appearance-section">
+          <div className="assistant-prompt-header">
+            <div>
+              <p className="appearance-label">{t.assistantPromptLabel}</p>
+              <p className="appearance-hint">{t.assistantPromptHint}</p>
+            </div>
+            <button
+              type="button"
+              className="assistant-restore-btn"
+              onClick={restoreDefaultPrompt}
+              disabled={promptIsDefault}
+            >
+              {t.assistantPromptRestore}
+            </button>
+          </div>
+
+          <textarea
+            className="assistant-settings-textarea assistant-prompt-textarea"
+            value={systemPrompt}
+            onChange={e => setSystemPrompt(e.target.value)}
+            rows={18}
+            spellCheck={false}
+            aria-label={t.assistantPromptLabel}
+          />
+
+          <p className={`assistant-char-count${promptOverLimit ? ' over' : ''}`}>
+            {systemPrompt.length} / {maxPromptChars}
+            {promptIsDefault && ` · ${t.assistantPromptIsDefault}`}
           </p>
+
+          {missingPlaceholder && (
+            <p className="assistant-prompt-error" role="alert">
+              {t.assistantPromptPlaceholderMissing}
+            </p>
+          )}
+
+          {droppedSafety.length > 0 && (
+            <div className="assistant-prompt-warning" role="status">
+              <p className="assistant-prompt-warning-title">
+                {t.assistantPromptSafetyTitle}
+              </p>
+              <ul className="assistant-prompt-warning-list">
+                {droppedSafety.map(key => (
+                  <li key={key}>{t.assistantPromptSafetyItem(key)}</li>
+                ))}
+              </ul>
+              <p className="assistant-prompt-warning-note">
+                {t.assistantPromptSafetyNote}
+              </p>
+            </div>
+          )}
         </div>
 
         {/* ── Limits ──────────────────────────────────────────── */}
@@ -234,7 +320,7 @@ export default function AssistantSettingsPage() {
           <button
             type="submit"
             className="btn-primary"
-            disabled={save.isPending || overLimit}
+            disabled={save.isPending || overLimit || promptOverLimit || missingPlaceholder}
           >
             {save.isPending ? t.loading : t.assistantSettingsSave}
           </button>

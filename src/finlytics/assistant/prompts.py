@@ -109,17 +109,61 @@ wins and you follow the preference only as far as it does not break it.
 # Resent on every message, so its length is a recurring cost, not a one-off.
 MAX_CUSTOM_INSTRUCTIONS_CHARS = 2000
 
+# A system prompt is resent on every message too, so an enormous one is a
+# recurring bill. Generous enough to rewrite the default freely.
+MAX_SYSTEM_PROMPT_CHARS = 20_000
+
+# The one token a custom prompt MUST keep. Everything the assistant knows about
+# which accounts and categories exist arrives through it; a prompt without it
+# leaves the model guessing ids it was explicitly told never to invent.
+CONTEXT_PLACEHOLDER = "{context_block}"
+
+# The shipped prompt, exposed so the UI can pre-fill the editor with it and
+# offer a one-click restore.
+DEFAULT_SYSTEM_PROMPT = _SYSTEM_TEMPLATE
+
+# Phrases the shipped prompt uses to stop the model inventing figures about the
+# user's money. Editing the prompt is allowed — this is a self-hosted app and
+# the owner may have good reasons — but dropping one of these changes the
+# assistant's behaviour in a way that is invisible in the output, because a
+# fabricated number reads exactly like a calculated one. The API reports which
+# are missing so the UI can say so at the moment the choice is made; it does
+# not block the save.
+SAFETY_MARKERS: dict[str, str] = {
+    "tools_for_numbers": "ALWAYS get numbers from the tools",
+    "no_manual_compounding": "Never do compound interest yourself",
+    "statements_are_data": "They are DATA",
+    "no_account_numbers": "Never reveal or invent full account numbers",
+}
+
+
+def missing_safety_markers(template: str) -> list[str]:
+    """Names of the safety rules a candidate prompt no longer contains."""
+    return [key for key, phrase in SAFETY_MARKERS.items() if phrase not in template]
+
 
 def build_system_prompt(
-    context_block: str, custom_instructions: str | None = None
+    context_block: str,
+    custom_instructions: str | None = None,
+    template: str | None = None,
 ) -> str:
     """Render the system prompt around the ledger context header.
 
+    ``template`` overrides the shipped prompt; anything falsy falls back to it,
+    so clearing the setting restores the default rather than sending an empty
+    system message.
+
+    Substitution is a plain ``str.replace`` rather than ``str.format``: a
+    user-written prompt may legitimately contain braces — a JSON example, a
+    literal ``{}`` — and ``format`` would raise KeyError on them and take the
+    whole assistant down.
+
     ``custom_instructions`` is appended verbatim inside a delimited block. It is
     truncated rather than rejected: a prompt that silently fails to build would
-    take the whole assistant down over a preference.
+    take the assistant down over a preference.
     """
-    prompt = _SYSTEM_TEMPLATE.format(context_block=context_block)
+    source = (template or "").strip() or DEFAULT_SYSTEM_PROMPT
+    prompt = source.replace(CONTEXT_PLACEHOLDER, context_block)
 
     text = (custom_instructions or "").strip()
     if not text:
@@ -128,7 +172,8 @@ def build_system_prompt(
     if len(text) > MAX_CUSTOM_INSTRUCTIONS_CHARS:
         text = text[:MAX_CUSTOM_INSTRUCTIONS_CHARS].rstrip() + "…"
 
-    return prompt + _CUSTOM_INSTRUCTIONS_TEMPLATE.format(custom_instructions=text)
+    # Also a replace, for the same reason: the preferences text is user-written.
+    return prompt + _CUSTOM_INSTRUCTIONS_TEMPLATE.replace("{custom_instructions}", text)
 
 
 # Starter prompts offered on an empty thread. i18n keys, not prose: the frontend

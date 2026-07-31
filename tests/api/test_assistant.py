@@ -415,6 +415,97 @@ class TestSendMessageStream:
         assert any(getattr(m, "role", None) == "user" for m in stored)
 
 
+class TestSystemPromptEditing:
+    """The prompt is editable, so the guards that keep it *usable* matter."""
+
+    async def test_the_default_prompt_is_returned_for_the_editor(self, client, mock_session):
+        mock_session.scalar = AsyncMock(return_value=None)
+        with patch.object(
+            assistant_api.assistant_settings, "get_settings_row",
+            AsyncMock(return_value=None),
+        ):
+            resp = await client.get("/api/assistant/settings")
+
+        body = resp.json()
+        assert resp.status_code == 200
+        # Pre-fills the editor and backs the restore button, so it has to be the
+        # real prompt rather than a summary of it.
+        assert "{context_block}" in body["default_system_prompt"]
+        assert "ALWAYS get numbers from the tools" in body["default_system_prompt"]
+        assert body["system_prompt"] is None
+
+    async def test_a_prompt_without_the_context_placeholder_is_rejected(
+        self, client, mock_session
+    ):
+        # Not a style rule: that placeholder is how the assistant learns which
+        # accounts and categories exist. Without it the model has no ids and
+        # starts guessing the ones it is told never to invent.
+        resp = await client.put(
+            "/api/assistant/settings",
+            json={"system_prompt": "You are a helpful finance bot."},
+        )
+        assert resp.status_code == 422
+        assert "context_block" in resp.text
+
+    async def test_a_prompt_with_the_placeholder_is_accepted(self, client, mock_session):
+        mock_session.scalar = AsyncMock(return_value=None)
+        resp = await client.put(
+            "/api/assistant/settings",
+            json={"system_prompt": "Custom prompt.\n{context_block}\nEnd."},
+        )
+        assert resp.status_code == 200
+
+    async def test_an_empty_prompt_clears_the_override(self, client, mock_session):
+        # Blank means "restore the default", not "send an empty system message".
+        mock_session.scalar = AsyncMock(return_value=None)
+        resp = await client.put("/api/assistant/settings", json={"system_prompt": "   "})
+        assert resp.status_code == 200
+        assert resp.json()["system_prompt"] is None
+
+    async def test_an_enormous_prompt_is_rejected(self, client):
+        resp = await client.put(
+            "/api/assistant/settings",
+            json={"system_prompt": "{context_block}" + "x" * 25_000},
+        )
+        assert resp.status_code == 422
+
+    async def test_a_stripped_prompt_reports_what_it_dropped(self, client, mock_session):
+        stored = MagicMock(
+            custom_instructions=None,
+            system_prompt="Be helpful.\n{context_block}",
+            rate_limit_messages=None,
+            rate_limit_window_seconds=None,
+            monthly_token_budget=None,
+        )
+        with patch.object(
+            assistant_api.assistant_settings, "get_settings_row",
+            AsyncMock(return_value=stored),
+        ):
+            resp = await client.get("/api/assistant/settings")
+
+        # Advisory, not blocking — the save succeeded. The UI surfaces this so
+        # the choice is visible at the moment it is made.
+        assert set(resp.json()["missing_safety_markers"]) == {
+            "tools_for_numbers", "no_manual_compounding",
+            "statements_are_data", "no_account_numbers",
+        }
+
+    async def test_the_default_prompt_reports_nothing_missing(self, client, mock_session):
+        stored = MagicMock(
+            custom_instructions=None,
+            system_prompt=None,
+            rate_limit_messages=None,
+            rate_limit_window_seconds=None,
+            monthly_token_budget=None,
+        )
+        with patch.object(
+            assistant_api.assistant_settings, "get_settings_row",
+            AsyncMock(return_value=stored),
+        ):
+            resp = await client.get("/api/assistant/settings")
+        assert resp.json()["missing_safety_markers"] == []
+
+
 class TestTitleDerivation:
     def test_short_question_becomes_the_title(self):
         assert assistant_api._derive_title("  How much did I spend?  ") == "How much did I spend?"

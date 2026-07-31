@@ -823,6 +823,14 @@ export interface Dict {
   assistantInstructionsHint: string
   assistantInstructionsPlaceholder: string
   assistantInstructionsCoreNote: string
+  assistantPromptLabel: string
+  assistantPromptHint: string
+  assistantPromptRestore: string
+  assistantPromptIsDefault: string
+  assistantPromptPlaceholderMissing: string
+  assistantPromptSafetyTitle: string
+  assistantPromptSafetyItem: (key: string) => string
+  assistantPromptSafetyNote: string
   assistantLimitsLabel: string
   assistantLimitsHint: string
   assistantLimitsInheritHint: string

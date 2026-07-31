@@ -422,6 +422,77 @@
   border-radius: 0 var(--radius) var(--radius) 0;
 }
 
+/* ─── System prompt editor ─────────────────────────────────────────────── */
+
+.assistant-prompt-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.assistant-restore-btn {
+  flex-shrink: 0;
+  padding: 6px 11px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12.5px;
+}
+
+.assistant-restore-btn:not(:disabled):hover {
+  border-color: var(--primary);
+  background: rgba(var(--primary-rgb), 0.06);
+}
+
+.assistant-restore-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* Monospace: this is a prompt, and its indentation and blank lines are
+   load-bearing for how the model reads the sections. */
+.assistant-prompt-textarea {
+  font-family: var(--font-num);
+  font-size: 12.5px;
+  line-height: 1.55;
+  min-height: 260px;
+  white-space: pre;
+  overflow-wrap: normal;
+  overflow-x: auto;
+}
+
+.assistant-prompt-error {
+  margin-top: 8px;
+  padding: 9px 11px;
+  border: 1px solid rgba(var(--expense-rgb), 0.35);
+  border-radius: var(--radius);
+  background: rgba(var(--expense-rgb), 0.08);
+  color: var(--expense);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.assistant-prompt-warning {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px solid rgba(var(--warning-rgb), 0.4);
+  border-radius: var(--radius);
+  background: var(--warning-bg);
+  color: var(--warning-text);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.assistant-prompt-warning-title { font-weight: 600; }
+
+.assistant-prompt-warning-list {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+
+.assistant-prompt-warning-list li { margin-bottom: 2px; }
+
+.assistant-prompt-warning-note { margin-top: 8px; font-style: italic; }
+
 .assistant-limits-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));

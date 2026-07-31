@@ -19,7 +19,13 @@ from datetime import date, datetime, timezone
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from finlytics.assistant.prompts import MAX_CUSTOM_INSTRUCTIONS_CHARS
+from finlytics.assistant.prompts import (
+    CONTEXT_PLACEHOLDER,
+    DEFAULT_SYSTEM_PROMPT,
+    MAX_CUSTOM_INSTRUCTIONS_CHARS,
+    MAX_SYSTEM_PROMPT_CHARS,
+    missing_safety_markers,
+)
 from finlytics.config import settings as app_settings
 from finlytics.db.models import AssistantMessage, AssistantSettings
 
@@ -28,7 +34,11 @@ log = logging.getLogger(__name__)
 __all__ = [
     "EffectiveSettings",
     "UsageTotals",
+    "CONTEXT_PLACEHOLDER",
+    "DEFAULT_SYSTEM_PROMPT",
     "MAX_CUSTOM_INSTRUCTIONS_CHARS",
+    "MAX_SYSTEM_PROMPT_CHARS",
+    "missing_safety_markers",
     "get_settings_row",
     "resolve_settings",
     "month_start",
@@ -43,6 +53,7 @@ class EffectiveSettings:
     """Stored overrides resolved against the environment defaults."""
 
     custom_instructions: str | None
+    system_prompt: str | None
     rate_limit_messages: int
     rate_limit_window_seconds: int
     monthly_token_budget: int | None
@@ -97,8 +108,13 @@ def resolve_settings(row: AssistantSettings | None) -> EffectiveSettings:
     if instructions:
         overridden.add("custom_instructions")
 
+    prompt = (row.system_prompt or "").strip() if row is not None else ""
+    if prompt:
+        overridden.add("system_prompt")
+
     return EffectiveSettings(
         custom_instructions=instructions or None,
+        system_prompt=prompt or None,
         rate_limit_messages=rate_messages,
         rate_limit_window_seconds=rate_window,
         monthly_token_budget=budget,

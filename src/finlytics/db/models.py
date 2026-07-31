@@ -681,11 +681,10 @@ class AssistantSettings(Base):
     until someone deliberately overrides one in Settings, instead of the first
     save silently freezing today's defaults into the database.
 
-    ``custom_instructions`` is APPENDED to the system prompt, never replaces it.
-    The core prompt carries the rules that stop the model inventing figures
-    about the user's money, and a text box that can delete them is a text box
-    that will eventually delete them — silently, since the output still reads
-    like a confident answer.
+    ``custom_instructions`` is APPENDED to the system prompt.  ``system_prompt``
+    REPLACES it outright — this is a self-hosted app and its owner may have good
+    reason to rewrite it. Null means "use the shipped default", so clearing the
+    field restores it instead of sending an empty system message.
     """
 
     __tablename__ = "assistant_settings"
@@ -698,6 +697,8 @@ class AssistantSettings(Base):
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     custom_instructions: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Full replacement for the shipped prompt; null = use the default.
+    system_prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
     rate_limit_messages: Mapped[int | None] = mapped_column(Integer, nullable=True)
     rate_limit_window_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # Hard stop on spend for the calendar month. Null means no cap.
