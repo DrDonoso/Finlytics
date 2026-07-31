@@ -25,6 +25,7 @@ import AboutPage from '../pages/AboutPage'
 import AccountsPage from '../pages/AccountsPage'
 import AnalyticsPage from '../pages/AnalyticsPage'
 import AppearancePage from '../pages/AppearancePage'
+import AssistantSettingsPage from '../pages/AssistantSettingsPage'
 import BackupPage from '../pages/BackupPage'
 import CategoriesPage from '../pages/CategoriesPage'
 import ConnectorsPage from '../pages/ConnectorsPage'
@@ -87,6 +88,18 @@ vi.mock('../api/client', () => {
     getAssistantSuggestions: empty({ suggestions: [] }),
     getAssistantConversations: empty([]),
     getAssistantConversation: empty({ id: 1, title: '', created_at: '', updated_at: '', messages: [] }),
+    getAssistantSettings: empty({
+      custom_instructions: null, rate_limit_messages: null,
+      rate_limit_window_seconds: null, monthly_token_budget: null,
+      effective_rate_limit_messages: 30, effective_rate_limit_window_seconds: 3600,
+      max_custom_instructions_chars: 2000,
+    }),
+    getAssistantUsage: empty({
+      this_month: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0, messages: 0 },
+      all_time: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0, messages: 0 },
+      by_day: [], monthly_token_budget: null, budget_remaining: null, usage_available: true,
+    }),
+    putAssistantSettings: vi.fn(),
     createAssistantConversation: vi.fn(),
     deleteAssistantConversation: vi.fn(),
     streamAssistantMessage: vi.fn(),
@@ -131,6 +144,7 @@ const ROUTES: [string, React.ReactNode][] = [
   ['/settings/rules', <RulesPage key="sr" />],
   ['/settings/appearance', <AppearancePage key="sap" />],
   ['/settings/connectors', <ConnectorsPage key="scon" />],
+  ['/settings/assistant', <AssistantSettingsPage key="sasi" />],
   ['/settings/backup', <BackupPage key="sb" />],
   ['/settings/about', <AboutPage key="sab" />],
 ]

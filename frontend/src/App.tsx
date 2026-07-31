@@ -17,6 +17,7 @@ import InvestmentsLandingPage from './pages/InvestmentsLandingPage'
 import FinancesOverviewPage from './pages/FinancesOverviewPage'
 import PluginViewWrapper from './investments/PluginViewWrapper'
 import ConnectorsPage from './pages/ConnectorsPage'
+import AssistantSettingsPage from './pages/AssistantSettingsPage'
 import AboutPage from './pages/AboutPage'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { AssistantProvider } from './contexts/AssistantContext'
@@ -74,6 +75,7 @@ function FullRoutes() {
           <Route path="appearance" element={<AppearancePage />} />
           <Route path="backup" element={<BackupPage />} />
           <Route path="connectors" element={<ConnectorsPage />} />
+          <Route path="assistant" element={<AssistantSettingsPage />} />
           <Route path="rules" element={<RulesPage />} />
           <Route path="about" element={<AboutPage />} />
         </Route>

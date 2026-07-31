@@ -50,9 +50,27 @@ def scalars_returning(items):
 
 @pytest.fixture(autouse=True)
 def _reset_limiter():
-    assistant_api._message_limiter.clear()
+    # The limiters are now keyed by (limit, window), so a test that changes the
+    # configured limit gets a fresh window rather than the previous one's hits.
+    assistant_api._message_limiters.clear()
     yield
-    assistant_api._message_limiter.clear()
+    assistant_api._message_limiters.clear()
+
+
+@pytest.fixture(autouse=True)
+def _no_stored_overrides():
+    """Default every test to "no saved settings", i.e. environment values.
+
+    Without this the shared session double answers the settings lookup with a
+    MagicMock, whose attributes then flow into the rate limiter as comparison
+    operands. Tests that care about stored overrides patch this themselves.
+    """
+    with patch.object(
+        assistant_api.assistant_settings,
+        "get_settings_row",
+        AsyncMock(return_value=None),
+    ):
+        yield
 
 
 @pytest.fixture
@@ -196,19 +214,96 @@ class TestSendMessageGuards:
 
     async def test_rate_limit_returns_429_with_retry_after(self, client, mock_session, enabled):
         mock_session.scalar = AsyncMock(return_value=None)  # 404s after the limiter
-        with patch.object(assistant_api.settings, "assistant_rate_limit_messages", 2):
-            limiter = assistant_api.RateLimiter(max_attempts=1, window_seconds=60)
-            with patch.object(assistant_api, "_message_limiter", limiter):
-                first = await client.post(
-                    "/api/assistant/conversations/1/messages", json={"content": "hi"}
-                )
-                second = await client.post(
-                    "/api/assistant/conversations/1/messages", json={"content": "hi"}
-                )
+        # Drive the limit through the env default, which is what the limiter is
+        # now built from — there is no module-level limiter to patch any more.
+        with patch.object(assistant_api.settings, "assistant_rate_limit_messages", 1):
+            first = await client.post(
+                "/api/assistant/conversations/1/messages", json={"content": "hi"}
+            )
+            second = await client.post(
+                "/api/assistant/conversations/1/messages", json={"content": "hi"}
+            )
 
         assert first.status_code == 404  # quota consumed, then the thread lookup failed
         assert second.status_code == 429
         assert second.headers["Retry-After"]
+
+    async def test_a_stored_override_takes_precedence_over_the_env(
+        self, client, mock_session, enabled
+    ):
+        """A limit saved in Settings must apply without a restart."""
+        mock_session.scalar = AsyncMock(return_value=None)
+        stored = MagicMock(
+            custom_instructions=None,
+            rate_limit_messages=1,
+            rate_limit_window_seconds=3600,
+            monthly_token_budget=None,
+        )
+        with patch.object(
+            assistant_api.assistant_settings,
+            "get_settings_row",
+            AsyncMock(return_value=stored),
+        ), patch.object(assistant_api.settings, "assistant_rate_limit_messages", 500):
+            first = await client.post(
+                "/api/assistant/conversations/1/messages", json={"content": "hi"}
+            )
+            second = await client.post(
+                "/api/assistant/conversations/1/messages", json={"content": "hi"}
+            )
+
+        # The env would have allowed 500; the stored override allows 1.
+        assert first.status_code == 404
+        assert second.status_code == 429
+
+    async def test_monthly_budget_blocks_the_turn(self, client, mock_session, enabled):
+        """The budget is the guard that survives a restart; the window is not."""
+        mock_session.scalar = AsyncMock(return_value=None)
+        stored = MagicMock(
+            custom_instructions=None,
+            rate_limit_messages=None,
+            rate_limit_window_seconds=None,
+            monthly_token_budget=10_000,
+        )
+        with patch.object(
+            assistant_api.assistant_settings,
+            "get_settings_row",
+            AsyncMock(return_value=stored),
+        ), patch.object(
+            assistant_api.assistant_settings,
+            "tokens_used_since",
+            AsyncMock(return_value=10_500),
+        ):
+            resp = await client.post(
+                "/api/assistant/conversations/1/messages", json={"content": "hi"}
+            )
+
+        assert resp.status_code == 429
+        assert "budget" in resp.json()["detail"].lower()
+
+    async def test_budget_with_room_left_does_not_block(
+        self, client, mock_session, enabled
+    ):
+        mock_session.scalar = AsyncMock(return_value=None)
+        stored = MagicMock(
+            custom_instructions=None,
+            rate_limit_messages=None,
+            rate_limit_window_seconds=None,
+            monthly_token_budget=10_000,
+        )
+        with patch.object(
+            assistant_api.assistant_settings,
+            "get_settings_row",
+            AsyncMock(return_value=stored),
+        ), patch.object(
+            assistant_api.assistant_settings,
+            "tokens_used_since",
+            AsyncMock(return_value=42),
+        ):
+            resp = await client.post(
+                "/api/assistant/conversations/1/messages", json={"content": "hi"}
+            )
+
+        assert resp.status_code == 404  # got past the budget, then the thread lookup
 
     async def test_unknown_thread_is_404(self, client, mock_session, enabled):
         mock_session.scalar = AsyncMock(return_value=None)

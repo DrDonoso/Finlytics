@@ -291,6 +291,9 @@ export default function Layout() {
                         <NavLink to="/settings/connectors" className={navLinkClass}>
                           <span className="nav-label">{t.settingsSubConnectors}</span>
                         </NavLink>
+                        <NavLink to="/settings/assistant" className={navLinkClass}>
+                          <span className="nav-label">{t.settingsSubAssistant}</span>
+                        </NavLink>
                         <NavLink to="/settings/backup" className={navLinkClass}>
                           <span className="nav-label">{t.settingsSubBackup}</span>
                         </NavLink>

@@ -806,6 +806,32 @@ export interface Dict {
   assistantToolCompare: string
   assistantToolInvestments: string
   assistantToolProjection: string
+
+  // ── Assistant settings page ───────────────────────────────────────────────
+  assistantSettingsTitle: string
+  assistantSettingsSave: string
+  assistantSettingsSaved: string
+  assistantUsageTitle: string
+  assistantUsageHint: string
+  assistantUsageThisMonth: string
+  assistantUsageMessages: string
+  assistantUsageAllTime: string
+  assistantUsageUnavailable: string
+  assistantBudgetLabel: string
+  assistantBudgetUsed: (used: string, budget: string) => string
+  assistantInstructionsLabel: string
+  assistantInstructionsHint: string
+  assistantInstructionsPlaceholder: string
+  assistantInstructionsCoreNote: string
+  assistantLimitsLabel: string
+  assistantLimitsHint: string
+  assistantLimitsInheritHint: string
+  assistantLimitMessages: string
+  assistantLimitWindow: string
+  assistantBudgetField: string
+  assistantBudgetNone: string
+  assistantBudgetNote: string
+  settingsSubAssistant: string
 }
 
 const ES_LABELS: Record<string, string> = {

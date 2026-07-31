@@ -17,8 +17,10 @@ import {
   getAppVersion,
   getAssistantConversation,
   getAssistantConversations,
+  getAssistantSettings,
   getAssistantStatus,
   getAssistantSuggestions,
+  getAssistantUsage,
   getByAccount,
   getByCategory,
   getByDay,
@@ -44,8 +46,10 @@ import type {
   AppVersion,
   AssistantConversation,
   AssistantConversationDetail,
+  AssistantSettings,
   AssistantStatus,
   AssistantSuggestions,
+  AssistantUsage,
   CashflowSummary,
   Category,
   CategorySummary,
@@ -108,6 +112,8 @@ export const queryKeys = {
   assistantSuggestions: ['assistant', 'suggestions'] as const,
   assistantConversations: ['assistant', 'conversations'] as const,
   assistantConversation: (id: number) => ['assistant', 'conversation', id] as const,
+  assistantSettings: ['assistant', 'settings'] as const,
+  assistantUsage: ['assistant', 'usage'] as const,
 }
 
 // ── Catalogs ─────────────────────────────────────────────────────────────────
@@ -318,5 +324,19 @@ export function useAssistantConversation(
     queryKey: queryKeys.assistantConversation(id ?? 0),
     queryFn: () => getAssistantConversation(id as number),
     enabled: (options?.enabled ?? true) && id !== null,
+  })
+}
+
+export function useAssistantSettings(): UseQueryResult<AssistantSettings> {
+  return useQuery({
+    queryKey: queryKeys.assistantSettings,
+    queryFn: getAssistantSettings,
+  })
+}
+
+export function useAssistantUsage(): UseQueryResult<AssistantUsage> {
+  return useQuery({
+    queryKey: queryKeys.assistantUsage,
+    queryFn: getAssistantUsage,
   })
 }
