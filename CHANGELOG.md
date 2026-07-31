@@ -4,6 +4,11 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260731.02] - 2026-07-31
+
+- feat(notifications): route Telegram messages to a forum topic (#42)
+
+
 ## [20260731] - 2026-07-31
 
 - refactor: write the whole codebase in English (#41)
