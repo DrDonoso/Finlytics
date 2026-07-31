@@ -18,7 +18,7 @@ None of the available solutions fit that workflow. **Finlytics was built to be e
 
 ## What It Does
 
-### 🏠 Inicio (Home)
+### 🏠 Home
 
 The home page is a cross-domain hub that gives you the full picture at a glance:
 
@@ -41,9 +41,9 @@ The home page is a cross-domain hub that gives you the full picture at a glance:
 - Actions: set category, set merchant, add tags, or **skip AI entirely** for known recurring charges.
 - Rules run automatically on every import (before and after AI extraction).
 
-### 💳 Finanzas (Finances)
+### 💳 Finances
 
-The Finanzas overview (`/finances`) is the day-to-day spending dashboard:
+The finances overview (`/finances`) is the day-to-day spending dashboard:
 
 - **Global filter bar** — date range, account, category, tags, amount range, income/expense toggle.
 - **KPI cards** with delta % vs the previous calendar month (income, expenses, net).
@@ -57,14 +57,14 @@ The Finanzas overview (`/finances`) is the day-to-day spending dashboard:
 - **Category movers** — categories that rose or fell most vs the previous period.
 - Import button (bank statement PDF).
 
-Sub-pages under Finanzas: **Transacciones** (sortable/filterable full transaction list), **Tendencias** (spending over time, by account, Sankey cashflow), **Extractos** (statement history).
+Related pages: **Transactions** (`/transactions`, sortable/filterable full transaction list), **Analytics** (`/analytics`, spending over time, by account, Sankey cashflow), **Statements** (`/statements`, statement history).
 
-### 💰 Inversiones (Investments)
+### 💰 Investments
 
 #### Combined Overview (`/investments`)
 
 - Total portfolio value, total invested, total gain/loss (€ + %).
-- **Allocation donuts** — by provider (Indexa Capital / Fidelity ESPP) and by asset class (Renta Variable / Renta Fija / Efectivo / ESPP Stock).
+- **Allocation donuts** — by provider (Indexa Capital / Fidelity ESPP) and by asset class (equities, fixed income, cash, ESPP stock — Indexa reports these in Spanish, so its own labels are shown verbatim).
 - **Provider cards** — per-provider value, gain/loss, and link to the detail view.
 
 #### Indexa Capital connector (live-API)
@@ -85,18 +85,25 @@ Import the Fidelity "View open lots" CSV to track your MSFT ESPP holdings:
 - **Evolution chart** — daily-resolution value + contributions series with adaptive period selector.
 - **KPIs** — total shares, total invested (EUR), current value (EUR), total gain/loss (€ + %).
 - **Lots table** — sortable by date, shares, cost per share, current value, gain/loss; paginated.
-- **ESPP purchase reminder** — the same banner shown on Inicio also appears here when an upload is overdue.
+- **ESPP purchase reminder** — the same banner shown on the home page also appears here when an upload is overdue.
+
+### 🔔 Notifications
+
+- **In-app notification bell** — active reminders with unread badge, read/dismiss state stored server-side so it survives across devices.
+- **Detectors** run in a background loop inside the API process (every `NOTIFICATIONS_EVAL_INTERVAL_SECONDS`, 5 min by default) and currently cover two conditions: a missing monthly statement and an overdue ESPP upload. Adding a detector is a single entry in the registry.
+- **Telegram delivery** *(optional)* — connect a bot from Settings → Connectors. The bot token is encrypted at rest with the same Fernet key as the connector tokens, and it is never logged or returned to the frontend. Set `TELEGRAM_SEND_ENABLED=false` to silence all sends globally.
+- In-app notifications are stored as i18n keys plus arguments, never pre-rendered strings, so their text follows the UI language. Telegram messages are rendered server-side in Spanish (`notifications/messages.py`), the owner's locale.
 
 ### 🗂️ Management
 
 - **Categories & tags** with color swatches (name-derived colors or a custom picker).
 - **Accounts** management.
 - **Full backup** — export the entire dataset to JSON and re-import it.
-- **Connectors** (Settings → Sistema → Conectores) — connect/disconnect Indexa Capital; Fidelity status reflects CSV import state.
+- **Connectors** (Settings → Connectors) — connect/disconnect Indexa Capital and the Telegram bot; Fidelity status reflects CSV import state.
 - Bilingual UI: **Spanish / English**.
 - **Light / dark / system** theme.
-- Single-user authentication with session tokens.
-- **Acerca de** (About) page — shows the deployed Docker image tag (CalVer), build date, links to the repo / Issues / CHANGELOG, and MIT license.
+- Single-user authentication with session tokens, with failed logins throttled per client IP.
+- **About** page — shows the deployed Docker image tag (CalVer), build date, links to the repo / Issues / CHANGELOG, and MIT license.
 
 ---
 
@@ -157,15 +164,16 @@ Indexa Capital API token          Fidelity "open lots" CSV
 
 | Layer | Technology |
 |-------|------------|
-| Backend | Python 3.12 · FastAPI · SQLAlchemy 2 (async) · Alembic · Pydantic · uvicorn |
-| Database | PostgreSQL 16 |
+| Backend | Python 3.12+ · FastAPI · SQLAlchemy 2 (async) · Alembic · Pydantic · uvicorn |
+| Database | PostgreSQL 18 |
 | PDF parsing | pdfplumber |
 | AI extraction | OpenAI SDK — structured outputs via any OpenAI-compatible endpoint |
 | Token encryption | `cryptography` Fernet (AES-128-CBC + HMAC-SHA256) |
 | Market data | Yahoo Chart API (`query1`/`query2.finance.yahoo.com`) — MSFT price + EUR/USD FX |
 | Investment connectors | Plugin architecture: live-API (Indexa) + statement-import (Fidelity ESPP) |
-| Frontend | React 18 · TypeScript · Vite · Recharts |
-| Container | Multi-stage Docker (Node 20 builds the React SPA → Python 3.12-slim runtime serves both API and SPA) |
+| Frontend | React 19 · TypeScript · Vite · React Router · TanStack Query · Recharts |
+| Frontend tests | Vitest · Testing Library · MSW |
+| Container | Multi-stage Docker (`node:26-alpine` builds the React SPA → `python:3.14-slim` runtime serves both API and SPA) |
 | CI/CD | GitHub Actions — CalVer tags, Docker Hub push, auto-generated categorized changelog |
 
 ---
@@ -239,6 +247,24 @@ Navigate to **http://localhost:7777** and create the initial user account.
 
 > The port can be changed by setting `FINLYTICS_PORT` in `.env` (default: `7777`).
 
+### Optional: the public demo
+
+There is a second, backend-less build for showing the app off without exposing any
+real data. MSW intercepts every `/api/*` call in the browser and answers from a
+synthetic dataset generated at page load, so there is no API container, no
+database and nothing to reset — a reload restores everything.
+
+```bash
+docker compose -f docker-compose.demo.yml up -d      # drdonoso/finlytics-demo, nginx only
+```
+
+Log in with `demo` / `demo`. The same bundle (`npm run build:demo`) also deploys
+to a static CDN; `frontend/wrangler.jsonc` carries the Cloudflare settings.
+
+> ⚠️ The demo **only works over HTTPS** (or `localhost`). Its API layer is a
+> Service Worker, and browsers refuse to register those outside a secure
+> context. On plain HTTP nothing loads.
+
 ---
 
 ## ⚙️ Configuration Reference
@@ -250,20 +276,30 @@ All configuration lives in `.env` (copy from `.env.example`).
 | `POSTGRES_PASSWORD` | *(required)* | PostgreSQL password |
 | `POSTGRES_USER` | `finlytics` | PostgreSQL username |
 | `POSTGRES_DB` | `finlytics` | PostgreSQL database name |
+| `POSTGRES_HOST` | `db` | Only needed when running the API outside docker-compose |
+| `POSTGRES_PORT` | `5432` | Only needed when running the API outside docker-compose |
 | `OPENAI_API_KEY` | *(unset)* | API key for the OpenAI-compatible endpoint |
 | `OPENAI_BASE_URL` | *(unset)* | Base URL of the endpoint (e.g. `https://host/v1`) |
 | `OPENAI_MODEL` | *(unset)* | Model name to use for extraction |
-| `FINLYTICS_ENCRYPTION_KEY` | *(unset)* | Fernet key for encrypting connector API tokens at rest. Required to use the Indexa Capital connector. Generate: `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` |
+| `FINLYTICS_ENCRYPTION_KEY` | *(unset)* | Fernet key for encrypting connector API tokens and the Telegram bot token at rest. Required to use the Indexa Capital connector. Generate: `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` |
 | `FINLYTICS_PORT` | `7777` | Host port the app is exposed on |
-| `TIMEZONE` | `Europe/Madrid` | Timezone used for date display |
+| `FINLYTICS_DATA_DIR` | `./data` | Host directory mounted at `/app/data`; original statement PDFs land in `<dir>/uploads/`. On Linux it must be writable by uid 1000 |
+| `TIMEZONE` | `Europe/Madrid` | Calendar day the reminders reason about, and the process clock inside the container. The image runs in UTC, so without it a reminder is evaluated against the wrong day whenever UTC and local time disagree |
 | `AUTH_SECRET` | *(random)* | Secret for signing session tokens. If unset, a new key is generated on each startup — sessions won't survive container restarts. Generate: `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
-| `AUTH_COOKIE_SECURE` | `false` | Set to `true` when serving over HTTPS so the session cookie gets the `Secure` flag. |
+| `AUTH_COOKIE_SECURE` | `false` | Set to `true` when serving over HTTPS so the session cookie gets the `Secure` flag |
+| `AUTH_TOKEN_EXPIRE_DAYS` | `7` | Session lifetime |
+| `AUTH_REMEMBER_EXPIRE_DAYS` | `30` | Session lifetime when "remember me" is used |
+| `AUTH_LOGIN_MAX_ATTEMPTS` | `10` | Failed logins allowed per client IP inside the window. `0` disables the limit |
+| `AUTH_LOGIN_WINDOW_SECONDS` | `300` | Width of the failed-login window |
+| `NOTIFICATIONS_LOOP_ENABLED` | `true` | Background detector loop. Set `false` on all but one instance if you ever run several workers |
+| `NOTIFICATIONS_EVAL_INTERVAL_SECONDS` | `300` | Seconds between detector evaluation cycles |
+| `TELEGRAM_SEND_ENABLED` | `true` | Global kill switch for Telegram delivery |
 
 > **AI extraction** requires all three `OPENAI_*` variables to be set. Leaving them unset disables extraction; you can still import statements and edit transactions manually.
 >
 > **Investments / Indexa Capital** requires `FINLYTICS_ENCRYPTION_KEY`. Without it the app starts normally but connecting a provider returns HTTP 503.
 >
-> **Behind HTTPS**, set `AUTH_COOKIE_SECURE=true` and a fixed `AUTH_SECRET`. The session cookie is already `HttpOnly` + `SameSite=Lax`; without a fixed secret every restart logs everyone out.
+> **Behind HTTPS**, set `AUTH_COOKIE_SECURE=true` and a fixed `AUTH_SECRET`. The session cookie is already `HttpOnly` + `SameSite=Lax`; without a fixed secret every restart logs everyone out. Also run uvicorn with `--proxy-headers` so the login throttle sees the real client IP instead of the proxy's.
 
 ---
 
