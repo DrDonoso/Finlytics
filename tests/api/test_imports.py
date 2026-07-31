@@ -561,7 +561,7 @@ async def test_confirm_tag_colors_none_when_omitted(client):
     assert mock_upsert.call_args.kwargs.get("tag_colors") is None
 
 
-# ── Confirm: opening_balance para cuentas nuevas ──────────────────────────────
+# ── Confirm: opening_balance for new accounts ─────────────────────────────────
 
 async def test_confirm_new_account_via_iban_creates_opening_balance_tx(client, mock_session):
     """New account created by confirm (IBAN path) + opening_balance → helper called.

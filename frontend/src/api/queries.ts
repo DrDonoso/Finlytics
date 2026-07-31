@@ -1,15 +1,13 @@
 /**
- * Consultas de datos de la aplicación.
+ * Application data queries.
  *
- * Antes cada pantalla resolvía sus peticiones a mano con useEffect + useState.
- * De los 26 efectos que hacían fetch, 22 no se protegían contra respuestas que
- * llegan fuera de orden: al cambiar de mes rápido, la respuesta del primero
- * podía llegar después que la del segundo y dejar en pantalla datos que no se
- * corresponden con el filtro activo. Un fallo silencioso e intermitente,
- * prácticamente imposible de reproducir a mano.
+ * Previously each screen managed its own useEffect + useState fetches. 22 of 26
+ * effects had no out-of-order protection: switching months quickly could let an
+ * earlier response arrive after a later one and display stale data — a silent,
+ * intermittent bug almost impossible to catch manually.
  *
- * Centralizar aquí resuelve además la caché y la deduplicación: dos componentes
- * que piden lo mismo hacían dos peticiones.
+ * Centralising here also provides caching and deduplication: two components
+ * requesting the same data used to fire two requests.
  */
 import { useQuery } from '@tanstack/react-query'
 import type { UseQueryResult } from '@tanstack/react-query'
@@ -62,19 +60,19 @@ import type {
 } from './types'
 
 /**
- * Opciones comunes a las consultas que a veces no deben lanzarse todavía
- * (por ejemplo, mientras no se conoce el mes a comparar). `enabled` sin definir
- * equivale a activada, así que las llamadas existentes no cambian.
+ * Common options for queries that should not fire yet — for example, while the
+ * comparison month is still unknown. An undefined `enabled` means enabled, so
+ * existing call sites are unaffected.
  */
 interface QueryOptions {
   enabled?: boolean
 }
 
 /**
- * Claves de caché.
+ * Cache keys.
  *
- * Se agrupan aquí para que invalidar tras una mutación sea explícito y no haya
- * que ir buscando strings sueltos por el código.
+ * Grouped here so that post-mutation invalidation is explicit, rather than
+ * scattered string literals throughout the codebase.
  */
 export const queryKeys = {
   accounts: ['accounts'] as const,
@@ -100,8 +98,8 @@ export const queryKeys = {
   appVersion: ['app-version'] as const,
 }
 
-// ── Catálogos ────────────────────────────────────────────────────────────────
-// Cambian muy poco, así que aguantan más tiempo en caché que los resúmenes.
+// ── Catalogs ─────────────────────────────────────────────────────────────────
+// Rarely change, so they can stay cached longer than summaries.
 
 const CATALOG_STALE_MS = 5 * 60_000
 
@@ -145,8 +143,8 @@ export function useConnections(): UseQueryResult<InvestmentConnection[]> {
   })
 }
 
-// ── Resúmenes ────────────────────────────────────────────────────────────────
-// Dependen de los filtros activos: es donde importaba el orden de llegada.
+// ── Summaries ────────────────────────────────────────────────────────────────
+// Filter-dependent; this is where arrival order used to matter.
 
 export function useOverview(params?: SummaryParams, options?: QueryOptions): UseQueryResult<Overview> {
   return useQuery({
@@ -207,7 +205,7 @@ export function useOverviewMonths(): UseQueryResult<SummaryMonths> {
   })
 }
 
-// ── Inversiones y extractos ──────────────────────────────────────────────────
+// ── Investments and statements ───────────────────────────────────────────────
 
 export function useCombinedOverview(): UseQueryResult<CombinedOverview> {
   return useQuery({

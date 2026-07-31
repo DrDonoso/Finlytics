@@ -20,7 +20,7 @@ export default function ImportSourcePicker({ onClose, onStatements }: ImportSour
   const { t } = useT()
   const navigate = useNavigate()
   const pluginsQuery = useInvestmentPlugins()
-  // Sólo las fuentes con ruta de importación; el resto no se puede importar aquí.
+  // Only sources with an import path; the rest cannot be imported here.
   const plugins = useMemo(
     () => (pluginsQuery.data ?? []).filter(p => p.import_route !== null),
     [pluginsQuery.data],
@@ -73,8 +73,8 @@ export default function ImportSourcePicker({ onClose, onStatements }: ImportSour
 
           {/* Dynamic: investment plugins that expose an import_route */}
           {plugins.map(p => {
-            // El backend manda un emoji en `icon`; se prefiere el logotipo real
-            // del proveedor y, si no lo hay, su inicial — nunca el emoji.
+            // The backend sends an emoji in `icon`; prefer the provider's real logo
+            // and fall back to its initial — never the emoji.
             const logo = getPluginLogo(p.id)
             return (
               <button

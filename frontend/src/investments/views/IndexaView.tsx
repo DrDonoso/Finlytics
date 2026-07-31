@@ -93,7 +93,7 @@ export default function IndexaView() {
   const queryError = portfolioQuery.error ?? connQuery.error
   const error = queryError ? errorMessage(queryError, t) : null
 
-  const [evPeriod, setEvPeriod] = useState<EvolutionPeriod>('Todo')
+  const [evPeriod, setEvPeriod] = useState<EvolutionPeriod>('All')
   const [evMode,   setEvMode]   = useState<EvolutionMode>('eur')
   const [matrixMode, setMatrixMode] = useState<MatrixMode>('pct')
 
@@ -127,7 +127,7 @@ export default function IndexaView() {
     })()
 
     const filtered = portfolio.value_series.filter(pt => {
-      if (evPeriod !== 'Todo' && evPeriod.length === 4) return pt.date.startsWith(evPeriod)
+      if (evPeriod !== 'All' && evPeriod.length === 4) return pt.date.startsWith(evPeriod)
       if (cutoff) return new Date(pt.date) >= cutoff
       return true
     })
@@ -638,7 +638,7 @@ export default function IndexaView() {
 
           </div>
 
-          {/* 4. Block 2 — "Evolución de la cuenta" chart */}
+          {/* 4. Block 2 — account evolution chart ("Evolución de la cuenta" in Indexa's own UI) */}
           <div className="card inv-evolution-card">
 
             <div className="inv-evolution-header">
@@ -662,9 +662,9 @@ export default function IndexaView() {
                     >{y}</button>
                   ))}
                   <button
-                    className={`inv-period-btn${evPeriod === 'Todo' ? ' inv-period-btn--active' : ''}`}
-                    onClick={() => setEvPeriod('Todo')}
-                  >{t.invPeriodTodo}</button>
+                    className={`inv-period-btn${evPeriod === 'All' ? ' inv-period-btn--active' : ''}`}
+                    onClick={() => setEvPeriod('All')}
+                  >{t.invPeriodAll}</button>
                 </div>
 
                 {/* €/% toggle */}

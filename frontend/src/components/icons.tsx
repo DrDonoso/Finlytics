@@ -1,29 +1,29 @@
 /**
- * Set de iconos propio de Finlytics.
+ * Finlytics custom icon set.
  *
- * Por qué no una librería: el registro npm de este proyecto vive detrás de un
- * proxy corporativo y `npm install` no es viable, así que los iconos se dibujan
- * aquí.  Sale a cuenta igualmente — sólo entra en el bundle lo que se usa y no
- * hay una dependencia más que mantener.
+ * Why not a library: this project's npm registry sits behind a corporate proxy
+ * and `npm install` is not viable, so icons are drawn here instead. It pays off
+ * regardless — only what is used enters the bundle, and there is one fewer
+ * dependency to maintain.
  *
- * Convenciones (mantenerlas al añadir iconos nuevos):
- *   · lienzo 24×24, trazo de 2, extremos y uniones redondeados
- *   · sin `fill` (lo hereda `.icon` del CSS) salvo detalles macizos puntuales
- *   · `currentColor`, así que el icono toma el color y se adapta al tema
+ * Conventions (keep these when adding new icons):
+ *   · 24×24 canvas, stroke-width 2, round linecaps and joins
+ *   · no `fill` (inherited from `.icon` in CSS) except for isolated solid details
+ *   · `currentColor`, so icons inherit text colour and adapt to the theme
  *
- * Sustituyen a los emojis, que se renderizaban distinto en cada sistema
- * operativo y no heredaban ni color ni tamaño.
+ * These replaced emojis, which rendered differently on every OS and did not
+ * inherit colour or size.
  */
 import type { SVGProps, ReactNode, ReactElement } from 'react'
 
 export interface IconProps extends Omit<SVGProps<SVGSVGElement>, 'children'> {
-  /** Lado en px. Por defecto 16, que es el tamaño de la mayoría de la UI. */
+  /** Side in px. Defaults to 16, the size used by most of the UI. */
   size?: number
-  /** Título accesible. Si se omite, el icono se marca como decorativo. */
+  /** Accessible title. Omit to mark the icon as decorative. */
   title?: string
 }
 
-/** Envuelve un trazado en un <svg> con los atributos comunes. */
+/** Wraps a path in an <svg> with the shared attributes. */
 function make(displayName: string, path: ReactNode) {
   function Icon({ size = 16, title, className, ...rest }: IconProps) {
     return (
@@ -47,7 +47,7 @@ function make(displayName: string, path: ReactNode) {
   return Icon
 }
 
-/* ── Navegación ─────────────────────────────────────────────────────────── */
+/* ── Navigation ─────────────────────────────────────────────────────────── */
 
 export const IconHome = make('IconHome', <>
   <path d="M3 10.2 12 3l9 7.2" />
@@ -105,7 +105,7 @@ export const IconSettings = make('IconSettings', <>
 
 export const IconMenu = make('IconMenu', <path d="M4 6.6h16M4 12h16M4 17.4h16" />)
 
-/* ── Dominio financiero ─────────────────────────────────────────────────── */
+/* ── Financial domain ───────────────────────────────────────────────────── */
 
 export const IconBank = make('IconBank', <>
   <path d="M3.4 9.6 12 4.4l8.6 5.2" />
@@ -156,7 +156,7 @@ export const IconBuilding = make('IconBuilding', <>
   <path d="M10 21v-4.2h4V21" />
 </>)
 
-/* ── Acciones ───────────────────────────────────────────────────────────── */
+/* ── Actions ────────────────────────────────────────────────────────────── */
 
 export const IconPlus = make('IconPlus', <path d="M12 5.2v13.6M5.2 12h13.6" />)
 export const IconClose = make('IconClose', <path d="M6.2 6.2 17.8 17.8M17.8 6.2 6.2 17.8" />)
@@ -209,7 +209,7 @@ export const IconLogout = make('IconLogout', <>
   <path d="M19.8 12H9.2" />
 </>)
 
-/* ── Estado y feedback ──────────────────────────────────────────────────── */
+/* ── Status and feedback ────────────────────────────────────────────────── */
 
 export const IconAlert = make('IconAlert', <>
   <path d="M10.5 3.9 2.4 18a1.7 1.7 0 0 0 1.5 2.6h16.2a1.7 1.7 0 0 0 1.5-2.6L13.5 3.9a1.7 1.7 0 0 0-3 0Z" />
@@ -267,7 +267,7 @@ export const IconLightbulb = make('IconLightbulb', <>
   <path d="M9.6 18.2h4.8v1.6a1.4 1.4 0 0 1-1.4 1.4h-2a1.4 1.4 0 0 1-1.4-1.4Z" />
 </>)
 
-/* ── Organización ───────────────────────────────────────────────────────── */
+/* ── Organization ───────────────────────────────────────────────────────── */
 
 export const IconTag = make('IconTag', <>
   <path d="M11.6 3.4H20a.6.6 0 0 1 .6.6v8.4a1.6 1.6 0 0 1-.47 1.13l-6.9 6.9a1.6 1.6 0 0 1-2.26 0l-7.53-7.53a1.6 1.6 0 0 1 0-2.26l6.9-6.9A1.6 1.6 0 0 1 11.6 3.4Z" />
@@ -292,7 +292,7 @@ export const IconCalendar = make('IconCalendar', <>
 
 export const IconFilter = make('IconFilter', <path d="M3.4 4.6h17.2l-6.7 7.9v6.5l-3.8 2.4v-8.9Z" />)
 
-/* ── Direccionales ──────────────────────────────────────────────────────── */
+/* ── Directional ────────────────────────────────────────────────────────── */
 
 export const IconChevronDown  = make('IconChevronDown',  <path d="M6.2 9.2 12 15l5.8-5.8" />)
 export const IconChevronRight = make('IconChevronRight', <path d="M9.2 6.2 15 12l-5.8 5.8" />)
@@ -307,7 +307,7 @@ export const IconArrowRight = make('IconArrowRight', <><path d="M4.4 12h15.2" />
 export const IconArrowUpRight   = make('IconArrowUpRight',   <><path d="M6.6 17.4 17.4 6.6" /><path d="M8.6 6.6h8.8v8.8" /></>)
 export const IconArrowDownRight = make('IconArrowDownRight', <><path d="M6.6 6.6 17.4 17.4" /><path d="M17.4 8.6v8.8H8.6" /></>)
 
-/* ── Apariencia ─────────────────────────────────────────────────────────── */
+/* ── Appearance ─────────────────────────────────────────────────────────── */
 
 export const IconSun = make('IconSun', <>
   <circle cx="12" cy="12" r="4.2" />
@@ -334,7 +334,7 @@ export const IconGlobe = make('IconGlobe', <>
   <path d="M12 2.9a13.6 13.6 0 0 1 0 18.2 13.6 13.6 0 0 1 0-18.2Z" />
 </>)
 
-/** Índice por nombre, útil cuando el icono se elige en tiempo de ejecución. */
+/** Index by name, useful when the icon is chosen at runtime. */
 export const ICONS = {
   home: IconHome, dashboard: IconDashboard, wallet: IconWallet, receipt: IconReceipt,
   chartLine: IconChartLine, chartBar: IconChartBar, chartPie: IconChartPie,
@@ -358,17 +358,17 @@ export const ICONS = {
 
 export type IconName = keyof typeof ICONS
 
-/** Spinner de carga: el icono ya trae la animación aplicada. */
+/** Loading spinner: the animation is baked into the icon itself. */
 export function IconLoading({ size = 16, ...rest }: IconProps) {
   return <IconSpinner size={size} className="icon-spin" {...rest} />
 }
 
 /**
- * Flecha de tendencia para los badges de variación.
+ * Trend arrow for change badges.
  *
- * Sube / baja / sin cambio.  Existe para que los tres sitios que muestran un
- * delta (KPI del Inicio, movimientos por categoría y extractos) no repitan la
- * misma cadena de ternarios con «↑ ↓ →».
+ * Up / down / flat. Centralises the ternary so the three places that display a
+ * delta (Dashboard KPIs, category movers, and statements) do not each repeat
+ * the same "↑ ↓ →" chain.
  */
 export function TrendArrow({ value, size = 12, ...rest }: IconProps & { value: number }) {
   if (value > 0) return <IconArrowUp size={size} {...rest} />

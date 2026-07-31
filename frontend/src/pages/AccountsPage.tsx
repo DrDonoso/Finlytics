@@ -14,7 +14,7 @@ export default function AccountsPage() {
   const EMPTY: never[] = useMemo(() => [], [])
   const accounts = accountsQuery.data ?? EMPTY
   const loading = accountsQuery.isPending
-  // Sólo errores de las mutaciones; el de la carga lo aporta la consulta.
+  // Mutation errors only; load errors come from the query.
   const [error, setError] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const shownError = error ?? (accountsQuery.error ? errorMessage(accountsQuery.error, t) : null)
@@ -258,7 +258,6 @@ function AccountCreateModal({ onSuccess, onCancel }: CreateModalProps) {
           )}
 
           <div className="acct-create-form">
-            {/* Nombre */}
             <div className="form-group">
               <label htmlFor="acct-create-name">
                 {t.accountsCreateLabelName} <span className="rules-required">*</span>
@@ -277,7 +276,6 @@ function AccountCreateModal({ onSuccess, onCancel }: CreateModalProps) {
               )}
             </div>
 
-            {/* Tipo */}
             <div className="form-group">
               <label htmlFor="acct-create-type">{t.accountsCreateLabelType}</label>
               <select
@@ -293,7 +291,6 @@ function AccountCreateModal({ onSuccess, onCancel }: CreateModalProps) {
               </select>
             </div>
 
-            {/* Moneda */}
             <div className="form-group">
               <label htmlFor="acct-create-currency">{t.accountsCreateLabelCurrency}</label>
               <input
@@ -307,7 +304,6 @@ function AccountCreateModal({ onSuccess, onCancel }: CreateModalProps) {
               />
             </div>
 
-            {/* Nº cuenta / IBAN */}
             <div className="form-group">
               <label htmlFor="acct-create-iban">{t.accountsCreateLabelIban}</label>
               <input
@@ -320,7 +316,6 @@ function AccountCreateModal({ onSuccess, onCancel }: CreateModalProps) {
               />
             </div>
 
-            {/* Saldo inicial — collapsible */}
             <div>
               <button
                 type="button"
@@ -337,7 +332,6 @@ function AccountCreateModal({ onSuccess, onCancel }: CreateModalProps) {
                 <div className="acct-opening-section">
                   <p className="form-hint">{t.accountsCreateOpeningHint}</p>
 
-                  {/* Importe */}
                   <div className="form-group">
                     <label htmlFor="acct-create-amount">{t.accountsCreateLabelAmount}</label>
                     <input
@@ -351,7 +345,6 @@ function AccountCreateModal({ onSuccess, onCancel }: CreateModalProps) {
                     />
                   </div>
 
-                  {/* Fecha del saldo */}
                   <div className="form-group">
                     <label htmlFor="acct-create-date">
                       {t.accountsCreateLabelDate}

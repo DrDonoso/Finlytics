@@ -1,25 +1,25 @@
-"""Tests comprensivos para la derivación de contribution_events de Indexa.
+"""Comprehensive tests for Indexa contribution_events derivation.
 
-Contrato:
+Contract:
   _derive_contribution_events(raw_net_amounts) → list[NormalizedContributionEvent]
-  Cada evento: {date: YYYY-MM-DD, amount: float (firmado), cumulative: float, type: str}
+  Each event: {date: YYYY-MM-DD, amount: float (signed), cumulative: float, type: str}
   type ∈ {"contribution", "withdrawal"}
 
-Cobertura (según la especificación del task):
-  TC-1  Deltas correctos: serie {0, 2000, 4000, 17999.99} → 3 eventos con amounts/cumulatives exactos
-  TC-2a Primer entry = 0.0 omitido (marcador de apertura de cuenta)
-  TC-2b Primer entry NON-ZERO emitido como aportación inicial
-  TC-3  RETIRADA: delta negativo → amount negativo + type="withdrawal"  ← TEST TITULAR
-  TC-4  Delta cero omitido: fecha sin cambio en net_amounts → sin evento
-  TC-5  net_amounts vacío → lista vacía, sin crash
-  TC-6  Agregación multi-cuenta: deltas de la misma fecha sumados
-  TC-7a Eventos ordenados por fecha (ASC)
-  TC-7b Amounts redondeados a céntimos (2 decimales)
-  TC-8  Retirada parcial en el interior de una serie
-  TC-9  Validación de schema: ContributionEventOut expone todos los campos del contrato
-  TC-10 Round-trip de caché: serialización/deserialización preserva contribution_events
-  TC-11 Integración end-to-end: _fetch_performance + contribution_events en NormalizedPerformance
-  TC-12 Multi-cuenta (proveedor): get_portfolio con dos cuentas suma deltas de la misma fecha
+Coverage (per task specification):
+  TC-1  Correct deltas: series {0, 2000, 4000, 17999.99} → 3 events with exact amounts/cumulatives
+  TC-2a First entry = 0.0 skipped (account-open marker)
+  TC-2b First entry NON-ZERO emitted as initial contribution
+  TC-3  WITHDRAWAL: negative delta → negative amount + type="withdrawal"  ← HEADLINE TEST
+  TC-4  Zero delta skipped: date with unchanged net_amounts → no event
+  TC-5  Empty net_amounts → empty list, no crash
+  TC-6  Multi-account aggregation: same-date deltas summed
+  TC-7a Events sorted by date (ASC)
+  TC-7b Amounts rounded to cents (2 decimal places)
+  TC-8  Partial withdrawal in the middle of a series
+  TC-9  Schema validation: ContributionEventOut exposes all contract fields
+  TC-10 Cache round-trip: serialize/deserialize preserves contribution_events
+  TC-11 End-to-end integration: _fetch_performance + contribution_events in NormalizedPerformance
+  TC-12 Multi-account (provider): get_portfolio with two accounts sums same-date deltas
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
 def _make_perf_data(net_amounts: dict, **extra) -> dict:
-    """Construye un mock de respuesta de /performance con los net_amounts dados."""
+    """Build a mock /performance response with the given net_amounts."""
     base = {
         "total_amount": 20000.0,
         "return": {},
@@ -49,14 +49,14 @@ def _make_perf_data(net_amounts: dict, **extra) -> dict:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# TC-1  DELTAS CORRECTOS
+# TC-1  CORRECT DELTAS
 # ─────────────────────────────────────────────────────────────────────────────
 
 def test_tc1_derive_amounts_and_cumulatives():
     """TC-1: net_amounts {20240804:0, 20240904:2000, 20241004:4000, 20241231:17999.99}
-    → 3 eventos con amounts [2000, 2000, 13999.99] y cumulatives [2000, 4000, 17999.99].
+    → 3 events with amounts [2000, 2000, 13999.99] and cumulatives [2000, 4000, 17999.99].
 
-    El primer entry (0.0) es el marcador de apertura de cuenta y se omite.
+    The first entry (0.0) is the account-open marker and is skipped.
     """
     from finlytics.investments.indexa import _derive_contribution_events
 
@@ -68,7 +68,7 @@ def test_tc1_derive_amounts_and_cumulatives():
     }
     events = _derive_contribution_events(raw)
 
-    assert len(events) == 3, f"Esperados 3 eventos, obtenidos {len(events)}"
+    assert len(events) == 3, f"Expected 3 events, got {len(events)}"
 
     # Evento 1
     assert events[0].date == "2024-09-04"
@@ -90,7 +90,7 @@ def test_tc1_derive_amounts_and_cumulatives():
 
 
 def test_tc1_integer_net_amount_keys():
-    """TC-1 variante: las claves pueden ser enteros (como devuelve Indexa en bruto)."""
+    """TC-1 variant: keys may be integers (as Indexa returns in raw form)."""
     from finlytics.investments.indexa import _derive_contribution_events
 
     raw = {
@@ -105,20 +105,20 @@ def test_tc1_integer_net_amount_keys():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# TC-2  PRIMER ENTRY
+# TC-2  FIRST ENTRY
 # ─────────────────────────────────────────────────────────────────────────────
 
 def test_tc2a_first_entry_zero_skipped():
-    """TC-2a: El primer entry = 0.0 se omite; no genera ningún evento."""
+    """TC-2a: First entry = 0.0 is skipped; generates no events."""
     from finlytics.investments.indexa import _derive_contribution_events
 
     raw = {"20240804": 0.0}
     events = _derive_contribution_events(raw)
-    assert events == [], "El marcador de apertura (0.0) no debe generar evento alguno"
+    assert events == [], "The account-open marker (0.0) must not generate any event"
 
 
 def test_tc2a_first_entry_zero_then_contributions():
-    """TC-2a: La omisión de 0.0 inicial no afecta a los eventos posteriores."""
+    """TC-2a: Skipping the initial 0.0 does not affect subsequent events."""
     from finlytics.investments.indexa import _derive_contribution_events
 
     raw = {"20240804": 0.0, "20240904": 5000.0}
@@ -131,21 +131,21 @@ def test_tc2a_first_entry_zero_then_contributions():
 
 
 def test_tc2b_first_entry_nonzero_emitted():
-    """TC-2b: El primer entry NON-ZERO se emite como aportación inicial
-    con amount = el propio valor acumulado (no hay prev_cumulative)."""
+    """TC-2b: The first NON-ZERO entry is emitted as the initial contribution,
+    with amount = the accumulated value itself (no prev_cumulative)."""
     from finlytics.investments.indexa import _derive_contribution_events
 
     raw = {"20240904": 3000.0, "20241004": 5000.0}
     events = _derive_contribution_events(raw)
     assert len(events) == 2
 
-    # Primera aportación = el valor inicial completo
+    # First contribution = the full initial value
     assert events[0].date == "2024-09-04"
     assert events[0].amount == pytest.approx(3000.0)
     assert events[0].cumulative == pytest.approx(3000.0)
     assert events[0].type == "contribution"
 
-    # Segunda aportación = delta desde el primer valor
+    # Second contribution = delta from the first value
     assert events[1].date == "2024-10-04"
     assert events[1].amount == pytest.approx(2000.0)
     assert events[1].cumulative == pytest.approx(5000.0)
@@ -153,14 +153,14 @@ def test_tc2b_first_entry_nonzero_emitted():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# TC-3  RETIRADA (WITHDRAWAL) — TEST TITULAR
+# TC-3  WITHDRAWAL — HEADLINE TEST
 # ─────────────────────────────────────────────────────────────────────────────
 
 def test_tc3_withdrawal_headline_delta_negative():
-    """TC-3 TITULAR: net_amounts que DECRECE produce un evento NEGATIVO con type="withdrawal".
+    """TC-3 HEADLINE: decreasing net_amounts produces a NEGATIVE event with type="withdrawal".
 
-    Serie: 0 → 2000 → 4000 → 3500
-    Evento en 20241104: delta = 3500 − 4000 = −500 → withdrawal.
+    Series: 0 → 2000 → 4000 → 3500
+    Event on 20241104: delta = 3500 − 4000 = −500 → withdrawal.
     """
     from finlytics.investments.indexa import _derive_contribution_events
 
@@ -177,18 +177,18 @@ def test_tc3_withdrawal_headline_delta_negative():
     withdrawal = events[2]
     assert withdrawal.date == "2024-11-04"
     assert withdrawal.amount == pytest.approx(-500.0), (
-        f"Retirada esperada −500.0, obtenida {withdrawal.amount}"
+        f"Expected withdrawal −500.0, got {withdrawal.amount}"
     )
     assert withdrawal.cumulative == pytest.approx(3500.0), (
-        f"Acumulado esperado 3500.0 tras la retirada, obtenido {withdrawal.cumulative}"
+        f"Expected cumulative 3500.0 after withdrawal, got {withdrawal.cumulative}"
     )
     assert withdrawal.type == "withdrawal", (
-        f"El tipo debe ser 'withdrawal' para un delta negativo, obtenido {withdrawal.type!r}"
+        f"Type must be 'withdrawal' for a negative delta, got {withdrawal.type!r}"
     )
 
 
 def test_tc3_withdrawal_only_event():
-    """TC-3 variante: retirada en un portfolio que solo ha tenido aportaciones → type OK."""
+    """TC-3 variant: withdrawal from a portfolio that has only had contributions → type OK."""
     from finlytics.investments.indexa import _derive_contribution_events
 
     raw = {
@@ -205,7 +205,7 @@ def test_tc3_withdrawal_only_event():
 
 
 def test_tc3_multiple_withdrawals():
-    """TC-3 variante: múltiples retiradas consecutivas, cada una con type='withdrawal'."""
+    """TC-3 variant: multiple consecutive withdrawals, each with type='withdrawal'."""
     from finlytics.investments.indexa import _derive_contribution_events
 
     raw = {
@@ -226,7 +226,7 @@ def test_tc3_multiple_withdrawals():
 
 
 def test_tc3_withdrawal_followed_by_contribution():
-    """TC-3 variante: retirada seguida de re-aportación — tipos alternan correctamente."""
+    """TC-3 variant: withdrawal followed by re-contribution — types alternate correctly."""
     from finlytics.investments.indexa import _derive_contribution_events
 
     raw = {
@@ -246,26 +246,26 @@ def test_tc3_withdrawal_followed_by_contribution():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# TC-4  DELTA CERO OMITIDO
+# TC-4  ZERO DELTA SKIPPED
 # ─────────────────────────────────────────────────────────────────────────────
 
 def test_tc4_zero_delta_no_event():
-    """TC-4: Una fecha donde net_amounts no varía no produce evento alguno."""
+    """TC-4: A date with no change in net_amounts produces no event."""
     from finlytics.investments.indexa import _derive_contribution_events
 
     raw = {
         "20240804": 0.0,
         "20240904": 2000.0,
-        "20241004": 2000.0,   # delta = 0 → omitido
+        "20241004": 2000.0,   # delta = 0 → skipped
         "20241104": 5000.0,   # delta = 3000
     }
     events = _derive_contribution_events(raw)
 
     assert len(events) == 2, (
-        f"El delta cero debe omitirse. Esperados 2 eventos, obtenidos {len(events)}"
+        f"Zero delta must be skipped. Expected 2 events, got {len(events)}"
     )
     dates = [ev.date for ev in events]
-    assert "2024-10-04" not in dates, "La fecha con delta=0 no debe aparecer en ningún evento"
+    assert "2024-10-04" not in dates, "The date with delta=0 must not appear in any event"
     assert events[0].date == "2024-09-04"
     assert events[1].date == "2024-11-04"
     assert events[1].amount == pytest.approx(3000.0)
@@ -273,38 +273,38 @@ def test_tc4_zero_delta_no_event():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# TC-5  NET_AMOUNTS VACÍO
+# TC-5  EMPTY NET_AMOUNTS
 # ─────────────────────────────────────────────────────────────────────────────
 
 def test_tc5_empty_net_amounts_returns_empty():
-    """TC-5: net_amounts vacío → lista vacía, sin crash ni excepción."""
+    """TC-5: Empty net_amounts → empty list, no crash or exception."""
     from finlytics.investments.indexa import _derive_contribution_events
 
     events = _derive_contribution_events({})
-    assert events == [], "net_amounts vacío debe producir lista vacía"
+    assert events == [], "Empty net_amounts must produce an empty list"
 
 
 def test_tc5_none_equivalent_empty():
-    """TC-5 variante: claves con formato inválido (longitud != 8) son ignoradas, no crashean."""
+    """TC-5 variant: keys with invalid format (length != 8) are ignored, no crash."""
     from finlytics.investments.indexa import _derive_contribution_events
 
-    # Claves con longitud != 8 deben filtrarse
+    # Keys with length != 8 must be filtered out
     raw = {"20240": 1000.0, "202408040000": 2000.0}
     events = _derive_contribution_events(raw)
-    assert events == [], "Claves con longitud != 8 deben ignorarse"
+    assert events == [], "Keys with length != 8 must be ignored"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# TC-6  AGREGACIÓN MULTI-CUENTA
+# TC-6  MULTI-ACCOUNT AGGREGATION
 # ─────────────────────────────────────────────────────────────────────────────
 
 def test_tc6_multi_account_same_date_deltas_summed_via_aggregate():
-    """TC-6 via _aggregate (service): dos cuentas con eventos en la misma fecha
-    → amounts sumados, cumulative recalculado.
+    """TC-6 via _aggregate (service): two accounts with events on the same date
+    → amounts summed, cumulative recalculated.
 
-    Cuenta A: 2024-09-04 +2000, 2024-10-04 +2000
-    Cuenta B: 2024-09-04 +3000, 2024-10-04 +1000
-    Resultado: 2024-09-04 +5000 (cumul=5000), 2024-10-04 +3000 (cumul=8000)
+    Account A: 2024-09-04 +2000, 2024-10-04 +2000
+    Account B: 2024-09-04 +3000, 2024-10-04 +1000
+    Result: 2024-09-04 +5000 (cumul=5000), 2024-10-04 +3000 (cumul=8000)
     """
     from unittest.mock import MagicMock
 
@@ -350,31 +350,31 @@ def test_tc6_multi_account_same_date_deltas_summed_via_aggregate():
     result = _aggregate([(conn_a, portfolio_a), (conn_b, portfolio_b)], total_connections=2)
 
     events = result.contribution_events
-    assert len(events) == 2, f"Esperados 2 eventos agregados, obtenidos {len(events)}"
+    assert len(events) == 2, f"Expected 2 aggregated events, got {len(events)}"
 
     ev_by_date = {ev.date: ev for ev in events}
 
     # 2024-09-04: 2000 + 3000 = 5000
     sep = ev_by_date.get("2024-09-04")
-    assert sep is not None, "Debe haber evento en 2024-09-04"
-    assert sep.amount == pytest.approx(5000.0), f"Amount 2024-09-04 esperado 5000, obtenido {sep.amount}"
-    assert sep.cumulative == pytest.approx(5000.0), f"Cumulative 2024-09-04 esperado 5000, obtenido {sep.cumulative}"
+    assert sep is not None, "Must have an event on 2024-09-04"
+    assert sep.amount == pytest.approx(5000.0), f"Amount 2024-09-04 expected 5000, got {sep.amount}"
+    assert sep.cumulative == pytest.approx(5000.0), f"Cumulative 2024-09-04 expected 5000, got {sep.cumulative}"
     assert sep.type == "contribution"
 
     # 2024-10-04: 2000 + 1000 = 3000; cumulative = 5000 + 3000 = 8000
     oct_ = ev_by_date.get("2024-10-04")
-    assert oct_ is not None, "Debe haber evento en 2024-10-04"
-    assert oct_.amount == pytest.approx(3000.0), f"Amount 2024-10-04 esperado 3000, obtenido {oct_.amount}"
-    assert oct_.cumulative == pytest.approx(8000.0), f"Cumulative 2024-10-04 esperado 8000, obtenido {oct_.cumulative}"
+    assert oct_ is not None, "Must have an event on 2024-10-04"
+    assert oct_.amount == pytest.approx(3000.0), f"Amount 2024-10-04 expected 3000, got {oct_.amount}"
+    assert oct_.cumulative == pytest.approx(8000.0), f"Cumulative 2024-10-04 expected 8000, got {oct_.cumulative}"
     assert oct_.type == "contribution"
 
 
 def test_tc6_multi_account_withdrawal_cancels_contribution():
-    """TC-6: Un withdrawal de cuenta B puede cancelar parcialmente una aportación de cuenta A.
+    """TC-6: A withdrawal from account B can partially cancel a contribution from account A.
 
-    Cuenta A: 2024-09-04 +2000
-    Cuenta B: 2024-09-04 −500  (retirada)
-    Resultado: 2024-09-04 +1500 (contribution)
+    Account A: 2024-09-04 +2000
+    Account B: 2024-09-04 −500  (withdrawal)
+    Result: 2024-09-04 +1500 (contribution)
     """
     from unittest.mock import MagicMock
 
@@ -421,7 +421,7 @@ def test_tc6_multi_account_withdrawal_cancels_contribution():
 
 
 def test_tc6_multi_account_opposite_amounts_produce_zero_skip():
-    """TC-6 edge: Si la suma de deltas en una fecha es exactamente 0, se omite el evento."""
+    """TC-6 edge: If the sum of deltas on a date is exactly 0, the event is skipped."""
     from unittest.mock import MagicMock
 
     from finlytics.investments.base import (
@@ -459,21 +459,21 @@ def test_tc6_multi_account_opposite_amounts_produce_zero_skip():
 
     result = _aggregate([(conn_a, portfolio_a), (conn_b, portfolio_b)], total_connections=2)
 
-    # Suma de deltas = 0 → evento omitido
+    # Sum of deltas = 0 → event skipped
     events = result.contribution_events
     assert events == [], (
-        f"Deltas opuestos que se anulan (suma=0) deben omitirse. "
-        f"Obtenido: {events}"
+        f"Opposite deltas that cancel out (sum=0) must be skipped. "
+        f"Got: {events}"
     )
 
 
 async def test_tc6_multi_account_via_provider_get_portfolio():
-    """TC-6 via IndexaProvider.get_portfolio: dos cuentas con misma fecha
-    → contribution_events contiene el delta sumado con cumulative correcto.
+    """TC-6 via IndexaProvider.get_portfolio: two accounts with the same date
+    → contribution_events contains the summed delta with correct cumulative.
 
-    Cuenta 1: net_amounts {20240904: 2000}
-    Cuenta 2: net_amounts {20240904: 3000}
-    Esperado: 1 evento en 2024-09-04 con amount=5000, cumulative=5000
+    Account 1: net_amounts {20240904: 2000}
+    Account 2: net_amounts {20240904: 3000}
+    Expected: 1 event on 2024-09-04 with amount=5000, cumulative=5000
     """
     from finlytics.investments.indexa import IndexaProvider
 
@@ -488,7 +488,7 @@ async def test_tc6_multi_account_via_provider_get_portfolio():
         total_amount=10000.0,
     )
 
-    # _get se invoca en este orden:
+    # _get is called in this order:
     # get_portfolio("ACC1"): fiscal_results(ACC1), performance(ACC1)
     # get_portfolio("ACC2"): fiscal_results(ACC2), performance(ACC2)
     side_effects = [fiscal_empty, perf_a, fiscal_empty, perf_b]
@@ -505,25 +505,25 @@ async def test_tc6_multi_account_via_provider_get_portfolio():
         portfolio = await provider.get_portfolio("tok", ["ACC1", "ACC2"])
 
     perf = portfolio.performance
-    assert perf is not None, "performance debe estar presente"
+    assert perf is not None, "performance must be present"
     events = perf.contribution_events
-    assert len(events) == 1, f"Esperado 1 evento sumado, obtenidos {len(events)}"
+    assert len(events) == 1, f"Expected 1 summed event, got {len(events)}"
     ev = events[0]
     assert ev.date == "2024-09-04"
-    assert ev.amount == pytest.approx(5000.0), f"Amount sumado esperado 5000, obtenido {ev.amount}"
+    assert ev.amount == pytest.approx(5000.0), f"Summed amount expected 5000, got {ev.amount}"
     assert ev.cumulative == pytest.approx(5000.0)
     assert ev.type == "contribution"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# TC-7  ORDENACIÓN Y REDONDEO
+# TC-7  ORDERING AND ROUNDING
 # ─────────────────────────────────────────────────────────────────────────────
 
 def test_tc7a_events_sorted_by_date_ascending():
-    """TC-7a: Los eventos siempre se devuelven ordenados por fecha ascendente."""
+    """TC-7a: Events are always returned sorted by date ascending."""
     from finlytics.investments.indexa import _derive_contribution_events
 
-    # Pasamos el dict en un orden diferente; la función debe ordenar
+    # Dict passed in a different order; the function must sort them
     raw = {
         "20241231": 17999.99,
         "20241004": 4000.0,
@@ -534,11 +534,11 @@ def test_tc7a_events_sorted_by_date_ascending():
 
     assert len(events) == 3
     dates = [ev.date for ev in events]
-    assert dates == sorted(dates), f"Eventos no están en orden ascendente: {dates}"
+    assert dates == sorted(dates), f"Events are not in ascending order: {dates}"
 
 
 def test_tc7b_amounts_rounded_to_cents():
-    """TC-7b: Los amounts se redondean a 2 decimales (céntimos)."""
+    """TC-7b: Amounts are rounded to 2 decimal places (cents)."""
     from finlytics.investments.indexa import _derive_contribution_events
 
     # 0 → 1999.995 → delta redondeado a 2000.00
@@ -551,24 +551,23 @@ def test_tc7b_amounts_rounded_to_cents():
     events = _derive_contribution_events(raw)
 
     assert len(events) == 2
-    # Primero: amount = round(1999.995, 2) = 2000.0 (Python bankero)
+    # First: amount = round(1999.995, 2) = 2000.0 (Python banker's rounding)
     assert events[0].amount == pytest.approx(round(1999.995, 2), abs=0.01)
     # Segundo: amount = round(3333.333 - 1999.995, 2)
     expected_delta = round(3333.333 - 1999.995, 2)
     assert events[1].amount == pytest.approx(expected_delta, abs=0.01)
-    # Cumulative también redondeado
+    # Cumulative also rounded
     assert events[1].cumulative == pytest.approx(round(3333.333, 2), abs=0.01)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# TC-8  RETIRADA PARCIAL EN EL INTERIOR DE SERIE
+# TC-8  PARTIAL WITHDRAWAL MID-SERIES
 # ─────────────────────────────────────────────────────────────────────────────
 
 def test_tc8_partial_withdrawal_midpoint():
-    """TC-8: Una retirada en el interior de una serie no interrumpe el cómputo correcto
-    de los eventos posteriores.
+    """TC-8: A mid-series withdrawal does not break correct computation of subsequent events.
 
-    Serie: 0 → 5000 → 3000 (−2000) → 8000 (+5000)
+    Series: 0 → 5000 → 3000 (−2000) → 8000 (+5000)
     """
     from finlytics.investments.indexa import _derive_contribution_events
 
@@ -596,11 +595,11 @@ def test_tc8_partial_withdrawal_midpoint():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# TC-9  VALIDACIÓN DE SCHEMA
+# TC-9  SCHEMA VALIDATION
 # ─────────────────────────────────────────────────────────────────────────────
 
 def test_tc9_schema_contribution_event_out_has_all_fields():
-    """TC-9: ContributionEventOut expone date, amount, cumulative y type (contrato completo)."""
+    """TC-9: ContributionEventOut exposes date, amount, cumulative, and type (full contract)."""
     from finlytics.api.schemas import ContributionEventOut
 
     ev = ContributionEventOut(
@@ -616,7 +615,7 @@ def test_tc9_schema_contribution_event_out_has_all_fields():
 
 
 def test_tc9_schema_withdrawal_event():
-    """TC-9: ContributionEventOut admite amount negativo y type='withdrawal'."""
+    """TC-9: ContributionEventOut accepts a negative amount and type='withdrawal'."""
     from finlytics.api.schemas import ContributionEventOut
 
     ev = ContributionEventOut(
@@ -631,7 +630,7 @@ def test_tc9_schema_withdrawal_event():
 
 
 def test_tc9_portfolio_out_schema_exposes_contribution_events():
-    """TC-9: InvestmentPortfolioOut incluye contribution_events=[] por defecto."""
+    """TC-9: InvestmentPortfolioOut includes contribution_events=[] by default."""
     from finlytics.api.schemas import ContributionEventOut, InvestmentPortfolioOut
 
     out = InvestmentPortfolioOut(
@@ -640,14 +639,14 @@ def test_tc9_portfolio_out_schema_exposes_contribution_events():
         holdings=[],
         plugins_connected=0,
     )
-    # Debe tener contribution_events como lista vacía por defecto
+    # Must have contribution_events as an empty list by default
     assert hasattr(out, "contribution_events")
     assert isinstance(out.contribution_events, list)
     assert out.contribution_events == []
 
 
 def test_tc9_portfolio_out_with_events():
-    """TC-9: InvestmentPortfolioOut acepta contribution_events no vacía."""
+    """TC-9: InvestmentPortfolioOut accepts a non-empty contribution_events list."""
     from finlytics.api.schemas import ContributionEventOut, InvestmentPortfolioOut
 
     ev = ContributionEventOut(
@@ -669,12 +668,12 @@ def test_tc9_portfolio_out_with_events():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# TC-10  ROUND-TRIP DE CACHÉ
+# TC-10  CACHE ROUND-TRIP
 # ─────────────────────────────────────────────────────────────────────────────
 
 def test_tc10_cache_round_trip_preserves_contribution_events():
-    """TC-10: _serialize_portfolio / _deserialize_portfolio preserva contribution_events
-    con todos los campos (date, amount, cumulative, type)."""
+    """TC-10: _serialize_portfolio / _deserialize_portfolio preserves contribution_events
+    with all fields (date, amount, cumulative, type)."""
     from finlytics.investments.base import (
         NormalizedContributionEvent,
         NormalizedPerformance,
@@ -719,7 +718,7 @@ def test_tc10_cache_round_trip_preserves_contribution_events():
 
     assert restored.performance is not None
     events = restored.performance.contribution_events
-    assert len(events) == 3, f"Round-trip perdió eventos: esperados 3, obtenidos {len(events)}"
+    assert len(events) == 3, f"Round-trip lost events: expected 3, got {len(events)}"
 
     assert events[0].date == "2024-09-04"
     assert events[0].amount == pytest.approx(2000.0)
@@ -733,7 +732,7 @@ def test_tc10_cache_round_trip_preserves_contribution_events():
 
 
 def test_tc10_cache_round_trip_withdrawal():
-    """TC-10: El round-trip de caché preserva eventos de tipo withdrawal."""
+    """TC-10: The cache round-trip preserves withdrawal-type events."""
     from finlytics.investments.base import (
         NormalizedContributionEvent,
         NormalizedPerformance,
@@ -779,12 +778,12 @@ def test_tc10_cache_round_trip_withdrawal():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# TC-11  INTEGRACIÓN END-TO-END (_fetch_performance)
+# TC-11  END-TO-END INTEGRATION (_fetch_performance)
 # ─────────────────────────────────────────────────────────────────────────────
 
 async def test_tc11_fetch_performance_returns_contribution_events():
-    """TC-11: _fetch_performance con net_amounts completo produce contribution_events
-    en NormalizedPerformance (integración real del pipeline)."""
+    """TC-11: _fetch_performance with a full net_amounts dict produces contribution_events
+    in NormalizedPerformance (real pipeline integration)."""
     from finlytics.investments.indexa import _fetch_performance
 
     mock_data = _make_perf_data(
@@ -799,7 +798,7 @@ async def test_tc11_fetch_performance_returns_contribution_events():
         result = await _fetch_performance(AsyncMock(), "ACC123")
 
     assert hasattr(result, "contribution_events"), (
-        "NormalizedPerformance debe tener el campo contribution_events"
+        "NormalizedPerformance must have the contribution_events field"
     )
     events = result.contribution_events
     assert len(events) == 3
@@ -816,8 +815,8 @@ async def test_tc11_fetch_performance_returns_contribution_events():
 
 
 async def test_tc11_fetch_performance_withdrawal_in_events():
-    """TC-11: _fetch_performance con retirada en net_amounts → contribution_events
-    incluye el evento de withdrawal con amount negativo."""
+    """TC-11: _fetch_performance with a withdrawal in net_amounts → contribution_events
+    includes the withdrawal event with a negative amount."""
     from finlytics.investments.indexa import _fetch_performance
 
     mock_data = _make_perf_data(
@@ -825,7 +824,7 @@ async def test_tc11_fetch_performance_withdrawal_in_events():
             "20240804": 0.0,
             "20240904": 2000.0,
             "20241004": 4000.0,
-            "20241104": 3500.0,   # retirada −500
+            "20241104": 3500.0,   # withdrawal −500
         }
     )
     with patch("finlytics.investments.indexa._get", AsyncMock(return_value=mock_data)):
@@ -837,17 +836,17 @@ async def test_tc11_fetch_performance_withdrawal_in_events():
     withdrawal = events[2]
     assert withdrawal.date == "2024-11-04"
     assert withdrawal.amount == pytest.approx(-500.0), (
-        f"FALLO CRÍTICO: La retirada debe tener amount=−500.0, "
-        f"obtenido {withdrawal.amount}. El tipo withdrawal no está representado."
+        f"CRITICAL: withdrawal must have amount=−500.0, "
+        f"got {withdrawal.amount}. The withdrawal type is not represented."
     )
     assert withdrawal.type == "withdrawal", (
-        f"FALLO CRÍTICO: El tipo debe ser 'withdrawal', obtenido {withdrawal.type!r}"
+        f"CRITICAL: type must be 'withdrawal', got {withdrawal.type!r}"
     )
     assert withdrawal.cumulative == pytest.approx(3500.0)
 
 
 async def test_tc11_fetch_performance_empty_net_amounts():
-    """TC-11: _fetch_performance con net_amounts vacío → contribution_events vacío."""
+    """TC-11: _fetch_performance with empty net_amounts → empty contribution_events."""
     from finlytics.investments.indexa import _fetch_performance
 
     mock_data = _make_perf_data(net_amounts={})
@@ -858,16 +857,16 @@ async def test_tc11_fetch_performance_empty_net_amounts():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# TC-12  MULTI-CUENTA (IndexaProvider.get_portfolio)
+# TC-12  MULTI-ACCOUNT (IndexaProvider.get_portfolio)
 # ─────────────────────────────────────────────────────────────────────────────
 
 async def test_tc12_provider_get_portfolio_two_accounts_merge_events():
-    """TC-12: IndexaProvider.get_portfolio con dos cuentas →
-    contribution_events de la misma fecha se suman correctamente.
+    """TC-12: IndexaProvider.get_portfolio with two accounts →
+    same-date contribution_events are summed correctly.
 
     ACC1: net_amounts {20240804:0, 20241004:2000}
     ACC2: net_amounts {20240804:0, 20241004:3000}
-    Esperado: [{2024-10-04, amount=5000, cumulative=5000, contribution}]
+    Expected: [{2024-10-04, amount=5000, cumulative=5000, contribution}]
     """
     from finlytics.investments.indexa import IndexaProvider
 
@@ -897,22 +896,22 @@ async def test_tc12_provider_get_portfolio_two_accounts_merge_events():
     assert portfolio.performance is not None
     events = portfolio.performance.contribution_events
 
-    assert len(events) == 1, f"Esperado 1 evento sumado, obtenidos {len(events)}: {events}"
+    assert len(events) == 1, f"Expected 1 summed event, got {len(events)}: {events}"
     ev = events[0]
     assert ev.date == "2024-10-04"
     assert ev.amount == pytest.approx(5000.0), (
-        f"Delta sumado esperado 5000 (2000+3000), obtenido {ev.amount}"
+        f"Summed delta expected 5000 (2000+3000), got {ev.amount}"
     )
     assert ev.cumulative == pytest.approx(5000.0)
     assert ev.type == "contribution"
 
 
 async def test_tc12_provider_two_accounts_different_dates():
-    """TC-12 variante: dos cuentas con fechas distintas → eventos combinados cronológicamente."""
+    """TC-12 variant: two accounts with different dates → events combined chronologically."""
     from finlytics.investments.indexa import IndexaProvider
 
     fiscal_empty = {"fiscal_results": []}
-    # ACC1: aportación en sep; ACC2: aportación en oct
+    # ACC1: contribution in Sep; ACC2: contribution in Oct
     perf_acc1 = _make_perf_data(
         net_amounts={"20240804": 0.0, "20240904": 2000.0},
         total_amount=12000.0,
@@ -937,16 +936,16 @@ async def test_tc12_provider_two_accounts_different_dates():
 
     events = portfolio.performance.contribution_events
 
-    assert len(events) == 2, f"Esperados 2 eventos (fechas distintas), obtenidos {len(events)}"
+    assert len(events) == 2, f"Expected 2 events (different dates), got {len(events)}"
     dates = [ev.date for ev in events]
-    assert dates == sorted(dates), "Los eventos deben estar ordenados cronológicamente"
+    assert dates == sorted(dates), "Events must be sorted chronologically"
 
-    # sep: 2000 (solo ACC1), cumulative = 2000
+    # Sep: 2000 (ACC1 only), cumulative = 2000
     assert events[0].date == "2024-09-04"
     assert events[0].amount == pytest.approx(2000.0)
     assert events[0].cumulative == pytest.approx(2000.0)
 
-    # oct: 3000 (solo ACC2), cumulative = 2000 + 3000 = 5000
+    # Oct: 3000 (ACC2 only), cumulative = 2000 + 3000 = 5000
     assert events[1].date == "2024-10-04"
     assert events[1].amount == pytest.approx(3000.0)
     assert events[1].cumulative == pytest.approx(5000.0)

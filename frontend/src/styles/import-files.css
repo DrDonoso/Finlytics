@@ -78,7 +78,7 @@
 .batch-file-icon { width: 18px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .batch-file-icon--done    { color: var(--income); }
 .batch-file-icon--error   { color: var(--expense); }
-/* Pendiente: círculo dibujado con borde, antes era el glifo «○». */
+/* Pending: drawn-border circle, previously the "○" glyph. */
 .batch-file-icon--pending {
   width: 10px;
   height: 10px;
@@ -144,10 +144,9 @@
   flex-shrink: 0;
   color: var(--text-muted);
 }
-/* El selector era `.batch-accordion-chevron.--open`, que exigía una clase
-   literal `--open`; el marcado emite `batch-accordion-chevron--open`, así que
-   la flecha nunca giraba.  Ahora es un chevron que apunta a la derecha, de
-   modo que abierto son 90°, no 180°. */
+/* The selector was `.batch-accordion-chevron.--open`, which required a literal
+   class `--open`; the markup emits `batch-accordion-chevron--open`, so the
+   arrow never rotated.  Now it points right, so open is 90°, not 180°. */
 .batch-accordion-chevron--open { transform: rotate(90deg); }
 @media (prefers-reduced-motion: reduce) {
   .batch-accordion-chevron { transition: none; }
@@ -186,7 +185,7 @@
 .batch-detail-title { font-size: 13px; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; }
 .batch-detail-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .batch-detail-row { font-size: 13px; padding: 4px 0; }
-/* Mismo desajuste BEM que en el chevron: el marcado emite
-   `batch-detail-row--done` / `--error`, no una clase suelta `--done`. */
+/* Same BEM mismatch as the chevron: the markup emits
+   `batch-detail-row--done` / `--error`, not a standalone `--done` class. */
 .batch-detail-row--done { color: var(--income); }
 .batch-detail-row--error { color: var(--expense); }

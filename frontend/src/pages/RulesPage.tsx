@@ -19,7 +19,7 @@ export default function RulesPage() {
   const categories = categoriesQuery.data ?? EMPTY
   const availableTags = tagsQuery.data ?? EMPTY
   const loading = rulesQuery.isPending || categoriesQuery.isPending || tagsQuery.isPending
-  // Sólo errores de las mutaciones; el de la carga lo aportan las consultas.
+  // Mutation errors only; load errors come from the queries.
   const [error, setError] = useState<string | null>(null)
   const firstQueryError = rulesQuery.error ?? categoriesQuery.error ?? tagsQuery.error
   const shownError = error ?? (firstQueryError ? errorMessage(firstQueryError, t) : null)

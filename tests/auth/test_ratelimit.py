@@ -1,8 +1,7 @@
-"""Tests del limitador de intentos de autenticación.
+"""Tests for the authentication attempt rate limiter.
 
-Cubren la mecánica de la ventana deslizante por separado del endpoint, para que
-un fallo señale directamente si el problema está en el algoritmo o en cómo lo usa
-la API.
+Cover the sliding-window mechanics independently of the endpoint, so a failure
+points directly to whether the problem is in the algorithm or in how the API uses it.
 """
 
 from __future__ import annotations
@@ -20,7 +19,7 @@ class _FakeRequest:
         self.client = None if no_client else _FakeClient(host)
 
 
-# ── Ventana deslizante ────────────────────────────────────────────────────────
+# ── Sliding window ────────────────────────────────────────────────────────────
 
 def test_allows_up_to_the_limit():
     limiter = RateLimiter(max_attempts=3, window_seconds=60)
@@ -44,20 +43,20 @@ def test_blocks_once_the_limit_is_exceeded():
 
 
 def test_blocked_attempts_do_not_extend_the_penalty():
-    """Golpear el endpoint estando bloqueado no debe alargar el castigo.
+    """Hammering the endpoint while blocked must not extend the punishment window.
 
-    Si cada intento rechazado empujara también la ventana, una IP bloqueada se
-    mantendría bloqueada indefinidamente sólo por seguir reintentando.
+    If each rejected attempt also pushed the window, a blocked IP would stay
+    blocked indefinitely just by retrying.
     """
     limiter = RateLimiter(max_attempts=2, window_seconds=60)
     limiter.check("ip", now=0.0)
     limiter.check("ip", now=0.0)
 
-    # Rechazado repetidamente durante la ventana...
+    # Rejected repeatedly during the window...
     for t in (10.0, 20.0, 30.0, 50.0):
         assert limiter.check("ip", now=t).allowed is False
 
-    # ...y aun así vuelve a haber cupo cuando expira el primer intento.
+    # ...and quota is restored once the first attempt expires.
     assert limiter.check("ip", now=61.0).allowed is True
 
 
@@ -67,9 +66,9 @@ def test_window_slides():
     limiter.check("ip", now=30.0)
 
     assert limiter.check("ip", now=45.0).allowed is False
-    # En t=61 ha expirado el intento de t=0, así que queda un hueco.
+    # At t=61 the attempt from t=0 has expired, freeing one slot.
     assert limiter.check("ip", now=61.0).allowed is True
-    # Pero el de t=30 sigue vivo, así que no hay un segundo hueco.
+    # But the t=30 attempt is still alive, so there is no second slot.
     assert limiter.check("ip", now=61.0).allowed is False
 
 
@@ -78,7 +77,7 @@ def test_keys_are_independent():
 
     assert limiter.check("ip-a", now=0.0).allowed is True
     assert limiter.check("ip-a", now=0.0).allowed is False
-    # Otra IP no hereda el bloqueo de la primera.
+    # A different IP does not inherit the block from the first.
     assert limiter.check("ip-b", now=0.0).allowed is True
 
 
@@ -94,29 +93,29 @@ def test_reset_clears_a_single_key():
 
 
 def test_retry_after_is_at_least_one_second():
-    """Nunca debe anunciarse un Retry-After de 0: sugeriría reintentar ya."""
+    """Retry-After must never be 0 — that would suggest retrying immediately."""
     limiter = RateLimiter(max_attempts=1, window_seconds=60)
     limiter.check("ip", now=0.0)
 
-    # Justo al final de la ventana, donde el redondeo podría dar 0.
+    # At the very end of the window, where rounding could produce 0.
     verdict = limiter.check("ip", now=59.99)
 
     assert verdict.allowed is False
     assert verdict.retry_after >= 1
 
 
-# ── Limpieza de memoria ───────────────────────────────────────────────────────
+# ── Memory cleanup ────────────────────────────────────────────────────────────
 
 def test_purge_drops_expired_keys_only():
     limiter = RateLimiter(max_attempts=5, window_seconds=60)
-    limiter.check("vieja", now=0.0)
-    limiter.check("reciente", now=100.0)
+    limiter.check("old", now=0.0)
+    limiter.check("recent", now=100.0)
 
     removed = limiter.purge(now=120.0)
 
     assert removed == 1
-    # La reciente conserva su historial.
-    assert limiter.check("reciente", now=120.0).remaining == 3
+    # The recent key retains its history.
+    assert limiter.check("recent", now=120.0).remaining == 3
 
 
 def test_clear_wipes_everything():
@@ -130,7 +129,7 @@ def test_clear_wipes_everything():
     assert limiter.check("ip-b", now=0.0).allowed is True
 
 
-# ── Extracción de la IP ───────────────────────────────────────────────────────
+# ── IP extraction ─────────────────────────────────────────────────────────────
 
 def test_client_ip_reads_the_connection():
     assert client_ip(_FakeRequest("198.51.100.4")) == "198.51.100.4"
@@ -142,10 +141,10 @@ def test_client_ip_falls_back_when_absent():
 
 
 def test_client_ip_ignores_forwarded_headers():
-    """X-Forwarded-For es falsificable: confiar en él anularía el límite.
+    """X-Forwarded-For is spoofable: trusting it would nullify the limit.
 
-    Bastaría con enviar un valor distinto en cada intento para tener intentos
-    ilimitados, así que la IP se toma siempre de la conexión.
+    Sending a different value on each attempt would give unlimited quota,
+    so the IP is always taken from the connection.
     """
     request = _FakeRequest("198.51.100.4")
     request.headers = {"X-Forwarded-For": "1.2.3.4", "X-Real-IP": "5.6.7.8"}

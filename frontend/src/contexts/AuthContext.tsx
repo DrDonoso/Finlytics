@@ -79,8 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setState(s => ({ ...s, authenticated: false, username: null }))
   }, [])
 
-  // Memoizado: sin esto el objeto sería nuevo en cada render del proveedor y
-  // arrastraría a re-renderizar toda la aplicación, que cuelga de este contexto.
+  // Memoised: without this the object is new on every provider render and triggers a full re-render of the app, which hangs from this context.
   const value = useMemo(
     () => ({ ...state, onSetupSuccess, onLoginSuccess, onLogout }),
     [state, onSetupSuccess, onLoginSuccess, onLogout],

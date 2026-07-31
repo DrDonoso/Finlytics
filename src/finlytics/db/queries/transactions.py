@@ -1,4 +1,4 @@
-"""Lectura y modificacion de transacciones."""
+"""Reading and modifying transactions."""
 
 from __future__ import annotations
 

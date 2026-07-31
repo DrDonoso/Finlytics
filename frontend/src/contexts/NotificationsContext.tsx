@@ -86,9 +86,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     fetchList()
   }, [fetchList])
 
-  // Sin memoizar, el objeto sería nuevo en cada render y obligaría a
-  // re-renderizar a todos los consumidores del contexto aunque nada hubiera
-  // cambiado — y aquí hay un sondeo cada 60 s que dispara renders.
+  // Without memoisation the object is new on every render, forcing every context consumer to re-render — and there is a 60 s poll here that fires renders constantly.
   const value = useMemo(
     () => ({
       notifications,

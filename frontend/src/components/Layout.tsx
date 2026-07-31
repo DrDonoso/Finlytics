@@ -28,7 +28,7 @@ export default function Layout() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [desktopCollapsed, setDesktopCollapsed] = useState(storedCollapsed)
 
-  // ── Finanzas accordion ───────────────────────────────────────────────────
+  // ── Finances accordion ───────────────────────────────────────────────────
   const isOnFinances = ['/finances', '/transactions', '/analytics', '/statements']
     .some(p => location.pathname.startsWith(p))
   const [financesExpanded, setFinancesExpanded] = useState(isOnFinances)
@@ -235,7 +235,6 @@ export default function Layout() {
                     depend on endpoints the demo does not serve. */}
                 {!IS_DEMO && (
                   <>
-                    {/* DATOS */}
                     <button
                       type="button"
                       className="sidebar-group-label sidebar-group-toggle"
@@ -298,7 +297,7 @@ export default function Layout() {
                   </>
                 )}
 
-                {/* APLICACIÓN */}
+
                 <button
                   type="button"
                   className="sidebar-group-label sidebar-group-toggle"

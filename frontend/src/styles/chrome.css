@@ -67,8 +67,8 @@
   outline-offset: 2px;
 }
 
-/* Los iconos son SVG del set propio: se dimensionan desde el componente, así que
-   aquí sólo hace falta que no se encojan y que el chevron gire al abrir. */
+/* These are SVG icons from the custom set: sized by the component, so all
+   that's needed here is to prevent shrinking and to rotate the chevron on open. */
 .lang-select-icon { flex-shrink: 0; }
 
 .lang-select-current {

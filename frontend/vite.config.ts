@@ -117,7 +117,7 @@ export default defineConfig(({ mode }) => {
           'src/**/*.{test,spec}.{ts,tsx}',
           'src/test/**',
           'src/api/mock.ts',
-          // La demo es un doble de la API: no tiene sentido medir su cobertura.
+          // The demo is an API double: measuring its coverage adds no signal.
           'src/demo/**',
         ],
       },

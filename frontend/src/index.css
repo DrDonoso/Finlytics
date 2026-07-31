@@ -1,11 +1,11 @@
-/* Hoja de estilos de Finlytics.
+/* Finlytics stylesheet entry point.
 
-   Era un unico index.css de 7030 lineas. Se reparte por dominios, pero el orden
-   de estas importaciones reproduce el del fichero original: en CSS dos reglas
-   con la misma especificidad se resuelven por posicion, asi que reordenarlas
-   cambiaria el resultado.
+   Originally a single 7030-line index.css; split into domain modules.
+   Import order mirrors the original: in CSS, same-specificity rules resolve
+   by position, so reordering these imports would change the result.
 
-   tokens.css debe ir siempre primero: define las variables que usa el resto. */
+   tokens.css must always come first — it defines the variables every other
+   module depends on. */
 
 @import "./styles/tokens.css";
 @import "./styles/layout.css";

@@ -15,8 +15,8 @@
   padding: 0 16px;
   box-shadow: var(--shadow);
 }
-/* El wordmark toma el degradado de marca, de modo que acompaña al tema y a la
-   paleta de acento en vez de ser un color plano. */
+/* The wordmark uses the brand gradient so it follows the theme and accent
+   palette rather than being a flat colour. */
 .topbar-logo {
   font-size: 18px;
   font-weight: 600;
@@ -99,13 +99,13 @@
   color: var(--primary);
   font-weight: 600;
 }
-/* Los iconos SVG traen su propio tamaño; `font-size` queda para los pocos
-   sitios donde el "icono" sigue siendo un carácter (p. ej. la inicial de un
-   plugin sin logotipo). */
+/* SVG icons carry their own size; `font-size` only applies to the few spots
+   where the "icon" is still a character (e.g. a plugin's initial when it
+   has no logo). */
 .nav-icon { font-size: 16px; flex-shrink: 0; }
 .nav-label { flex: 1; }
 
-/* ── Sidebar expandable section (Ajustes) ── */
+/* ── Sidebar expandable section (Settings) ── */
 .sidebar-section { display: flex; flex-direction: column; }
 .sidebar-section-btn {
   display: flex;

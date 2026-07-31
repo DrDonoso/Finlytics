@@ -44,8 +44,9 @@ function todayYM(): { y: number; m: number } {
 // ─── KPI delta badge for month-over-month comparison ─────────────────────────
 
 function TxDeltaBadge({ delta, invert, neutral }: { delta: DeltaResult | null; invert?: boolean; neutral?: boolean }) {
+  const { t } = useT()
   if (!delta) return null
-  if (delta.isNew) return <span className="header-kpi-delta header-kpi-delta-neutral">NUEVO</span>
+  if (delta.isNew) return <span className="header-kpi-delta header-kpi-delta-neutral">{t.stmtsDeltaNew}</span>
   if (delta.pct === null) return null
   const isUp   = delta.abs > 0
   const cls = neutral || delta.abs === 0
@@ -62,7 +63,7 @@ export default function StatementsPage() {
 
   const queryClient = useQueryClient()
 
-  // Estabiliza el array vacío: `?? []` crea uno nuevo por render y rompería las deps de abajo
+  // Stable empty array: `?? []` creates a new reference each render and would break downstream deps.
   const EMPTY: never[] = useMemo(() => [], [])
 
   // Selected month
@@ -90,15 +91,15 @@ export default function StatementsPage() {
   const launcherRef = useRef<ImportLauncherHandle>(null)
   const [toast,      setToast]      = useState<string | null>(null)
 
-  // refreshKey refresca la tabla de transacciones, que todavía no usa react-query
+  // refreshKey drives a re-render of TransactionsTable, which does not use react-query yet.
   const [refreshKey, setRefreshKey] = useState(0)
 
   // Originals dropdown UI state
   const [originalsDropdownOpen, setOriginalsDropdownOpen] = useState(false)
   const originalsDropdownRef = useRef<HTMLDivElement>(null)
 
-  // Al cambiar la lista de meses (carga inicial o tras importar/borrar) aterriza en el más reciente.
-  // react-query comparte estructura: un refetch con los mismos datos mantiene la referencia y no dispara esto.
+  // When the month list changes (initial load or after import/delete), land on the most recent month.
+  // react-query shares structure: a refetch with identical data keeps the same reference and does not fire this.
   useEffect(() => {
     if (months.length > 0) {
       setSelY(months[0].year)
@@ -120,7 +121,7 @@ export default function StatementsPage() {
   // Whether the selected month has any data (avoids unnecessary overview fetch)
   const currentMonthHasData = months.some(s => s.year === selY && s.month === selM)
 
-  // Parámetros del mes seleccionado y del anterior (deltas KPI). En useMemo para que la clave no cambie cada render.
+  // Params for the selected month and the previous one (KPI deltas). In useMemo so the key does not change each render.
   const monthParams: SummaryParams = useMemo(() => ({ from, to, account_id: selAccountId }), [from, to, selAccountId])
   const prevRange = useMemo(() => (from ? previousCalendarMonth(from) : null), [from])
   const prevParams: SummaryParams | undefined = useMemo(
@@ -128,7 +129,7 @@ export default function StatementsPage() {
     [prevRange, selAccountId],
   )
 
-  // Los resúmenes solo se consultan cuando el mes seleccionado tiene datos
+  // Summaries are only fetched when the selected month has data.
   const summaryEnabled = Boolean(from && to && currentMonthHasData)
 
   const overviewQuery     = useOverview(monthParams, { enabled: summaryEnabled })
@@ -149,7 +150,7 @@ export default function StatementsPage() {
   const originalsQuery = useStatementOriginals(selY, selM, selAccountId, { enabled: Boolean(selY && selM) })
   const originals = originalsQuery.data ?? EMPTY
 
-  // Cierra el desplegable de originales al cambiar de mes o de cuenta
+  // Close the originals dropdown when the month or account changes.
   useEffect(() => {
     setOriginalsDropdownOpen(false)
   }, [selY, selM, selAccountId])
@@ -200,7 +201,7 @@ export default function StatementsPage() {
   const hasData  = currentMonthHasData
   const count    = overview?.num_transactions ?? months.find(s => s.year === selY && s.month === selM)?.count ?? 0
 
-  // Tras borrar o importar: refresca meses, resúmenes y originales, y la tabla (que aún no usa react-query)
+  // After delete or import: refresh months, summaries, originals, and the table (not yet on react-query).
   function refreshMonthData() {
     setRefreshKey(k => k + 1)
     queryClient.invalidateQueries({ queryKey: ['statements'] })
@@ -443,7 +444,7 @@ export default function StatementsPage() {
           pageSize={25}
           hideInternalFilters
           onEditSuccess={() => {
-            // Editar una transacción cambia los KPIs del mes actual (y del anterior en los deltas)
+            // Editing a transaction changes the current month's KPIs (and the previous month's in deltas).
             queryClient.invalidateQueries({ queryKey: ['summary', 'overview'] })
             queryClient.invalidateQueries({ queryKey: ['summary', 'by-category'] })
           }}

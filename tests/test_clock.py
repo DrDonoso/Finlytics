@@ -1,13 +1,13 @@
-"""Tests de la fecha local de la aplicación.
+"""Tests for the application local date.
 
-``TIMEZONE`` estaba declarado en la configuración y expuesto en
-``docker-compose.yml``, pero no se usaba en ningún sitio: todo el código llamaba
-a ``date.today()``, que en el contenedor devuelve la fecha UTC porque ni el
-Dockerfile ni la imagen base fijan ``TZ``.
+``TIMEZONE`` was declared in configuration and exposed in ``docker-compose.yml``,
+but was never used anywhere: all code called ``date.today()``, which returns the
+UTC date inside the container because neither the Dockerfile nor the base image
+sets ``TZ``.
 
-El desfase sólo se nota en la franja horaria en la que el día natural local y el
-UTC no coinciden, así que es un fallo que aparece de madrugada y desaparece solo
-— exactamente el tipo de cosa que conviene dejar fijada con tests.
+The skew only shows up in the window where the local calendar day and UTC diverge,
+so it is a bug that appears in the small hours and disappears on its own — exactly
+the kind of thing worth pinning with tests.
 """
 
 from __future__ import annotations
@@ -22,13 +22,13 @@ from finlytics import clock
 
 @pytest.fixture(autouse=True)
 def _clear_zone_cache():
-    """La zona se memoriza; los tests que la cambian necesitan partir de cero."""
+    """Zone is memoised; tests that change it must start from a clean slate."""
     clock.reset_cache()
     yield
     clock.reset_cache()
 
 
-# ── Resolución de la zona ────────────────────────────────────────────────────
+# ── Zone resolution ──────────────────────────────────────────────────────────
 
 def test_uses_the_configured_timezone(monkeypatch):
     monkeypatch.setattr(clock.settings, "timezone", "Europe/Madrid")
@@ -37,7 +37,7 @@ def test_uses_the_configured_timezone(monkeypatch):
 
 
 def test_falls_back_to_utc_on_an_invalid_timezone(monkeypatch):
-    """Una zona mal escrita no debe impedir que la aplicación arranque."""
+    """An invalid zone name must not prevent the application from starting."""
     monkeypatch.setattr(clock.settings, "timezone", "Marte/Olympus_Mons")
 
     assert clock.local_timezone() is timezone.utc
@@ -49,14 +49,13 @@ def test_now_always_carries_tzinfo(monkeypatch):
     assert clock.now().tzinfo is not None
 
 
-# ── El fallo que motiva el módulo ────────────────────────────────────────────
+# ── The bug that motivated this module ───────────────────────────────────────
 
 def test_local_date_differs_from_utc_in_the_early_hours(monkeypatch):
-    """A la 01:00 en Madrid (verano) en UTC todavía es el día anterior.
+    """At 01:00 in Madrid (summer) it is still the previous day in UTC.
 
-    Es la situación real que corregía este cambio: el contenedor corre en UTC,
-    así que durante esas horas los recordatorios se evaluaban contra el día
-    equivocado.
+    This is the actual scenario the fix addressed: the container runs on UTC,
+    so during those hours reminders were evaluated against the wrong day.
     """
     madrid = ZoneInfo("Europe/Madrid")
     instant = datetime(2026, 7, 30, 1, 0, tzinfo=madrid)   # 2026-07-29T23:00Z
@@ -66,7 +65,7 @@ def test_local_date_differs_from_utc_in_the_early_hours(monkeypatch):
 
 
 def test_today_follows_the_configured_timezone(monkeypatch):
-    """La fecha devuelta cambia con TIMEZONE, no con el reloj del servidor."""
+    """The returned date changes with TIMEZONE, not with the server clock."""
     instant = datetime(2026, 7, 29, 23, 30, tzinfo=timezone.utc)
 
     class _FrozenDatetime(datetime):
@@ -78,18 +77,18 @@ def test_today_follows_the_configured_timezone(monkeypatch):
 
     monkeypatch.setattr(clock.settings, "timezone", "Europe/Madrid")
     clock.reset_cache()
-    assert clock.today() == date(2026, 7, 30)   # ya es el día 30 en Madrid
+    assert clock.today() == date(2026, 7, 30)   # already Jul 30 in Madrid
 
     monkeypatch.setattr(clock.settings, "timezone", "UTC")
     clock.reset_cache()
-    assert clock.today() == date(2026, 7, 29)   # en UTC sigue siendo el 29
+    assert clock.today() == date(2026, 7, 29)   # still Jul 29 in UTC
 
 
 def test_today_matches_a_plain_date_today_when_configured_as_utc(monkeypatch):
-    """Con TIMEZONE=UTC el comportamiento coincide con el anterior.
+    """With TIMEZONE=UTC behaviour matches the old ``date.today()`` call.
 
-    Sirve de red: quien tuviera el contenedor en UTC y le funcionara bien no
-    debería notar ningún cambio.
+    Safety net: anyone who had UTC configured before the fix should see
+    no change.
     """
     monkeypatch.setattr(clock.settings, "timezone", "UTC")
 

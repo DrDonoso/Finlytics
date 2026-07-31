@@ -1,4 +1,4 @@
-"""Consultas de la vista mensual de extractos."""
+"""Queries behind the monthly statement view."""
 
 from __future__ import annotations
 

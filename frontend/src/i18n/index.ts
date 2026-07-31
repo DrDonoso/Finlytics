@@ -315,6 +315,7 @@ export interface Dict {
   stmtsImportBtn: string
   stmtsDownloadOriginal: string
   stmtsDownloadOriginalDropdown: string
+  stmtsDeltaNew: string
   // ── MonthPicker ───────────────────────────────────────────────────────────────
   monthPickerTriggerLabel: (formatted: string) => string
   monthPickerDialogLabel: string
@@ -561,7 +562,7 @@ export interface Dict {
   invPeriod3M: string
   invPeriod6M: string
   invPeriod1A: string
-  invPeriodTodo: string
+  invPeriodAll: string
   invToggleEur: string
   invTogglePct: string
   invLegendPortfolio: string

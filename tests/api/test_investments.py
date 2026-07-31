@@ -163,7 +163,7 @@ async def test_validate_happy_path_returns_accounts(client):
 
 
 async def test_validate_invalid_token_returns_400(client):
-    """Indexa 401/403 → 400 with Spanish error message."""
+    """Indexa 401/403 → 400 with an invalid-token error message."""
     from finlytics.investments.indexa import IndexaAuthError
 
     with patch(
@@ -176,7 +176,7 @@ async def test_validate_invalid_token_returns_400(client):
         )
 
     assert resp.status_code == 400
-    assert "inválido" in resp.json()["detail"]
+    assert "Invalid token" in resp.json()["detail"]
 
 
 async def test_validate_network_error_returns_503(client):
@@ -1392,14 +1392,14 @@ async def test_fetch_performance_contributions_series_from_net_amounts():
 
 
 async def test_fetch_performance_contribution_events_with_withdrawal():
-    """contribution_events deriva los deltas de net_amounts; cubre aportación, retirada y acumulado.
+    """contribution_events derives deltas from net_amounts; covers deposit, withdrawal, and running total.
 
     net_amounts:
-      20240101 → 0.0    (marcador de apertura, se omite)
-      20240201 → 2000.0 (aportación inicial +2000, acumulado 2000)
-      20240301 → 4000.0 (aportación +2000, acumulado 4000)
-      20240401 → 3500.0 (retirada  -500,  acumulado 3500)
-      20240501 → 5000.0 (aportación +1500, acumulado 5000)
+      20240101 → 0.0    (opening marker, skipped)
+      20240201 → 2000.0 (initial deposit +2000, running total 2000)
+      20240301 → 4000.0 (deposit +2000, running total 4000)
+      20240401 → 3500.0 (withdrawal  -500,  running total 3500)
+      20240501 → 5000.0 (deposit +1500, running total 5000)
     """
     from unittest.mock import AsyncMock, patch
 
@@ -2854,13 +2854,13 @@ async def test_sv_regression_stale_current_version_schedules_bg_refresh():
 
 
 async def test_cache_schema_version_mismatch_triggers_refetch():
-    """Fila de caché sin _schema_version (código antiguo) → MISS sincrónico → refetch.
+    """Cache row missing _schema_version (old code) → synchronous MISS → refetch.
 
-    Verifica el happy-path completo de Option B (cache schema versioning):
-    1. La fila stale (sin _schema_version) es eliminada de DB con delete+flush.
-    2. Se ejecuta un fetch en vivo al proveedor (no el path STALE/background).
-    3. La nueva fila almacenada lleva _schema_version == _PORTFOLIO_SCHEMA_VERSION.
-    4. El resultado devuelve los datos del fetch fresco, no el valor stale.
+    Verifies the full happy-path for Option B (cache schema versioning):
+    1. The stale row (missing _schema_version) is deleted+flushed from DB.
+    2. A live fetch is executed against the provider (not the STALE/background path).
+    3. The new stored row carries _schema_version == _PORTFOLIO_SCHEMA_VERSION.
+    4. The result returns data from the fresh fetch, not the stale value.
     """
     from finlytics.investments import service as svc
     from finlytics.investments.base import (
@@ -2877,7 +2877,7 @@ async def test_cache_schema_version_mismatch_triggers_refetch():
     mock_conn.account_label_masked = "PBK\u2022\u2022\u2022Z5"
     mock_conn.last_synced_at = None
 
-    # Payload antiguo: sin clave _schema_version (escrito por código pre-contribution_events)
+    # Old payload: no _schema_version key (written by pre-contribution_events code)
     stale_row = MagicMock()
     stale_row.payload = {
         "total_value": 999.0,
@@ -2889,7 +2889,7 @@ async def test_cache_schema_version_mismatch_triggers_refetch():
     }
     stale_row.fetched_at = datetime(2026, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
 
-    # Primera llamada execute → lista de conexiones; segunda → fila stale de caché
+    # First execute call → connection list; second → stale cache row
     exec_conns = MagicMock()
     exec_conns.scalars.return_value.all.return_value = [mock_conn]
 
@@ -2922,15 +2922,15 @@ async def test_cache_schema_version_mismatch_triggers_refetch():
     ):
         result = await svc.get_portfolio(user_id=1, db=mock_db)
 
-    # La fila stale fue eliminada y flusheada antes del INSERT
+    # Stale row was deleted and flushed before the INSERT
     mock_db.delete.assert_called_once_with(stale_row)
     mock_db.flush.assert_called_once()
 
-    # Se insertó una fila nueva con la versión de esquema correcta
+    # New row was inserted with the correct schema version
     mock_db.add.assert_called_once()
     new_row_arg = mock_db.add.call_args[0][0]
     assert new_row_arg.connection_id == 99
     assert new_row_arg.payload.get("_schema_version") == svc._PORTFOLIO_SCHEMA_VERSION
 
-    # El resultado lleva los datos del fetch fresco, no el stale 999.0
+    # Result carries data from the fresh fetch, not the stale 999.0
     assert result.total_value == pytest.approx(12345.0)

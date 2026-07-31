@@ -68,33 +68,33 @@ line-length = 100
 
 [tool.mypy]
 python_version = "3.12"
-# Comprobacion centrada en la capa de consultas, que es la frontera entre la
-# base de datos y la API: es donde un cambio de forma en los datos se propaga
-# en silencio hasta que Pydantic falla al serializar la respuesta.
+# Focused on the query layer, the boundary between the database and the API:
+# that is where a change in data shape propagates silently until Pydantic fails
+# while serialising the response.
 files = ["src/finlytics/db/queries", "src/finlytics/clock.py", "src/finlytics/auth"]
 ignore_missing_imports = true
 warn_unused_ignores = true
 
 [[tool.mypy.overrides]]
-# Falsos positivos de los stubs de SQLAlchemy 2.0, comprobados en ejecucion:
+# False positives from the SQLAlchemy 2.0 stubs, verified at runtime:
 #
-#  * typeddict-item / attr-defined sobre `.count`: los stubs declaran Row como
-#    Sequence, asi que mypy resuelve `row.count` al metodo de Sequence en lugar
-#    de a la columna. En SQLAlchemy 2.0.51 Row NO hereda de tuple y el acceso
-#    por nombre gana, cosa que ademas cubren los tests de extractos y resumenes.
-#  * attr-defined sobre `Result.rowcount`: `session.execute()` esta anotado como
-#    Result, pero en un DELETE devuelve un CursorResult, que si lo expone.
-#  * assignment / arg-type al reasignar un Select a Subquery: mypy fija el tipo
-#    de la variable en la primera asignacion y no admite el .subquery() posterior.
+#  * typeddict-item / attr-defined on `.count`: the stubs declare Row as a
+#    Sequence, so mypy resolves `row.count` to Sequence's method instead of to
+#    the column. In SQLAlchemy 2.0.51 Row does NOT inherit from tuple and access
+#    by name wins, which the statement and summary tests also cover.
+#  * attr-defined on `Result.rowcount`: `session.execute()` is annotated as
+#    Result, but on a DELETE it returns a CursorResult, which does expose it.
+#  * assignment / arg-type when reassigning a Select to a Subquery: mypy pins
+#    the variable's type on first assignment and rejects the later .subquery().
 module = "finlytics.db.queries.*"
 disable_error_code = ["typeddict-item", "attr-defined", "assignment", "arg-type"]
 
 [tool.setuptools]
 include-package-data = true
 
-# El marcador py.typed le dice a mypy y a los editores que las anotaciones de
-# este paquete son fiables. Sin el, los TypedDict de la capa de consultas se
-# ignoran y la comprobacion de tipos no sirve de nada fuera del propio modulo.
+# The py.typed marker tells mypy and editors that this package's annotations are
+# reliable. Without it the query layer's TypedDicts are ignored and type checking
+# is useless outside the module itself.
 [tool.setuptools.package-data]
 finlytics = ["py.typed"]
 

@@ -303,7 +303,7 @@
   transition: border-color 0.12s;
 }
 .tag-filter-input:focus { border-color: var(--primary); }
-/* Section heading in the suggestions list ("Most used" / "Más usadas") */
+/* Section heading in the suggestions list. */
 .tag-filter-suggestions-header {
   padding: 4px 10px 2px;
   font-size: 10px;

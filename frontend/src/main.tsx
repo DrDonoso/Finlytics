@@ -42,13 +42,11 @@ if (import.meta.env.VITE_DEMO === '1') {
           'max-width:34rem;margin:15vh auto;padding:1.5rem;font:14px/1.55 system-ui,sans-serif;' +
           'border:1px solid #e2e8f0;border-radius:12px;color:#1e293b;background:#fff'
         const title = document.createElement('strong')
-        title.textContent = 'No se pudo iniciar la demo / Could not start the demo'
+        title.textContent = 'Could not start the demo'
         const body = document.createElement('p')
         body.style.marginBottom = '0'
         body.textContent =
-          'La demo necesita un Service Worker, que los navegadores solo permiten ' +
-          'sobre HTTPS (o en localhost). Sírvela detrás de TLS. — The demo needs a ' +
-          'Service Worker, which browsers only allow over HTTPS (or on localhost).'
+          'The demo needs a Service Worker, which browsers only allow over HTTPS (or on localhost). Serve it behind TLS.'
         box.append(title, body)
         root.append(box)
       }

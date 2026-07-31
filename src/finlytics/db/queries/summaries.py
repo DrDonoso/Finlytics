@@ -1,4 +1,4 @@
-"""Agregaciones para los resumenes: totales, por categoria, por mes y flujo de caja."""
+"""Summary aggregations: totals, by category, by month and cash flow."""
 
 from __future__ import annotations
 

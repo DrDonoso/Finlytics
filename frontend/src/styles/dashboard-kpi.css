@@ -1,7 +1,7 @@
-/* ─── KPI destacada del Inicio ──────────────────────────────────────────────
-   «Patrimonio total» resume toda la aplicación, así que se lleva el degradado
-   de marca y una elevación propia.  Las otras dos KPI quedan planas detrás:
-   es lo que crea jerarquía en una fila que antes eran tres tarjetas idénticas.
+/* ─── Home page featured KPI ─────────────────────────────────────────────────
+   "Total net worth" summarises the whole app, so it gets the brand gradient
+   and its own elevation.  The other two KPIs sit flat behind it:
+   that creates hierarchy in a row that was previously three identical cards.
    ─────────────────────────────────────────────────────────────────────────── */
 .dashboard-kpi-strip {
   grid-template-columns: 1.25fr 1fr 1fr;
@@ -22,7 +22,7 @@
   box-shadow: var(--shadow-hero);
   color: #fff;
 }
-/* Destello superior derecho: da volumen al degradado sin añadir otra capa DOM. */
+/* Top-right sheen: adds depth to the gradient without an extra DOM layer. */
 .dashboard-kpi-hero::after {
   content: "";
   position: absolute;
@@ -34,7 +34,6 @@
 .dashboard-kpi-hero .inv-kpi-card__label { color: rgba(255, 255, 255, 0.78); }
 .dashboard-kpi-hero .inv-kpi-card__value { color: #fff; }
 
-/* Desglose cuentas / inversiones bajo la cifra destacada. */
 .dashboard-kpi-breakdown {
   display: flex;
   flex-wrap: wrap;
@@ -55,14 +54,13 @@
   color: rgba(255, 255, 255, 0.62);
   margin-bottom: 1px;
 }
-/* Valor que no se ha podido leer: se marca como texto, no como cifra. */
+/* Unreadable value: shown as text rather than a number. */
 .dashboard-kpi-breakdown__missing {
   font-family: var(--font);
   font-style: italic;
   color: rgba(255, 255, 255, 0.62);
 }
 
-/* Aviso de patrimonio incompleto, dentro de la tarjeta con degradado. */
 .dashboard-kpi-hero__notice {
   display: flex;
   align-items: center;
@@ -75,8 +73,8 @@
   color: rgba(255, 255, 255, 0.8);
 }
 
-/* Badge de variación.  Se expresa en puntos porcentuales, no en %, porque la
-   variación relativa entre dos porcentajes induce a error. */
+/* Variation badge.  Expressed in percentage points, not %, because relative
+   change between two percentages is misleading. */
 .dashboard-kpi-delta {
   display: inline-flex;
   align-items: center;

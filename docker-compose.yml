@@ -15,9 +15,9 @@ services:
       OPENAI_MODEL: "${OPENAI_MODEL:-}"
 
       # --- App config ---
-      # TIMEZONE decide el día natural que usa la aplicación (recordatorios de
-      # extractos, ESPP); TZ alinea además el reloj del proceso para que las
-      # marcas de tiempo de los logs no vayan desfasadas respecto a la interfaz.
+      # TIMEZONE decides the calendar day the application uses (statement and
+      # ESPP reminders); TZ also aligns the process clock so log timestamps do
+      # not drift away from the UI.
       TIMEZONE: "${TIMEZONE:-Europe/Madrid}"
       TZ: "${TIMEZONE:-Europe/Madrid}"
       UPLOAD_DIR: /app/data/uploads

@@ -1,10 +1,10 @@
 """Tests for is_system flag — OPTION B: ledger visible, KPIs excluded.
 
-Comportamiento OPTION B (aprobado por el owner):
-  - Ledger (get_transactions / GET /api/transactions): INCLUYE is_system=True.
-  - KPIs (overview, category, merchant, month, day, account, cashflow): EXCLUYEN is_system=True.
-  - El campo ``is_system`` aparece en cada ítem del ledger para que el frontend
-    pueda mostrar el badge "sistema" en las aperturas de saldo.
+OPTION B behaviour (approved by the owner):
+  - Ledger (get_transactions / GET /api/transactions): INCLUDES is_system=True.
+  - KPIs (overview, category, merchant, month, day, account, cashflow): EXCLUDE is_system=True.
+  - The ``is_system`` field appears on every ledger item so the frontend can show
+    the "system" badge on opening-balance entries.
 
 Three complementary layers:
 
@@ -18,24 +18,24 @@ Three complementary layers:
 
 3. Integration-level — StaticPool + aiosqlite with real data rows and real SQL
    execution.  Verifies:
-   - KPIs (TC-1..TC-7): is_system=True excluida de todas las agregaciones.
-   - Ledger (TC-9): is_system=True VISIBLE, campo ``is_system`` presente.
-   - Regresión (TC-10): KPIs dan 2 txs, ledger da 3 txs — OPTION B coherente.
+   - KPIs (TC-1..TC-7): is_system=True excluded from all aggregations.
+   - Ledger (TC-9): is_system=True VISIBLE, ``is_system`` field present.
+   - Regression (TC-10): KPIs return 2 txs, ledger returns 3 txs — OPTION B consistent.
    Uses ``to_char`` SQLite shim registered via the ``"connect"`` event.
 
-Dataset fijo (integration tests)
+Fixed dataset (integration tests)
 ──────────────────────────────────
   income_tx   amount=+1000.00  is_system=False  cat=Income     merchant="Acme"
   expense_tx  amount=−200.00   is_system=False  cat=Groceries  merchant="Mercadona"
   opening_tx  amount=+5000.00  is_system=True   cat=None       merchant="SaldoTest"
 
-Resultados esperados en KPIs (is_system excluido):
-  total_income  = 1000.00   (NO 6000.00)
+Expected KPI results (is_system excluded):
+  total_income  = 1000.00   (NOT 6000.00)
   total_expense =  200.00
   net           =  800.00
 
-Resultados esperados en ledger (OPTION B — is_system incluido):
-  total txs = 3  (2 normales + 1 apertura)
+Expected ledger results (OPTION B — is_system included):
+  total txs = 3  (2 normal + 1 opening)
   opening_item["is_system"] == True
 """
 
@@ -144,10 +144,10 @@ async def test_overview_excludes_opening_balance_tx(client):
 
 
 # =============================================================================
-# CAPA 3 — Integration: StaticPool + aiosqlite + SQL real
+# Layer 3 — Integration: StaticPool + aiosqlite + real SQL
 # =============================================================================
 
-# ── Constantes ────────────────────────────────────────────────────────────────
+# ── Constants ─────────────────────────────────────────────────────────────────
 
 _INCOME_AMOUNT = Decimal("1000.00")
 _EXPENSE_AMOUNT = Decimal("-200.00")
@@ -158,10 +158,10 @@ _EXPENSE_DATE = date(2024, 5, 20)
 _OPENING_DATE = date(2024, 5, 1)
 
 
-# ── Shim to_char para SQLite ──────────────────────────────────────────────────
+# ── to_char shim for SQLite ───────────────────────────────────────────────────
 
 def _to_char_shim(value: str | None, fmt: str) -> str | None:
-    """Emula to_char(date, 'YYYY-MM' | 'YYYY-MM-DD') de PostgreSQL en SQLite."""
+    """Emulate PostgreSQL's to_char(date, 'YYYY-MM' | 'YYYY-MM-DD') in SQLite."""
     if value is None:
         return None
     s = str(value)
@@ -173,10 +173,10 @@ def _to_char_shim(value: str | None, fmt: str) -> str | None:
 
 
 def _register_to_char(dbapi_conn, _record):
-    """Listener del evento 'connect' — registra to_char en la conexión SQLite.
+    """'connect' event listener — registers to_char on the SQLite connection.
 
-    Con StaticPool + aiosqlite, dbapi_conn es AsyncAdapt_aiosqlite_connection,
-    cuyo .create_function() es síncrono (wrapper sobre sqlite3.create_function).
+    With StaticPool + aiosqlite, dbapi_conn is AsyncAdapt_aiosqlite_connection,
+    whose .create_function() is synchronous (wraps sqlite3.create_function).
     """
     dbapi_conn.create_function("to_char", 2, _to_char_shim)
 
@@ -185,7 +185,7 @@ def _register_to_char(dbapi_conn, _record):
 
 @pytest.fixture
 async def sqlite_engine():
-    """Motor SQLite en memoria con StaticPool y shim to_char para get_by_month/day."""
+    """In-memory SQLite engine with StaticPool and to_char shim for get_by_month/day."""
     eng = create_async_engine(
         "sqlite+aiosqlite:///:memory:",
         connect_args={"check_same_thread": False},
@@ -204,7 +204,7 @@ def _sf(engine):
     return async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
-# ── Helper de datos ───────────────────────────────────────────────────────────
+# ── Data helpers ─────────────────────────────────────────────────────────────
 
 def _dedup(account_name: str, tx_date: date, amount: Decimal, desc: str) -> str:
     payload = json.dumps(
@@ -216,7 +216,7 @@ def _dedup(account_name: str, tx_date: date, amount: Decimal, desc: str) -> str:
 
 
 async def _create_test_data(session: AsyncSession) -> dict:
-    """Inserta cuenta, categorías, import_runs y 3 transacciones de prueba."""
+    """Insert account, categories, import_runs, and 3 test transactions."""
     account = Account(name="TestBank", type="bank", currency="EUR")
     session.add(account)
     await session.flush()
@@ -253,8 +253,8 @@ async def _create_test_data(session: AsyncSession) -> dict:
         merchant="Mercadona", is_system=False,
         dedup_hash=_dedup("TestBank", _EXPENSE_DATE, _EXPENSE_AMOUNT, "MERCADONA"),
     )
-    # Saldo inicial sintético — is_system=True; merchant="SaldoTest" para
-    # poder verificar su exclusión en get_by_merchant
+    # Synthetic opening balance — is_system=True; merchant="SaldoTest" so its
+    # exclusion can be verified in get_by_merchant.
     opening_tx = Transaction(
         id=3,
         account_id=account.id, import_run_id=ir_saldo.id,
@@ -275,7 +275,7 @@ async def _create_test_data(session: AsyncSession) -> dict:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# TC-1: get_overview — income/net NO incluyen el saldo inicial
+# TC-1: get_overview — income/net do NOT include the opening balance
 # ─────────────────────────────────────────────────────────────────────────────
 
 async def test_integration_overview_excludes_opening_balance(sqlite_engine):
@@ -288,18 +288,18 @@ async def test_integration_overview_excludes_opening_balance(sqlite_engine):
         result = await get_overview(s)
 
     assert result["total_income"] == pytest.approx(1000.00), (
-        f"total_income debe ser 1000 (saldo 5000 excluido), fue {result['total_income']}"
+        f"total_income should be 1000 (opening 5000 excluded), got {result['total_income']}"
     )
     assert result["total_expense"] == pytest.approx(200.00)
     assert result["net"] == pytest.approx(800.00)
     assert result["num_transactions"] == 2, (
-        f"Solo 2 transacciones normales deben contarse, "
+        f"Only 2 normal transactions should be counted, "
         f"num_transactions={result['num_transactions']}"
     )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# TC-2: get_by_category — saldo no aparece en ningún bucket de categoría
+# TC-2: get_by_category — opening balance does not appear in any category bucket
 # ─────────────────────────────────────────────────────────────────────────────
 
 async def test_integration_by_category_excludes_opening_balance(sqlite_engine):
@@ -311,19 +311,19 @@ async def test_integration_by_category_excludes_opening_balance(sqlite_engine):
     async with factory() as s:
         rows = await get_by_category(s)
 
-    # get_by_category filtra amount < 0 (gastos) — solo Groceries debe aparecer
+    # get_by_category filters amount < 0 (expenses) — only Groceries should appear
     total = sum(r["amount"] for r in rows)
     assert total == pytest.approx(200.00), (
-        f"Suma de categorías debe ser 200 (solo gasto normal), fue {total}"
+        f"Category sum should be 200 (only the normal expense), got {total}"
     )
     for row in rows:
         assert row["amount"] < 5000, (
-            f"Ningún bucket debe tener amount ~ 5000 (saldo inicial is_system=True): {row}"
+            f"No bucket should have amount ~ 5000 (opening balance is_system=True): {row}"
         )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# TC-3: get_by_merchant — merchant del saldo inicial excluido
+# TC-3: get_by_merchant — opening balance merchant is excluded
 # ─────────────────────────────────────────────────────────────────────────────
 
 async def test_integration_by_merchant_excludes_opening_balance(sqlite_engine):
@@ -337,13 +337,13 @@ async def test_integration_by_merchant_excludes_opening_balance(sqlite_engine):
 
     merchants = [r["merchant"] for r in rows]
     assert "SaldoTest" not in merchants, (
-        "El merchant 'SaldoTest' de la tx de apertura (is_system=True) "
-        "no debe aparecer en get_by_merchant"
+        "Merchant 'SaldoTest' from the opening tx (is_system=True) "
+        "must not appear in get_by_merchant"
     )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# TC-4: get_by_month — income de mayo no está inflado por el saldo inicial
+# TC-4: get_by_month — May income is not inflated by the opening balance
 # ─────────────────────────────────────────────────────────────────────────────
 
 async def test_integration_by_month_excludes_opening_balance(sqlite_engine):
@@ -355,18 +355,18 @@ async def test_integration_by_month_excludes_opening_balance(sqlite_engine):
     async with factory() as s:
         rows = await get_by_month(s)
 
-    assert len(rows) == 1, f"Debe haber 1 mes (2024-05), encontrados {len(rows)}"
+    assert len(rows) == 1, f"Expected 1 month (2024-05), found {len(rows)}"
     may = rows[0]
     assert may["month"] == "2024-05"
     assert may["income"] == pytest.approx(1000.00), (
-        f"Ingreso de mayo debe ser 1000 (saldo 5000 excluido), fue {may['income']}"
+        f"May income should be 1000 (opening 5000 excluded), got {may['income']}"
     )
     assert may["expense"] == pytest.approx(200.00)
     assert may["net"] == pytest.approx(800.00)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# TC-5: get_by_day — día del saldo inicial no aparece en la serie diaria
+# TC-5: get_by_day — opening balance day does not appear in the daily series
 # ─────────────────────────────────────────────────────────────────────────────
 
 async def test_integration_by_day_excludes_opening_balance(sqlite_engine):
@@ -380,17 +380,17 @@ async def test_integration_by_day_excludes_opening_balance(sqlite_engine):
 
     days = {r["day"]: r for r in rows}
     assert "2024-05-01" not in days, (
-        "El día 2024-05-01 (solo saldo inicial is_system=True) NO debe aparecer"
+        "Day 2024-05-01 (opening balance is_system=True only) must NOT appear"
     )
     assert set(days.keys()) == {"2024-05-15", "2024-05-20"}, (
-        f"Solo deben aparecer días de txs normales, encontrados: {set(days.keys())}"
+        f"Only days with normal txs should appear, found: {set(days.keys())}"
     )
     assert days["2024-05-15"]["income"] == pytest.approx(1000.00)
     assert days["2024-05-20"]["expense"] == pytest.approx(200.00)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# TC-6: get_by_account — income/net de la cuenta son correctos
+# TC-6: get_by_account — account income/net are correct
 # ─────────────────────────────────────────────────────────────────────────────
 
 async def test_integration_by_account_excludes_opening_balance(sqlite_engine):
@@ -406,14 +406,14 @@ async def test_integration_by_account_excludes_opening_balance(sqlite_engine):
     acct = rows[0]
     assert acct["account"] == "TestBank"
     assert acct["income"] == pytest.approx(1000.00), (
-        f"Income de TestBank debe ser 1000 (saldo 5000 excluido), fue {acct['income']}"
+        f"TestBank income should be 1000 (opening 5000 excluded), got {acct['income']}"
     )
     assert acct["expense"] == pytest.approx(200.00)
     assert acct["net"] == pytest.approx(800.00)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# TC-7: get_cashflow — saldo inicial no aparece en income
+# TC-7: get_cashflow — opening balance does not appear in income
 # ─────────────────────────────────────────────────────────────────────────────
 
 async def test_integration_cashflow_excludes_opening_balance(sqlite_engine):
@@ -426,20 +426,20 @@ async def test_integration_cashflow_excludes_opening_balance(sqlite_engine):
         result = await get_cashflow(s)
 
     assert result["total_income"] == pytest.approx(1000.00), (
-        f"Cashflow total_income debe ser 1000 (saldo 5000 excluido), fue {result['total_income']}"
+        f"Cashflow total_income should be 1000 (opening 5000 excluded), got {result['total_income']}"
     )
     for item in result["income"]:
         assert item["amount"] < 5000, (
-            f"Ningún item de cashflow income debe tener amount ~ 5000: {item}"
+            f"No cashflow income item should have amount ~ 5000: {item}"
         )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# TC-8a: flag is_system — opening_tx=True, normales=False
+# TC-8a: flag is_system — opening_tx=True, normal=False
 # ─────────────────────────────────────────────────────────────────────────────
 
 async def test_is_system_flag_values(sqlite_engine):
-    """Opening tx tiene is_system=True; transacciones normales tienen is_system=False."""
+    """Opening tx has is_system=True; normal transactions have is_system=False."""
     factory = _sf(sqlite_engine)
     async with factory() as s:
         async with s.begin():
@@ -451,46 +451,46 @@ async def test_is_system_flag_values(sqlite_engine):
         expense = await s.get(Transaction, ids["expense_tx_id"])
 
     assert opening.is_system is True, (
-        "La tx de apertura (Saldo inicial) debe tener is_system=True"
+        "The opening tx (Saldo inicial) must have is_system=True"
     )
     assert income.is_system is False, (
-        "La tx normal de ingreso debe tener is_system=False"
+        "The normal income tx must have is_system=False"
     )
     assert expense.is_system is False, (
-        "La tx normal de gasto debe tener is_system=False"
+        "The normal expense tx must have is_system=False"
     )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# TC-8b: create_opening_balance_tx inserta is_system=True en el código fuente
+# TC-8b: create_opening_balance_tx sets is_system=True in source
 # ─────────────────────────────────────────────────────────────────────────────
 
 def test_create_opening_balance_helper_sets_is_system():
-    """create_opening_balance_tx pasa is_system=True al pg_insert (verificación fuente).
+    """create_opening_balance_tx passes is_system=True to pg_insert (source verification).
 
-    La función usa pg_insert (PostgreSQL-específico), no ejecutable en SQLite.
-    Se verifica la fuente directamente para garantizar que cualquier apertura
-    creada en producción tendrá is_system=True.
+    The function uses pg_insert (PostgreSQL-specific), not runnable in SQLite.
+    Source is verified directly to guarantee that any opening balance created in
+    production will have is_system=True.
     """
     from finlytics.db import repository
 
     src = inspect.getsource(repository.create_opening_balance_tx)
     assert "is_system=True" in src, (
-        "Bug: create_opening_balance_tx debe insertar is_system=True. "
-        "El campo no está en el pg_insert().values(...)"
+        "Bug: create_opening_balance_tx must insert is_system=True. "
+        "The field is missing from the pg_insert().values(...)"
     )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# TC-9: get_transactions — saldo inicial VISIBLE en el ledger (OPTION B)
+# TC-9: get_transactions — opening balance VISIBLE in the ledger (OPTION B)
 # ─────────────────────────────────────────────────────────────────────────────
 
 async def test_integration_transactions_ledger_includes_opening_balance(sqlite_engine):
-    """get_transactions devuelve la tx de apertura (visible en el ledger — OPTION B).
+    """get_transactions returns the opening tx (visible in the ledger — OPTION B).
 
-    La apertura (is_system=True) APARECE en el ledger con el campo is_system=True
-    para que el frontend pueda mostrar el badge "sistema".
-    Las KPIs (get_overview, etc.) siguen excluyendo is_system=True.
+    The opening balance (is_system=True) APPEARS in the ledger with is_system=True
+    so the frontend can show the "system" badge.
+    KPIs (get_overview, etc.) continue to exclude is_system=True.
     """
     factory = _sf(sqlite_engine)
     async with factory() as s:
@@ -502,29 +502,29 @@ async def test_integration_transactions_ledger_includes_opening_balance(sqlite_e
 
     descriptions = [item["description"] for item in items]
     assert "Saldo inicial" in descriptions, (
-        "La descripción 'Saldo inicial' (is_system=True) DEBE aparecer "
-        "en get_transactions — el ledger muestra todas las transacciones (OPTION B)"
+        "Description 'Saldo inicial' (is_system=True) MUST appear "
+        "in get_transactions — the ledger shows all transactions (OPTION B)"
     )
     assert total == 3, (
-        f"El ledger debe contener 3 transacciones (2 normales + 1 apertura), "
+        f"Ledger must contain 3 transactions (2 normal + 1 opening), "
         f"total={total}"
     )
     opening_item = next(i for i in items if i["description"] == "Saldo inicial")
     assert opening_item["is_system"] is True, (
-        "La tx de apertura debe tener is_system=True en la respuesta del ledger"
+        "The opening tx must have is_system=True in the ledger response"
     )
     normal_items = [i for i in items if not i["is_system"]]
     assert len(normal_items) == 2, (
-        "Las 2 transacciones normales deben tener is_system=False"
+        "The 2 normal transactions must have is_system=False"
     )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# TC-10: regresión — is_system=False no rompe el conteo normal
+# TC-10: regression — is_system=False does not break the normal count
 # ─────────────────────────────────────────────────────────────────────────────
 
 async def test_integration_normal_transactions_still_counted(sqlite_engine):
-    """Regresión: is_system=False (default) no rompe el conteo de txs normales."""
+    """Regression: is_system=False (default) does not break the count of normal txs."""
     factory = _sf(sqlite_engine)
     async with factory() as s:
         async with s.begin():
@@ -534,7 +534,7 @@ async def test_integration_normal_transactions_still_counted(sqlite_engine):
         overview = await get_overview(s)
 
     assert overview["num_transactions"] == 2, (
-        "Regresión: las 2 transacciones normales deben seguir contándose"
+        "Regression: the 2 normal transactions must still be counted"
     )
     assert overview["total_income"] == pytest.approx(1000.00)
     assert overview["total_expense"] == pytest.approx(200.00)
@@ -545,11 +545,11 @@ async def test_integration_normal_transactions_still_counted(sqlite_engine):
     assert total == 3
     descs = {item["description"] for item in items}
     assert "Nómina mayo" in descs, (
-        "Regresión: 'Nómina mayo' (is_system=False) debe aparecer en el ledger"
+        "Regression: 'Nómina mayo' (is_system=False) must appear in the ledger"
     )
     assert "MERCADONA" in descs, (
-        "Regresión: 'MERCADONA' (is_system=False) debe aparecer en el ledger"
+        "Regression: 'MERCADONA' (is_system=False) must appear in the ledger"
     )
     assert "Saldo inicial" in descs, (
-        "Regresión OPTION B: 'Saldo inicial' (is_system=True) DEBE aparecer en el ledger"
+        "Regression OPTION B: 'Saldo inicial' (is_system=True) MUST appear in the ledger"
     )

@@ -1,7 +1,7 @@
-"""Consultas sobre categorias y etiquetas.
+"""Queries over categories and tags.
 
-Van juntas porque comparten proposito: son las dos taxonomias con las que
-se clasifica una transaccion.
+They live together because they share a purpose: they are the two taxonomies a
+transaction is classified with.
 """
 
 from __future__ import annotations

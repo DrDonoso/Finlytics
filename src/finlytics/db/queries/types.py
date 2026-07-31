@@ -1,20 +1,19 @@
-"""Formas de los datos que devuelve la capa de consultas.
+"""Shapes of the data the query layer returns.
 
-Las funciones devolvían ``dict[str, Any]``, lo que anulaba la comprobación de
-tipos justo en la frontera entre la base de datos y la API: si una consulta
-dejaba de devolver una clave, o la devolvía con otro nombre, nada lo detectaba
-hasta que Pydantic fallaba en tiempo de ejecución al serializar la respuesta.
+These functions used to return ``dict[str, Any]``, which voided type checking
+right at the boundary between the database and the API: if a query stopped
+returning a key, or returned it under a different name, nothing caught it until
+Pydantic failed at runtime while serialising the response.
 
-Se usan ``TypedDict`` y no dataclasses a propósito: los valores siguen siendo
-diccionarios en tiempo de ejecución, así que este cambio no altera el
-comportamiento ni obliga a reescribir los tests, que devuelven diccionarios en
-sus dobles.
+``TypedDict`` is used rather than dataclasses on purpose: the values stay plain
+dicts at runtime, so this does not change behaviour nor force a rewrite of the
+tests, whose doubles return dicts.
 
-Convención de signo (refleja Transaction.amount):
-  amount < 0  -> gasto / salida de dinero
-  amount > 0  -> ingreso / entrada / devolución
+Sign convention (mirrors Transaction.amount):
+  amount < 0  -> expense / money out
+  amount > 0  -> income / money in / refund
 
-Los importes de gasto en las agregaciones son **magnitudes positivas**.
+Expense amounts in the aggregations are **positive magnitudes**.
 """
 
 from __future__ import annotations
@@ -42,7 +41,7 @@ __all__ = [
 ]
 
 
-# ── Catálogos ────────────────────────────────────────────────────────────────
+# ── Catalogues ───────────────────────────────────────────────────────────────
 
 class AccountRow(TypedDict):
     id: int
@@ -81,12 +80,12 @@ class CategoryUpdateRow(TypedDict):
     color: str
 
 
-# ── Transacciones ────────────────────────────────────────────────────────────
+# ── Transactions ─────────────────────────────────────────────────────────────
 
 class TransactionRow(TypedDict):
     id: int
     transaction_date: str
-    """ISO 8601. La lectura serializa la fecha; la escritura devuelve un date."""
+    """ISO 8601. Reads serialise the date; writes return a date object."""
     amount: float
     currency: str
     description: str
@@ -103,7 +102,7 @@ class TransactionRow(TypedDict):
 class UpdatedTransactionRow(TypedDict):
     id: int
     transaction_date: date
-    """A diferencia de la lectura, aquí va el objeto date sin serializar."""
+    """Unlike the read path, this carries the unserialised date object."""
     amount: float
     currency: str
     description: str
@@ -116,7 +115,7 @@ class UpdatedTransactionRow(TypedDict):
     detail: str | None
 
 
-# ── Agregaciones ─────────────────────────────────────────────────────────────
+# ── Aggregations ─────────────────────────────────────────────────────────────
 
 class TopCategory(TypedDict):
     name: str

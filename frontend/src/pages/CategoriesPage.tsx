@@ -14,7 +14,7 @@ export default function CategoriesPage() {
   const EMPTY: never[] = useMemo(() => [], [])
   const categories = categoriesQuery.data ?? EMPTY
   const loading = categoriesQuery.isPending
-  // Sólo errores de las mutaciones; el de la carga lo aporta la consulta.
+  // Mutation errors only; load errors come from the query.
   const [error, setError] = useState<string | null>(null)
   const shownError = error ?? (categoriesQuery.error ? errorMessage(categoriesQuery.error, t) : null)
 

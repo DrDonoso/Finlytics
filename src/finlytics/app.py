@@ -82,9 +82,9 @@ async def _notifications_loop() -> None:
     log.info("Notification loop started (interval=%ds)", interval)
 
     while True:
-        # Se mide desde el arranque de la iteración: dormir el intervalo completo
-        # DESPUÉS de trabajar hace que el periodo real sea intervalo + duración,
-        # y la evaluación se va retrasando un poco más en cada vuelta.
+        # Measured from the start of the iteration: sleeping the full interval
+        # AFTER the work would make the real period interval + duration, so the
+        # evaluation would drift a little later on every lap.
         started = asyncio.get_running_loop().time()
 
         try:
@@ -120,12 +120,12 @@ async def lifespan(app_: FastAPI):
     # lifespan in newer versions).  Also respect the explicit setting.
     _in_test = "pytest" in sys.modules
 
-    # El bucle vive dentro del proceso web, así que arrancar la aplicación con
-    # varios workers de uvicorn lo pondría a correr una vez por worker: cada
-    # notificación se evaluaría N veces y el usuario recibiría N mensajes de
-    # Telegram. Hoy el entrypoint arranca un único worker, pero eso no es algo
-    # que el bucle pueda dar por supuesto, así que se avisa en el log en lugar
-    # de fallar de forma silenciosa el día que alguien escale el servicio.
+    # The loop lives inside the web process, so starting the application with
+    # several uvicorn workers would run it once per worker: every notification
+    # would be evaluated N times and the user would receive N Telegram messages.
+    # Today the entrypoint starts a single worker, but the loop cannot take that
+    # for granted, so it warns in the log instead of failing silently the day
+    # someone scales the service.
     if settings.notifications_loop_enabled and not _in_test:
         workers = os.environ.get("WEB_CONCURRENCY") or os.environ.get("UVICORN_WORKERS")
         if workers and workers.isdigit() and int(workers) > 1:

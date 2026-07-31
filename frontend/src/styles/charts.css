@@ -31,7 +31,7 @@
   }
 }
 
-/* ── Card constraint — CRÍTICO para evitar scroll de página ── */
+/* ── Card constraint — CRITICAL: prevents unwanted page scroll ── */
 .heatmap-card {
   min-width: 0;
   overflow: hidden;
@@ -56,7 +56,7 @@
   border-radius: 3px;
 }
 
-/* ── Contenido del calendario (diario y compacto) ── */
+/* ── Calendar content (daily and compact) ── */
 .heatmap-wrap {
   display: inline-flex;
   flex-direction: column;
@@ -194,7 +194,7 @@
   height: var(--hm-month-cell);
   border-radius: var(--hm-month-radius);
 }
-/* Sin cursor pointer en modo monthly — ELIMINADO: ahora también son clickables */
+/* No pointer cursor in monthly mode — REMOVED: cells are now clickable too */
 .heatmap-month-row .hm-cell:not(.hm-cell--out) { cursor: pointer; }
 
 /* ── Leyenda ── */

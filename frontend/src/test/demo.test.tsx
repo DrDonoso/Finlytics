@@ -1,13 +1,13 @@
 /**
- * Prueba de humo de la demo, contra sus propios interceptores.
+ * Demo smoke test, run against the demo's own MSW interceptors.
  *
- * La demo sustituye la API por handlers de MSW, así que una pantalla puede
- * quedarse sin datos por dos motivos distintos: porque falle el render o porque
- * pida un endpoint que la demo no sirve. Lo segundo no rompe nada visible —el
- * catch-all responde 501— y sólo se nota abriendo cada pantalla a mano.
+ * The demo replaces the API with MSW handlers, so a screen can fail to show
+ * data for two independent reasons: a render error, or a request to an endpoint
+ * the demo doesn't serve. The second case doesn't throw — the catch-all returns
+ * 501 — and is invisible unless you open each screen by hand.
  *
- * Este test monta las rutas que la demo expone contra los handlers reales y
- * comprueba que ninguna acaba pidiendo algo no cubierto.
+ * This test mounts every demo-exposed route against the real handlers and
+ * asserts that none of them issues an uncovered request.
  */
 import { QueryClientProvider } from '@tanstack/react-query'
 import { render, waitFor } from '@testing-library/react'
@@ -40,12 +40,11 @@ vi.mock('../contexts/AuthContext', () => ({
 
 const server = setupServer(...handlers)
 
-/** Peticiones que el catch-all de la demo ha tenido que rechazar. */
+/** Requests the demo's catch-all has had to reject (HTTP 501). */
 let unhandled: string[] = []
 
 beforeAll(() => {
-  // `bypass` en lugar de `error`: el catch-all de la demo ya devuelve 501, y lo
-  // que interesa medir es precisamente cuántas veces se llega hasta él.
+  // 'bypass' rather than 'error': the demo catch-all already returns 501, and we want to measure exactly how often it is reached.
   server.listen({ onUnhandledRequest: 'bypass' })
 })
 
@@ -63,7 +62,7 @@ afterEach(() => {
   server.events.removeAllListeners()
 })
 
-/** Rutas que expone DemoRoutes en App.tsx. */
+/** Routes exposed by DemoRoutes in App.tsx. */
 const DEMO_ROUTES: [string, React.ReactNode][] = [
   ['/', <Dashboard key="d" />],
   ['/finances', <FinancesOverviewPage key="f" />],
@@ -96,22 +95,22 @@ function renderDemoRoute(path: string, element: React.ReactNode) {
   )
 }
 
-describe('la demo cubre todo lo que sus pantallas piden', () => {
+describe('the demo covers everything its screens request', () => {
   it.each(DEMO_ROUTES)('%s', async (path, element) => {
     const { container } = renderDemoRoute(path, element)
 
     await waitFor(() => {
       expect(container.querySelector('.app-shell')).not.toBeNull()
     })
-    // Margen para que se resuelvan las consultas que arrancan al montar.
+    // Allow time for queries triggered on mount to settle.
     await new Promise(r => setTimeout(r, 250))
 
     expect(unhandled).toEqual([])
   })
 })
 
-describe('los datos de la demo llegan a la pantalla', () => {
-  it('el Inicio muestra un patrimonio y no un guion', async () => {
+describe('demo data reaches the screen', () => {
+  it('the dashboard shows a net worth value, not a dash', async () => {
     const { container } = renderDemoRoute('/', <Dashboard />)
 
     await waitFor(
@@ -123,7 +122,7 @@ describe('los datos de la demo llegan a la pantalla', () => {
     )
   })
 
-  it('la tabla de cuentas se rellena', async () => {
+  it('the accounts table populates', async () => {
     const { container } = renderDemoRoute('/', <Dashboard />)
 
     await waitFor(

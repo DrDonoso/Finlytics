@@ -80,7 +80,7 @@ export default function FidelityView() {
   const [openTip, setOpenTip] = useState<{ text: string; x: number; y: number } | null>(null)
 
   // ── Evolution chart state ──────────────────────────────────────────────────
-  const [evPeriod, setEvPeriod] = useState<EvolutionPeriod>('Todo')
+  const [evPeriod, setEvPeriod] = useState<EvolutionPeriod>('All')
 
   // ── Import wizard state ────────────────────────────────────────────────────
   const [importOpen, setImportOpen]           = useState(false)
@@ -197,7 +197,7 @@ export default function FidelityView() {
     })()
 
     const filtered = evolution.value_series.filter(pt => {
-      if (evPeriod !== 'Todo' && evPeriod.length === 4) return pt.date.startsWith(evPeriod)
+      if (evPeriod !== 'All' && evPeriod.length === 4) return pt.date.startsWith(evPeriod)
       if (cutoff) return new Date(pt.date) >= cutoff
       return true
     })
@@ -477,9 +477,9 @@ export default function FidelityView() {
                   ))}
                   <button
                     type="button"
-                    className={`inv-period-btn${evPeriod === 'Todo' ? ' inv-period-btn--active' : ''}`}
-                    onClick={() => setEvPeriod('Todo')}
-                  >{t.invPeriodTodo}</button>
+                    className={`inv-period-btn${evPeriod === 'All' ? ' inv-period-btn--active' : ''}`}
+                    onClick={() => setEvPeriod('All')}
+                  >{t.invPeriodAll}</button>
                 </div>
               </div>
             </div>
