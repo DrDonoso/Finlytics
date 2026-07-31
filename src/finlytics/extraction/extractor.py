@@ -451,7 +451,6 @@ async def _extract_chunk_with_retry(
             system=system_prompt,
             user=build_user_prompt(chunk_text),
             response_format=_ExtractionResult,
-            temperature=0.0,
             max_completion_tokens=_EXTRACTION_MAX_TOKENS,
         )
         return result.transactions
@@ -478,7 +477,6 @@ async def _extract_chunk_with_retry(
                 system=system_prompt,
                 user=build_user_prompt(sub_text),
                 response_format=_ExtractionResult,
-                temperature=0.0,
                 max_completion_tokens=_EXTRACTION_MAX_TOKENS,
             )
             txns.extend(sub_result.transactions)

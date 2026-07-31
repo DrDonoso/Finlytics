@@ -79,7 +79,6 @@ async def translate_category_name(name: str) -> dict | None:
                 system=_SYSTEM_PROMPT,
                 user=f"Category name: {clean}",
                 response_format=_TranslationResult,
-                temperature=0.0,
                 max_completion_tokens=_MAX_TOKENS,
             )
             return {"name_en": result.name_en, "name_es": result.name_es}
