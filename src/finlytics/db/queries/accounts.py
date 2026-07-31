@@ -1,4 +1,4 @@
-"""Consultas sobre cuentas."""
+"""Queries over accounts."""
 
 from __future__ import annotations
 

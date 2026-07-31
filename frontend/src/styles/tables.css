@@ -121,8 +121,8 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
   gap: 8px;
   font-size: 14px;
 }
-/* Los iconos SVG del set propio ya vienen dimensionados desde el componente;
-   la regla `.icon` es sólo un remanente para el tamaño de los antiguos emojis. */
+/* SVG icons from the custom set are pre-sized by the component; the `.icon`
+   rule is only a leftover for the old emoji size. */
 .state-box .icon { font-size: 32px; }
 .state-box.error { color: var(--expense); }
 

@@ -84,8 +84,7 @@ async function authPost<T>(path: string, body: unknown): Promise<T> {
   })
   if (!res.ok) {
     const data: { detail?: string } = await res.json().catch(() => ({}))
-    // Retry-After acompaña al 429 del límite de intentos: sin él sólo se puede
-    // decir «demasiados intentos», no cuánto hay que esperar.
+    // Retry-After accompanies a 429: without it you can only say "too many requests", not how long to wait.
     const retryAfterHeader = res.headers.get('Retry-After')
     const retryAfter = retryAfterHeader === null ? undefined : Number(retryAfterHeader)
     throw Object.assign(new Error(data.detail ?? `HTTP ${res.status}`), {

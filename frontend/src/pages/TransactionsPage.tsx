@@ -98,7 +98,7 @@ export default function TransactionsPage() {
     return () => clearTimeout(timer)
   }, [merchantRaw])
 
-  // Overview / totales — la clave de consulta incluye los filtros, evitando respuestas fuera de orden
+  // Overview / totals — the query key includes the filters, which prevents out-of-order responses
   const overviewParams: SummaryParams = useMemo(() => ({
     from:        filters.from || undefined,
     to:          filters.to   || undefined,

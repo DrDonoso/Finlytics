@@ -178,10 +178,10 @@ async def test_patch_account_name_returns_account_out_fields(client, mock_sessio
     mock_exec_result.scalar_one_or_none.return_value = fake_account
     mock_session.execute = AsyncMock(return_value=mock_exec_result)
 
-    updated_row = {**_ACCOUNT_ROW, "name": "Nuevo Nombre", "account_number": _IBAN}
+    updated_row = {**_ACCOUNT_ROW, "name": "New Name", "account_number": _IBAN}
     with patch("finlytics.db.queries.get_account_by_id", new_callable=AsyncMock) as mock_get:
         mock_get.return_value = updated_row
-        resp = await client.patch("/api/accounts/1", json={"name": "Nuevo Nombre"})
+        resp = await client.patch("/api/accounts/1", json={"name": "New Name"})
 
     assert resp.status_code == 200
     body = resp.json()
@@ -353,7 +353,7 @@ async def test_create_account_duplicate_iban_returns_409(client, mock_session):
     conflict.scalar_one_or_none.return_value = existing
     mock_session.execute = AsyncMock(side_effect=[no_conflict, conflict])
 
-    resp = await client.post("/api/accounts", json={"name": "Nueva", "account_number": _IBAN})
+    resp = await client.post("/api/accounts", json={"name": "NewAccount", "account_number": _IBAN})
     assert resp.status_code == 409
 
 
@@ -430,9 +430,9 @@ async def test_create_account_negative_opening_balance_201(client, mock_session)
         patch("finlytics.db.repository.compute_dedup_hash", wraps=compute_dedup_hash) as mock_hash,
         patch("finlytics.db.queries.get_account_by_id", new_callable=AsyncMock) as mock_get,
     ):
-        mock_get.return_value = {**_ACCOUNT_ROW, "name": "Descubierto", "tx_count": 1}
+        mock_get.return_value = {**_ACCOUNT_ROW, "name": "Overdraft", "tx_count": 1}
         resp = await client.post("/api/accounts", json={
-            "name": "Descubierto",
+            "name": "Overdraft",
             "opening_balance": -250.00,
             "opening_date": "2024-03-15",
         })
@@ -549,9 +549,9 @@ async def test_create_account_zero_opening_balance_no_import_run(client, mock_se
     mock_session.execute = AsyncMock(return_value=no_conflict)
 
     with patch("finlytics.db.queries.get_account_by_id", new_callable=AsyncMock) as mock_get:
-        mock_get.return_value = {**_ACCOUNT_ROW, "name": "Vacía", "tx_count": 0}
+        mock_get.return_value = {**_ACCOUNT_ROW, "name": "Empty", "tx_count": 0}
         resp = await client.post("/api/accounts", json={
-            "name": "Vacía",
+            "name": "Empty",
             "opening_balance": 0.0,
             "opening_date": "2024-01-01",
         })

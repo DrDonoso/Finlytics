@@ -37,8 +37,8 @@ export default function FinancesOverviewPage() {
   const accountsQuery = useAccounts()
   const categoriesQuery = useCategories()
   const tagsQuery = useTags()
-  // Se memoizan las listas vacías: `?? []` crea un array nuevo en cada render y
-  // arrastraría a recalcular todo lo que dependa de ellas.
+  // Stable empty arrays: `?? []` creates a new instance on every render and
+  // would force everything depending on them to recompute.
   const EMPTY: never[] = useMemo(() => [], [])
   const accounts = accountsQuery.data ?? EMPTY
   const categories = categoriesQuery.data ?? EMPTY
@@ -53,7 +53,7 @@ export default function FinancesOverviewPage() {
     setImportFiles(null)
     setToast(t.toastSuccess(result.num_inserted, result.num_duplicates))
     setTimeout(() => setToast(null), 6000)
-    // Importar cambia las transacciones, así que todo lo derivado deja de valer.
+    // Importing changes transactions, so everything derived is stale.
     void queryClient.invalidateQueries()
   }
 
@@ -97,8 +97,8 @@ export default function FinancesOverviewPage() {
     ? historicNetQuery.data.reduce((s, r) => s + r.net, 0)
     : null
 
-  // Los parámetros forman parte de la clave de caché, así que una respuesta
-  // lenta de un filtro anterior ya no puede pisar a la del filtro activo.
+  // Params form part of the cache key, so a slow response from a previous filter
+  // can no longer overwrite the result for the active one.
   const summaryParams = useMemo(() => ({
     from:        filters.from || undefined,
     to:          filters.to   || undefined,
@@ -110,8 +110,8 @@ export default function FinancesOverviewPage() {
     day:         filters.day || undefined,
   }), [filters])
 
-  // by-category ignora category_id a propósito: si no, al elegir una categoría
-  // el gráfico se quedaría con un único sector y no habría nada que comparar.
+  // by-category intentionally ignores category_id: selecting a category would
+  // collapse the chart to a single segment and make comparison useless.
   const categoryParams = useMemo(() => {
     const { category_id: _ignored, ...rest } = summaryParams
     return rest

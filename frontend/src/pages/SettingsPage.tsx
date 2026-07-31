@@ -19,7 +19,7 @@ export default function SettingsPage() {
   const EMPTY: never[] = useMemo(() => [], [])
   const tags = tagsQuery.data ?? EMPTY
   const loading = tagsQuery.isPending
-  // Sólo errores de las mutaciones; el de la carga lo aporta la consulta.
+  // Mutation errors only; load errors come from the query.
   const [error, setError] = useState<string | null>(null)
   const shownError = error ?? (tagsQuery.error ? errorMessage(tagsQuery.error, t) : null)
 

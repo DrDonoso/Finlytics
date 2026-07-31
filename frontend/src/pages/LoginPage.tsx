@@ -28,8 +28,8 @@ export default function LoginPage() {
     } catch (err: unknown) {
       const { status, retryAfter } = err as { status?: number; retryAfter?: number }
       if (status === 429) {
-        // Retry-After viene en segundos; se redondea hacia arriba a minutos
-        // porque «espera 247 segundos» no ayuda a nadie.
+        // Retry-After is in seconds; round up to minutes because
+        // "wait 247 seconds" is not useful to the user.
         const minutes = Math.max(1, Math.ceil((retryAfter ?? 60) / 60))
         setError(t.authErrorTooManyAttempts(minutes))
       } else {

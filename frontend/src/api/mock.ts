@@ -533,7 +533,7 @@ let _mockConnected = false
 export function mockValidateIndexaToken(token: string): Promise<ValidateAccountsResponse> {
   if (!token || token.trim().length < 8) {
     return Promise.reject(
-      Object.assign(new Error('Token inválido — verifícalo en Indexa Capital.'), { status: 400 }),
+      Object.assign(new Error('Invalid token — check it in Indexa Capital.'), { status: 400 }),
     )
   }
   return delay({

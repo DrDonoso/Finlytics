@@ -55,16 +55,15 @@ jobs:
           NOTIFICATIONS_LOOP_ENABLED: "false"
         run: pytest -q
 
-      # Sólo sobre la capa de consultas y los módulos con tipos propios: es la
-      # frontera entre la base de datos y la API, donde un cambio de forma en
-      # los datos se propagaba en silencio hasta fallar al serializar.
+      # Only the query layer and the modules with their own types: that is the
+      # boundary between the database and the API, where a change in data shape
+      # used to propagate silently until serialisation failed.
       - name: Type-check (mypy)
         run: mypy
 
-  # El frontend no tenía linter mientras el backend sí tenía ruff, y esa
-  # asimetría dejó pasar fallos reales: selectores CSS que nunca casaban,
-  # cadenas sin traducir y dependencias de efectos incompletas. Este job
-  # existe para que no vuelva a acumularse.
+  # The frontend had no linter while the backend had ruff, and that asymmetry let
+  # real bugs through: CSS selectors that never matched, untranslated strings and
+  # incomplete effect dependencies. This job exists so they stop piling up.
   frontend:
     name: Frontend (lint + test + build)
     runs-on: ubuntu-latest

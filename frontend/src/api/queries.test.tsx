@@ -1,12 +1,11 @@
 /**
- * Verifica que una respuesta lenta de un filtro anterior no puede pisar a la del
- * filtro activo.
+ * Verifies that a slow response from a previous filter cannot overwrite the
+ * active one.
  *
- * Es el fallo que motivó migrar las peticiones a consultas con clave: al cambiar
- * de periodo rápido, el patrón anterior (useEffect + setState) dejaba en
- * pantalla los datos de la primera petición si esta respondía después que la
- * segunda. No lanza ningún error, sólo muestra cifras que no se corresponden con
- * el filtro seleccionado, así que es prácticamente indetectable a ojo.
+ * This is the bug that motivated migrating to keyed queries: when switching
+ * periods quickly, the old useEffect + setState pattern would display results
+ * from the first request if it resolved after the second. No error thrown — just
+ * numbers that don't match the selected filter, practically invisible to the eye.
  */
 import { QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
@@ -50,11 +49,11 @@ function overview(totalExpense: number): Overview {
   }
 }
 
-/** Muestra el gasto del periodo pedido, para poder ver qué respuesta ganó. */
+/** Renders the total expense for the requested period so we can see which response won. */
 function Probe({ params }: { params: SummaryParams }) {
   const { data, isPending } = useOverview(params)
-  if (isPending) return <span data-testid="value">cargando</span>
-  return <span data-testid="value">{data?.total_expense ?? 'sin datos'}</span>
+  if (isPending) return <span data-testid="value">loading</span>
+  return <span data-testid="value">{data?.total_expense ?? 'no data'}</span>
 }
 
 function wrapper(children: ReactNode) {
@@ -66,37 +65,37 @@ beforeEach(() => {
   vi.clearAllMocks()
 })
 
-describe('useOverview con filtros que cambian', () => {
-  it('descarta la respuesta del filtro anterior aunque llegue la última', async () => {
-    const MAYO = { from: '2026-05-01', to: '2026-05-31' }
-    const JULIO = { from: '2026-07-01', to: '2026-07-31' }
+describe('useOverview with changing filters', () => {
+  it('discards stale responses even when they arrive last', async () => {
+    const MAY = { from: '2026-05-01', to: '2026-05-31' }
+    const JULY = { from: '2026-07-01', to: '2026-07-31' }
 
-    let resolveMayo: (v: Overview) => void = () => {}
+    let resolveMay: (v: Overview) => void = () => {}
     getOverview.mockImplementation((params: SummaryParams) => {
-      if (params.from === MAYO.from) {
-        // Mayo se queda colgado a propósito: responderá el último.
-        return new Promise<Overview>(resolve => { resolveMayo = resolve })
+      if (params.from === MAY.from) {
+        // MAY is deliberately left hanging — it will resolve last.
+        return new Promise<Overview>(resolve => { resolveMay = resolve })
       }
       return Promise.resolve(overview(7000))
     })
 
-    const { rerender } = render(wrapper(<Probe params={MAYO} />))
-    expect(await screen.findByText('cargando')).toBeInTheDocument()
+    const { rerender } = render(wrapper(<Probe params={MAY} />))
+    expect(await screen.findByText('loading')).toBeInTheDocument()
 
-    // El usuario cambia a julio antes de que mayo haya respondido.
-    rerender(wrapper(<Probe params={JULIO} />))
+    // The user switches to July before May has responded.
+    rerender(wrapper(<Probe params={JULY} />))
     await waitFor(() => expect(screen.getByTestId('value')).toHaveTextContent('7000'))
 
-    // Y ahora, tarde, llega la respuesta de mayo.
-    resolveMayo(overview(5000))
+    // Now, late, the May response arrives.
+    resolveMay(overview(5000))
     await new Promise(r => setTimeout(r, 50))
 
-    // La pantalla debe seguir mostrando julio, que es el filtro activo.
+    // The screen must still show July, which is the active filter.
     expect(screen.getByTestId('value')).toHaveTextContent('7000')
     expect(screen.getByTestId('value')).not.toHaveTextContent('5000')
   })
 
-  it('cachea por parámetros en lugar de volver a pedir lo mismo', async () => {
+  it('deduplicates concurrent requests for the same params', async () => {
     getOverview.mockResolvedValue(overview(1234))
     const params = { from: '2026-06-01', to: '2026-06-30' }
 
@@ -113,11 +112,11 @@ describe('useOverview con filtros que cambian', () => {
       expect(screen.getAllByTestId('value')[0]).toHaveTextContent('1234')
     })
 
-    // Dos componentes pidiendo lo mismo antes hacían dos peticiones.
+    // Two components requesting the same data used to fire two requests.
     expect(getOverview).toHaveBeenCalledTimes(1)
   })
 
-  it('distingue periodos distintos en la caché', async () => {
+  it('keeps separate cache entries for different periods', async () => {
     getOverview.mockImplementation((params: SummaryParams) =>
       Promise.resolve(overview(params.from === '2026-05-01' ? 5000 : 7000)),
     )
@@ -139,11 +138,12 @@ describe('useOverview con filtros que cambian', () => {
   })
 })
 
-describe('el patrón anterior sí se corrompía', () => {
+describe('the old useEffect pattern was genuinely broken', () => {
   /**
-   * Reproduce el useEffect + setState que había antes, para dejar constancia de
-   * que el fallo era real y no una precaución teórica. Si este test dejara de
-   * fallar en su versión sin proteger, la migración no habría hecho falta.
+   * Reproduces the useEffect + setState pattern that existed before, to
+   * document that the bug was real and not a theoretical precaution. If this
+   * test stopped failing in its unguarded form, the migration would not have
+   * been necessary.
    */
   function LegacyProbe({ params }: { params: SummaryParams }) {
     const [value, setValue] = useState<number | null>(null)
@@ -153,29 +153,29 @@ describe('el patrón anterior sí se corrompía', () => {
       getOverview(params).then((d: Overview) => setValue(d.total_expense))
     }, [params])
 
-    return <span data-testid="legacy">{value === null ? 'cargando' : value}</span>
+    return <span data-testid="legacy">{value === null ? 'loading' : value}</span>
   }
 
-  it('deja en pantalla los datos del filtro que ya no está activo', async () => {
-    const MAYO = { from: '2026-05-01', to: '2026-05-31' }
-    const JULIO = { from: '2026-07-01', to: '2026-07-31' }
+  it('leaves stale data on screen when a late response overwrites the active one', async () => {
+    const MAY = { from: '2026-05-01', to: '2026-05-31' }
+    const JULY = { from: '2026-07-01', to: '2026-07-31' }
 
-    let resolveMayo: (v: Overview) => void = () => {}
+    let resolveMay: (v: Overview) => void = () => {}
     getOverview.mockImplementation((params: SummaryParams) => {
-      if (params.from === MAYO.from) {
-        return new Promise<Overview>(resolve => { resolveMayo = resolve })
+      if (params.from === MAY.from) {
+        return new Promise<Overview>(resolve => { resolveMay = resolve })
       }
       return Promise.resolve(overview(7000))
     })
 
-    const { rerender } = render(<LegacyProbe params={MAYO} />)
-    rerender(<LegacyProbe params={JULIO} />)
+    const { rerender } = render(<LegacyProbe params={MAY} />)
+    rerender(<LegacyProbe params={JULY} />)
     await waitFor(() => expect(screen.getByTestId('legacy')).toHaveTextContent('7000'))
 
-    // Llega tarde la respuesta de mayo...
-    resolveMayo(overview(5000))
+    // May arrives late...
+    resolveMay(overview(5000))
 
-    // ...y pisa la de julio: la pantalla muestra mayo con el filtro en julio.
+    // ...and overwrites July: the screen shows May data with July as the active filter.
     await waitFor(() => expect(screen.getByTestId('legacy')).toHaveTextContent('5000'))
   })
 })

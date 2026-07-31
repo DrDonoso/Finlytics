@@ -1,10 +1,10 @@
 /**
- * Tests de la comparación entre periodos.
+ * Period-comparison tests.
  *
- * Es lógica pura que alimenta los badges de variación del Inicio, de Extractos y
- * de movimientos por categoría. Un error aquí no rompe nada visiblemente: sólo
- * muestra un porcentaje equivocado, que es justo el tipo de fallo que nadie
- * detecta a ojo en una aplicación de finanzas.
+ * This is pure logic that drives the change-variance badges on the dashboard,
+ * Statements, and category breakdown. A bug here doesn't break anything
+ * visibly — it just shows a wrong percentage, which is exactly the kind of
+ * failure nobody notices in a finance app.
  */
 import { describe, expect, it } from 'vitest'
 
@@ -35,38 +35,38 @@ function category(name: string, id: number, amount: number): CategorySummary {
 // ── previousCalendarMonth ────────────────────────────────────────────────────
 
 describe('previousCalendarMonth', () => {
-  it('devuelve el mes natural anterior completo', () => {
+  it('returns the full preceding calendar month', () => {
     expect(previousCalendarMonth('2026-07-15')).toEqual({
       from: '2026-06-01',
       to: '2026-06-30',
     })
   })
 
-  it('cruza el cambio de año', () => {
+  it('crosses the year boundary', () => {
     expect(previousCalendarMonth('2026-01-09')).toEqual({
       from: '2025-12-01',
       to: '2025-12-31',
     })
   })
 
-  it('resuelve febrero de un año bisiesto', () => {
-    // 2028 es bisiesto: el mes anterior a marzo termina el día 29.
+  it('resolves February of a leap year', () => {
+    // 2028 is a leap year: the month before March ends on the 29th.
     expect(previousCalendarMonth('2028-03-01')).toEqual({
       from: '2028-02-01',
       to: '2028-02-29',
     })
   })
 
-  it('resuelve febrero de un año no bisiesto', () => {
+  it('resolves February of a non-leap year', () => {
     expect(previousCalendarMonth('2027-03-01')).toEqual({
       from: '2027-02-01',
       to: '2027-02-28',
     })
   })
 
-  it('devuelve null ante entradas no utilizables', () => {
+  it('returns null for unusable inputs', () => {
     expect(previousCalendarMonth('')).toBeNull()
-    expect(previousCalendarMonth('no-es-una-fecha')).toBeNull()
+    expect(previousCalendarMonth('not-a-date')).toBeNull()
     expect(previousCalendarMonth('2026-13-01')).toBeNull()
     expect(previousCalendarMonth('2026-00-01')).toBeNull()
   })
@@ -75,32 +75,31 @@ describe('previousCalendarMonth', () => {
 // ── computeDelta ─────────────────────────────────────────────────────────────
 
 describe('computeDelta', () => {
-  it('calcula la variación absoluta y porcentual', () => {
+  it('computes absolute and percentage change', () => {
     expect(computeDelta(120, 100)).toEqual({ abs: 20, pct: 20, isNew: false })
   })
 
-  it('conserva el signo cuando el valor baja', () => {
+  it('preserves the sign when the value decreases', () => {
     expect(computeDelta(80, 100)).toEqual({ abs: -20, pct: -20, isNew: false })
   })
 
-  it('marca como nuevo lo que antes no existía', () => {
-    // Sin referencia previa no hay porcentaje posible: dividir entre cero daría
-    // Infinity y la interfaz mostraría «+Infinity %».
+  it('marks as new what had no prior value', () => {
+    // Without a prior reference there is no valid percentage: dividing by zero would produce Infinity and the UI would show "+Infinity %".
     const delta = computeDelta(50, 0)
     expect(delta).toEqual({ abs: 50, pct: null, isNew: true })
   })
 
-  it('no marca como nuevo lo que sigue valiendo cero', () => {
+  it('does not mark as new what remains at zero', () => {
     expect(computeDelta(0, 0)).toEqual({ abs: 0, pct: null, isNew: false })
   })
 
-  it('devuelve null cuando no hay periodo anterior', () => {
+  it('returns null when there is no previous period', () => {
     expect(computeDelta(100, null)).toBeNull()
     expect(computeDelta(100, undefined)).toBeNull()
   })
 
-  it('trata correctamente una base negativa', () => {
-    // De -100 a -50 se gasta menos, así que la variación absoluta es positiva.
+  it('handles a negative baseline correctly', () => {
+    // Going from -100 to -50 means spending less, so the absolute delta is positive.
     const delta = computeDelta(-50, -100)
     expect(delta?.abs).toBe(50)
     expect(delta?.pct).toBe(-50)
@@ -110,18 +109,17 @@ describe('computeDelta', () => {
 // ── savingsRate ──────────────────────────────────────────────────────────────
 
 describe('savingsRate', () => {
-  it('es el neto sobre los ingresos, en porcentaje', () => {
+  it('is net over income, expressed as a percentage', () => {
     expect(savingsRate(overview({ total_income: 1000, net: 250 }))).toBe(25)
   })
 
-  it('devuelve null sin ingresos', () => {
-    // Sin ingresos la tasa no está definida; devolver 0 diría «no ahorras
-    // nada», que no es lo mismo que «no se puede calcular».
+  it('returns null when income is zero', () => {
+    // Without income the rate is undefined; returning 0 would say "you save nothing", which is different from "cannot compute".
     expect(savingsRate(overview({ total_income: 0, net: -100 }))).toBeNull()
     expect(savingsRate(overview({ total_income: -50, net: -100 }))).toBeNull()
   })
 
-  it('admite tasas negativas cuando se gasta de más', () => {
+  it('accepts negative rates when spending exceeds income', () => {
     expect(savingsRate(overview({ total_income: 1000, net: -200 }))).toBe(-20)
   })
 })
@@ -129,9 +127,8 @@ describe('savingsRate', () => {
 // ── selectTopMovers ──────────────────────────────────────────────────────────
 
 describe('selectTopMovers', () => {
-  it('ordena por variación absoluta en euros, no por porcentaje', () => {
-    // Restauración sube un 900 % pero sólo 90 €; Vivienda sube un 25 % pero
-    // 200 €. Lo relevante para el usuario es el importe.
+  it('sorts by absolute change in euros, not by percentage', () => {
+    // Dining is up 900 % but only €90; Housing is up 25 % but €200. The amount is what matters to the user.
     const movers = selectTopMovers(
       [category('Dining', 1, 100), category('Housing', 2, 1000)],
       [category('Dining', 1, 10), category('Housing', 2, 800)],
@@ -140,7 +137,7 @@ describe('selectTopMovers', () => {
     expect(movers.map(m => m.category)).toEqual(['Housing', 'Dining'])
   })
 
-  it('tiene en cuenta las bajadas igual que las subidas', () => {
+  it('accounts for decreases as well as increases', () => {
     const movers = selectTopMovers(
       [category('Dining', 1, 10)],
       [category('Dining', 1, 500)],
@@ -149,19 +146,19 @@ describe('selectTopMovers', () => {
     expect(movers[0].delta?.abs).toBe(-490)
   })
 
-  it('devuelve vacío sin periodo anterior con el que comparar', () => {
+  it('returns empty when there is no previous period to compare', () => {
     expect(selectTopMovers([category('Dining', 1, 100)], [])).toEqual([])
   })
 
-  it('incluye las categorías que desaparecen del periodo actual', () => {
-    // Dejar de gastar en algo es un movimiento tan informativo como empezar.
+  it('includes categories that disappear in the current period', () => {
+    // Stopping spending on a category is as informative as starting.
     const movers = selectTopMovers([], [category('Travel', 3, 300)])
 
     expect(movers).toHaveLength(1)
     expect(movers[0]).toMatchObject({ category: 'Travel', current: 0, previous: 300 })
   })
 
-  it('marca como nuevas las categorías que no existían antes', () => {
+  it('marks as new categories that did not exist before', () => {
     const movers = selectTopMovers(
       [category('Travel', 3, 300)],
       [category('Dining', 1, 10)],
@@ -172,7 +169,7 @@ describe('selectTopMovers', () => {
     expect(travel?.delta?.isNew).toBe(true)
   })
 
-  it('respeta el número máximo de filas pedido', () => {
+  it('respects the requested row limit', () => {
     const current = Array.from({ length: 10 }, (_, i) => category(`c${i}`, i, (i + 1) * 100))
     const previous = Array.from({ length: 10 }, (_, i) => category(`c${i}`, i, 1))
 

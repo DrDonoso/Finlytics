@@ -1,14 +1,14 @@
 /**
- * Prueba de humo de las rutas.
+ * Route smoke tests.
  *
- * Comprueba que cada pantalla monta y pinta algo sin lanzar. Cubre lo que hasta
- * ahora se verificaba a mano abriendo la aplicación en el navegador, que es
- * justo el tipo de comprobación que se deja de hacer en cuanto hay prisa.
+ * Verifies that each screen mounts and renders something without throwing.
+ * Covers what was previously checked by hand in the browser — exactly the kind
+ * of verification that gets skipped when there is a deadline.
  *
- * No valida el contenido de cada pantalla —para eso están sus propios tests—,
- * sino que el árbol de componentes, los proveedores y las consultas encajan. Un
- * fallo de render en React deja la página en blanco sin mensaje, así que este
- * test existe sobre todo para que eso no llegue a producción.
+ * This does not validate screen content (each page has its own tests); it checks
+ * that the component tree, providers, and queries fit together. A React render
+ * failure leaves the page blank with no message, so this test exists primarily
+ * to prevent that reaching production.
  */
 import { QueryClientProvider } from '@tanstack/react-query'
 import { render, waitFor } from '@testing-library/react'
@@ -36,12 +36,12 @@ import SettingsPage from '../pages/SettingsPage'
 import StatementsPage from '../pages/StatementsPage'
 import TransactionsPage from '../pages/TransactionsPage'
 
-// ── Dobles de la capa de API ─────────────────────────────────────────────────
-// Se devuelven respuestas vacías pero con la forma correcta: interesa que el
-// árbol monte, no ejercitar los datos.
+// ── API doubles ──────────────────────────────────────────────────────────────
+// Return empty but correctly shaped responses: the goal is that the tree
+// mounts, not that data is exercised.
 //
-// Las constantes van dentro de la factoría porque vi.mock se eleva al principio
-// del fichero y no puede leer variables declaradas fuera.
+// Constants are defined inside the factory because vi.mock is hoisted to the
+// top of the file and cannot read variables declared outside.
 
 vi.mock('../api/client', () => {
   const EMPTY_OVERVIEW = {
@@ -107,7 +107,7 @@ vi.mock('../contexts/AuthContext', () => ({
   AuthProvider: ({ children }: { children: React.ReactNode }) => children,
 }))
 
-/** Rutas tal y como las declara App.tsx. */
+/** Routes as declared in App.tsx. */
 const ROUTES: [string, React.ReactNode][] = [
   ['/', <Dashboard key="d" />],
   ['/finances', <FinancesOverviewPage key="f" />],
@@ -153,8 +153,7 @@ let consoleError: typeof console.error
 beforeEach(() => {
   errors = []
   consoleError = console.error
-  // React avisa por consola de bastantes problemas que no llegan a lanzar;
-  // se capturan para que no pasen desapercibidos.
+  // React logs many issues via console.error that don't throw; capture them so they aren't silently swallowed.
   console.error = (...args: unknown[]) => {
     errors.push(args.map(a => String(a)).join(' '))
   }
@@ -164,7 +163,7 @@ afterEach(() => {
   console.error = consoleError
 })
 
-describe('todas las rutas montan', () => {
+describe('all routes mount', () => {
   it.each(ROUTES)('%s', async (path, element) => {
     const { container } = renderRoute(path, element)
 
@@ -172,35 +171,32 @@ describe('todas las rutas montan', () => {
       expect(container.querySelector('.app-shell')).not.toBeNull()
     })
 
-    // Se descartan los avisos de act(), que son ruido de las pruebas y no de la
-    // aplicación.
+    // Discard act() warnings: they are test infrastructure noise, not app bugs.
     const real = errors.filter(e => !e.includes('not wrapped in act'))
     expect(real).toEqual([])
   })
 })
 
-describe('la navegación lateral se pinta entera', () => {
-  it('enlaza con las secciones principales', async () => {
+describe('the sidebar navigation renders completely', () => {
+  it('links to the main sections', async () => {
     const { container } = renderRoute('/', <Dashboard />)
 
     await waitFor(() => {
       expect(container.querySelector('.sidebar-nav')).not.toBeNull()
     })
 
-    // Se comprueba la estructura y no las etiquetas: la aplicación arranca en el
-    // idioma del navegador, así que el texto visible depende del entorno donde
-    // corran los tests.
+    // Check structure rather than labels: the app starts in the browser's locale,
+    // so visible text depends on the environment running the tests.
     const nav = container.querySelector('.sidebar-nav') as HTMLElement
 
-    // Inicio es el único enlace de primer nivel; el resto son botones que
-    // despliegan su sección, así que sus enlaces no existen hasta abrirla.
+    // The home link is the only top-level anchor; the rest are buttons that expand their section, so their links don't exist until opened.
     const hrefs = [...nav.querySelectorAll('a')].map(a => a.getAttribute('href'))
     expect(hrefs).toContain('/')
 
-    // Finanzas, Inversiones y Ajustes.
+    // Finances, Investments, and Settings.
     expect(nav.querySelectorAll('.sidebar-section-btn').length).toBeGreaterThanOrEqual(3)
 
-    // Y cada entrada lleva su icono del set propio, no un emoji.
+    // Each entry uses an icon from the custom set, not an emoji.
     expect(nav.querySelectorAll('svg.icon').length).toBeGreaterThanOrEqual(4)
   })
 })

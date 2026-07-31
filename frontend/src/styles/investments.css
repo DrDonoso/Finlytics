@@ -704,8 +704,8 @@
   border-color: rgba(var(--cat-alt-rgb), 0.22);
 }
 
-/* Sin overrides de modo oscuro: los cuatro modificadores resuelven por token,
-   que ya cambia con el tema. */
+/* No dark-mode overrides: all four modifiers resolve through the token, which
+   already changes with the theme. */
 
 /* ═══════════════════════════════════════════════════════════════════════
    Connectors page — card state modifiers
@@ -1491,7 +1491,7 @@
   color: var(--text-muted);
   margin-bottom: 8px;
 }
-/* Cifra grande — misma definición que .kpi-value (ver más arriba). */
+/* Large number — same spec as .kpi-value (see above). */
 .inv-kpi-card__value {
   font-size: 26px;
   font-weight: 500;

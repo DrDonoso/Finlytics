@@ -1,10 +1,10 @@
-"""Expresiones y filtros que comparten el resto de consultas.
+"""Expressions and filters shared by the rest of the queries.
 
-Convencion de signo (refleja Transaction.amount):
-  amount < 0  -> gasto / salida de dinero
-  amount > 0  -> ingreso / entrada / devolucion
+Sign convention (mirrors Transaction.amount):
+  amount < 0  -> expense / money out
+  amount > 0  -> income / money in / refund
 
-Las agregaciones de gasto devuelven magnitudes positivas
+Expense aggregations return positive magnitudes
 (-amount WHERE amount < 0).
 """
 
@@ -21,20 +21,20 @@ from finlytics.db.models import Tag, Transaction, transaction_tags
 
 # ── Emoji helper ──────────────────────────────────────────────────────────────
 
-# Los cuantificadores son posesivos (`++`, `*+`) a proposito: ninguna de las tres
-# partes cede terreno a la siguiente, asi que el motor no prueba divisiones
-# alternativas. Esa busqueda de divisiones es el ReDoS polinomico que senala
-# CodeQL. No se ha conseguido explotar en CPython (crecimiento lineal con
-# entradas de hasta 8000 caracteres), pero el patron ambiguo sobra igualmente en
-# algo que escribe el usuario.
+# The quantifiers are possessive (`++`, `*+`) on purpose: none of the three
+# parts gives ground to the next, so the engine never tries alternative splits.
+# That search for splits is the polynomial ReDoS CodeQL flags. It could not be
+# exploited on CPython (linear growth with inputs up to 8000 characters), but an
+# ambiguous pattern is unnecessary in something the user writes anyway.
 #
-# Ojo: esto cambia un caso limite, y lo cambia a mejor. Un nombre formado solo
-# por emojis se partia para que el ultimo hiciera de nombre ("**" -> emoji "*",
-# nombre "*"), lo que contradice el contrato de abajo: si quitar el prefijo deja
-# el nombre vacio, hay que devolver el nombre intacto. El patron viejo ademas era
-# incoherente consigo mismo, porque ese reparto dependia de si la cadena
-# terminaba en espacio o no: sin espacio partia, con espacio no. Al no ceder, el
-# patron simplemente no casa y el nombre se devuelve entero en ambos casos.
+# Note this changes one edge case, and changes it for the better. A name made
+# only of emojis used to be split so the last one acted as the name ("**" ->
+# emoji "*", name "*"), contradicting the contract below: if stripping the prefix
+# leaves an empty name, the name must be returned intact. The old pattern was
+# also inconsistent with itself, because that split depended on whether the
+# string ended in a space: without one it split, with one it did not. By not
+# giving ground the pattern simply does not match and the name is returned whole
+# in both cases.
 _EMOJI_LEAD_RE = re.compile(
     r"^([\U0001F300-\U0001F9FF\U0001FA00-\U0001FAFF\u2600-\u27BF]++)\s*+(\S.*)$",
     re.UNICODE,

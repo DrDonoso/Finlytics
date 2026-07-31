@@ -1,16 +1,15 @@
 /**
- * Cliente de consultas compartido.
+ * Shared query client factory.
  *
- * Se extrae del punto de montaje para que los tests puedan crear su propia
- * instancia con la misma configuración sin arrastrar el árbol de la aplicación.
+ * Extracted from the app mount point so tests can create isolated instances
+ * without pulling in the full component tree.
  */
 import { QueryClient } from '@tanstack/react-query'
 
 /**
- * Los datos financieros no cambian solos: sólo se mueven cuando el usuario
- * importa un extracto o edita algo, y en esos casos la mutación invalida lo que
- * corresponda. Por eso se desactiva el refetch automático al recuperar el foco,
- * que en una aplicación así sólo produce peticiones que nadie ha pedido.
+ * Financial data doesn't change on its own — only when the user imports a
+ * statement or edits a transaction, and in those cases the mutation invalidates
+ * the relevant cache. Disabling refetchOnWindowFocus avoids pointless requests.
  */
 export function createQueryClient(): QueryClient {
   return new QueryClient({
@@ -19,8 +18,7 @@ export function createQueryClient(): QueryClient {
         staleTime: 30_000,
         gcTime: 5 * 60_000,
         refetchOnWindowFocus: false,
-        // Un 401 lo gestiona el manejador global del cliente HTTP; reintentarlo
-        // sólo retrasa la redirección al login.
+        // 401 is handled by the global HTTP client handler — retrying just delays the login redirect.
         retry: (failureCount, error) => {
           if (error instanceof Error && error.message.includes('401')) return false
           return failureCount < 2

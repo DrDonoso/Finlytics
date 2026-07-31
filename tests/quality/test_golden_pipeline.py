@@ -270,16 +270,16 @@ async def test_indexa_golden_transaction_count(indexa_fixture_text, indexa_expec
 
 
 async def test_indexa_golden_investment_contribution(indexa_fixture_text, indexa_expected):
-    """Aportación must be category=Investments with a POSITIVE amount (money into portfolio)."""
+    """Contribution (aportación) must be category=Investments with a POSITIVE amount (money into portfolio)."""
     client = _make_client_from_expected(indexa_expected)
     result = await extract_transactions(indexa_fixture_text, "Indexa Capital", client)
 
     investments = [t for t in result if t.category == "Investments"]
     assert len(investments) == 1
-    aportacion = investments[0]
-    assert aportacion.amount == Decimal("500.00"), "Aportación must be positive"
-    assert aportacion.transaction_date == date(2026, 5, 5)
-    assert aportacion.currency == "EUR"
+    contribution = investments[0]
+    assert contribution.amount == Decimal("500.00"), "Contribution (aportación) must be positive"
+    assert contribution.transaction_date == date(2026, 5, 5)
+    assert contribution.currency == "EUR"
 
 
 async def test_indexa_golden_management_fee(indexa_fixture_text, indexa_expected):

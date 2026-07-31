@@ -1,12 +1,12 @@
 /**
- * Marca de Finlytics.
+ * Finlytics brand components.
  *
- * Antes el logo eran dos PNG de ~816 KB cada uno. Ahora es SVG inline (<1 KB en
- * el bundle) y el degradado sale de `--brand-gradient`, así que la marca
- * acompaña al tema y a la paleta de acento en lugar de ser una imagen fija.
+ * The old logo was two PNGs at ~816 KB each. This SVG inline version is <1 KB
+ * in the bundle and its gradient comes from `--brand-gradient`, so the mark
+ * follows the theme and accent palette instead of being a static image.
  */
 
-/** Identificador único por instancia: dos <linearGradient> no pueden compartir id. */
+/** Unique per-instance id: two <linearGradient> elements cannot share the same id. */
 let gradientSeq = 0
 
 interface MarkProps {
@@ -15,7 +15,7 @@ interface MarkProps {
   className?: string
 }
 
-/** El isotipo: tejado + barras. */
+/** The symbol mark: roof + bars. */
 export function BrandMark({ size = 28, className }: MarkProps) {
   const gid = `brand-mark-${++gradientSeq}`
   return (
@@ -54,12 +54,12 @@ export function BrandMark({ size = 28, className }: MarkProps) {
 }
 
 interface WordmarkProps {
-  /** `sm` para la barra superior, `lg` para las pantallas de autenticación. */
+  /** `sm` for the top bar, `lg` for authentication screens. */
   size?: 'sm' | 'lg'
   className?: string
 }
 
-/** Isotipo + nombre. El texto usa la fuente real, no una imagen. */
+/** Symbol mark + name. Text is rendered with the real font, not an image. */
 export function Wordmark({ size = 'sm', className }: WordmarkProps) {
   const cls = ['brand-wordmark', `brand-wordmark--${size}`, className].filter(Boolean).join(' ')
   return (

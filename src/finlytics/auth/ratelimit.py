@@ -1,22 +1,22 @@
-"""Límite de intentos de autenticación.
+"""Authentication attempt limiting.
 
-Sin esto, ``POST /api/auth/login`` acepta intentos ilimitados: un atacante puede
-probar contraseñas al ritmo que le permita la red.  bcrypt encarece cada intento,
-pero no lo impide.
+Without this, ``POST /api/auth/login`` accepts unlimited attempts: an attacker
+can try passwords as fast as the network allows.  bcrypt makes each attempt
+expensive, but it does not stop them.
 
-Diseño
+Design
 ------
-El contador va **por IP**, no por usuario.  Es deliberado: limitar por nombre de
-usuario permitiría a cualquiera bloquear la cuenta de otro simplemente fallando
-adivinanzas contra ella (denegación de servicio sobre el usuario legítimo).  La
-IP es la que paga el coste de sus propios intentos.
+The counter is keyed **per IP**, not per user.  That is deliberate: limiting by
+username would let anyone lock another account out just by failing guesses
+against it (a denial of service on the legitimate user).  The IP is the one that
+pays for its own attempts.
 
-Se usa una ventana deslizante en memoria.  Finlytics es self-hosted y de un solo
-usuario, así que no hace falta almacenamiento compartido; si algún día corre con
-varios workers, este módulo es el punto donde cambiar a Redis.
+The window is an in-memory sliding window.  Finlytics is self-hosted and
+single-user, so no shared storage is needed; if it ever runs with several
+workers, this module is where to switch to Redis.
 
-Un login correcto limpia el contador de esa IP, de modo que equivocarse un par de
-veces y acertar después no deja rastro.
+A successful login clears that IP's counter, so getting it wrong a couple of
+times and then right leaves no trace.
 """
 
 from __future__ import annotations
@@ -31,28 +31,28 @@ __all__ = ["RateLimiter", "RateLimitResult", "client_ip"]
 
 @dataclass(frozen=True)
 class RateLimitResult:
-    """Resultado de consultar el limitador."""
+    """Outcome of querying the limiter."""
 
     allowed: bool
-    """False cuando la petición debe rechazarse con 429."""
+    """False when the request must be rejected with 429."""
 
     retry_after: int
-    """Segundos que faltan para que vuelva a haber cupo. 0 si está permitido."""
+    """Seconds until quota is available again. 0 when allowed."""
 
     remaining: int
-    """Intentos que quedan en la ventana actual."""
+    """Attempts left in the current window."""
 
 
 @dataclass
 class RateLimiter:
-    """Ventana deslizante en memoria, segura entre hilos.
+    """Thread-safe in-memory sliding window.
 
     Parameters
     ----------
     max_attempts:
-        Intentos permitidos dentro de la ventana.
+        Attempts allowed within the window.
     window_seconds:
-        Amplitud de la ventana.
+        Width of the window.
     """
 
     max_attempts: int
@@ -61,11 +61,11 @@ class RateLimiter:
     _lock: Lock = field(default_factory=Lock, repr=False)
 
     def check(self, key: str, *, now: float | None = None) -> RateLimitResult:
-        """Registra un intento para ``key`` y dice si se admite.
+        """Record an attempt for ``key`` and report whether it is allowed.
 
-        Cuenta el intento SOLO si se admite: una vez bloqueada, la IP no alarga
-        su propio castigo golpeando el endpoint, que es lo que ocurriría si cada
-        petición rechazada empujara también la ventana.
+        The attempt is counted ONLY if it is allowed: once blocked, an IP cannot
+        extend its own punishment by hammering the endpoint, which is what would
+        happen if every rejected request also pushed the window forward.
         """
         moment = time.monotonic() if now is None else now
 
@@ -91,15 +91,15 @@ class RateLimiter:
             )
 
     def reset(self, key: str) -> None:
-        """Olvida los intentos de ``key`` (se llama tras autenticarse bien)."""
+        """Forget the attempts for ``key`` (called after a successful login)."""
         with self._lock:
             self._hits.pop(key, None)
 
     def purge(self, *, now: float | None = None) -> int:
-        """Descarta las claves cuya ventana ha expirado por completo.
+        """Drop keys whose window has expired completely.
 
-        Evita que el diccionario crezca sin límite cuando muchas IP distintas
-        hacen algún intento suelto.  Devuelve cuántas claves se eliminaron.
+        Stops the dict from growing without bound when many distinct IPs make
+        the odd isolated attempt.  Returns how many keys were removed.
         """
         moment = time.monotonic() if now is None else now
         cutoff = moment - self.window_seconds
@@ -111,19 +111,19 @@ class RateLimiter:
             return len(stale)
 
     def clear(self) -> None:
-        """Vacía todo el estado. Pensado para aislar tests entre sí."""
+        """Wipe all state. Intended to isolate tests from each other."""
         with self._lock:
             self._hits.clear()
 
 
-def client_ip(request) -> str:  # noqa: ANN001 — evita importar Starlette aquí
-    """IP del cliente tal y como la ve la aplicación.
+def client_ip(request) -> str:  # noqa: ANN001 — avoids importing Starlette here
+    """Client IP as the application sees it.
 
-    Se lee de la conexión, NO de ``X-Forwarded-For``: ese encabezado lo puede
-    poner cualquiera, así que confiar en él dejaría el límite en nada (bastaría
-    con variar el valor en cada intento).  Tras un proxy inverso hay que
-    configurar el propio proxy —o uvicorn con ``--proxy-headers``— para que la
-    IP real llegue ya resuelta en la conexión.
+    Read from the connection, NOT from ``X-Forwarded-For``: anyone can set that
+    header, so trusting it would reduce the limit to nothing (varying the value
+    on each attempt would be enough).  Behind a reverse proxy, configure the
+    proxy itself — or uvicorn with ``--proxy-headers`` — so the real IP arrives
+    already resolved on the connection.
     """
     client = getattr(request, "client", None)
     if client is None or not getattr(client, "host", None):

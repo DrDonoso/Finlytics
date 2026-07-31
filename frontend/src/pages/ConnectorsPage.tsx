@@ -219,7 +219,7 @@ export default function ConnectorsPage() {
 
   return (
     <>
-      {/* ── Inversiones ───────────────────────────────────────── */}
+      {/* ── Investment connectors ─────────────────────────────── */}
       <div className="card settings-card">
         <h2 className="settings-section-title">{t.connectorsInvestmentsTitle}</h2>
         {loading ? (
@@ -253,7 +253,7 @@ export default function ConnectorsPage() {
         )}
       </div>
 
-      {/* ── Notificaciones ────────────────────────────────────── */}
+      {/* ── Notification connectors ───────────────────────────── */}
       <div className="card settings-card">
         <h2 className="settings-section-title">{t.connectorsNotificationsTitle}</h2>
         {notifLoading ? (

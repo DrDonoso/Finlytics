@@ -40,7 +40,7 @@ export default function InvestmentsLandingPage() {
   const { t } = useT()
   const overviewQuery = useCombinedOverview()
   const loading = overviewQuery.isPending
-  // Error en crudo: se traduce al pintar, así sigue al idioma activo.
+  // Keep the error raw: it is translated at render time so it tracks the active locale.
   const error = overviewQuery.error
   const overview = overviewQuery.data ?? null
 
@@ -60,9 +60,9 @@ export default function InvestmentsLandingPage() {
     )
   }
 
-  // Un fallo al leer no es lo mismo que no tener conectores: antes ambos casos
-  // pintaban «aún no hay inversiones», que induce a pensar que no hay datos
-  // cuando lo que ha ocurrido es que no se han podido consultar.
+  // A fetch failure is not the same as having no connectors: previously both cases
+  // rendered "no investments yet", implying no data when the real problem was a
+  // failed request.
   if (error) {
     return (
       <main className="dashboard">

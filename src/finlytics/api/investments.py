@@ -107,12 +107,12 @@ async def validate_token(
     except IndexaAuthError:
         raise HTTPException(
             status_code=400,
-            detail="Token inválido — verifícalo en Indexa Capital.",
+            detail="Invalid token — check it in Indexa Capital.",
         )
     except IndexaConnectionError:
         raise HTTPException(
             status_code=503,
-            detail="No se pudo verificar el token — error de red con Indexa Capital.",
+            detail="Could not verify the token — network error talking to Indexa Capital.",
         )
 
 
@@ -145,17 +145,17 @@ async def connect(
     except IndexaAuthError:
         raise HTTPException(
             status_code=400,
-            detail="Token inválido — verifícalo en Indexa Capital.",
+            detail="Invalid token — check it in Indexa Capital.",
         )
     except IndexaConnectionError:
         raise HTTPException(
             status_code=503,
-            detail="No se pudo verificar el token — error de red con Indexa Capital.",
+            detail="Could not verify the token — network error talking to Indexa Capital.",
         )
     except NoValidAccountsError:
         raise HTTPException(
             status_code=400,
-            detail="Los account_numbers seleccionados no pertenecen a este token.",
+            detail="The selected account_numbers do not belong to this token.",
         )
 
 

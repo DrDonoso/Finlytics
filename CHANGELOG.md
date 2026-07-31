@@ -342,11 +342,11 @@ All notable changes to Finlytics are documented here.
 
 ## [20260716] - 2026-07-16
 
-- Pagina About disponible en Settings > Application con info de la imagen desplegada
-- GET /api/version expone {version, image_tag, built_at} consumido por el frontend
-- Workflow de deploy inyecta CalVer IMAGE_TAG + BUILD_DATE como build-args al construir la imagen Docker
-- Licencia MIT (LICENSE) anadida al repositorio
-- .dockerignore corregido para incluir frontend/dist/ en la imagen de produccion
+- About page available under Settings > Application, showing the deployed image info
+- GET /api/version exposes {version, image_tag, built_at}, consumed by the frontend
+- Deploy workflow injects CalVer IMAGE_TAG + BUILD_DATE as build args when building the Docker image
+- MIT license (LICENSE) added to the repository
+- .dockerignore fixed so frontend/dist/ is included in the production image
 
 
 ## [20260715.02] - 2026-07-15

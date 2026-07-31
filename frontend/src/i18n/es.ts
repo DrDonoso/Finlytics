@@ -296,6 +296,7 @@ const es: Dict = {
   stmtsImportBtn: 'Importar extracto',
   stmtsDownloadOriginal: 'Descargar original',
   stmtsDownloadOriginalDropdown: 'Seleccionar extracto original',
+  stmtsDeltaNew: 'NUEVO',
   // ── MonthPicker ───────────────────────────────────────────────────────────────
   monthPickerTriggerLabel: (formatted) => `Seleccionar mes, actualmente ${formatted}`,
   monthPickerDialogLabel: 'Selector de mes',
@@ -554,7 +555,7 @@ const es: Dict = {
   invPeriod3M: '3M',
   invPeriod6M: '6M',
   invPeriod1A: '1A',
-  invPeriodTodo: 'Todo',
+  invPeriodAll: 'Todo',
   invToggleEur: '€',
   invTogglePct: '%',
   invLegendPortfolio: 'Tu cartera',

@@ -23,7 +23,7 @@
   .settings-page { padding: 12px; }
 }
 
-/* Settings sub-navigation (Etiquetas / Categorías) */
+/* Settings sub-navigation (Tags / Categories) */
 .settings-subnav {
   display: flex;
   gap: 4px;

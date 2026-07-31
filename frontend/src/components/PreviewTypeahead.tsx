@@ -49,10 +49,9 @@ export default function PreviewTypeahead({
     return result
   }, [options])
 
-  // Memoizadas para poder declararlas como dependencia del efecto y del memo.
-  // Antes se listaban a mano las dependencias internas (getLabel, dedupedOptions);
-  // funcionaba, pero cualquier dependencia nueva dentro de estas funciones habría
-  // dejado de propagarse sin que nada avisara.
+  // Memoized so they can be declared as stable dependencies for the effect and memo.
+  // Listing the internal dependencies by hand worked before, but any new dependency
+  // inside these functions would have stopped propagating silently.
   const optionLabel = useCallback(
     (opt: PreviewTypeaheadOption) => opt.label ?? (getLabel ? getLabel(opt.value) : opt.value),
     [getLabel],

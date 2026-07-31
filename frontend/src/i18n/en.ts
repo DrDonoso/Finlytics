@@ -296,6 +296,7 @@ const en: Dict = {
   stmtsImportBtn: 'Import statement',
   stmtsDownloadOriginal: 'Download original',
   stmtsDownloadOriginalDropdown: 'Select original statement',
+  stmtsDeltaNew: 'NEW',
   // ── MonthPicker ───────────────────────────────────────────────────────────────
   monthPickerTriggerLabel: (formatted) => `Select month, currently ${formatted}`,
   monthPickerDialogLabel: 'Month picker',
@@ -554,7 +555,7 @@ const en: Dict = {
   invPeriod3M: '3M',
   invPeriod6M: '6M',
   invPeriod1A: '1Y',
-  invPeriodTodo: 'All',
+  invPeriodAll: 'All',
   invToggleEur: '€',
   invTogglePct: '%',
   invLegendPortfolio: 'Your portfolio',

@@ -65,10 +65,10 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 # production build.
 FROM python:3.14-slim AS base
 
-# La imagen base corre en UTC. La aplicación resuelve su día natural con
-# TIMEZONE (ver finlytics/clock.py), pero conviene alinear también el reloj del
-# proceso para que las marcas de tiempo de los logs coincidan con lo que muestra
-# la interfaz. TZ lo inyecta docker-compose junto a TIMEZONE.
+# The base image runs in UTC. The application resolves its calendar day from
+# TIMEZONE (see finlytics/clock.py), but the process clock is worth aligning too
+# so log timestamps match what the UI shows. docker-compose injects TZ alongside
+# TIMEZONE.
 ENV TZ=Europe/Madrid
 
 # Create non-root user

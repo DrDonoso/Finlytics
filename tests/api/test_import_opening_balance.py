@@ -1,25 +1,25 @@
-"""Tests de edge-cases para opening_balance en POST /api/imports/confirm.
+"""Edge-case tests for opening_balance in POST /api/imports/confirm.
 
-Contrato a verificar (diseñado por Fury, implementado por Shuri):
-  - Cuenta NUEVA (por IBAN): opening_balance != 0 → se crea ImportRun "Saldo inicial"
-    con date = min(tx_dates) - 1 dia.
-  - Cuenta NUEVA (por nombre): mismo comportamiento.
-  - Cuenta EXISTENTE: opening_balance ignorado, no se crea tx sintetica.
-  - opening_balance = 0 o None: no se crea tx sintetica.
-  - opening_balance negativo (sobregiro): se crea tx con amount negativo.
-  - Inferencia de fecha: min(transaction_date) - 1, aunque las txs lleguen desordenadas.
-  - Idempotencia DB-level: conflicto dedup_hash -> ImportRun creado pero num_inserted=0.
-  - Idempotencia call-level: 2a llamada con cuenta ya existente -> no crea opening tx.
-  - Lista de txs vacia con opening_balance -> no crash, no tx sintetica.
+Contract under test:
+  - NEW account (by IBAN): opening_balance != 0 → opening-balance ImportRun created
+    with date = min(tx_dates) - 1 day.
+  - NEW account (by name): same behaviour.
+  - EXISTING account: opening_balance ignored, no synthetic tx created.
+  - opening_balance = 0 or None: no synthetic tx created.
+  - Negative opening_balance (overdraft): tx created with negative amount.
+  - Date inference: min(transaction_date) - 1, even when txs arrive out of order.
+  - DB-level idempotency: dedup_hash conflict → ImportRun created but num_inserted=0.
+  - Call-level idempotency: 2nd call with same account → no opening tx created.
+  - Empty tx list with opening_balance → no crash, no synthetic tx.
 
-Happy-path test: Shuri la anhade en su PR. Aqui solo edge-cases.
+Happy-path test lives in Shuri's PR. Only edge-cases here.
 
-Nota de implementacion: se parchea ``finlytics.api.imports.ImportRun`` para controlar
-los ids (necesario para que ImportResult pase validacion Pydantic). El parche usa
-``side_effect`` diferenciado por ``source_filename`` para distinguir ImportRun de
-apertura (source_filename="manual:saldo-inicial", mock con atributos inspeccionables)
-del ImportRun principal (mock con id=42). Los tests para "no opening tx" usan un
-unico ``return_value=fake_run``.
+Implementation note: ``finlytics.api.imports.ImportRun`` is patched to control ids
+(required so ImportResult passes Pydantic validation). The patch uses a
+``side_effect`` keyed on ``source_filename`` to distinguish the opening-balance
+ImportRun (source_filename="manual:saldo-inicial", mock with inspectable attributes)
+from the main ImportRun (mock with id=42). Tests for "no opening tx" use a single
+``return_value=fake_run``.
 """
 
 from __future__ import annotations
@@ -40,28 +40,28 @@ _NAME = "MiBBVA"
 # ---------------------------------------------------------------------------
 
 def _no_match() -> MagicMock:
-    """execute() -> None: cuenta no existe."""
+    """execute() -> None: account does not exist."""
     m = MagicMock()
     m.scalar_one_or_none.return_value = None
     return m
 
 
 def _match(account: MagicMock) -> MagicMock:
-    """execute() -> cuenta existente."""
+    """execute() -> existing account."""
     m = MagicMock()
     m.scalar_one_or_none.return_value = account
     return m
 
 
 def _pg_insert_ok() -> MagicMock:
-    """execute(pg_insert) -> id: INSERT exitoso."""
+    """execute(pg_insert) -> id: INSERT succeeded."""
     m = MagicMock()
     m.scalar_one_or_none.return_value = 999
     return m
 
 
 def _pg_insert_conflict() -> MagicMock:
-    """execute(pg_insert) -> None: ON CONFLICT DO NOTHING activado."""
+    """execute(pg_insert) -> None: ON CONFLICT DO NOTHING triggered."""
     m = MagicMock()
     m.scalar_one_or_none.return_value = None
     return m
@@ -75,7 +75,7 @@ def _fake_account(account_id: int = 10, name: str = _NAME) -> MagicMock:
 
 
 def _fake_main_run() -> MagicMock:
-    """ImportRun mock con id=42 para el import principal."""
+    """ImportRun mock with id=42 for the main import run."""
     run = MagicMock()
     run.id = 42
     return run
@@ -93,11 +93,11 @@ def _tx(d: str, amount: float = -10.0, account_ref: str = _NAME) -> dict:
 
 
 def _make_ir_side_effect(opening_run: MagicMock, main_run: MagicMock):
-    """Callable para patch(ImportRun) que distingue apertura de main por source_filename.
+    """Callable for patch(ImportRun) that routes to opening or main run by source_filename.
 
-    - source_filename contiene 'saldo' -> devuelve opening_run (propagando atributos
-      para inspeccion en asserts).
-    - cualquier otro source_filename -> devuelve main_run (id=42, respuesta valida).
+    - source_filename contains 'saldo' → returns opening_run (propagating attributes
+      for assertion inspection).
+    - any other source_filename → returns main_run (id=42, valid response).
     """
     def _factory(**kw):
         sfn = kw.get("source_filename", "")
@@ -105,21 +105,21 @@ def _make_ir_side_effect(opening_run: MagicMock, main_run: MagicMock):
             opening_run.source_filename = sfn
             opening_run.period = kw.get("period")
             opening_run.num_parsed = kw.get("num_parsed")
-            # id permanece None: sin DB real. pg_insert usa import_run_id=None,
-            # lo cual es inocuo en tests donde execute() esta mockeado.
+            # id stays None: no real DB. pg_insert uses import_run_id=None,
+            # which is harmless in tests where execute() is mocked.
             return opening_run
         return main_run
     return _factory
 
 
 # ---------------------------------------------------------------------------
-# TC-1: Cuenta nueva por IBAN + opening_balance > 0
+# TC-1: New account by IBAN + opening_balance > 0
 # ---------------------------------------------------------------------------
 
 async def test_confirm_new_iban_with_opening_balance_creates_opening_run(
     client, mock_session
 ):
-    """Cuenta nueva (IBAN no visto) + opening_balance > 0 -> ImportRun 'saldo-inicial'."""
+    """New account (unseen IBAN) + opening_balance > 0 → opening-balance ImportRun created."""
     opening_run = MagicMock()
     opening_run.id = None
     main_run = _fake_main_run()
@@ -129,9 +129,9 @@ async def test_confirm_new_iban_with_opening_balance_creates_opening_run(
     with (
         patch("finlytics.api.imports.upsert_transactions", new_callable=AsyncMock,
               return_value=(1, 0)),
-        # _persist_import_run (imports.py) usa main_run con id=42
+        # _persist_import_run (imports.py) uses main_run with id=42
         patch("finlytics.api.imports.ImportRun", return_value=main_run),
-        # create_opening_balance_tx (repository.py) usa su propio ImportRun
+        # create_opening_balance_tx (repository.py) uses its own ImportRun
         patch("finlytics.db.repository.ImportRun",
               side_effect=_make_ir_side_effect(opening_run, main_run)),
     ):
@@ -149,7 +149,7 @@ async def test_confirm_new_iban_with_opening_balance_creates_opening_run(
     assert resp.status_code == 200, resp.text
     # opening_date = 2024-06-01 - 1 = 2024-05-31 -> period "2024-05"
     assert opening_run.source_filename is not None, (
-        "Debe crearse un ImportRun de saldo inicial"
+        "An opening-balance ImportRun must be created"
     )
     assert "saldo" in str(opening_run.source_filename).lower()
     assert opening_run.num_parsed == 1
@@ -159,20 +159,20 @@ async def test_confirm_new_iban_with_opening_balance_creates_opening_run(
 
 
 # ---------------------------------------------------------------------------
-# TC-2: Cuenta nueva por NOMBRE + opening_balance > 0
+# TC-2: New account by NAME + opening_balance > 0
 # ---------------------------------------------------------------------------
 
 async def test_confirm_new_name_with_opening_balance_creates_opening_run(
     client, mock_session
 ):
-    """Cuenta nueva (nombre no visto) + opening_balance > 0 -> ImportRun 'saldo-inicial'."""
+    """New account (unseen name) + opening_balance > 0 → opening-balance ImportRun created."""
     opening_run = MagicMock()
-    opening_run.source_filename = None  # indica "no fue creado" si sigue None
+    opening_run.source_filename = None  # signals "not created" if still None
     opening_run.id = None
     main_run = _fake_main_run()
 
-    # Shuri puede hacer 1 o 2 SELECTs por nombre antes del pg_insert;
-    # items extra en side_effect no usados son inocuos.
+    # May make 1 or 2 SELECTs by name before pg_insert;
+    # extra unused side_effect items are harmless.
     mock_session.execute = AsyncMock(
         side_effect=[_no_match(), _no_match(), _pg_insert_ok()]
     )
@@ -196,7 +196,7 @@ async def test_confirm_new_name_with_opening_balance_creates_opening_run(
 
     assert resp.status_code == 200, resp.text
     assert opening_run.source_filename is not None, (
-        "Cuenta nueva por nombre: debe crearse ImportRun de saldo inicial"
+        "New account (by name): an opening-balance ImportRun must be created"
     )
     assert "saldo" in str(opening_run.source_filename).lower()
 
@@ -208,7 +208,7 @@ async def test_confirm_new_name_with_opening_balance_creates_opening_run(
 async def test_confirm_existing_iban_opening_balance_is_ignored(
     client, mock_session
 ):
-    """Cuenta ya existente + opening_balance -> NO se crea ImportRun sintetico."""
+    """Existing account + opening_balance → no synthetic ImportRun created."""
     existing = _fake_account()
     main_run = _fake_main_run()
 
@@ -231,9 +231,9 @@ async def test_confirm_existing_iban_opening_balance_is_ignored(
         )
 
     assert resp.status_code == 200, resp.text
-    # Solo 1 ImportRun creado (el principal), nada de apertura
+    # Only 1 ImportRun created (the main one), no opening run
     assert mock_ir_class.call_count == 1, (
-        "Cuenta existente: solo 1 ImportRun (el principal), no el de apertura"
+        "Existing account: only the main ImportRun, no opening-balance one"
     )
     only_kw = mock_ir_class.call_args.kwargs
     assert "saldo" not in only_kw.get("source_filename", "").lower()
@@ -244,7 +244,7 @@ async def test_confirm_existing_iban_opening_balance_is_ignored(
 # ---------------------------------------------------------------------------
 
 async def test_confirm_zero_opening_balance_no_opening_tx(client, mock_session):
-    """opening_balance=0 -> no se crea ImportRun de saldo inicial."""
+    """opening_balance=0 → no opening-balance ImportRun created."""
     main_run = _fake_main_run()
     mock_session.execute = AsyncMock(return_value=_no_match())
 
@@ -265,7 +265,7 @@ async def test_confirm_zero_opening_balance_no_opening_tx(client, mock_session):
         )
 
     assert resp.status_code == 200, resp.text
-    assert mock_ir_class.call_count == 1, "opening_balance=0 -> solo 1 ImportRun"
+    assert mock_ir_class.call_count == 1, "opening_balance=0 → only 1 ImportRun"
     only_kw = mock_ir_class.call_args.kwargs
     assert "saldo" not in only_kw.get("source_filename", "").lower()
 
@@ -275,7 +275,7 @@ async def test_confirm_zero_opening_balance_no_opening_tx(client, mock_session):
 # ---------------------------------------------------------------------------
 
 async def test_confirm_null_opening_balance_no_opening_tx(client, mock_session):
-    """opening_balance omitido (None) -> no se crea ImportRun de saldo inicial."""
+    """opening_balance omitted (None) → no opening-balance ImportRun created."""
     main_run = _fake_main_run()
     mock_session.execute = AsyncMock(return_value=_no_match())
 
@@ -295,7 +295,7 @@ async def test_confirm_null_opening_balance_no_opening_tx(client, mock_session):
         )
 
     assert resp.status_code == 200, resp.text
-    assert mock_ir_class.call_count == 1, "opening_balance=null -> solo 1 ImportRun"
+    assert mock_ir_class.call_count == 1, "opening_balance=null → only 1 ImportRun"
 
 
 # ---------------------------------------------------------------------------
@@ -305,7 +305,7 @@ async def test_confirm_null_opening_balance_no_opening_tx(client, mock_session):
 async def test_confirm_negative_opening_balance_creates_opening_run(
     client, mock_session
 ):
-    """opening_balance negativo -> ImportRun de saldo inicial creado (amount negativo valido)."""
+    """Negative opening_balance → opening-balance ImportRun created (negative amount is valid)."""
     opening_run = MagicMock()
     opening_run.source_filename = None
     opening_run.id = None
@@ -333,7 +333,7 @@ async def test_confirm_negative_opening_balance_creates_opening_run(
 
     assert resp.status_code == 200, resp.text
     assert opening_run.source_filename is not None, (
-        "opening_balance negativo debe crear ImportRun de saldo inicial"
+        "Negative opening_balance must create an opening-balance ImportRun"
     )
     assert "saldo" in str(opening_run.source_filename).lower()
     assert opening_run.num_parsed == 1
@@ -346,7 +346,7 @@ async def test_confirm_negative_opening_balance_creates_opening_run(
 async def test_confirm_opening_tx_date_is_earliest_tx_minus_one_day(
     client, mock_session
 ):
-    """opening_date = min(transaction_date) - 1 dia, incluso con txs desordenadas."""
+    """opening_date = min(transaction_date) - 1 day, even when txs arrive out of order."""
     opening_run = MagicMock()
     opening_run.source_filename = None
     opening_run.id = None
@@ -354,10 +354,10 @@ async def test_confirm_opening_tx_date_is_earliest_tx_minus_one_day(
 
     mock_session.execute = AsyncMock(side_effect=[_no_match(), _pg_insert_ok()])
 
-    # Txs desordenadas: minimo es 2024-05-01 -> opening_date = 2024-04-30 -> period "2024-04"
+    # Out-of-order txs: minimum is 2024-05-01 → opening_date = 2024-04-30 → period "2024-04"
     transactions = [
         _tx("2024-06-15"),
-        _tx("2024-05-01"),  # <- minimo
+        _tx("2024-05-01"),  # <- minimum
         _tx("2024-06-01"),
     ]
 
@@ -384,7 +384,7 @@ async def test_confirm_opening_tx_date_is_earliest_tx_minus_one_day(
     # min(2024-06-15, 2024-05-01, 2024-06-01) = 2024-05-01
     # opening_date = 2024-04-30 -> period = "2024-04"
     assert opening_run.period == "2024-04", (
-        f"Txs desordenadas: opening_date debe ser 2024-04-30 (min-1), "
+        f"Out-of-order txs: opening_date must be 2024-04-30 (min-1), "
         f"period='2024-04'. Got: {opening_run.period!r}"
     )
 
@@ -396,13 +396,13 @@ async def test_confirm_opening_tx_date_is_earliest_tx_minus_one_day(
 async def test_confirm_opening_tx_dedup_conflict_sets_num_inserted_zero(
     client, mock_session
 ):
-    """ON CONFLICT DO NOTHING -> ImportRun creado pero num_inserted=0, num_duplicates=1."""
+    """ON CONFLICT DO NOTHING → ImportRun created but num_inserted=0, num_duplicates=1."""
     opening_run = MagicMock()
     opening_run.source_filename = None
     opening_run.id = None
     main_run = _fake_main_run()
 
-    # pg_insert devuelve None -> scalar_one_or_none()=None -> conflicto activado
+    # pg_insert returns None → scalar_one_or_none()=None → conflict triggered
     mock_session.execute = AsyncMock(side_effect=[_no_match(), _pg_insert_conflict()])
 
     with (
@@ -425,14 +425,14 @@ async def test_confirm_opening_tx_dedup_conflict_sets_num_inserted_zero(
 
     assert resp.status_code == 200, resp.text
     assert opening_run.source_filename is not None, (
-        "El ImportRun de apertura debe crearse aunque haya conflicto de dedup"
+        "The opening-balance ImportRun must be created even with a dedup conflict"
     )
-    # Shuri asigna estos atributos despues del execute:
+    # These attributes are set after execute():
     assert opening_run.num_inserted == 0, (
-        "Conflicto de dedup_hash: num_inserted debe ser 0"
+        "dedup_hash conflict: num_inserted must be 0"
     )
     assert opening_run.num_duplicates == 1, (
-        "Conflicto de dedup_hash: num_duplicates debe ser 1"
+        "dedup_hash conflict: num_duplicates must be 1"
     )
 
 
@@ -443,7 +443,7 @@ async def test_confirm_opening_tx_dedup_conflict_sets_num_inserted_zero(
 async def test_confirm_second_call_existing_account_no_opening_tx(
     client, mock_session
 ):
-    """2a confirm con la misma cuenta (ya creada) -> opening_balance ignorado."""
+    """2nd confirm with the same account (already created) → opening_balance ignored."""
     existing = _fake_account(account_id=15)
     main_run = _fake_main_run()
 
@@ -467,7 +467,7 @@ async def test_confirm_second_call_existing_account_no_opening_tx(
 
     assert resp.status_code == 200, resp.text
     assert mock_ir_class.call_count == 1, (
-        "2a llamada (cuenta existente): solo ImportRun principal, no el de apertura"
+        "2nd call (existing account): only the main ImportRun, no opening-balance one"
     )
     only_kw = mock_ir_class.call_args.kwargs
     assert "saldo" not in only_kw.get("source_filename", "").lower()
@@ -480,14 +480,14 @@ async def test_confirm_second_call_existing_account_no_opening_tx(
 async def test_confirm_empty_transactions_with_opening_balance_no_crash(
     client, mock_session
 ):
-    """transactions=[] con opening_balance -> 200 OK, sin tx sintetica.
+    """transactions=[] with opening_balance → 200 OK, no synthetic tx.
 
-    Bug potencial: min() de lista vacia lanzaria ValueError si Shuri no
-    protege el bloque de calculo de opening_date con un guard previo.
+    Potential bug: min() on an empty list raises ValueError if
+    the opening_date calculation block lacks an upfront guard.
     """
     main_run = _fake_main_run()
 
-    # Sin txs, Shuri no debe llegar al pg_insert -> un solo execute (SELECT de IBAN)
+    # With no txs, pg_insert must not be reached → one execute (IBAN SELECT)
     mock_session.execute = AsyncMock(return_value=_no_match())
 
     with (
@@ -507,11 +507,11 @@ async def test_confirm_empty_transactions_with_opening_balance_no_crash(
         )
 
     assert resp.status_code == 200, (
-        f"transactions=[] + opening_balance no debe causar crash. "
+        f"transactions=[] + opening_balance must not crash. "
         f"Got {resp.status_code}: {resp.text}"
     )
     assert mock_ir_class.call_count == 1, (
-        "Sin txs: solo el ImportRun principal, no el de apertura"
+        "No txs: only the main ImportRun, no opening-balance one"
     )
     only_kw = mock_ir_class.call_args.kwargs
     assert "saldo" not in only_kw.get("source_filename", "").lower()
@@ -524,7 +524,7 @@ async def test_confirm_empty_transactions_with_opening_balance_no_crash(
 async def test_confirm_with_opening_balance_returns_valid_import_result(
     client, mock_session
 ):
-    """El endpoint devuelve ImportResult completo y valido aunque haya opening_balance."""
+    """The endpoint returns a complete, valid ImportResult even with opening_balance set."""
     opening_run = MagicMock()
     opening_run.source_filename = None
     opening_run.id = None
@@ -552,7 +552,7 @@ async def test_confirm_with_opening_balance_returns_valid_import_result(
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert set(body.keys()) >= {"import_run_id", "num_parsed", "num_inserted", "num_duplicates"}
-    assert body["import_run_id"] == 42  # id del ImportRun principal (main_run.id)
+    assert body["import_run_id"] == 42  # ID of the main ImportRun (main_run.id)
     assert body["num_parsed"] == 2
     assert body["num_inserted"] == 2
     assert body["num_duplicates"] == 0

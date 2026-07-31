@@ -1,22 +1,21 @@
 /**
- * Traduce un error de red o de API a un mensaje que el usuario pueda entender.
+ * Translates a network or API error into a user-facing message.
  *
- * Los `catch` de la aplicación hacían `String(e)`, que pinta en pantalla cosas
- * como «TypeError: Failed to fetch» o «Error: HTTP 500 Internal Server Error»:
- * ruido de implementación que no le dice nada a quien lo lee.
+ * Raw `String(e)` calls in catch blocks were printing implementation noise
+ * like "TypeError: Failed to fetch" directly on screen.
  */
 import type { Dict } from '../i18n'
 
 /**
- * `fetch` rechaza con TypeError cuando no llega a establecer la conexión
- * (servidor caído, DNS, CORS, red). Un servidor que responde 4xx/5xx no pasa
- * por aquí: eso lo lanza `apiFetch` como Error normal.
+ * `fetch` rejects with TypeError when the connection cannot be established
+ * (server down, DNS, CORS, no network). A 4xx/5xx response does not go through
+ * here — `apiFetch` throws that as a regular Error.
  */
 function isNetworkFailure(error: unknown): boolean {
   return error instanceof TypeError
 }
 
-/** Mensaje presentable para el usuario. */
+/** User-facing message. */
 export function errorMessage(error: unknown, t: Dict): string {
   if (isNetworkFailure(error)) return t.errorNetwork
   const detail = error instanceof Error ? error.message : String(error)

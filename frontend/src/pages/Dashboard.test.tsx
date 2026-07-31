@@ -1,11 +1,11 @@
 /**
- * Tests del Inicio centrados en la degradación parcial.
+ * Dashboard tests focused on partial degradation.
  *
- * Un fallo al leer las inversiones dejaba el patrimonio total en «—», ocultando
- * también el neto de las cuentas bancarias, que sí estaba disponible. Estos
- * tests fijan que un problema en una fuente de datos no tape a otra que
- * funciona, porque es un fallo que sólo se manifiesta cuando algo va mal y por
- * tanto es fácil que vuelva sin que nadie lo note.
+ * A fetch failure for investments used to leave total net worth as "—", hiding
+ * even the bank-account net that was already available. These tests lock in that
+ * a failure in one data source never suppresses another that is working — a
+ * regression that only surfaces when something goes wrong and therefore easily
+ * slips back unnoticed.
  */
 import { render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClientProvider } from '@tanstack/react-query'
@@ -16,7 +16,7 @@ import Dashboard from './Dashboard'
 import { createQueryClient } from '../api/queryClient'
 import type { AccountSummary, CombinedOverview, Overview } from '../api/types'
 
-// ── Dobles de la capa de API ─────────────────────────────────────────────────
+// ── API layer doubles ────────────────────────────────────────────────────────
 
 const getAccounts = vi.fn()
 const getOverview = vi.fn()
@@ -34,7 +34,7 @@ vi.mock('../api/client', () => ({
   getStatementReminder: (...a: unknown[]) => getStatementReminder(...a),
 }))
 
-// La tarjeta de inversiones tiene su propia carga; aquí sólo estorba.
+// The investments card has its own load; stub it out here.
 vi.mock('../components/InvestmentSnapshotCard', () => ({
   default: () => null,
 }))
@@ -73,9 +73,9 @@ const COMBINED: CombinedOverview = {
 } as unknown as CombinedOverview
 
 function renderDashboard() {
-  // Cliente nuevo por render para aislar la caché entre tests.  Sin reintentos:
-  // los tests de degradación rechazan con TypeError y el retry por defecto
-  // agotaría el waitFor antes de que la query llegue a su estado de error.
+  // Fresh client per render to isolate the cache between tests. No retries:
+  // degradation tests reject with TypeError, and the default retry would
+  // exhaust waitFor before the query reaches its error state.
   const client = createQueryClient()
   client.setDefaultOptions({
     queries: { ...client.getDefaultOptions().queries, retry: false },
@@ -89,7 +89,7 @@ function renderDashboard() {
   )
 }
 
-/** Texto del bloque de patrimonio, con los espacios normalizados. */
+/** Text of the net-worth hero block, with whitespace normalized. */
 function heroText(): string {
   const hero = document.querySelector('.dashboard-kpi-hero')
   return (hero?.textContent ?? '').replace(/\s+/g, ' ')
@@ -105,17 +105,17 @@ beforeEach(() => {
   getStatementReminder.mockResolvedValue({ year: null, month: null, missing_account_ids: [] })
 })
 
-// ── Camino feliz ─────────────────────────────────────────────────────────────
+// ── Happy path ────────────────────────────────────────────────────────────────
 
-describe('Inicio con todas las fuentes disponibles', () => {
-  it('suma cuentas e inversiones en el patrimonio', async () => {
+describe('Dashboard with all sources available', () => {
+  it('adds accounts and investments into net worth', async () => {
     renderDashboard()
 
     // 12.430,20 + 28.900,00 + 29.670,90
     await waitFor(() => expect(heroText()).toContain('71.001,10'))
   })
 
-  it('desglosa el patrimonio en cuentas e inversiones', async () => {
+  it('breaks down net worth into accounts and investments', async () => {
     renderDashboard()
 
     await waitFor(() => expect(heroText()).toContain('71.001,10'))
@@ -123,7 +123,7 @@ describe('Inicio con todas las fuentes disponibles', () => {
     expect(heroText()).toContain('29.670,90')
   })
 
-  it('no avisa de datos incompletos cuando no los hay', async () => {
+  it('does not warn about incomplete data when there is none', async () => {
     renderDashboard()
 
     await waitFor(() => expect(heroText()).toContain('71.001,10'))
@@ -131,21 +131,21 @@ describe('Inicio con todas las fuentes disponibles', () => {
   })
 })
 
-// ── Degradación parcial ──────────────────────────────────────────────────────
+// ── Partial degradation ────────────────────────────────────────────────────────
 
-describe('Inicio con el conector de inversiones caído', () => {
+describe('Dashboard with the investments connector down', () => {
   beforeEach(() => {
     getCombinedOverview.mockRejectedValue(new TypeError('Failed to fetch'))
   })
 
-  it('sigue mostrando el patrimonio con lo que sí se ha podido leer', async () => {
+  it('still shows net worth from what could be read', async () => {
     renderDashboard()
 
-    // Sólo cuentas: 12.430,20 + 28.900,00. Antes esto quedaba en «—».
+    // Accounts only: 12,430.20 + 28,900.00. This used to show "—".
     await waitFor(() => expect(heroText()).toContain('41.330,20'))
   })
 
-  it('marca las inversiones como no disponibles en lugar de contarlas como cero', async () => {
+  it('marks investments as unavailable rather than counting them as zero', async () => {
     renderDashboard()
 
     await waitFor(() => expect(heroText()).toContain('41.330,20'))
@@ -154,23 +154,23 @@ describe('Inicio con el conector de inversiones caído', () => {
     expect(missing?.textContent).toBeTruthy()
   })
 
-  it('advierte de que la cifra excluye las inversiones', async () => {
+  it('warns that the figure excludes investments', async () => {
     renderDashboard()
 
     await waitFor(() => expect(heroText()).toContain('41.330,20'))
     expect(document.querySelector('.dashboard-kpi-hero__notice')).not.toBeNull()
   })
 
-  it('no suma un cero silencioso al patrimonio', async () => {
+  it('does not silently add zero to net worth', async () => {
     renderDashboard()
 
     await waitFor(() => expect(heroText()).toContain('41.330,20'))
-    // Si contara las inversiones como 0 el total sería el mismo, pero sin aviso:
-    // el usuario creería que ese es su patrimonio completo.
+    // If investments were counted as 0 the total would be the same but without
+    // a warning — the user would believe that is their complete net worth.
     expect(document.querySelector('.dashboard-kpi-hero__notice')).not.toBeNull()
   })
 
-  it('mantiene utilizable la tabla de cuentas', async () => {
+  it('keeps the accounts table usable', async () => {
     renderDashboard()
 
     await waitFor(() => expect(heroText()).toContain('41.330,20'))
@@ -181,20 +181,20 @@ describe('Inicio con el conector de inversiones caído', () => {
   })
 })
 
-// ── Fallo de la fuente principal ─────────────────────────────────────────────
+// ── Primary source failure ────────────────────────────────────────────────────
 
-describe('Inicio sin poder leer las cuentas', () => {
-  it('deja el patrimonio sin valor porque falta su componente principal', async () => {
+describe('Dashboard when accounts cannot be read', () => {
+  it('leaves net worth blank because its main component is missing', async () => {
     getByAccount.mockRejectedValue(new TypeError('Failed to fetch'))
 
     renderDashboard()
 
     await waitFor(() => expect(heroText()).toContain('—'))
-    // Sin cuentas no hay desglose que enseñar.
+    // Without accounts there is no breakdown to show.
     expect(document.querySelector('.dashboard-kpi-breakdown')).toBeNull()
   })
 
-  it('informa del fallo en la tabla de cuentas', async () => {
+  it('reports the failure in the accounts card', async () => {
     getByAccount.mockRejectedValue(new TypeError('Failed to fetch'))
 
     renderDashboard()
@@ -205,12 +205,12 @@ describe('Inicio sin poder leer las cuentas', () => {
   })
 })
 
-// ── Tasa de ahorro ───────────────────────────────────────────────────────────
+// ── Savings rate ──────────────────────────────────────────────────────────────
 
-describe('Variación de la tasa de ahorro', () => {
-  it('no se muestra cuando sólo hay un mes con datos', async () => {
-    // Con un único mes no hay contra qué comparar; inventar una referencia sería
-    // peor que no enseñar nada.
+describe('Savings-rate change indicator', () => {
+  it('is not shown when there is only one month of data', async () => {
+    // With a single month there is nothing to compare against; fabricating a
+    // baseline would be worse than showing nothing.
     getOverviewMonths.mockResolvedValue({ months: ['2026-06'], latest: '2026-06' })
 
     renderDashboard()
@@ -219,11 +219,11 @@ describe('Variación de la tasa de ahorro', () => {
     expect(screen.queryByText(/pp/)).toBeNull()
   })
 
-  it('compara los dos últimos meses con datos', async () => {
+  it('compares the two most recent months with data', async () => {
     renderDashboard()
 
     await waitFor(() => expect(getOverview).toHaveBeenCalled())
-    // Una llamada sin filtros para el histórico y una por cada mes comparado.
+    // One unfiltered call for the historical baseline and one per month compared.
     await waitFor(() => {
       const ranges = getOverview.mock.calls
         .map(c => c[0])

@@ -93,8 +93,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   useEffect(() => { applyTheme(resolved) }, [resolved])
   useEffect(() => { applyPalette(palette) }, [palette])
 
-  // Memoizado para no forzar un render de todos los consumidores cada vez que
-  // se renderiza el proveedor: el objeto sería nuevo aunque el tema no cambie.
+  // Memoised so every provider render doesn't produce a new object and cascade re-renders to all consumers.
   const value = useMemo(
     () => ({ mode, setMode, resolved, palette, setPalette }),
     [mode, setMode, resolved, palette, setPalette],

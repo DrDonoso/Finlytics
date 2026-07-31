@@ -187,8 +187,8 @@
   color: var(--text-muted);
   margin-bottom: 8px;
 }
-/* Cifra grande — misma definición que .inv-kpi-card__value (ver más abajo).
-   El peso baja a 500 porque la mono a 700 pesa demasiado a este tamaño. */
+/* Large number — same spec as .inv-kpi-card__value (see below).
+   Weight is 500 because monospace at 700 looks too heavy at this size. */
 .kpi-value {
   font-size: 26px;
   font-weight: 500;

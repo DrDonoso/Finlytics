@@ -40,7 +40,7 @@ function accountKey(name: string): string {
   return name.trim().toLowerCase()
 }
 
-/** Rango `from`/`to` de un mes "YYYY-MM" completo, para filtrar el resumen. */
+/** Full `from`/`to` range for a "YYYY-MM" month, used to filter the summary. */
 function monthRange(ym: string): { from: string; to: string } {
   const [year, month] = ym.split('-').map(Number)
   const lastDay = new Date(year, month, 0).getDate()
@@ -146,11 +146,10 @@ function StatementWarning({ label, text }: { label: string; text: string }) {
 }
 
 /**
- * Variación en puntos porcentuales entre dos tasas.
+ * Change in percentage points between two rates.
  *
- * Se muestra en `pp` y no en `%` a propósito: la variación relativa entre dos
- * porcentajes se malinterpreta con facilidad (pasar del 10 % al 12 % es +2 pp,
- * no «+20 %»).
+ * Displayed as `pp` rather than `%` intentionally: the relative change between
+ * two percentages is easily misread (going from 10% to 12% is +2 pp, not "+20%").
  */
 function DeltaPill({ points, label }: { points: number | null; label: string }) {
   if (points === null) return null
@@ -171,7 +170,7 @@ export default function Dashboard() {
   const navigate = useNavigate()
   const { notifications } = useNotifications()
 
-  // Estabiliza el array vacío: `?? []` inline crea uno nuevo por render y rompería deps aguas abajo
+  // Stable empty array: `?? []` inline creates a new reference each render and would invalidate downstream deps.
   const EMPTY: never[] = useMemo(() => [], [])
 
   const accountsQuery = useAccounts()
@@ -190,9 +189,9 @@ export default function Dashboard() {
   const accountsError = accountsQuery.error ? errorMessage(accountsQuery.error, t) : null
   const byAccountError = byAccountQuery.error ? errorMessage(byAccountQuery.error, t) : null
 
-  // Compara la tasa de ahorro de los dos últimos meses con datos.
-  // Son datos reales del backend, no una estimación: si sólo hay un mes, no se
-  // muestra variación en vez de inventar una referencia.
+  // Compares the savings rate of the two most recent months that have data.
+  // These are real backend figures, not estimates: if only one month exists
+  // we show no delta rather than fabricating a baseline.
   const hasTwoMonths = monthList.length >= 2
   const prevMonth = hasTwoMonths ? monthList[monthList.length - 2] : null
   const curMonth = hasTwoMonths ? monthList[monthList.length - 1] : null
@@ -201,7 +200,7 @@ export default function Dashboard() {
   const curSavingsQuery = useOverview(curRange, { enabled: hasTwoMonths })
   const prevSavingsQuery = useOverview(prevRange, { enabled: hasTwoMonths })
 
-  /** Variación de la tasa de ahorro (en pp) del último mes con datos frente al anterior. */
+  /** Savings-rate shift (in pp) from the previous month to the most recent month with data. */
   const savingsRateShift = useMemo(() => {
     if (!hasTwoMonths || !curSavingsQuery.data || !prevSavingsQuery.data) return null
     const current = savingsRate(curSavingsQuery.data)
@@ -223,9 +222,9 @@ export default function Dashboard() {
   const accountNetTotal = byAccount.reduce((sum, row) => sum + row.net, 0)
   const investmentsValue = investmentsQuery.data?.total_value_eur ?? 0
 
-  // Degradación parcial: un fallo al leer las inversiones no debe ocultar el
-  // neto de las cuentas, que sí está disponible.  Antes cualquiera de los dos
-  // errores dejaba el patrimonio en «—» y se perdía información que sí se tenía.
+  // Partial degradation: an investments connector failure must not hide the
+  // account net, which is still available. Previously either error would leave
+  // net worth as "—" and discard data that was actually present.
   const investmentsFailed = Boolean(investmentsQuery.error)
   const accountsPending = byAccountQuery.isPending || Boolean(byAccountQuery.error)
   const netWorthPending = accountsPending || investmentsQuery.isPending
@@ -240,8 +239,7 @@ export default function Dashboard() {
   return (
     <main className="dashboard">
       <div className="inv-kpi-strip dashboard-kpi-strip">
-        {/* Patrimonio total lleva el degradado de marca: es la cifra que resume
-            toda la aplicación, así que deja de ser una tarjeta más entre tres. */}
+        {/* Net worth gets the brand gradient — it is the headline figure for the whole app. */}
         <div className="inv-kpi-card dashboard-kpi-hero">
           <div className="inv-kpi-card__label">{t.dashboardKpiTotalNet}</div>
           <div className="inv-kpi-card__value">

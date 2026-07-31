@@ -1,8 +1,8 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   Tipografía — Geist / Geist Mono (variables, auto-alojadas)
+   Typography — Geist / Geist Mono (variables, self-hosted)
    SIL Open Font License 1.1 · https://github.com/vercel/geist-font
-   Auto-alojadas a propósito: la app es self-hosted y no debe depender de un
-   CDN externo en tiempo de ejecución.
+   Self-hosted intentionally: the app runs without any external CDN
+   dependency at runtime.
    ═══════════════════════════════════════════════════════════════════════════ */
 @font-face {
   font-family: 'Geist';
@@ -48,9 +48,9 @@
 /* ═══════════════════════════════════════════════════════════════════════════
    Design tokens — Light (default)
 
-   La paleta se deriva del logo (casa + gráfico, degradado navy → teal), no de
-   los valores por defecto de Tailwind.  Recorrido de marca:
-       #123a6b  navy    →  #21639f  azul  →  #12b886  teal
+   Palette derived from the logo (house + chart, navy → teal gradient), not
+   from Tailwind defaults.  Brand colour ramp:
+       #123a6b  navy    →  #21639f  blue   →  #12b886  teal
    ═══════════════════════════════════════════════════════════════════════════ */
 :root {
   /* ── Marca ── */
@@ -58,7 +58,7 @@
   --brand-blue: #21639f;
   --brand-teal: #12b886;
   --brand-gradient: linear-gradient(135deg, #123a6b 0%, #21639f 48%, #12b886 100%);
-  /* Realce del hero: destello superior derecho, se apila sobre --brand-gradient */
+  /* Hero sheen: top-right burst, layered over --brand-gradient */
   --brand-gradient-sheen: radial-gradient(120% 140% at 88% 8%, rgba(255, 255, 255, 0.16), transparent 58%);
 
   --bg: #f4f6f9;
@@ -81,10 +81,9 @@
   --net-neg: #c2453a;
   --radius: 12px;
   --shadow: 0 1px 2px rgba(18, 58, 107, 0.05), 0 1px 3px rgba(18, 58, 107, 0.04);
-  /* Elevación reservada al KPI hero con gradiente */
   --shadow-hero: 0 6px 20px -6px rgba(18, 58, 107, 0.32);
   --font: 'Geist', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  /* Toda cifra usa esta pila: mono con dígitos de ancho fijo */
+  /* Every number uses this stack: monospace with tabular digits */
   --font-num: 'Geist Mono', ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, monospace;
   --sidebar-width: 240px;
   --topbar-height: 52px;
@@ -95,10 +94,10 @@
   --warning-text: #8a5a12;
   /* ── Notification unread background ── */
   --notif-unread-bg: rgba(var(--primary-rgb), 0.04);
-  /* ── Colores categóricos ──
-     Para clasificar (clase de activo, etc.), no para señalar estado: por eso
-     no reutilizan --income / --expense.  Al ser tokens siguen al tema y hacen
-     innecesarios los overrides de modo oscuro. */
+  /* ── Categorical colours ──
+     For classification (asset class, etc.), not status: that is why they
+     do not reuse --income / --expense.  Being tokens, they follow the
+     theme and make dark-mode overrides unnecessary. */
   --cat-neutral-rgb: 95, 107, 125;
   --cat-alt: #5b2fb5;
   --cat-alt-rgb: 109, 58, 212;
@@ -303,8 +302,8 @@ button { font-family: inherit; cursor: pointer; }
 input, select { font-family: inherit; font-size: inherit; }
 a { color: var(--primary); text-decoration: none; }
 
-/* ─── Iconos (set propio, ver components/icons.tsx) ──────────────── */
-/* Heredan color y tamaño del contexto — a diferencia de los emojis, que no. */
+/* ─── Icons (custom set, see components/icons.tsx) ─────────────────── */
+/* Inherit colour and size from context — unlike emoji, which don't. */
 .icon {
   display: inline-block;
   vertical-align: -0.145em;
@@ -322,15 +321,15 @@ a { color: var(--primary); text-decoration: none; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   Cifras — sistema único
+   Numbers — unified system
 
-   Toda cifra de la aplicación se renderiza con la pila mono y dígitos de ancho
-   fijo, de modo que las columnas de una tabla alinean siempre.  Antes esto
-   estaba disperso en ~18 selectores sueltos y faltaba justo en los números
-   más grandes (.kpi-value / .inv-kpi-card__value).
+   Every number in the app is rendered with the monospace stack and tabular
+   digits so table columns always align.  Previously this was scattered across
+   ~18 loose selectors and missing from the largest values
+   (.kpi-value / .inv-kpi-card__value).
    ═══════════════════════════════════════════════════════════════════════════ */
-/* Nota: `:is()` toma la especificidad de su argumento MÁS específico, así que
-   los selectores compuestos van aparte para no inflar todo el grupo. */
+/* Note: `:is()` inherits the specificity of its MOST specific argument, so
+   compound selectors are listed separately to avoid inflating the whole group. */
 :is(
   .kpi-value, .kpi-sub,
   .inv-kpi-card__value, .inv-kpi-card__sub,

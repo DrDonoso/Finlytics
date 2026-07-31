@@ -81,7 +81,7 @@ class NormalizedValuePoint:
 class NormalizedContributionEvent:
     """A single contribution or withdrawal event derived from net_amounts deltas."""
     date: str         # YYYY-MM-DD
-    amount: float     # positive = aportación, negative = retirada (rounded to cents)
+    amount: float     # positive = contribution, negative = withdrawal (rounded to cents)
     cumulative: float # running net invested after this event (rounded to cents)
     type: str         # "contribution" | "withdrawal"
 

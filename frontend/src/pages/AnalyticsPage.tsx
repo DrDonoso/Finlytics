@@ -34,7 +34,7 @@ export default function AnalyticsPage() {
     flow:        filters.flow,
   }), [filters])
 
-  // by-account: sin account_id para que muestre todas las cuentas, pero con categoría + tags + flow
+  // by-account: no account_id so all accounts appear, but category + tags + flow still apply
   const byAccountParams: SummaryParams = useMemo(() => ({
     from:        params.from,
     to:          params.to,

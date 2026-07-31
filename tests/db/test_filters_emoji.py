@@ -1,9 +1,8 @@
-"""Reparto del emoji inicial en los nombres de etiqueta.
+"""Split the leading emoji from tag names.
 
-El patron usa cuantificadores posesivos para no dar pie al ReDoS polinomico que
-senalaba CodeQL. Estos tests fijan las dos cosas que eso implica: que el reparto
-normal no cambia, y que el caso degenerado (nombre formado solo por emojis) se
-devuelve intacto en lugar de partirse.
+The pattern uses possessive quantifiers to prevent the polynomial ReDoS CodeQL flags.
+These tests pin two invariants: the normal split is unchanged, and the degenerate case
+(a name made only of emojis) is returned whole instead of being split.
 """
 
 from __future__ import annotations
@@ -14,10 +13,10 @@ import pytest
 
 from finlytics.db.queries._filters import _split_leading_emoji
 
-# ── Reparto habitual ──────────────────────────────────────────────────────────
+# ── Normal split ─────────────────────────────────────────────────────────────
 
 @pytest.mark.parametrize(
-    ("raw", "esperado"),
+    ("raw", "expected"),
     [
         ("\U0001F4A1 luz", ("\U0001F4A1", "luz")),
         ("\U0001F4A1luz", ("\U0001F4A1", "luz")),
@@ -27,62 +26,61 @@ from finlytics.db.queries._filters import _split_leading_emoji
         ("\U0001F4A1 luz y gas", ("\U0001F4A1", "luz y gas")),
     ],
 )
-def test_separa_el_emoji_inicial(raw: str, esperado: tuple[str, str]):
-    assert _split_leading_emoji(raw) == esperado
+def test_splits_leading_emoji(raw: str, expected: tuple[str, str]):
+    assert _split_leading_emoji(raw) == expected
 
 
-# ── Casos en los que el nombre se devuelve intacto ────────────────────────────
+# ── Names returned unchanged ─────────────────────────────────────────────────
 
 @pytest.mark.parametrize(
     "raw",
     [
-        "luz",                                  # sin emoji
-        "",                                     # vacio
-        "   ",                                  # solo espacios
-        "\U0001F4A1",                           # un solo emoji
-        "\U0001F4A1 ",                          # emoji y espacio
-        "\U0001F4A1\U0001F4A7",                 # solo emojis, sin espacio final
-        "\U0001F4A1\U0001F4A7 ",                # solo emojis, con espacio final
-        "\U0001F4A1 \t\n",                      # emoji y espacios variados
+        "luz",                                  # no emoji
+        "",                                     # empty
+        "   ",                                  # only spaces
+        "\U0001F4A1",                           # single emoji
+        "\U0001F4A1 ",                          # emoji and space
+        "\U0001F4A1\U0001F4A7",                 # only emojis, no trailing space
+        "\U0001F4A1\U0001F4A7 ",                # only emojis, with trailing space
+        "\U0001F4A1 \t\n",                      # emoji and mixed whitespace
     ],
 )
-def test_devuelve_el_nombre_intacto(raw: str):
-    """Si quitar el prefijo dejaria el nombre vacio, no se toca nada.
+def test_returns_name_unchanged(raw: str):
+    """Stripping the prefix would leave an empty name, so nothing is touched.
 
-    Los dos casos de «solo emojis» son los que cambiaron al hacer posesivo el
-    patron: antes «💡💧» se partia en emoji «💡» + nombre «💧», pero «💡💧 » (con
-    espacio) no, porque el reparto dependia del backtracking. Ahora los dos se
-    comportan igual y respetan el contrato de la funcion.
+    The two "only emojis" cases changed when the pattern was made possessive:
+    "💡💧" previously split into emoji "💡" + name "💧", but "💡💧 " (with a space)
+    did not, because splitting relied on backtracking. Now both behave consistently
+    and honour the function contract.
     """
     assert _split_leading_emoji(raw) == (None, raw)
 
 
-# ── Ausencia de coste no lineal ───────────────────────────────────────────────
+# ── No quadratic cost ────────────────────────────────────────────────────────
 
-def test_el_coste_no_se_dispara_con_la_longitud():
-    """El tiempo crece de forma lineal, no cuadratica, con la entrada.
+def test_cost_does_not_grow_quadratically():
+    """Time grows linearly, not quadratically, with input length.
 
-    Se compara el peor caso conocido (emoji + muchos espacios y nada detras, que
-    es lo que obligaba al motor a probar divisiones) a dos tamanos que se
-    diferencian en 8x. Con coste cuadratico la relacion rondaria 64x.
+    Compares the known worst case (emoji + many spaces with nothing after — the
+    shape that forced the engine to try every split) at two sizes differing by 8x.
+    With quadratic cost the ratio would be around 64x.
 
-    Aviso para quien lo lea luego: este test NO falla si se revierte el patron al
-    permisivo de antes. Se comprobo. Aquel patron era ambiguo sobre el papel,
-    pero CPython lo resolvia en tiempo lineal, asi que no habia nada explotable
-    que medir. Esto es una red contra una regresion futura peor, no la prueba de
-    que se arreglara una lentitud real.
+    Note: this test does NOT fail if the pattern is reverted to the permissive one.
+    Verified. That pattern was ambiguous on paper, but CPython resolved it in linear
+    time, so there was nothing exploitable to measure. This guards against a future
+    regression, not proof that a real slowdown was fixed.
     """
-    def mide(n: int) -> float:
-        entrada = "\U0001F525" + " \t" * n
-        inicio = time.perf_counter()
+    def measure(n: int) -> float:
+        input_str = "\U0001F525" + " \t" * n
+        start = time.perf_counter()
         for _ in range(200):
-            _split_leading_emoji(entrada)
-        return time.perf_counter() - inicio
+            _split_leading_emoji(input_str)
+        return time.perf_counter() - start
 
-    mide(100)  # calentamiento, para no medir el coste de importar
-    corto = mide(500)
-    largo = mide(4000)
+    measure(100)  # warm-up so import cost is not measured
+    short_run = measure(500)
+    long_run = measure(4000)
 
-    # Margen amplio a proposito: la senal que interesa es «no es cuadratico»,
-    # no un umbral fino que parpadee segun la maquina donde corra el CI.
-    assert largo < corto * 24, f"crecimiento sospechoso: {corto=:.4f}s {largo=:.4f}s"
+    # Wide margin on purpose: the signal is "not quadratic", not a tight threshold
+    # that flickers depending on the CI machine.
+    assert long_run < short_run * 24, f"suspicious growth: {short_run=:.4f}s {long_run=:.4f}s"

@@ -24,8 +24,8 @@
   align-items: center;
   gap: 6px;
   padding: 4px 10px;
-  /* Antes eran los ámbar de Tailwind escritos a mano (#fbbf24 / #b45309), que
-     no seguían al tema y quedaban ilegibles en oscuro. */
+  /* Previously these were hand-coded Tailwind amber values (#fbbf24 / #b45309),
+     which didn't follow the theme and were unreadable in dark mode. */
   background: var(--warning-bg);
   border: 1px solid rgba(var(--warning-rgb), 0.4);
   border-radius: 6px;
@@ -97,9 +97,9 @@
 .conf-low { background: var(--warning-bg); color: var(--warning-text); }
 .conf-na  { background: var(--bg); color: var(--text-muted); }
 
-/* Dark mode overrides for light-only colors.
-   `.conf-low` y `.confidence-hint` ya resuelven por token en ambos temas, así
-   que aquí sólo queda lo que de verdad necesita una variante clara. */
+/* Dark mode overrides for light-only colours.
+   `.conf-low` and `.confidence-hint` already resolve via token in both themes,
+   so only what genuinely needs a light-specific variant remains here. */
 [data-theme="dark"] .conf-ok  { color: var(--income-bright); background: rgba(var(--income-rgb), 0.15); }
 [data-theme="dark"] .btn-row-save:hover { color: var(--income-bright); border-color: var(--income-bright); }
 @media (prefers-color-scheme: dark) {

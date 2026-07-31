@@ -608,7 +608,7 @@ export interface InvestmentHolding {
 
 export interface ContributionEvent {
   date: string
-  amount: number       // signed: + = aportación, − = retirada
+  amount: number       // signed: + = contribution, − = withdrawal
   cumulative: number
   type: 'contribution' | 'withdrawal'
 }

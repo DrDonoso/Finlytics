@@ -500,14 +500,14 @@ async def test_data_endpoint_200_with_valid_cookie(auth_client):
     assert resp.status_code == 200
 
 
-# ── POST /api/auth/login — límite de intentos ─────────────────────────────────
+# ── POST /api/auth/login — attempt rate limit ─────────────────────────────────
 #
-# El endpoint aceptaba intentos ilimitados, así que probar contraseñas por fuerza
-# bruta sólo estaba limitado por el ancho de banda. El contador va por IP y no por
-# usuario: si fuera por usuario, cualquiera podría bloquear una cuenta ajena.
+# The endpoint accepted unlimited attempts, so brute-forcing passwords was only
+# limited by bandwidth. The counter is per-IP, not per-user: a per-user counter
+# would let anyone lock out someone else's account.
 
 async def test_login_429_after_too_many_failures(auth_client):
-    """Agotado el cupo de intentos, el endpoint responde 429 en lugar de 401."""
+    """Once the attempt quota is exhausted, the endpoint returns 429 instead of 401."""
     client, session = auth_client
     session.scalar = AsyncMock(return_value=None)   # usuario inexistente → 401
 
@@ -530,10 +530,10 @@ async def test_login_429_after_too_many_failures(auth_client):
 
 
 async def test_login_429_does_not_leak_whether_the_user_exists(auth_client):
-    """El 429 se devuelve antes de mirar en la base de datos.
+    """The 429 is returned before hitting the database.
 
-    Si el límite se comprobara después de la consulta, el tiempo de respuesta
-    seguiría revelando si el usuario existe pese al bloqueo.
+    If the limit were checked after the query, response timing would still
+    reveal whether the user exists despite the block.
     """
     client, session = auth_client
     session.scalar = AsyncMock(return_value=None)
@@ -553,24 +553,24 @@ async def test_login_429_does_not_leak_whether_the_user_exists(auth_client):
 
 
 async def test_successful_login_clears_the_counter(auth_client):
-    """Equivocarse y acertar después no deja penalización pendiente."""
+    """Failing then succeeding leaves no residual penalty."""
     client, session = auth_client
 
-    # Unos cuantos fallos, sin llegar al límite.
+    # A few failures, still under the limit.
     session.scalar = AsyncMock(return_value=None)
     for _ in range(login_rate_limiter.max_attempts - 1):
         await client.post(
             "/api/auth/login", json={"username": "drdonoso", "password": "wrong-one-12"}
         )
 
-    # Acierta.
+    # Correct credentials.
     session.scalar = AsyncMock(return_value=_fake_user())
     ok = await client.post(
         "/api/auth/login", json={"username": "drdonoso", "password": "MyStr0ngP@ss!"}
     )
     assert ok.status_code == 200
 
-    # El cupo vuelve a estar entero: el siguiente fallo es 401, no 429.
+    # Quota is fully restored: the next failure is 401, not 429.
     session.scalar = AsyncMock(return_value=None)
     after = await client.post(
         "/api/auth/login", json={"username": "drdonoso", "password": "wrong-two-12"}
@@ -579,7 +579,7 @@ async def test_successful_login_clears_the_counter(auth_client):
 
 
 async def test_login_limit_can_be_disabled(auth_client, monkeypatch):
-    """AUTH_LOGIN_MAX_ATTEMPTS=0 desactiva el límite por completo."""
+    """AUTH_LOGIN_MAX_ATTEMPTS=0 disables the limit entirely."""
     client, session = auth_client
     session.scalar = AsyncMock(return_value=None)
 
@@ -593,11 +593,11 @@ async def test_login_limit_can_be_disabled(auth_client, monkeypatch):
 
 
 async def test_forged_forwarded_header_does_not_bypass_the_limit(auth_client):
-    """Variar X-Forwarded-For no debe regalar intentos nuevos.
+    """Varying X-Forwarded-For must not grant fresh attempts.
 
-    Es el motivo por el que la IP se lee de la conexión: si se tomara del
-    encabezado, bastaría con cambiarlo en cada petición para no agotar nunca el
-    cupo y el límite quedaría en nada.
+    This is why the IP is read from the connection: if the header were trusted,
+    an attacker could change it on every request, never exhaust the quota, and
+    render the limit worthless.
     """
     client, session = auth_client
     session.scalar = AsyncMock(return_value=None)

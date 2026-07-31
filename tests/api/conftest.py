@@ -29,12 +29,11 @@ from finlytics.app import app
 
 @pytest.fixture(autouse=True)
 def _reset_login_rate_limiter():
-    """Aísla el límite de intentos entre tests.
+    """Isolates the login rate-limit counter between tests.
 
-    Todos los tests llegan desde la misma IP ficticia, así que sin esto los
-    intentos fallidos de un test se acumularían en el siguiente y acabarían
-    provocando un 429 en un test que no tiene nada que ver — un fallo
-    dependiente del orden de ejecución y muy difícil de diagnosticar.
+    All tests share the same fictional IP, so without this a failed login in
+    one test would carry over to the next and eventually trigger a 429 in an
+    unrelated test — an order-dependent failure that is very hard to diagnose.
     """
     login_rate_limiter.clear()
     yield
