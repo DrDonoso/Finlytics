@@ -15,6 +15,7 @@ import type {
   AccountCreatePayload,
   AssistantConversation, AssistantConversationDetail, AssistantStatus,
   AssistantStreamEvent, AssistantSuggestions,
+  AssistantSettings, AssistantSettingsPayload, AssistantUsage,
 } from './types'
 import {
   mockGetAccounts, mockGetCategories, mockGetTags, mockGetTransactions,
@@ -688,6 +689,36 @@ export async function getAssistantStatus(): Promise<AssistantStatus> {
 /** GET /api/assistant/suggestions → starter prompts as i18n keys. */
 export async function getAssistantSuggestions(): Promise<AssistantSuggestions> {
   return apiFetch<AssistantSuggestions>('/api/assistant/suggestions')
+}
+
+/** GET /api/assistant/settings → overrides plus the values in force. */
+export async function getAssistantSettings(): Promise<AssistantSettings> {
+  return apiFetch<AssistantSettings>('/api/assistant/settings')
+}
+
+/** PUT /api/assistant/settings → replaces the overrides.
+ *  A null field clears that override so the environment default applies again. */
+export async function putAssistantSettings(
+  body: AssistantSettingsPayload,
+): Promise<AssistantSettings> {
+  const res = await fetch('/api/assistant/settings', {
+    method: 'PUT',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (res.status === 401) { _on401?.(); throw new Error('HTTP 401 Unauthorized') }
+  if (!res.ok) {
+    const data: { detail?: unknown } = await res.json().catch(() => ({}))
+    const detail = typeof data.detail === 'string' ? data.detail : `HTTP ${res.status}`
+    throw Object.assign(new Error(detail), { status: res.status })
+  }
+  return res.json() as Promise<AssistantSettings>
+}
+
+/** GET /api/assistant/usage → token totals and the daily series. */
+export async function getAssistantUsage(): Promise<AssistantUsage> {
+  return apiFetch<AssistantUsage>('/api/assistant/usage')
 }
 
 /** GET /api/assistant/conversations → thread list, most recently active first. */

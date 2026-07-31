@@ -26,6 +26,7 @@ from finlytics.extraction.llm_client import (
     LLMError,
     TextDelta,
     ToolCallsRequested,
+    UsageReported,
 )
 
 log = logging.getLogger(__name__)
@@ -64,6 +65,12 @@ class Completed:
 
     answer: str
     tool_calls: list[dict]
+    # Summed across every provider call the turn made. Zero when the provider
+    # reported nothing — which is not the same as the turn having been free.
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
+    usage_reported: bool = False
 
 
 @dataclass(frozen=True)
@@ -92,6 +99,10 @@ class _Turn:
 
     answer_parts: list[str] = field(default_factory=list)
     audit: list[dict] = field(default_factory=list)
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
+    usage_reported: bool = False
 
 
 def _truncate_arguments(raw: str, limit: int = 500) -> str:
@@ -107,6 +118,7 @@ async def run_turn(
     history: list[dict],
     today: date,
     limits: AgentLimits | None = None,
+    custom_instructions: str | None = None,
     background_tasks=None,  # noqa: ANN001 — FastAPI type, kept out of the import graph
 ) -> AsyncIterator[AssistantEvent]:
     """Run one user turn to completion, yielding events as they happen.
@@ -114,6 +126,9 @@ async def run_turn(
     ``history`` is the already-trimmed list of ``{"role", "content"}`` dicts,
     ending with the new user message. Tool results from previous turns are NOT
     part of it — see ``AssistantMessage`` for why.
+
+    ``custom_instructions`` is the user's own preference text, appended to the
+    prompt rather than replacing any of it.
     """
     limits = limits or AgentLimits()
 
@@ -129,7 +144,8 @@ async def run_turn(
         return
 
     system_prompt = prompts.build_system_prompt(
-        ctx_module.render_context(financial_context)
+        ctx_module.render_context(financial_context),
+        custom_instructions=custom_instructions,
     )
 
     messages: list[dict] = [
@@ -167,6 +183,14 @@ async def run_turn(
                     yield AnswerDelta(chunk.text)
                 elif isinstance(chunk, ToolCallsRequested):
                     requested = chunk
+                elif isinstance(chunk, UsageReported):
+                    # Accumulated, not overwritten: a turn with a tool
+                    # round-trip bills for every pass, and reporting only the
+                    # last one would understate the cost by roughly half.
+                    turn.prompt_tokens += chunk.prompt_tokens
+                    turn.completion_tokens += chunk.completion_tokens
+                    turn.total_tokens += chunk.total_tokens
+                    turn.usage_reported = True
         except LLMError as exc:
             # The upstream error text can name the endpoint URL and echo request
             # details, so it stays in the log rather than going down the stream.
@@ -235,4 +259,11 @@ async def run_turn(
         yield Failed("I could not put together an answer for that. Try rephrasing it.")
         return
 
-    yield Completed(answer=answer, tool_calls=turn.audit)
+    yield Completed(
+        answer=answer,
+        tool_calls=turn.audit,
+        prompt_tokens=turn.prompt_tokens,
+        completion_tokens=turn.completion_tokens,
+        total_tokens=turn.total_tokens,
+        usage_reported=turn.usage_reported,
+    )

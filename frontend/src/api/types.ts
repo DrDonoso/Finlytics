@@ -846,6 +846,52 @@ export interface AssistantConversationDetail extends AssistantConversation {
 export type AssistantStreamEvent =
   | { type: 'tool'; name: string; label: string }
   | { type: 'token'; text: string }
-  | { type: 'done'; message_id: number; title: string }
+  | { type: 'done'; message_id: number; title: string; total_tokens: number | null }
   | { type: 'error'; detail: string }
+
+// ─── Assistant settings and usage ─────────────────────────────────────────────
+
+export interface AssistantSettings {
+  /** null means "no override" — the environment default applies. */
+  custom_instructions: string | null
+  rate_limit_messages: number | null
+  rate_limit_window_seconds: number | null
+  monthly_token_budget: number | null
+
+  /** What is actually in force once the environment defaults are resolved. */
+  effective_rate_limit_messages: number
+  effective_rate_limit_window_seconds: number
+  max_custom_instructions_chars: number
+}
+
+export interface AssistantSettingsPayload {
+  custom_instructions?: string | null
+  rate_limit_messages?: number | null
+  rate_limit_window_seconds?: number | null
+  monthly_token_budget?: number | null
+}
+
+export interface AssistantUsagePeriod {
+  prompt_tokens: number
+  completion_tokens: number
+  total_tokens: number
+  messages: number
+}
+
+export interface AssistantUsageDay {
+  day: string
+  tokens: number
+  messages: number
+}
+
+export interface AssistantUsage {
+  this_month: AssistantUsagePeriod
+  all_time: AssistantUsagePeriod
+  by_day: AssistantUsageDay[]
+  monthly_token_budget: number | null
+  budget_remaining: number | null
+  /** False when the provider never reports usage, so the UI can say "unknown"
+   *  rather than showing a confident zero. */
+  usage_available: boolean
+}
 

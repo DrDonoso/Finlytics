@@ -47,9 +47,9 @@ The `IMAGE_TAG` / `BUILD_DATE` build args are injected there and surfaced by
 
 ## Migrations
 
-Alembic migrations live in `alembic/versions/`. The current head is `0018_add_assistant_conversations.py`.
+Alembic migrations live in `alembic/versions/`. The current head is `0019_add_assistant_settings_and_usage.py`.
 
-- Always create a new numbered migration (`0019_...`) for schema changes.
+- Always create a new numbered migration (`0020_...`) for schema changes.
 - Verify the head before writing one — this file goes stale. `down_revision` in the
   highest-numbered file is the source of truth, not this document.
 - The entrypoint runs `alembic upgrade head` automatically on container start.
@@ -68,6 +68,7 @@ data, surfaced as a slide-out chat panel.
 | `projections.py` | Deterministic compound interest. No LLM, no I/O, pure functions |
 | `prompts.py` | The system prompt, version-controlled like `extraction/prompts.py` |
 | `context.py` | Compact "what data exists" header (account/category ids, date coverage) injected into the prompt |
+| `settings.py` | Per-user overrides resolved against the env defaults, token accounting and the budget query |
 | `service.py` | The bounded agent loop, yielding `ToolStarted` / `AnswerDelta` / `Completed` / `Failed` events |
 
 `api/assistant.py` turns those events into SSE frames. `LLMClient.stream_with_tools()`
@@ -102,6 +103,26 @@ pipeline is unaffected.
 Cost guards live in `config.py` (`ASSISTANT_*`): iteration cap, history window, result-row
 cap, message length, conversation count and a per-user rate limit. They are not decoration —
 each message is one to three paid LLM calls.
+
+> **The rate limit and the monthly budget are not interchangeable.** The rate limit is an
+> in-process sliding window: it stops a burst, and it resets on every restart. That makes it
+> structurally incapable of capping a month's spend, because a redeploy hands back a full
+> allowance. The monthly token budget is counted from `assistant_messages` in the database,
+> which is the only reason it works. If you move the limiter to Redis some day, that does not
+> change — the budget still belongs in the database.
+
+> **Custom instructions are appended, never substituted.** `build_system_prompt` puts the
+> user's text in a delimited block AFTER the core rules, with an explicit statement that
+> preferences lose to them. Do not add a way to replace the core prompt: it carries the rules
+> that keep the model from inventing figures, and losing one of them produces confident wrong
+> numbers rather than a visible error. `tests/assistant/test_settings.py` asserts the rules
+> survive and the ordering holds.
+
+> **`stream_options.include_usage` is required to see token counts at all.** A streamed
+> response carries no usage otherwise, and the usage chunk arrives with an EMPTY `choices`
+> list — so it has to be read *before* the guard that skips choice-less frames. Usage must
+> also be SUMMED across a turn: a tool round-trip is several provider calls, and taking only
+> the last one understates the cost by roughly half.
 
 The frontend client has **no mock fallback** on any assistant endpoint. The
 `catch { return mockGetX() }` pattern documented below would answer a question about the

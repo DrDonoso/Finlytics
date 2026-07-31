@@ -673,6 +673,47 @@ class NotificationDelivery(Base):
 
 # ── Finance assistant ─────────────────────────────────────────────────────────
 
+class AssistantSettings(Base):
+    """Per-user assistant configuration, editable from the UI.
+
+    Every column is nullable and means "fall back to the environment default".
+    That keeps a self-hosted operator's ``ASSISTANT_*`` env vars authoritative
+    until someone deliberately overrides one in Settings, instead of the first
+    save silently freezing today's defaults into the database.
+
+    ``custom_instructions`` is APPENDED to the system prompt, never replaces it.
+    The core prompt carries the rules that stop the model inventing figures
+    about the user's money, and a text box that can delete them is a text box
+    that will eventually delete them — silently, since the output still reads
+    like a confident answer.
+    """
+
+    __tablename__ = "assistant_settings"
+    __table_args__ = (
+        UniqueConstraint("user_id", name="uq_assistant_settings_user"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    custom_instructions: Mapped[str | None] = mapped_column(Text, nullable=True)
+    rate_limit_messages: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    rate_limit_window_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Hard stop on spend for the calendar month. Null means no cap.
+    monthly_token_budget: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return f"<AssistantSettings id={self.id} user={self.user_id}>"
+
+
 class AssistantConversation(Base):
     """A chat thread between a user and the finance assistant.
 
@@ -734,6 +775,12 @@ class AssistantMessage(Base):
     content: Mapped[str] = mapped_column(Text, nullable=False)
     # [{"name": "get_spending_by_category", "arguments": {...}}, …] — audit only
     tool_calls: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    # Token usage for the whole turn, summed across the several provider calls a
+    # tool round-trip makes. Nullable because not every provider reports usage,
+    # and a turn that failed never got any.
+    prompt_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    completion_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    total_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

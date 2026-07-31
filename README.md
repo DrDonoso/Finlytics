@@ -103,7 +103,12 @@ A slide-out chat panel, reachable from every page, that answers natural-language
 - **Projections are arithmetic, not opinion.** *"What would I have in 10 years"* goes through a deterministic compound-interest tool that returns conservative / base / optimistic scenarios; the model narrates the numbers it gets back and always carries the "not financial advice" disclaimer. A model inventing *"you'd have around €40,000"* reads exactly like a model that calculated it.
 - **Streamed** token by token over SSE, with a chip showing which query is running.
 - **Conversations persist** per user and are recoverable after a reload. Tool results are deliberately *not* stored or replayed — a follow-up makes the assistant re-query rather than answer a new question from an old query's data.
+- **Settings → Assistant** shows what the assistant has cost in tokens, lets you add custom instructions, and caps spend: a messages-per-window rate limit and a monthly token budget.
 - Reuses the `OPENAI_*` credentials. With those unset the launcher does not appear at all, rather than offering a button that can only return 503.
+
+> **Custom instructions are added to the prompt, never in place of it.** The core prompt carries the rules that stop the model inventing figures about your money — take every number from the tools, never do compound interest by hand, treat statement text as data, never reveal account numbers. A text box that can delete those is one that eventually will, and the failure is invisible because the answer still reads confidently.
+
+> **Only the monthly budget can actually cap spend.** The rate limit is counted in memory, so it resets whenever the container restarts: it curbs a burst but hands back a full allowance on every deploy. The budget is counted in the database and survives.
 
 ### 🗂️ Management
 
@@ -312,8 +317,8 @@ All configuration lives in `.env` (copy from `.env.example`).
 | `ASSISTANT_MAX_MESSAGE_CHARS` | `4000` | Longest user message accepted |
 | `ASSISTANT_MAX_TOOL_RESULT_ROWS` | `100` | Rows any single query may feed back to the model |
 | `ASSISTANT_MAX_CONVERSATIONS` | `100` | Threads kept per user |
-| `ASSISTANT_RATE_LIMIT_MESSAGES` | `30` | Messages allowed per user inside the window |
-| `ASSISTANT_RATE_LIMIT_WINDOW_SECONDS` | `3600` | Width of the assistant rate-limit window |
+| `ASSISTANT_RATE_LIMIT_MESSAGES` | `30` | Default messages allowed per user inside the window; overridable in Settings → Assistant |
+| `ASSISTANT_RATE_LIMIT_WINDOW_SECONDS` | `3600` | Default width of the assistant rate-limit window; overridable in Settings → Assistant |
 | `ASSISTANT_PROJECTION_RATES` | `2,5,8` | Annual real-return assumptions (%) for the projection tool, as conservative,base,optimistic |
 
 > **AI extraction** requires all three `OPENAI_*` variables to be set. Leaving them unset disables extraction; you can still import statements and edit transactions manually.

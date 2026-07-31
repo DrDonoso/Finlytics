@@ -13,7 +13,7 @@ from typing import Literal
 
 import re
 
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from finlytics.contracts import ExtractedTransaction  # pydantic-only, no circular dep
 
@@ -1043,4 +1043,80 @@ class AssistantMessageIn(BaseModel):
         if not text:
             raise ValueError("Message cannot be empty.")
         return text
+
+
+class AssistantSettingsIn(BaseModel):
+    """Request body for PUT /api/assistant/settings.
+
+    Every field is optional and ``None`` means "clear the override and fall back
+    to the environment default" — not "set to zero".
+    """
+
+    custom_instructions: str | None = None
+    rate_limit_messages: int | None = Field(default=None, ge=1, le=10_000)
+    rate_limit_window_seconds: int | None = Field(default=None, ge=60, le=86_400)
+    monthly_token_budget: int | None = Field(default=None, ge=1_000)
+
+    @field_validator("custom_instructions")
+    @classmethod
+    def validate_instructions(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        text = v.strip()
+        if not text:
+            return None
+        if len(text) > 2000:
+            raise ValueError(
+                "Custom instructions are limited to 2000 characters — they are "
+                "resent to the model on every message."
+            )
+        return text
+
+
+class AssistantSettingsOut(BaseModel):
+    """Current settings, showing both what was stored and what is in force.
+
+    The frontend needs both: a null override with a non-null effective value is
+    "inherited from the environment", which reads very differently to the user
+    than a value they chose themselves.
+    """
+
+    custom_instructions: str | None = None
+    rate_limit_messages: int | None = None
+    rate_limit_window_seconds: int | None = None
+    monthly_token_budget: int | None = None
+
+    effective_rate_limit_messages: int
+    effective_rate_limit_window_seconds: int
+    max_custom_instructions_chars: int
+
+
+class AssistantUsagePeriod(BaseModel):
+    """Token totals over one period."""
+
+    prompt_tokens: int
+    completion_tokens: int
+    total_tokens: int
+    messages: int
+
+
+class AssistantUsageDay(BaseModel):
+    """One point of the daily usage series."""
+
+    day: str
+    tokens: int
+    messages: int
+
+
+class AssistantUsageOut(BaseModel):
+    """Response for GET /api/assistant/usage."""
+
+    this_month: AssistantUsagePeriod
+    all_time: AssistantUsagePeriod
+    by_day: list[AssistantUsageDay]
+    monthly_token_budget: int | None = None
+    budget_remaining: int | None = None
+    # False when the provider never reports usage, so the UI can say "unknown"
+    # instead of showing a confident zero.
+    usage_available: bool = True
 

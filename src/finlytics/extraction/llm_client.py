@@ -54,7 +54,20 @@ class ToolCallsRequested:
     calls: list[ToolCallRequest]
 
 
-StreamChunk = TextDelta | ToolCallsRequested
+@dataclass(frozen=True)
+class UsageReported:
+    """Token counts for one provider call.
+
+    Emitted only when the provider sends them. A turn makes several calls (one
+    per tool round-trip), so the caller has to accumulate rather than overwrite.
+    """
+
+    prompt_tokens: int
+    completion_tokens: int
+    total_tokens: int
+
+
+StreamChunk = TextDelta | ToolCallsRequested | UsageReported
 
 
 class LLMClient:
@@ -209,11 +222,18 @@ class LLMClient:
         the arguments dribble in as JSON string pieces over the following ones.
         They must be reassembled per index before anything can be parsed, which
         is why nothing is emitted until the stream is exhausted.
+
+        ``UsageReported`` is yielded when the provider sends token counts. That
+        needs ``stream_options.include_usage``, because a streamed response
+        otherwise carries no usage at all — and the usage chunk arrives with an
+        EMPTY ``choices`` list, so it has to be read before the early-continue
+        that skips choice-less frames.
         """
         kwargs: dict[str, Any] = {
             "model": self.model,
             "messages": messages,
             "stream": True,
+            "stream_options": {"include_usage": True},
             "max_completion_tokens": max_completion_tokens,
             **self._sampling_kwargs(),
         }
@@ -224,11 +244,22 @@ class LLMClient:
         # Keyed by the delta's index, which is the only thing tying a fragment
         # to its call — ids are only present on the first fragment.
         pending: dict[int, dict[str, str]] = {}
+        usage: UsageReported | None = None
 
         try:
             stream = await self._client.chat.completions.create(**kwargs)
 
             async for chunk in stream:
+                # Read usage first: it rides on a frame with no choices, which
+                # the next guard drops.
+                reported = getattr(chunk, "usage", None)
+                if reported is not None:
+                    usage = UsageReported(
+                        prompt_tokens=getattr(reported, "prompt_tokens", 0) or 0,
+                        completion_tokens=getattr(reported, "completion_tokens", 0) or 0,
+                        total_tokens=getattr(reported, "total_tokens", 0) or 0,
+                    )
+
                 choices = getattr(chunk, "choices", None)
                 if not choices:
                     continue
@@ -256,6 +287,9 @@ class LLMClient:
         except Exception as exc:
             log.error("LLMClient.stream_with_tools error: %s", exc)
             raise LLMError(str(exc)) from exc
+
+        if usage is not None:
+            yield usage
 
         if pending:
             calls = [

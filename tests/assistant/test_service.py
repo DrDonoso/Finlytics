@@ -26,6 +26,7 @@ from finlytics.extraction.llm_client import (
     TextDelta,
     ToolCallRequest,
     ToolCallsRequested,
+    UsageReported,
 )
 
 
@@ -210,6 +211,55 @@ class TestToolRoundTrip:
         assert [e.name for e in events if isinstance(e, ToolStarted)] == [
             "get_spending_by_category", "get_spending_by_month"
         ]
+
+
+class TestUsageAccounting:
+    async def test_usage_is_summed_across_the_turn_not_overwritten(self, fake_context):
+        # A turn with a tool round-trip bills for every pass. Reporting only the
+        # last one would understate the cost by roughly half, and the monthly
+        # budget built on top of it would never fire when it should.
+        llm = FakeLLM([
+            [
+                ToolCallsRequested([
+                    ToolCallRequest(id="c1", name="get_spending_by_category", arguments="{}")
+                ]),
+                UsageReported(prompt_tokens=800, completion_tokens=40, total_tokens=840),
+            ],
+            [
+                TextDelta("Done."),
+                UsageReported(prompt_tokens=1200, completion_tokens=90, total_tokens=1290),
+            ],
+        ])
+        with patch(
+            "finlytics.assistant.tools.queries.get_by_category", AsyncMock(return_value=[])
+        ):
+            events = await collect(llm)
+
+        completed = events[-1]
+        assert isinstance(completed, Completed)
+        assert completed.prompt_tokens == 2000
+        assert completed.completion_tokens == 130
+        assert completed.total_tokens == 2130
+        assert completed.usage_reported is True
+
+    async def test_a_provider_that_reports_nothing_is_flagged(self, fake_context):
+        # Zero tokens and "the provider does not tell us" must stay
+        # distinguishable, or the UI shows a confident "you have spent nothing".
+        llm = FakeLLM([[TextDelta("No usage here.")]])
+        completed = (await collect(llm))[-1]
+
+        assert isinstance(completed, Completed)
+        assert completed.usage_reported is False
+        assert completed.total_tokens == 0
+
+    async def test_custom_instructions_reach_the_prompt(self, fake_context):
+        llm = FakeLLM([[TextDelta("ok")]])
+        await collect(llm, custom_instructions="Answer in Catalan.")
+
+        system = llm.calls[0]["messages"][0]["content"]
+        assert "Answer in Catalan." in system
+        # And they must not have displaced the rules.
+        assert "ALWAYS get numbers from the tools" in system
 
 
 class TestBounds:
