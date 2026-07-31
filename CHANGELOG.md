@@ -4,6 +4,11 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260731.08] - 2026-07-31
+
+- docs: add demo screenshots and cut the configuration surface (#48)
+
+
 ## [20260731.07] - 2026-07-31
 
 - feat(assistant): make the system prompt editable, defaulting to the shipped one (#47)
