@@ -18,6 +18,33 @@
 
 ---
 
+## Contents
+
+<!-- Anchors are generated with github-slugger. Three headings (🗂️ ⚙️ ⚖️) carry an
+     invisible U+FE0F variation selector that GitHub keeps in the slug, so these
+     links are not safe to retype by hand — regenerate them instead. -->
+
+- [Why Finlytics?](#why-finlytics)
+- [What It Does](#what-it-does)
+  - [Home](#-home)
+  - [Import & rules](#-import--rules)
+  - [Dashboards](#-dashboards)
+  - [Investments](#-investments)
+  - [Notifications](#-notifications)
+  - [Talk to your finances](#-talk-to-your-finances)
+  - [Management](#️-management)
+- [Screenshots](#-screenshots)
+- [How It Works](#how-it-works)
+- [Tech Stack](#tech-stack)
+- [Self-Hosting](#-self-hosting)
+- [Configuration Reference](#️-configuration-reference)
+- [Project Status](#-project-status)
+- [License](#-license)
+- [Security](#-security)
+- [Disclaimer](#️-disclaimer)
+
+---
+
 ## Why Finlytics?
 
 Every open-source personal finance tool I evaluated was either too complex, required manual entry, depended on a bank integration I don't have, or just didn't fit how I actually work. What I wanted was simple:
