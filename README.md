@@ -91,7 +91,7 @@ Import the Fidelity "View open lots" CSV to track your MSFT ESPP holdings:
 
 - **In-app notification bell** — active reminders with unread badge, read/dismiss state stored server-side so it survives across devices.
 - **Detectors** run in a background loop inside the API process (every `NOTIFICATIONS_EVAL_INTERVAL_SECONDS`, 5 min by default) and currently cover two conditions: a missing monthly statement and an overdue ESPP upload. Adding a detector is a single entry in the registry.
-- **Telegram delivery** *(optional)* — connect a bot from Settings → Connectors. The bot token is encrypted at rest with the same Fernet key as the connector tokens, and it is never logged or returned to the frontend. Set `TELEGRAM_SEND_ENABLED=false` to silence all sends globally.
+- **Telegram delivery** *(optional)* — connect a bot from Settings → Connectors. The bot token is encrypted at rest with the same Fernet key as the connector tokens, and it is never logged or returned to the frontend. Set `TELEGRAM_SEND_ENABLED=false` to silence all sends globally. For a group with topics enabled, an optional topic (thread) ID routes the messages to a single topic instead of the general chat — the Bot API cannot list topics, so the ID is taken from the topic's message link.
 - In-app notifications are stored as i18n keys plus arguments, never pre-rendered strings, so their text follows the UI language. Telegram messages are rendered server-side in Spanish (`notifications/messages.py`), the owner's locale.
 
 ### 🗂️ Management

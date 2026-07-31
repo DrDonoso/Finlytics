@@ -239,7 +239,10 @@ async def deliver_new(
                     config_data = json.loads(decrypt_token(channel.config_enc))
                     text = render_notification_text(notif)
                     await telegram_send_message(
-                        config_data["bot_token"], str(config_data["chat_id"]), text
+                        config_data["bot_token"],
+                        str(config_data["chat_id"]),
+                        text,
+                        message_thread_id=config_data.get("message_thread_id"),
                     )
                     sent = True
                 except EncryptionNotConfiguredError:

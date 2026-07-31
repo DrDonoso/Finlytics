@@ -12,6 +12,7 @@ interface Props {
 }
 
 const CHAT_ID_RE = /^-?\d+$/
+const THREAD_ID_RE = /^\d+$/
 
 function stepToActiveDot(step: TelegramStep): number {
   if (step === 1) return 1
@@ -37,6 +38,7 @@ export default function TelegramWizard({ onClose, onConnected }: Props) {
   const [botToken, setBotToken] = useState('')
   const [chatId, setChatId] = useState('')
   const [chatIdTouched, setChatIdTouched] = useState(false)
+  const [threadId, setThreadId] = useState('')
 
   const [testState, setTestState] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle')
   const [testError, setTestError] = useState<string | null>(null)
@@ -49,12 +51,25 @@ export default function TelegramWizard({ onClose, onConnected }: Props) {
   const chatIdValid = CHAT_ID_RE.test(chatId.trim())
   const showChatIdError = chatIdTouched && chatId.trim().length > 0 && !chatIdValid
 
+  // Forum topics only exist in groups/supergroups, whose chat IDs are negative.
+  const isGroupChat = chatId.trim().startsWith('-')
+  const threadIdRaw = threadId.trim()
+  const threadIdValid = threadIdRaw.length === 0 || (THREAD_ID_RE.test(threadIdRaw) && Number(threadIdRaw) > 0)
+  const showThreadIdError = isGroupChat && threadIdRaw.length > 0 && !threadIdValid
+  const messageThreadId = isGroupChat && threadIdValid && threadIdRaw.length > 0 ? Number(threadIdRaw) : null
+
+  const canSubmit = chatIdValid && (!isGroupChat || threadIdValid)
+
   async function handleTest() {
-    if (!chatIdValid) return
+    if (!canSubmit) return
     setTestState('loading')
     setTestError(null)
     try {
-      const result = await testTelegramChannel({ bot_token: botToken, chat_id: chatId.trim() })
+      const result = await testTelegramChannel({
+        bot_token: botToken,
+        chat_id: chatId.trim(),
+        message_thread_id: messageThreadId,
+      })
       if (result.ok) {
         setTestState('ok')
       } else {
@@ -71,7 +86,11 @@ export default function TelegramWizard({ onClose, onConnected }: Props) {
     setSaveState('saving')
     setSaveError(null)
     try {
-      await createTelegramChannel({ bot_token: botToken, chat_id: chatId.trim() })
+      await createTelegramChannel({
+        bot_token: botToken,
+        chat_id: chatId.trim(),
+        message_thread_id: messageThreadId,
+      })
       setSaveState('success')
       onConnected()
     } catch (err) {
@@ -184,12 +203,37 @@ export default function TelegramWizard({ onClose, onConnected }: Props) {
                   </div>
                 )}
               </div>
+              {isGroupChat && (
+                <div className="inv-wizard__token-field">
+                  <label className="inv-wizard__token-label" htmlFor="tg-thread-id">
+                    {t.tgWizardThreadIdLabel} <span className="inv-wizard__field-optional">({t.tgWizardThreadIdOptional})</span>
+                  </label>
+                  <input
+                    id="tg-thread-id"
+                    type="text"
+                    className={`inv-wizard__token-input${showThreadIdError ? ' inv-wizard__token-input--error' : ''}`}
+                    placeholder={t.tgWizardThreadIdPlaceholder}
+                    value={threadId}
+                    onChange={e => { setThreadId(e.target.value); setTestState('idle') }}
+                    autoComplete="off"
+                    spellCheck={false}
+                    inputMode="numeric"
+                  />
+                  <span className="inv-wizard__field-hint">{t.tgWizardThreadIdHint}</span>
+                  {showThreadIdError && (
+                    <div className="inv-wizard__error-banner" role="alert" style={{ marginTop: '0.5rem' }}>
+                      <span className="inv-wizard__error-banner-icon" aria-hidden="true"><IconAlert size={16} /></span>
+                      <span>{t.tgWizardThreadIdValidationError}</span>
+                    </div>
+                  )}
+                </div>
+              )}
               <div className="inv-wizard__test-row">
                 <button
                   type="button"
                   className="btn-secondary"
                   onClick={handleTest}
-                  disabled={testState === 'loading' || !botToken.trim() || !chatId.trim() || !chatIdValid}
+                  disabled={testState === 'loading' || !botToken.trim() || !chatId.trim() || !canSubmit}
                 >
                   {testState === 'loading' ? t.tgWizardStep3Testing : t.tgWizardStep3TestBtn}
                 </button>
@@ -251,7 +295,7 @@ export default function TelegramWizard({ onClose, onConnected }: Props) {
               <button
                 className="btn-primary"
                 onClick={goToStep3}
-                disabled={!chatId.trim() || !chatIdValid}
+                disabled={!chatId.trim() || !canSubmit}
               >
                 {t.tgWizardNext}
               </button>

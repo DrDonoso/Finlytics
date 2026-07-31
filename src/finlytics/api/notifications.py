@@ -243,7 +243,13 @@ async def upsert_telegram_channel(
         raise HTTPException(status_code=400, detail=str(exc))
 
     # Encrypt config blob
-    config_payload = json.dumps({"bot_token": body.bot_token, "chat_id": body.chat_id})
+    config_payload = json.dumps(
+        {
+            "bot_token": body.bot_token,
+            "chat_id": body.chat_id,
+            "message_thread_id": body.message_thread_id,
+        }
+    )
     try:
         config_enc = encrypt_token(config_payload)
     except EncryptionNotConfiguredError:
@@ -300,6 +306,7 @@ async def test_telegram_channel(
     if body.bot_token and body.chat_id:
         bot_token = body.bot_token
         chat_id = body.chat_id
+        message_thread_id = body.message_thread_id
     elif body.bot_token or body.chat_id:
         raise HTTPException(
             status_code=400,
@@ -330,12 +337,14 @@ async def test_telegram_channel(
             )
         bot_token = config_data["bot_token"]
         chat_id = str(config_data["chat_id"])
+        message_thread_id = config_data.get("message_thread_id")
 
     try:
         await telegram_send_message(
             bot_token,
             str(chat_id),
             "✅ Finlytics: notificaciones de Telegram configuradas correctamente.",
+            message_thread_id=message_thread_id,
         )
         return TelegramTestOut(ok=True)
     except TelegramError as exc:

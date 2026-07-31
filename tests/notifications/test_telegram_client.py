@@ -12,11 +12,12 @@ Coverage:
   - The rejection message never echoes the submitted token
   - telegram_get_me / telegram_send_message reject a hostile token without
     touching the network
+  - message_thread_id is forwarded when supplied and omitted otherwise
 """
 
 from __future__ import annotations
 
-from unittest.mock import patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -83,3 +84,36 @@ async def test_send_message_rejects_hostile_token_without_network():
     with patch("httpx.AsyncClient") as client_cls, pytest.raises(TelegramError):
         await telegram_send_message("abc?x=1", "123456789", "hi")
     client_cls.assert_not_called()
+
+
+def _captured_payload(post_mock) -> dict:
+    return post_mock.call_args.kwargs["json"]
+
+
+def _patched_client(post_mock):
+    """Return an httpx.AsyncClient patch whose post() returns a Telegram ok:true."""
+    response = MagicMock()
+    response.status_code = 200
+    response.json.return_value = {"ok": True, "result": {}}
+    post_mock.return_value = response
+    client = MagicMock()
+    client.post = post_mock
+    ctx = MagicMock()
+    ctx.__aenter__ = AsyncMock(return_value=client)
+    ctx.__aexit__ = AsyncMock(return_value=False)
+    return patch("httpx.AsyncClient", return_value=ctx)
+
+
+async def test_send_message_includes_thread_id_when_given():
+    post_mock = AsyncMock()
+    with _patched_client(post_mock):
+        await telegram_send_message(_VALID_TOKEN, "-1001234567890", "hi", message_thread_id=42)
+    assert _captured_payload(post_mock)["message_thread_id"] == 42
+
+
+async def test_send_message_omits_thread_id_when_absent():
+    """Telegram rejects message_thread_id on non-forum chats — never send a null."""
+    post_mock = AsyncMock()
+    with _patched_client(post_mock):
+        await telegram_send_message(_VALID_TOKEN, "123456789", "hi")
+    assert "message_thread_id" not in _captured_payload(post_mock)
