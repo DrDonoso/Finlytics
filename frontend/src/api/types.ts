@@ -804,3 +804,48 @@ export interface TelegramTestOut {
   ok: boolean
   error?: string
 }
+
+// ─── Finance assistant ────────────────────────────────────────────────────────
+
+export interface AssistantStatus {
+  enabled: boolean
+  reason: string | null
+}
+
+export interface AssistantSuggestions {
+  suggestions: string[]
+}
+
+/** Audit record of a query the assistant ran while composing an answer. */
+export interface AssistantToolCall {
+  name: string
+  arguments: string
+  ok: boolean
+}
+
+export interface AssistantMessage {
+  id: number
+  role: 'user' | 'assistant'
+  content: string
+  tool_calls: AssistantToolCall[] | null
+  created_at: string
+}
+
+export interface AssistantConversation {
+  id: number
+  title: string
+  created_at: string
+  updated_at: string
+}
+
+export interface AssistantConversationDetail extends AssistantConversation {
+  messages: AssistantMessage[]
+}
+
+/** One frame of the SSE answer stream. Mirrors the backend's event names. */
+export type AssistantStreamEvent =
+  | { type: 'tool'; name: string; label: string }
+  | { type: 'token'; text: string }
+  | { type: 'done'; message_id: number; title: string }
+  | { type: 'error'; detail: string }
+

@@ -4,6 +4,8 @@ import { useT } from '../i18n'
 import { useAuth } from '../contexts/AuthContext'
 import { useConnections } from '../api/queries'
 import { getPluginLogo, PLUGIN_VIEW_REGISTRY, pluginInitial } from '../investments/registry'
+import AssistantLauncher from './AssistantLauncher'
+import AssistantPanel from './AssistantPanel'
 import NotificationBell from './NotificationBell'
 import LanguageSelect from './LanguageSelect'
 import { BrandMark } from './Brand'
@@ -348,6 +350,11 @@ export default function Layout() {
       <div className={`app-content${desktopCollapsed ? ' desktop-collapsed' : ''}`}>
         <Outlet />
       </div>
+
+      {/* Mounted here rather than per-page so the assistant follows the user
+          across routes without losing the thread it is in the middle of. */}
+      <AssistantLauncher />
+      <AssistantPanel />
     </div>
   )
 }

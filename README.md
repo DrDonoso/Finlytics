@@ -94,6 +94,17 @@ Import the Fidelity "View open lots" CSV to track your MSFT ESPP holdings:
 - **Telegram delivery** *(optional)* — connect a bot from Settings → Connectors. The bot token is encrypted at rest with the same Fernet key as the connector tokens, and it is never logged or returned to the frontend. Set `TELEGRAM_SEND_ENABLED=false` to silence all sends globally. For a group with topics enabled, an optional topic (thread) ID routes the messages to a single topic instead of the general chat — the Bot API cannot list topics, so the ID is taken from the topic's message link.
 - In-app notifications are stored as i18n keys plus arguments, never pre-rendered strings, so their text follows the UI language. Telegram messages are rendered server-side in Spanish (`notifications/messages.py`), the owner's locale.
 
+### 💬 Talk to your finances
+
+A slide-out chat panel, reachable from every page, that answers natural-language questions about your own data — *"how much did I spend on groceries last quarter?"*, *"where could I cut back?"*, *"if I invest €200 a month, what would I have in 10 years?"*
+
+- **The model never sees your database and never writes SQL.** It picks from a fixed catalogue of ten read-only tools whose executors call the same `db/queries` code that renders the dashboards, so a chat answer is structurally incapable of disagreeing with the charts next to it.
+- **Read-only.** There is no tool that writes, so the assistant cannot change a category, delete a transaction or touch a connector.
+- **Projections are arithmetic, not opinion.** *"What would I have in 10 years"* goes through a deterministic compound-interest tool that returns conservative / base / optimistic scenarios; the model narrates the numbers it gets back and always carries the "not financial advice" disclaimer. A model inventing *"you'd have around €40,000"* reads exactly like a model that calculated it.
+- **Streamed** token by token over SSE, with a chip showing which query is running.
+- **Conversations persist** per user and are recoverable after a reload. Tool results are deliberately *not* stored or replayed — a follow-up makes the assistant re-query rather than answer a new question from an old query's data.
+- Reuses the `OPENAI_*` credentials. With those unset the launcher does not appear at all, rather than offering a button that can only return 503.
+
 ### 🗂️ Management
 
 - **Categories & tags** with color swatches (name-derived colors or a custom picker).
@@ -294,12 +305,25 @@ All configuration lives in `.env` (copy from `.env.example`).
 | `NOTIFICATIONS_LOOP_ENABLED` | `true` | Background detector loop. Set `false` on all but one instance if you ever run several workers |
 | `NOTIFICATIONS_EVAL_INTERVAL_SECONDS` | `300` | Seconds between detector evaluation cycles |
 | `TELEGRAM_SEND_ENABLED` | `true` | Global kill switch for Telegram delivery |
+| `ASSISTANT_ENABLED` | `true` | Kill switch for the finance chat assistant |
+| `ASSISTANT_MAX_TOOL_ITERATIONS` | `5` | Hard stop on the tool-call loop. Each iteration is a paid LLM round-trip |
+| `ASSISTANT_HISTORY_MESSAGES` | `20` | Past turns replayed as context; older ones are dropped |
+| `ASSISTANT_MAX_MESSAGE_CHARS` | `4000` | Longest user message accepted |
+| `ASSISTANT_MAX_TOOL_RESULT_ROWS` | `100` | Rows any single query may feed back to the model |
+| `ASSISTANT_MAX_CONVERSATIONS` | `100` | Threads kept per user |
+| `ASSISTANT_RATE_LIMIT_MESSAGES` | `30` | Messages allowed per user inside the window |
+| `ASSISTANT_RATE_LIMIT_WINDOW_SECONDS` | `3600` | Width of the assistant rate-limit window |
+| `ASSISTANT_PROJECTION_RATES` | `2,5,8` | Annual real-return assumptions (%) for the projection tool, as conservative,base,optimistic |
 
 > **AI extraction** requires all three `OPENAI_*` variables to be set. Leaving them unset disables extraction; you can still import statements and edit transactions manually.
+>
+> **The finance assistant** reuses those same `OPENAI_*` variables — there is no separate key. With them unset it reports itself disabled and the UI hides its launcher.
 >
 > **Investments / Indexa Capital** requires `FINLYTICS_ENCRYPTION_KEY`. Without it the app starts normally but connecting a provider returns HTTP 503.
 >
 > **Behind HTTPS**, set `AUTH_COOKIE_SECURE=true` and a fixed `AUTH_SECRET`. The session cookie is already `HttpOnly` + `SameSite=Lax`; without a fixed secret every restart logs everyone out. Also run uvicorn with `--proxy-headers` so the login throttle sees the real client IP instead of the proxy's.
+>
+> **Behind a reverse proxy**, make sure it does not buffer responses, or the assistant's answer arrives in one lump at the end instead of streaming. The app already sends `X-Accel-Buffering: no`, which nginx honours; other proxies may need `proxy_buffering off` or their equivalent.
 
 ---
 
