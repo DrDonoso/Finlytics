@@ -2,6 +2,15 @@
 
 **Self-hosted personal finance + investments tracker — import bank statements, connect investment accounts, and see your full financial picture in one place.**
 
+<p align="center">
+  <img src="docs/screenshots/home.png" alt="Finlytics home page: net worth, savings rate, accounts and investment snapshot" width="900">
+</p>
+
+<p align="center">
+  <sub><b>Home</b> — net worth across accounts and investments, savings rate, and a per-account breakdown.<br>
+  <b>All the data shown in this and every other screenshot below comes from the built-in demo environment — it is synthetic, not real financial data.</b></sub>
+</p>
+
 ---
 
 ## Why Finlytics?
@@ -22,9 +31,11 @@ None of the available solutions fit that workflow. **Finlytics was built to be e
 
 The home page is a cross-domain hub that gives you the full picture at a glance:
 
-- **Month-navigation KPIs** — income, expenses, net balance for the last completed month, with previous/next controls to browse any month with data.
+- **Net worth headline** — accounts plus investments in a single figure, with the two halves broken out. If a connector fails the account side is still shown rather than collapsing the whole KPI to "—".
+- **Savings rate** — all-time rate, plus the shift in percentage points between the two most recent months that have data (`pp`, not `%`: 10% → 12% is +2 pp, not +20%).
+- **Average monthly net** — net divided by the number of months tracked, with the month count beside it.
+- **Accounts table** — historical net and average monthly spend per account, plus a warning marker on any account still missing last month's statement.
 - **Investment snapshot** — total portfolio value across all connected providers, with a per-provider breakdown, fetched from `/api/investments/combined-overview`.
-- **Import source picker** — a data-driven list of import actions: "Bank statement PDF" is always available; any investment connector with an import flow (currently Fidelity ESPP) appears automatically.
 - **ESPP purchase reminder banner** — an amber banner appears when a Fidelity ESPP upload is overdue (quarter-end schedule: last business day of March/June/September/December).
 
 ### 📥 Bank Statement Import
@@ -45,19 +56,19 @@ The home page is a cross-domain hub that gives you the full picture at a glance:
 
 The finances overview (`/finances`) is the day-to-day spending dashboard:
 
-- **Global filter bar** — date range, account, category, tags, amount range, income/expense toggle.
-- **KPI cards** with delta % vs the previous calendar month (income, expenses, net).
+- **Global filter bar** — date range, account, tags, with removable chips for every active filter.
+- **KPI panel** — total expenses, total income, net, savings rate, transaction count and top category for the selected period.
 - **Spending by category** — donut chart with table; click a category to filter the whole page.
-- **Top merchants** — bar chart of top spend by merchant.
+- **Top merchants** — donut chart of top spend by merchant, with the share of the period's total.
 - **Adaptive spending heatmap** — three rendering modes depending on the selected date range:
   - **≤ 182 days:** GitHub-calendar style (daily cells, 7-row grid).
   - **183 – 547 days:** Compact scroll view.
   - **> 547 days:** Monthly-grid (12 columns × N years, always fits).
   - **Drill-down:** click any cell to filter the entire page to that day or month; a reset button restores the previous filter state.
-- **Category movers** — categories that rose or fell most vs the previous period.
+- **Transactions table** — the filtered ledger, inline-editable, right below the charts.
 - Import button (bank statement PDF).
 
-Related pages: **Transactions** (`/transactions`, sortable/filterable full transaction list), **Analytics** (`/analytics`, spending over time, by account, Sankey cashflow), **Statements** (`/statements`, statement history).
+Related pages: **Transactions** (`/transactions`, sortable/filterable full transaction list), **Analytics** (`/analytics`, spending over time, by account, Sankey cashflow), **Statements** (`/statements`, statement history plus category movers vs the previous month).
 
 ### 💰 Investments
 
@@ -122,6 +133,29 @@ A slide-out chat panel, reachable from every page, that answers natural-language
 - **Light / dark / system** theme.
 - Single-user authentication with session tokens, with failed logins throttled per client IP.
 - **About** page — shows the deployed Docker image tag (CalVer), build date, links to the repo / Issues / CHANGELOG, and MIT license.
+
+---
+
+## 📸 Screenshots
+
+| Spending dashboard | Trends & cash flow |
+| :--: | :--: |
+| <img src="docs/screenshots/finances.png" alt="Finances overview: filters, KPIs, category and merchant donuts"> | <img src="docs/screenshots/analytics.png" alt="Analytics: monthly evolution, breakdown by account and Sankey cash flow"> |
+| Filter bar, period KPIs, category and merchant donuts, and the daily spending heatmap below. | Monthly income vs expenses, breakdown by account, and a Sankey of where the money went. |
+
+| Investments | Talk to your finances |
+| :--: | :--: |
+| <img src="docs/screenshots/investments.png" alt="Combined investments overview with allocation donuts"> | <img src="docs/screenshots/assistant.png" alt="Assistant panel answering an investment projection question"> |
+| Total value, contributions and gain/loss across providers, with allocation by provider and by asset class. | A read-only chat over your own data. Projections are deterministic compound interest, never a number the model made up. |
+
+| Indexa Capital — live API | Fidelity ESPP — statement import |
+| :--: | :--: |
+| <img src="docs/screenshots/indexa.png" alt="Indexa Capital portfolio detail"> | <img src="docs/screenshots/fidelity.png" alt="Fidelity ESPP portfolio detail"> |
+| Portfolio value, TWR / MWR / volatility, monthly returns table and allocation by instrument. | MSFT shares and lots, EUR cost basis, daily valuation and the invested-vs-value evolution chart. |
+
+> 📌 **Footer note on every image above: this is demo data.** All the figures come from the built-in demo
+> environment (`npm run build:demo`) — a synthetic dataset generated in the browser by MSW, with no backend
+> and no database behind it. No real account, balance, holding or transaction is shown anywhere in this README.
 
 ---
 
@@ -277,7 +311,8 @@ docker compose -f docker-compose.demo.yml up -d      # drdonoso/finlytics-demo, 
 ```
 
 Log in with `demo` / `demo`. The same bundle (`npm run build:demo`) also deploys
-to a static CDN; `frontend/wrangler.jsonc` carries the Cloudflare settings.
+to a static CDN; `frontend/wrangler.jsonc` carries the Cloudflare settings. Every
+screenshot in this README was taken from this build — see [Screenshots](#-screenshots).
 
 > ⚠️ The demo **only works over HTTPS** (or `localhost`). Its API layer is a
 > Service Worker, and browsers refuse to register those outside a secure

@@ -263,3 +263,7 @@ Rules when touching the frontend:
   writes, uploads or asks for third-party credentials stays out.
 - Keep the demo free of MSW leakage into production: the dynamic import in `main.tsx` is guarded
   by a literal `import.meta.env.VITE_DEMO` check so the bundler can drop it.
+- **The README screenshots in `docs/screenshots/` are captures of this demo build** (`npm run dev:demo`,
+  logged in as `demo`/`demo`), which is the only source they may come from — a real instance would put
+  someone's actual balances in a public repo. Regenerate them from the demo when a screen changes, and
+  keep the "this is demo data" note under them. `docs/` is in `.dockerignore`: it never reaches an image.
