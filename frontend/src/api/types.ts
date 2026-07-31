@@ -854,6 +854,8 @@ export type AssistantStreamEvent =
 export interface AssistantSettings {
   /** null means "no override" — the environment default applies. */
   custom_instructions: string | null
+  /** null means "use the shipped prompt". */
+  system_prompt: string | null
   rate_limit_messages: number | null
   rate_limit_window_seconds: number | null
   monthly_token_budget: number | null
@@ -862,10 +864,17 @@ export interface AssistantSettings {
   effective_rate_limit_messages: number
   effective_rate_limit_window_seconds: number
   max_custom_instructions_chars: number
+
+  /** The shipped prompt, for pre-filling the editor and the restore button. */
+  default_system_prompt: string
+  max_system_prompt_chars: number
+  /** Safety rules a customised prompt no longer contains. Advisory only. */
+  missing_safety_markers: string[]
 }
 
 export interface AssistantSettingsPayload {
   custom_instructions?: string | null
+  system_prompt?: string | null
   rate_limit_messages?: number | null
   rate_limit_window_seconds?: number | null
   monthly_token_budget?: number | null

@@ -89,10 +89,13 @@ vi.mock('../api/client', () => {
     getAssistantConversations: empty([]),
     getAssistantConversation: empty({ id: 1, title: '', created_at: '', updated_at: '', messages: [] }),
     getAssistantSettings: empty({
-      custom_instructions: null, rate_limit_messages: null,
+      custom_instructions: null, system_prompt: null,
+      rate_limit_messages: null,
       rate_limit_window_seconds: null, monthly_token_budget: null,
       effective_rate_limit_messages: 30, effective_rate_limit_window_seconds: 3600,
       max_custom_instructions_chars: 2000,
+      default_system_prompt: 'You are Finlytics.\n{context_block}\n',
+      max_system_prompt_chars: 20000, missing_safety_markers: [],
     }),
     getAssistantUsage: empty({
       this_month: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0, messages: 0 },

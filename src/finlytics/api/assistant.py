@@ -170,14 +170,23 @@ async def suggestions() -> AssistantSuggestionsOut:
 
 def _settings_out(row: AssistantSettings | None) -> AssistantSettingsOut:
     effective = assistant_settings.resolve_settings(row)
+    stored_prompt = row.system_prompt if row else None
     return AssistantSettingsOut(
         custom_instructions=row.custom_instructions if row else None,
+        system_prompt=stored_prompt,
         rate_limit_messages=row.rate_limit_messages if row else None,
         rate_limit_window_seconds=row.rate_limit_window_seconds if row else None,
         monthly_token_budget=row.monthly_token_budget if row else None,
         effective_rate_limit_messages=effective.rate_limit_messages,
         effective_rate_limit_window_seconds=effective.rate_limit_window_seconds,
         max_custom_instructions_chars=assistant_settings.MAX_CUSTOM_INSTRUCTIONS_CHARS,
+        default_system_prompt=assistant_settings.DEFAULT_SYSTEM_PROMPT,
+        max_system_prompt_chars=assistant_settings.MAX_SYSTEM_PROMPT_CHARS,
+        # Only meaningful for a customised prompt; the default has them all.
+        missing_safety_markers=(
+            assistant_settings.missing_safety_markers(stored_prompt)
+            if stored_prompt else []
+        ),
     )
 
 
@@ -209,6 +218,7 @@ async def update_assistant_settings(
             row = AssistantSettings(user_id=user.id)
             db.add(row)
         row.custom_instructions = body.custom_instructions
+        row.system_prompt = body.system_prompt
         row.rate_limit_messages = body.rate_limit_messages
         row.rate_limit_window_seconds = body.rate_limit_window_seconds
         row.monthly_token_budget = body.monthly_token_budget
@@ -458,6 +468,7 @@ async def send_message(
     conversation_id_value = conversation.id
     user_id = user.id
     custom_instructions = effective.custom_instructions
+    system_prompt_template = effective.system_prompt
 
     async def event_stream():
         # The request-scoped session is closed by its dependency as soon as this
@@ -472,6 +483,7 @@ async def send_message(
                     today=today,
                     limits=limits,
                     custom_instructions=custom_instructions,
+                    system_prompt_template=system_prompt_template,
                     background_tasks=background_tasks,
                 ):
                     if isinstance(event, ToolStarted):
