@@ -791,11 +791,13 @@ export interface NotificationChannelOut {
 export interface TelegramChannelIn {
   bot_token: string
   chat_id: string
+  message_thread_id?: number | null
 }
 
 export interface TelegramTestIn {
   bot_token?: string
   chat_id?: string
+  message_thread_id?: number | null
 }
 
 export interface TelegramTestOut {

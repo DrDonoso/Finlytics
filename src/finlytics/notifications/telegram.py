@@ -79,16 +79,27 @@ async def telegram_get_me(bot_token: str) -> dict:
     return data["result"]
 
 
-async def telegram_send_message(bot_token: str, chat_id: str, text: str) -> None:
+async def telegram_send_message(
+    bot_token: str,
+    chat_id: str,
+    text: str,
+    message_thread_id: int | None = None,
+) -> None:
     """Send *text* to *chat_id* via the Telegram Bot API.
+
+    ``message_thread_id`` targets a forum topic inside a supergroup. Telegram
+    rejects it for non-forum chats, so it is only included when supplied.
 
     Raises TelegramError (safe message, no token) on a malformed token, a
     non-2xx response or Telegram ok:false.
     """
     url = _bot_endpoint(bot_token, "sendMessage")
+    payload: dict[str, object] = {"chat_id": chat_id, "text": text}
+    if message_thread_id is not None:
+        payload["message_thread_id"] = message_thread_id
     try:
         async with httpx.AsyncClient(timeout=10.0, verify=True, follow_redirects=False) as client:
-            resp = await client.post(url, json={"chat_id": chat_id, "text": text})
+            resp = await client.post(url, json=payload)
     except httpx.RequestError:
         raise TelegramError("Could not reach Telegram API — check your network.")
 

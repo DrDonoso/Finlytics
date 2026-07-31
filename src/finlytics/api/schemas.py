@@ -910,16 +910,41 @@ def _validate_chat_id(value: str) -> str:
     return value
 
 
+def _validate_message_thread_id(value: int | None, chat_id: str | None) -> int | None:
+    """Require a positive thread ID that targets a group chat.
+
+    Forum topics only exist in supergroups, whose chat IDs are negative. A
+    thread ID paired with a positive (private) chat ID is always a mistake and
+    Telegram would reject the send at delivery time.
+    """
+    if value is None:
+        return None
+    if value <= 0:
+        raise ValueError("message_thread_id must be a positive integer.")
+    if chat_id is not None and not chat_id.startswith("-"):
+        raise ValueError(
+            "message_thread_id is only valid for group chats "
+            "(a negative chat_id such as -1001234567890)."
+        )
+    return value
+
+
 class TelegramChannelIn(BaseModel):
     """Request body for POST /api/notifications/channels."""
 
     bot_token: str
-    chat_id: str           # stored as string; must be a numeric Telegram ID
+    chat_id: str                        # stored as string; must be a numeric Telegram ID
+    message_thread_id: int | None = None  # optional forum topic inside a group
 
     @field_validator("chat_id")
     @classmethod
     def validate_chat_id(cls, v: str) -> str:
         return _validate_chat_id(v)
+
+    @model_validator(mode="after")
+    def validate_thread(self) -> "TelegramChannelIn":
+        _validate_message_thread_id(self.message_thread_id, self.chat_id)
+        return self
 
 
 class TelegramTestIn(BaseModel):
@@ -931,6 +956,7 @@ class TelegramTestIn(BaseModel):
 
     bot_token: str | None = None
     chat_id: str | None = None
+    message_thread_id: int | None = None
 
     @field_validator("chat_id")
     @classmethod
@@ -938,6 +964,11 @@ class TelegramTestIn(BaseModel):
         if v is not None:
             return _validate_chat_id(v)
         return v
+
+    @model_validator(mode="after")
+    def validate_thread(self) -> "TelegramTestIn":
+        _validate_message_thread_id(self.message_thread_id, self.chat_id)
+        return self
 
 
 class TelegramTestOut(BaseModel):

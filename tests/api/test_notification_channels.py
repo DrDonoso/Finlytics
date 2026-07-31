@@ -669,3 +669,125 @@ async def test_test_channel_null_chat_id_accepted(notif_client):
         json={"bot_token": _BOT_TOKEN},
     )
     assert resp.status_code == 400  # partial creds, not a validation error
+
+
+# ── § message_thread_id (forum topics) ────────────────────────────────────────
+
+
+async def test_post_channel_thread_id_stored_in_config(notif_client):
+    """A thread ID on a group chat is accepted and lands in the encrypted blob."""
+    with (
+        patch("finlytics.api.notifications.telegram_get_me", new=AsyncMock(return_value={"id": 1})),
+        patch(
+            "finlytics.api.notifications.encrypt_token", return_value="ciphertext"
+        ) as encrypt_mock,
+    ):
+        resp = await notif_client.post(
+            "/api/notifications/channels",
+            json={
+                "bot_token": _BOT_TOKEN,
+                "chat_id": "-1001234567890",
+                "message_thread_id": 42,
+            },
+        )
+    assert resp.status_code == 201
+    stored = json.loads(encrypt_mock.call_args.args[0])
+    assert stored["message_thread_id"] == 42
+
+
+async def test_post_channel_without_thread_id_stores_null(notif_client):
+    """Omitting the thread ID keeps the key present but null (general chat)."""
+    with (
+        patch("finlytics.api.notifications.telegram_get_me", new=AsyncMock(return_value={"id": 1})),
+        patch(
+            "finlytics.api.notifications.encrypt_token", return_value="ciphertext"
+        ) as encrypt_mock,
+    ):
+        resp = await notif_client.post(
+            "/api/notifications/channels",
+            json={"bot_token": _BOT_TOKEN, "chat_id": "-1001234567890"},
+        )
+    assert resp.status_code == 201
+    stored = json.loads(encrypt_mock.call_args.args[0])
+    assert stored["message_thread_id"] is None
+
+
+async def test_post_channel_thread_id_on_private_chat_rejected(notif_client):
+    """Forum topics only exist in groups — a positive chat_id must return 422."""
+    resp = await notif_client.post(
+        "/api/notifications/channels",
+        json={"bot_token": _BOT_TOKEN, "chat_id": "123456789", "message_thread_id": 42},
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.parametrize("thread_id", [0, -1])
+async def test_post_channel_non_positive_thread_id_rejected(notif_client, thread_id):
+    """A zero or negative thread ID is invalid."""
+    resp = await notif_client.post(
+        "/api/notifications/channels",
+        json={
+            "bot_token": _BOT_TOKEN,
+            "chat_id": "-1001234567890",
+            "message_thread_id": thread_id,
+        },
+    )
+    assert resp.status_code == 422
+
+
+async def test_test_channel_forwards_thread_id(notif_client):
+    """The wizard preview send targets the requested topic."""
+    with patch(
+        "finlytics.api.notifications.telegram_send_message",
+        new_callable=AsyncMock,
+    ) as send_mock:
+        resp = await notif_client.post(
+            "/api/notifications/channels/telegram/test",
+            json={
+                "bot_token": _BOT_TOKEN,
+                "chat_id": "-1001234567890",
+                "message_thread_id": 42,
+            },
+        )
+    assert resp.status_code == 200
+    assert resp.json()["ok"] is True
+    assert send_mock.call_args.kwargs["message_thread_id"] == 42
+
+
+async def test_test_channel_stored_thread_id_forwarded(sqlite_engine, notif_client):
+    """The stored-channel path reads message_thread_id back out of the config blob."""
+    async with _sf(sqlite_engine)() as s:
+        s.add(_make_channel())
+        await s.commit()
+
+    config = json.dumps(
+        {"bot_token": _BOT_TOKEN, "chat_id": "-1001234567890", "message_thread_id": 7}
+    )
+    with (
+        patch("finlytics.api.notifications.decrypt_token", return_value=config),
+        patch(
+            "finlytics.api.notifications.telegram_send_message", new_callable=AsyncMock
+        ) as send_mock,
+    ):
+        resp = await notif_client.post("/api/notifications/channels/telegram/test", json={})
+
+    assert resp.status_code == 200
+    assert send_mock.call_args.kwargs["message_thread_id"] == 7
+
+
+async def test_test_channel_legacy_config_without_thread_id(sqlite_engine, notif_client):
+    """Channels stored before this field existed still send (thread id → None)."""
+    async with _sf(sqlite_engine)() as s:
+        s.add(_make_channel())
+        await s.commit()
+
+    with (
+        patch("finlytics.api.notifications.decrypt_token", return_value=_DECRYPTED_CONFIG),
+        patch(
+            "finlytics.api.notifications.telegram_send_message", new_callable=AsyncMock
+        ) as send_mock,
+    ):
+        resp = await notif_client.post("/api/notifications/channels/telegram/test", json={})
+
+    assert resp.status_code == 200
+    assert send_mock.call_args.kwargs["message_thread_id"] is None

@@ -714,6 +714,11 @@ export interface Dict {
   tgWizardStep3ChatIdPlaceholder: string
   tgWizardStep3ChatIdHint: string
   tgWizardChatIdValidationError: string
+  tgWizardThreadIdLabel: string
+  tgWizardThreadIdOptional: string
+  tgWizardThreadIdPlaceholder: string
+  tgWizardThreadIdHint: string
+  tgWizardThreadIdValidationError: string
   tgWizardStep3TestBtn: string
   tgWizardStep3Testing: string
   tgWizardStep3TestOk: string
