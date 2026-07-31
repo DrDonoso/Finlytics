@@ -121,9 +121,11 @@ async def run_turn(
         financial_context = await ctx_module.build_context(
             session, user_id=user_id, today=today
         )
-    except Exception as exc:  # noqa: BLE001
+    except Exception:  # noqa: BLE001
+        # Logged, not returned: a database failure's text carries SQL and
+        # connection details, and `Failed.message` is rendered in the browser.
         log.exception("Assistant: failed to build ledger context")
-        yield Failed(f"Could not read your financial data: {exc}")
+        yield Failed("Could not read your financial data. Check the server logs.")
         return
 
     system_prompt = prompts.build_system_prompt(
@@ -166,8 +168,12 @@ async def run_turn(
                 elif isinstance(chunk, ToolCallsRequested):
                     requested = chunk
         except LLMError as exc:
+            # The upstream error text can name the endpoint URL and echo request
+            # details, so it stays in the log rather than going down the stream.
             log.error("Assistant: LLM call failed: %s", exc)
-            yield Failed(str(exc))
+            yield Failed(
+                "The language model could not be reached. Check the server logs."
+            )
             return
 
         if requested is None:

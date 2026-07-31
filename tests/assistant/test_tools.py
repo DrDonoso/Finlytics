@@ -93,13 +93,19 @@ class TestExecution:
         )
         assert "error" in result
 
-    async def test_unexpected_failure_is_contained(self, ctx):
+    async def test_unexpected_failure_is_contained(self, ctx, caplog):
         with patch.object(
             tools.queries, "get_by_category", AsyncMock(side_effect=RuntimeError("boom"))
         ):
             result = await tools.execute_tool("get_spending_by_category", {}, ctx)
+
+        # The model is free to quote a tool result back to the user, and a real
+        # database failure's text carries SQL and connection details — so it goes
+        # to the log, not into the conversation.
         assert "error" in result
-        assert "boom" in result["error"]
+        assert "boom" not in result["error"]
+        assert "get_spending_by_category" in result["error"]
+        assert "boom" in caplog.text
 
     async def test_by_category_delegates_to_the_query_layer(self, ctx):
         rows = [{"category_id": 1, "category": "Groceries", "amount": 320.5, "count": 12}]

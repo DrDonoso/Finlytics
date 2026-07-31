@@ -269,11 +269,31 @@ class TestBounds:
 
 
 class TestFailures:
-    async def test_llm_error_becomes_a_failed_event(self, fake_context):
-        llm = FakeLLM([[LLMError("upstream is down")]])
+    async def test_llm_error_becomes_a_failed_event(self, fake_context, caplog):
+        llm = FakeLLM([[LLMError("https://api.internal/v1 rejected key sk-abc")]])
         events = await collect(llm)
+
+        # The upstream text can name the endpoint and echo request details, and
+        # Failed.message is rendered in the browser — so it is logged instead.
         assert isinstance(events[-1], Failed)
-        assert "upstream is down" in events[-1].message
+        assert "api.internal" not in events[-1].message
+        assert "sk-abc" not in events[-1].message
+        assert "api.internal" in caplog.text
+
+    async def test_context_failure_does_not_leak_the_database_error(
+        self, caplog
+    ):
+        llm = FakeLLM([[TextDelta("never reached")]])
+        with patch.object(
+            ctx_module,
+            "build_context",
+            AsyncMock(side_effect=RuntimeError("could not connect to host db:5432")),
+        ):
+            events = await collect(llm)
+
+        assert isinstance(events[0], Failed)
+        assert "db:5432" not in events[0].message
+        assert "db:5432" in caplog.text
 
     async def test_context_failure_stops_before_any_llm_call(self):
         llm = FakeLLM([[TextDelta("never reached")]])

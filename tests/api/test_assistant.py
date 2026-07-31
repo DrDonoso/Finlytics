@@ -281,6 +281,28 @@ class TestSendMessageStream:
         assert "event: error" in resp.text
         assert "upstream is down" in resp.text
 
+    async def test_an_unexpected_crash_does_not_leak_its_message(
+        self, ready, mock_session, caplog
+    ):
+        async def fake_turn(**kwargs):
+            raise RuntimeError("password=hunter2 host=db:5432")
+            yield  # pragma: no cover — makes this an async generator
+
+        with patch.object(assistant_api, "run_turn", fake_turn), patch.object(
+            assistant_api, "async_session_factory",
+            MagicMock(return_value=_session_cm(mock_session)),
+        ):
+            resp = await ready.post(
+                "/api/assistant/conversations/1/messages", json={"content": "How much?"}
+            )
+
+        # This frame is rendered verbatim in the browser; an exception's text can
+        # carry connection strings, file paths and SQL.
+        assert "event: error" in resp.text
+        assert "hunter2" not in resp.text
+        assert "db:5432" not in resp.text
+        assert "hunter2" in caplog.text
+
     async def test_the_question_is_stored_before_streaming(self, ready, mock_session):
         async def fake_turn(**kwargs):
             yield Failed("boom")

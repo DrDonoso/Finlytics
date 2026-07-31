@@ -570,6 +570,11 @@ async def execute_tool(name: str, args: dict, ctx: ToolContext) -> dict:
     Failures come back as ``{"error": ...}`` rather than raising: the model can
     correct a bad argument and retry, whereas an exception would end the turn
     and leave the user with nothing.
+
+    ``ToolError`` text is our own validation wording, so it is safe to hand back
+    and is what lets the model self-correct. An unexpected exception is not:
+    a SQLAlchemy failure carries SQL and connection details, and the model is
+    free to quote its tool results back to the user, so it stays in the log.
     """
     tool = TOOLS.get(name)
     if tool is None:
@@ -579,6 +584,6 @@ async def execute_tool(name: str, args: dict, ctx: ToolContext) -> dict:
         return await tool.executor(args or {}, ctx)
     except ToolError as exc:
         return {"error": str(exc)}
-    except Exception as exc:  # noqa: BLE001 — a broken tool must not kill the chat
+    except Exception:  # noqa: BLE001 — a broken tool must not kill the chat
         log.exception("Assistant tool %s failed", name)
-        return {"error": f"The {name} query failed: {exc}"}
+        return {"error": f"The {name} query failed. Do not retry it this turn."}

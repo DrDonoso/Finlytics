@@ -366,9 +366,15 @@ async def send_message(
                         yield _sse(
                             "done", {"message_id": message.id, "title": title}
                         )
-            except Exception as exc:  # noqa: BLE001 — the stream must close cleanly
+            except Exception:  # noqa: BLE001 — the stream must close cleanly
+                # The exception text is logged, never streamed: it can carry
+                # connection strings, file paths and SQL, and this frame is
+                # rendered verbatim in the user's browser.
                 log.exception("Assistant stream failed")
-                yield _sse("error", {"detail": f"The assistant failed: {exc}"})
+                yield _sse(
+                    "error",
+                    {"detail": "The assistant failed. Check the server logs for details."},
+                )
 
     return StreamingResponse(
         event_stream(),
