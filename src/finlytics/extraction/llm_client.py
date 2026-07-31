@@ -61,10 +61,11 @@ class LLMClient:
     """Async wrapper around AsyncOpenAI pointed at an OpenAI base URL.
 
     Args:
-        api_key:   OpenAI API key (from settings.openai_api_key).
-        base_url:  OpenAI base URL (from settings.openai_base_url).
-        model:     Model identifier (from settings.openai_model).
-        _client:   Optional pre-built AsyncOpenAI — inject a mock for tests.
+        api_key:      OpenAI API key (from settings.openai_api_key).
+        base_url:     OpenAI base URL (from settings.openai_base_url).
+        model:        Model identifier (from settings.openai_model).
+        temperature:  Sampling temperature, or None to leave it unset.
+        _client:      Optional pre-built AsyncOpenAI — inject a mock for tests.
     """
 
     def __init__(
@@ -73,9 +74,11 @@ class LLMClient:
         base_url: str,
         model: str,
         *,
+        temperature: float | None = None,
         _client: AsyncOpenAI | None = None,
     ) -> None:
         self.model = model
+        self.temperature = temperature
         # Real client is only instantiated if no mock is provided.
         # Empty credentials are acceptable here — the constructor must not fail
         # even when env vars are unset (importable without live credentials).
@@ -97,8 +100,28 @@ class LLMClient:
             api_key=settings.openai_api_key,
             base_url=settings.openai_base_url,
             model=settings.openai_model,
+            temperature=settings.openai_temperature,
             _client=_client,
         )
+
+    # -------------------------------------------------------------------------
+    # Request helpers
+    # -------------------------------------------------------------------------
+
+    def _sampling_kwargs(self) -> dict[str, Any]:
+        """Sampling parameters to include in a request.
+
+        Returns an empty dict unless a temperature is configured, so the
+        parameter is omitted entirely rather than sent at the API's own default.
+
+        That distinction is the whole point: the GPT-5 family and the o-series
+        reject ANY explicit ``temperature`` with a 400 — including the value
+        that equals their default — so sending ``temperature=1`` fails just as
+        hard as sending ``0``. The only thing that works is not sending the key.
+        """
+        if self.temperature is None:
+            return {}
+        return {"temperature": self.temperature}
 
     # -------------------------------------------------------------------------
     # Public API
@@ -109,7 +132,6 @@ class LLMClient:
         system: str,
         user: str,
         *,
-        temperature: float = 0.0,
         max_completion_tokens: int = 4096,
     ) -> str:
         """Plain chat completion — returns stripped response text."""
@@ -120,8 +142,8 @@ class LLMClient:
                     {"role": "system", "content": system},
                     {"role": "user", "content": user},
                 ],
-                temperature=temperature,
                 max_completion_tokens=max_completion_tokens,
+                **self._sampling_kwargs(),
             )
             return resp.choices[0].message.content.strip()
         except Exception as exc:
@@ -134,7 +156,6 @@ class LLMClient:
         user: str,
         response_format: Type[T],
         *,
-        temperature: float = 0.0,
         max_completion_tokens: int = 4096,
     ) -> T:
         """Structured-output completion — parses the response into a Pydantic model.
@@ -143,8 +164,9 @@ class LLMClient:
         response matches the provided JSON schema. Returns the parsed model
         instance directly.
 
-        Cost guard: temperature defaults to 0.0 — extraction is deterministic
-        by design; no creative variation is wanted.
+        Determinism comes from the schema and the prompt rather than from a
+        pinned temperature — see ``_sampling_kwargs`` for why none is sent
+        unless the operator asks for one.
         """
         try:
             resp = await self._client.beta.chat.completions.parse(
@@ -154,8 +176,8 @@ class LLMClient:
                     {"role": "user", "content": user},
                 ],
                 response_format=response_format,
-                temperature=temperature,
                 max_completion_tokens=max_completion_tokens,
+                **self._sampling_kwargs(),
             )
             parsed = resp.choices[0].message.parsed
             if parsed is None:
@@ -175,7 +197,6 @@ class LLMClient:
         messages: list[dict[str, Any]],
         *,
         tools: list[dict] | None = None,
-        temperature: float = 0.2,
         max_completion_tokens: int = 2048,
     ) -> AsyncIterator[StreamChunk]:
         """Stream a chat completion that may call tools.
@@ -188,17 +209,13 @@ class LLMClient:
         the arguments dribble in as JSON string pieces over the following ones.
         They must be reassembled per index before anything can be parsed, which
         is why nothing is emitted until the stream is exhausted.
-
-        Temperature defaults to 0.2 rather than the 0.0 used for extraction:
-        conversational answers read as stilted at zero, but this is still low
-        enough that the model does not get inventive with figures.
         """
         kwargs: dict[str, Any] = {
             "model": self.model,
             "messages": messages,
             "stream": True,
-            "temperature": temperature,
             "max_completion_tokens": max_completion_tokens,
+            **self._sampling_kwargs(),
         }
         if tools:
             kwargs["tools"] = tools

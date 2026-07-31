@@ -82,7 +82,6 @@ async def suggest_tag_colors(tag_names: list[str]) -> dict[str, str] | None:
                 system=_SYSTEM_PROMPT,
                 user=f"Tags: [{tag_list}]",
                 response_format=_ColorResult,
-                temperature=0.0,
                 max_completion_tokens=_MAX_TOKENS,
             )
             color_map = {item.tag: item.color for item in result.colors}

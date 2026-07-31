@@ -292,6 +292,7 @@ All configuration lives in `.env` (copy from `.env.example`).
 | `OPENAI_API_KEY` | *(unset)* | API key for the OpenAI-compatible endpoint |
 | `OPENAI_BASE_URL` | *(unset)* | Base URL of the endpoint (e.g. `https://host/v1`) |
 | `OPENAI_MODEL` | *(unset)* | Model name to use for extraction |
+| `OPENAI_TEMPERATURE` | *(unset)* | Sampling temperature. Leave unset unless your model accepts it — when unset the parameter is not sent at all, which is the only thing that works on the GPT-5 family and the o-series (they reject any explicit temperature with a 400, including their own default value) |
 | `FINLYTICS_ENCRYPTION_KEY` | *(unset)* | Fernet key for encrypting connector API tokens and the Telegram bot token at rest. Required to use the Indexa Capital connector. Generate: `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` |
 | `FINLYTICS_PORT` | `7777` | Host port the app is exposed on |
 | `FINLYTICS_DATA_DIR` | `./data` | Host directory mounted at `/app/data`; original statement PDFs land in `<dir>/uploads/`. On Linux it must be writable by uid 1000 |

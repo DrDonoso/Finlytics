@@ -73,6 +73,13 @@ class Settings(BaseSettings):
     openai_api_key: str | None = None
     openai_base_url: str | None = None
     openai_model: str | None = None
+    # Sampling temperature. Left unset by default, and when unset the parameter
+    # is NOT sent at all — see LLMClient._sampling_kwargs. The GPT-5 family and
+    # the o-series reject any explicit temperature with a 400, including the
+    # value that equals their own default, so "send the default" is not a safe
+    # fallback; only omitting the key works. Set this (e.g. 0) if your model
+    # supports it and you want deterministic extraction.
+    openai_temperature: float | None = None
 
     # ── App config ────────────────────────────────────────────────────────────
     timezone: str = "Europe/Madrid"

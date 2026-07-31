@@ -1,6 +1,13 @@
 # Environment secrets
 .env
 
+# Runtime data: the local stack writes uploaded bank statements here, and a
+# backup export dropped in the working tree would be committable by accident.
+# Neither belongs in git — this is real financial data.
+data/
+*.backup.json
+finlytics-backup*.json
+
 # Python
 __pycache__/
 *.py[cod]
