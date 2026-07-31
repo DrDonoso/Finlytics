@@ -4,6 +4,11 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260731.04] - 2026-07-31
+
+- fix(llm): stop sending temperature, which newer models reject outright (#44)
+
+
 ## [20260731.03] - 2026-07-31
 
 - feat(assistant): read-only chat assistant over your own financial data (#43)
