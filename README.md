@@ -20,9 +20,9 @@
 
 ## Contents
 
-<!-- Anchors are generated with github-slugger. Three headings (🗂️ ⚙️ ⚖️) carry an
-     invisible U+FE0F variation selector that GitHub keeps in the slug, so these
-     links are not safe to retype by hand — regenerate them instead. -->
+<!-- Anchors are generated with github-slugger, not typed: some headings carry an
+     invisible U+FE0F variation selector that GitHub keeps in the slug, so those
+     links cannot be retyped by hand — regenerate them instead. -->
 
 - [Why Finlytics?](#why-finlytics)
 - [What It Does](#what-it-does)
@@ -35,9 +35,7 @@
   - [Management](#️-management)
 - [Screenshots](#-screenshots)
 - [How It Works](#how-it-works)
-- [Tech Stack](#tech-stack)
 - [Self-Hosting](#-self-hosting)
-- [Configuration Reference](#️-configuration-reference)
 - [Project Status](#-project-status)
 - [License](#-license)
 - [Security](#-security)
@@ -176,30 +174,12 @@ statement and values the holdings from public market data. Both land in
 
 ---
 
-## Tech Stack
-
-| Layer | Technology |
-|-------|------------|
-| Backend | Python 3.12+ · FastAPI · SQLAlchemy 2 (async) · Alembic · Pydantic · uvicorn |
-| Database | PostgreSQL 18 |
-| PDF parsing | pdfplumber |
-| AI extraction | OpenAI SDK — structured outputs via any OpenAI-compatible endpoint |
-| Token encryption | `cryptography` Fernet (AES-128-CBC + HMAC-SHA256) |
-| Market data | Yahoo Chart API (`query1`/`query2.finance.yahoo.com`) — MSFT price + EUR/USD FX |
-| Investment connectors | Plugin architecture: live-API (Indexa) + statement-import (Fidelity ESPP) |
-| Frontend | React 19 · TypeScript · Vite · React Router · TanStack Query · Recharts |
-| Frontend tests | Vitest · Testing Library · MSW |
-| Container | Multi-stage Docker (`node:26-alpine` builds the React SPA → `python:3.14-slim` runtime serves both API and SPA) |
-| CI/CD | GitHub Actions — CalVer tags, Docker Hub push, auto-generated categorized changelog |
-
----
-
 ## 🚀 Self-Hosting
 
 ### Prerequisites
 
 - [Docker](https://docs.docker.com/get-docker/) + [Docker Compose](https://docs.docker.com/compose/)
-- An OpenAI-compatible endpoint for AI extraction *(optional but strongly recommended — without it, extraction is disabled)*
+- An OpenAI-compatible endpoint for AI extraction and the finance assistant *(optional — without it both report themselves disabled and the rest of the app works normally)*
 
 ### 1. Configure
 
@@ -261,39 +241,16 @@ Same stack, but built from the current checkout instead of the published image �
 
 Navigate to **http://localhost:7777** and create the initial user account.
 
----
+`.env.example` documents every remaining variable, and
+[SECURITY.md](./SECURITY.md) lists the settings a deployment reachable from
+outside your network has to get right.
 
-## ⚙️ Configuration Reference
-
-Everything lives in `.env` (copy from `.env.example`). Two values matter; the rest have working defaults.
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `POSTGRES_PASSWORD` | *(required)* | PostgreSQL password |
-| `AUTH_SECRET` | *(random)* | Signs session tokens. Unset means a new key on every startup, so every restart logs you out. Generate: `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
-| `OPENAI_API_KEY` · `OPENAI_BASE_URL` · `OPENAI_MODEL` | *(unset)* | Any OpenAI-compatible endpoint. All three enable statement extraction **and** the finance assistant — there is no separate key |
-| `FINLYTICS_ENCRYPTION_KEY` | *(unset)* | Fernet key encrypting connector API tokens and the Telegram bot token at rest. Generate: `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` |
-| `TIMEZONE` | `Europe/Madrid` | Calendar day the reminders reason about, and the process clock in the container. The image runs in UTC, so without it a reminder can fire against the wrong day |
-| `AUTH_COOKIE_SECURE` | `false` | Set to `true` when serving over HTTPS, so the session cookie gets the `Secure` flag |
-| `POSTGRES_USER` · `POSTGRES_DB` | `finlytics` | Database name and user |
-
-> ⚠️ Generate your own secrets. Anything copied from `.env.example` is public, and the app refuses to start if `AUTH_SECRET` is left at a known placeholder.
-
-The assistant's spend controls (rate limit, monthly token budget, custom
-instructions, system prompt) are **not** environment variables: they live in
-**Settings → Assistant**, per user and effective without a restart. Its cost
-guards, the notification cadence and the container's port are fixed in code,
-because there is no useful reason to vary them. A few secondary auth knobs
-(session lifetime, login throttle) still exist in `config.py` and are passed
-through by docker-compose, but the table above is what a normal install needs.
-
-> **AI extraction and the assistant** both need the three `OPENAI_*` variables. Without them extraction is disabled — you can still import statements and edit transactions by hand — and the assistant hides its launcher rather than offering a button that can only return 503.
->
-> **Investment connectors** need `FINLYTICS_ENCRYPTION_KEY`. Without it the app starts normally but connecting a provider returns HTTP 503.
->
-> **Behind HTTPS**, set `AUTH_COOKIE_SECURE=true` and a fixed `AUTH_SECRET`. The session cookie is already `HttpOnly` + `SameSite=Lax`; without a fixed secret every restart logs everyone out. Run uvicorn with `--proxy-headers` so the login throttle sees the real client IP instead of the proxy's.
->
-> **Behind a reverse proxy**, make sure it does not buffer responses, or the assistant's answer arrives in one lump at the end instead of streaming. The app already sends `X-Accel-Buffering: no`, which nginx honours; other proxies may need `proxy_buffering off` or their equivalent.
+> **Behind a reverse proxy**, make sure it does not buffer responses, or the
+> assistant's answer arrives in one lump at the end instead of streaming. The app
+> already sends `X-Accel-Buffering: no`, which nginx honours; other proxies may
+> need `proxy_buffering off` or their equivalent. Run uvicorn with
+> `--proxy-headers` too, so the login throttle sees the real client IP rather
+> than the proxy's.
 
 ---
 
