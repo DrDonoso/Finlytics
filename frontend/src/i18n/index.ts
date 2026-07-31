@@ -796,6 +796,16 @@ export interface Dict {
   suggestionSubscriptions: string
   suggestionWhereToCut: string
   suggestionInvestProjection: string
+  assistantToolReferenceData: string
+  assistantToolSummary: string
+  assistantToolByCategory: string
+  assistantToolByMonth: string
+  assistantToolByMerchant: string
+  assistantToolCashflow: string
+  assistantToolSearch: string
+  assistantToolCompare: string
+  assistantToolInvestments: string
+  assistantToolProjection: string
 }
 
 const ES_LABELS: Record<string, string> = {
@@ -840,6 +850,29 @@ export function assistantSuggestion(key: string, t: Dict): string | null {
     case 'assistant.suggestion.whereToCut':        return t.suggestionWhereToCut
     case 'assistant.suggestion.investProjection':  return t.suggestionInvestProjection
     default: return null
+  }
+}
+
+/** Translate the activity chip shown while an assistant tool runs.
+ *
+ *  Keyed off the tool NAME, which is a stable identifier, rather than off the
+ *  human label the backend also sends: that label is English prose, so using it
+ *  directly left Spanish users reading "Breaking down by category". The label
+ *  survives as the fallback so a tool this build does not know about still
+ *  shows something rather than a blank chip. */
+export function assistantToolLabel(name: string, fallback: string, t: Dict): string {
+  switch (name) {
+    case 'list_reference_data':      return t.assistantToolReferenceData
+    case 'get_spending_summary':     return t.assistantToolSummary
+    case 'get_spending_by_category': return t.assistantToolByCategory
+    case 'get_spending_by_month':    return t.assistantToolByMonth
+    case 'get_spending_by_merchant': return t.assistantToolByMerchant
+    case 'get_cashflow':             return t.assistantToolCashflow
+    case 'search_transactions':      return t.assistantToolSearch
+    case 'compare_periods':          return t.assistantToolCompare
+    case 'get_investment_overview':  return t.assistantToolInvestments
+    case 'project_investment':       return t.assistantToolProjection
+    default: return fallback
   }
 }
 
@@ -921,14 +954,24 @@ function browserLang(): Lang | null {
   return null
 }
 
-/** An explicit choice always wins; otherwise follow the browser, and only fall
- *  back to Spanish when the browser asks for a language this app doesn't have. */
-function initialLang(): Lang {
+/** The language in force right now, resolved the same way the provider does.
+ *
+ *  Exported for code that runs OUTSIDE React and so cannot use `useT` — the
+ *  demo's MSW handlers answer at the network layer, where there is no context.
+ *  They must not re-implement this fallback chain, or the mocked API would
+ *  answer in a different language to the UI rendering it. */
+export function currentLang(): Lang {
   try {
     const stored = localStorage.getItem(LS_KEY)
     if (isLang(stored)) return stored
   } catch { /* storage blocked — fall through to detection */ }
   return browserLang() ?? 'es'
+}
+
+/** An explicit choice always wins; otherwise follow the browser, and only fall
+ *  back to Spanish when the browser asks for a language this app doesn't have. */
+function initialLang(): Lang {
+  return currentLang()
 }
 
 interface LanguageContextValue {
