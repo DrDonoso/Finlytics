@@ -23,6 +23,25 @@ on:
 permissions:
   contents: write
 
+# Two pushes to main in quick succession raced: each run computes the next
+# CalVer by scanning the tags that exist at checkout time, so both landed on the
+# same number and the second died on `gh release create` with
+# "Release.tag_name already exists" — after it had already built and pushed the
+# image. Serialising the workflow makes the tag scan see the previous run's tag.
+#
+# The group is deliberately global rather than per-ref (unlike ci.yml): the
+# contended resources — the tag namespace and the `latest` image tag — are
+# repo-wide, so a workflow_dispatch on another branch must queue behind a main
+# deploy too.
+#
+# cancel-in-progress stays false so a deploy is never killed midway through
+# pushing an image. A run superseded while still queued is dropped, which costs
+# nothing: release notes are generated from `previous-tag..HEAD`, so its commits
+# ship under the next version instead of being lost.
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
