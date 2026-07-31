@@ -2,6 +2,45 @@
 
 **Self-hosted personal finance + investments tracker — import bank statements, connect investment accounts, and see your full financial picture in one place.**
 
+<p align="center">
+  <a href="https://demo.finlytics.drdonoso.com"><b>🔎 Try the live demo →</b> demo.finlytics.drdonoso.com</a><br>
+  <sub>Log in with <code>demo</code> / <code>demo</code>. Synthetic data, no backend, nothing saved — a reload resets it.</sub>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/home.png" alt="Finlytics home page: net worth, savings rate, accounts and investment snapshot" width="900">
+</p>
+
+<p align="center">
+  <sub><b>Home</b> — net worth across accounts and investments, savings rate, and a per-account breakdown.<br>
+  <b>All the data shown in this and every other screenshot below comes from the demo environment — it is synthetic, not real financial data.</b></sub>
+</p>
+
+---
+
+## Contents
+
+<!-- Anchors are generated with github-slugger, not typed: some headings carry an
+     invisible U+FE0F variation selector that GitHub keeps in the slug, so those
+     links cannot be retyped by hand — regenerate them instead. -->
+
+- [Why Finlytics?](#why-finlytics)
+- [What It Does](#what-it-does)
+  - [Home](#-home)
+  - [Import & rules](#-import--rules)
+  - [Dashboards](#-dashboards)
+  - [Investments](#-investments)
+  - [Notifications](#-notifications)
+  - [Talk to your finances](#-talk-to-your-finances)
+  - [Management](#️-management)
+- [Screenshots](#-screenshots)
+- [How It Works](#how-it-works)
+- [Self-Hosting](#-self-hosting)
+- [Project Status](#-project-status)
+- [License](#-license)
+- [Security](#-security)
+- [Disclaimer](#️-disclaimer)
+
 ---
 
 ## Why Finlytics?
@@ -20,79 +59,36 @@ None of the available solutions fit that workflow. **Finlytics was built to be e
 
 ### 🏠 Home
 
-The home page is a cross-domain hub that gives you the full picture at a glance:
+A cross-domain hub: net worth across accounts **and** investments, savings rate with its month-over-month shift, average monthly net, a per-account table (historical net, average monthly spend, a marker on any account still missing last month's statement) and an investment snapshot broken down by provider.
 
-- **Month-navigation KPIs** — income, expenses, net balance for the last completed month, with previous/next controls to browse any month with data.
-- **Investment snapshot** — total portfolio value across all connected providers, with a per-provider breakdown, fetched from `/api/investments/combined-overview`.
-- **Import source picker** — a data-driven list of import actions: "Bank statement PDF" is always available; any investment connector with an import flow (currently Fidelity ESPP) appears automatically.
-- **ESPP purchase reminder banner** — an amber banner appears when a Fidelity ESPP upload is overdue (quarter-end schedule: last business day of March/June/September/December).
+### 📥 Import & rules
 
-### 📥 Bank Statement Import
+- Upload a monthly bank-statement **PDF** (built and tested against BBVA).
+- **AI extraction** via the OpenAI API or any OpenAI-compatible endpoint pulls date, amount, currency, description, merchant, category and tags out of every line. Bold titles and non-bold detail are parsed separately, so two charges that read alike ("Adeudo a su cargo") can still be told apart by what follows.
+- **Preview before committing** — every extracted transaction is editable first, and a content hash makes re-importing the same month a no-op instead of a double count.
+- **Rules** match on title, detail, amount, account or currency and set a category, merchant or tags — or skip the AI entirely for a known recurring charge. They run on every import, before and after extraction.
 
-- Upload a monthly bank-statement **PDF** (built and tested against BBVA; the parser is designed to extend to XLSX/CSV).
-- **AI-powered extraction** via the OpenAI API or any OpenAI-compatible endpoint — structured output extracts date, amount, currency, description, merchant, category, and tags per transaction.
-- **Bold-title / non-bold-detail parsing**: separates the transaction concept (e.g. *"Adeudo a su cargo"*) from its specific detail (e.g. *"Octopus Energy"* vs a community fee) so look-alike charges can be told apart.
-- **Import preview**: review and edit every extracted transaction before committing to the database.
-- **Idempotent import** — content-hash de-duplication means re-importing the same month never double-counts.
+### 📊 Dashboards
 
-### ⚙️ Rules Engine
-
-- Define rules to match transactions by title, detail, amount range, account, or currency.
-- Actions: set category, set merchant, add tags, or **skip AI entirely** for known recurring charges.
-- Rules run automatically on every import (before and after AI extraction).
-
-### 💳 Finances
-
-The finances overview (`/finances`) is the day-to-day spending dashboard:
-
-- **Global filter bar** — date range, account, category, tags, amount range, income/expense toggle.
-- **KPI cards** with delta % vs the previous calendar month (income, expenses, net).
-- **Spending by category** — donut chart with table; click a category to filter the whole page.
-- **Top merchants** — bar chart of top spend by merchant.
-- **Adaptive spending heatmap** — three rendering modes depending on the selected date range:
-  - **≤ 182 days:** GitHub-calendar style (daily cells, 7-row grid).
-  - **183 – 547 days:** Compact scroll view.
-  - **> 547 days:** Monthly-grid (12 columns × N years, always fits).
-  - **Drill-down:** click any cell to filter the entire page to that day or month; a reset button restores the previous filter state.
-- **Category movers** — categories that rose or fell most vs the previous period.
-- Import button (bank statement PDF).
-
-Related pages: **Transactions** (`/transactions`, sortable/filterable full transaction list), **Analytics** (`/analytics`, spending over time, by account, Sankey cashflow), **Statements** (`/statements`, statement history).
+| Page | What it is for |
+|------|----------------|
+| **Finances** (`/finances`) | The day-to-day view: filter bar, period KPIs, spending by category and by merchant, an adaptive daily/monthly heatmap, and the filtered ledger underneath. Clicking a chart drills the whole page down. |
+| **Transactions** (`/transactions`) | The full ledger, sortable and filterable, editable inline. |
+| **Analytics** (`/analytics`) | Trends: monthly evolution, breakdown by account, and a Sankey of where the money went. |
+| **Statements** (`/statements`) | Import history per month, plus the categories that moved most against the previous one. |
 
 ### 💰 Investments
 
-#### Combined Overview (`/investments`)
+Connectors are a plugin model, and there are two kinds of them:
 
-- Total portfolio value, total invested, total gain/loss (€ + %).
-- **Allocation donuts** — by provider (Indexa Capital / Fidelity ESPP) and by asset class (equities, fixed income, cash, ESPP stock — Indexa reports these in Spanish, so its own labels are shown verbatim).
-- **Provider cards** — per-provider value, gain/loss, and link to the detail view.
+- **Live-API** (Indexa Capital) — connect with a personal API token, stored encrypted at rest and cached for 24h so a page load never waits on the provider.
+- **Statement-import** (Fidelity ESPP) — upload the "open lots" CSV; holdings are valued daily from public market data with EUR/USD conversion.
 
-#### Indexa Capital connector (live-API)
-
-Connect your Indexa Capital account with a personal API token:
-
-- Token stored encrypted at rest (Fernet / `FINLYTICS_ENCRYPTION_KEY`); never logged, never returned to the frontend.
-- **24-hour DB portfolio cache** — the first page load returns cached data instantly; a background task refreshes from the Indexa API so the next open is up-to-date. `cache_stale: true` in the response signals when data is being refreshed.
-- View: portfolio value, holdings table (instrument, asset class, current value, weight), evolution line chart, allocation donut, return metrics.
-
-#### Fidelity ESPP connector (statement-import)
-
-Import the Fidelity "View open lots" CSV to track your MSFT ESPP holdings:
-
-- **Two-step import wizard** — upload CSV → preview new lots (with dedup against existing lots) → confirm.
-- **Tax-lot holdings** — each lot stores shares, purchase date, EUR cost basis, source type (SP purchase / DO dividend reinvestment).
-- **Daily MSFT valuation** — price fetched from the Yahoo Chart API (`query1`/`query2.finance.yahoo.com`) with EUR/USD FX conversion. Intraday snapshots are settled to the official close on next read (incremental price top-up).
-- **Evolution chart** — daily-resolution value + contributions series with adaptive period selector.
-- **KPIs** — total shares, total invested (EUR), current value (EUR), total gain/loss (€ + %).
-- **Lots table** — sortable by date, shares, cost per share, current value, gain/loss; paginated.
-- **ESPP purchase reminder** — the same banner shown on the home page also appears here when an upload is overdue.
+Both feed one **combined overview**: total value, invested, gain/loss, and allocation by provider and by asset class — plus a detail view per provider with its own charts and tables. Adding a third connector is a new plugin, not a new dashboard.
 
 ### 🔔 Notifications
 
-- **In-app notification bell** — active reminders with unread badge, read/dismiss state stored server-side so it survives across devices.
-- **Detectors** run in a background loop inside the API process (every `NOTIFICATIONS_EVAL_INTERVAL_SECONDS`, 5 min by default) and currently cover two conditions: a missing monthly statement and an overdue ESPP upload. Adding a detector is a single entry in the registry.
-- **Telegram delivery** *(optional)* — connect a bot from Settings → Connectors. The bot token is encrypted at rest with the same Fernet key as the connector tokens, and it is never logged or returned to the frontend. Set `TELEGRAM_SEND_ENABLED=false` to silence all sends globally. For a group with topics enabled, an optional topic (thread) ID routes the messages to a single topic instead of the general chat — the Bot API cannot list topics, so the ID is taken from the topic's message link.
-- In-app notifications are stored as i18n keys plus arguments, never pre-rendered strings, so their text follows the UI language. Telegram messages are rendered server-side in Spanish (`notifications/messages.py`), the owner's locale.
+Detectors run in the background and raise reminders when something needs you — today a missing monthly statement or an overdue ESPP upload; adding another is one entry in a registry. They surface in the in-app bell (read/dismissed state stored server-side, so it follows you across devices) and, optionally, in **Telegram**: connect a bot from Settings → Connectors and the same reminders arrive there too.
 
 ### 💬 Talk to your finances
 
@@ -114,20 +110,37 @@ A slide-out chat panel, reachable from every page, that answers natural-language
 
 ### 🗂️ Management
 
-- **Categories & tags** with color swatches (name-derived colors or a custom picker).
-- **Accounts** management.
-- **Full backup** — export the entire dataset to JSON and re-import it.
-- **Connectors** (Settings → Connectors) — connect/disconnect Indexa Capital and the Telegram bot; Fidelity status reflects CSV import state.
-- Bilingual UI: **Spanish / English**.
-- **Light / dark / system** theme.
-- Single-user authentication with session tokens, with failed logins throttled per client IP.
-- **About** page — shows the deployed Docker image tag (CalVer), build date, links to the repo / Issues / CHANGELOG, and MIT license.
+Categories, tags and accounts are editable from Settings, along with the connectors, a full JSON export/import of the whole dataset, and an About page showing the running image tag. The UI is bilingual (Spanish / English) with light, dark and system themes, behind single-user authentication with per-IP login throttling.
+
+---
+
+## 📸 Screenshots
+
+| Spending dashboard | Trends & cash flow |
+| :--: | :--: |
+| <img src="docs/screenshots/finances.png" alt="Finances overview: filters, KPIs, category and merchant donuts"> | <img src="docs/screenshots/analytics.png" alt="Analytics: monthly evolution, breakdown by account and Sankey cash flow"> |
+| Filter bar, period KPIs, category and merchant donuts, and the daily spending heatmap below. | Monthly income vs expenses, breakdown by account, and a Sankey of where the money went. |
+
+| Investments | Talk to your finances |
+| :--: | :--: |
+| <img src="docs/screenshots/investments.png" alt="Combined investments overview with allocation donuts"> | <img src="docs/screenshots/assistant.png" alt="Assistant panel answering an investment projection question"> |
+| Total value, contributions and gain/loss across providers, with allocation by provider and by asset class. | A read-only chat over your own data. Projections are deterministic compound interest, never a number the model made up. |
+
+| Indexa Capital — live API | Fidelity ESPP — statement import |
+| :--: | :--: |
+| <img src="docs/screenshots/indexa.png" alt="Indexa Capital portfolio detail"> | <img src="docs/screenshots/fidelity.png" alt="Fidelity ESPP portfolio detail"> |
+| Portfolio value, TWR / MWR / volatility, monthly returns table and allocation by instrument. | MSFT shares and lots, EUR cost basis, daily valuation and the invested-vs-value evolution chart. |
+
+> 📌 **Footer note on every image above: this is demo data.** All the figures come from
+> [demo.finlytics.drdonoso.com](https://demo.finlytics.drdonoso.com) — a synthetic dataset
+> generated in the browser, with no backend and no database behind it. No real account,
+> balance, holding or transaction is shown anywhere in this README.
 
 ---
 
 ## How It Works
 
-### Bank statement pipeline
+The pipeline that carries the most design is the import one — everything else is a read of what it produced:
 
 ```
 Bank statement PDF
@@ -151,48 +164,13 @@ Bank statement PDF
   Content-hash de-duplication → persist to PostgreSQL
         │
         ▼
-  Finanzas dashboard (spending KPIs, charts, heatmap)
+  Finances dashboard (spending KPIs, charts, heatmap)
 ```
 
-### Investment pipeline
-
-```
-Indexa Capital API token          Fidelity "open lots" CSV
-        │                                   │
-        ▼                                   ▼
-  POST /api/investments/connections   Preview + confirm wizard
-  Token encrypted (Fernet) → DB      New lots persisted to DB
-        │                                   │
-        ▼                                   ▼
-  GET /api/investments/portfolio      Yahoo Chart API (MSFT + EUR/USD FX)
-  24h DB cache + background refresh   Intraday → settled to close daily
-        │                                   │
-        └──────────────┬────────────────────┘
-                       ▼
-         /api/investments/combined-overview
-         Total value · gain/loss · allocation by provider + asset class
-                       │
-                       ▼
-         Investments dashboard (overview + per-provider detail)
-```
-
----
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|------------|
-| Backend | Python 3.12+ · FastAPI · SQLAlchemy 2 (async) · Alembic · Pydantic · uvicorn |
-| Database | PostgreSQL 18 |
-| PDF parsing | pdfplumber |
-| AI extraction | OpenAI SDK — structured outputs via any OpenAI-compatible endpoint |
-| Token encryption | `cryptography` Fernet (AES-128-CBC + HMAC-SHA256) |
-| Market data | Yahoo Chart API (`query1`/`query2.finance.yahoo.com`) — MSFT price + EUR/USD FX |
-| Investment connectors | Plugin architecture: live-API (Indexa) + statement-import (Fidelity ESPP) |
-| Frontend | React 19 · TypeScript · Vite · React Router · TanStack Query · Recharts |
-| Frontend tests | Vitest · Testing Library · MSW |
-| Container | Multi-stage Docker (`node:26-alpine` builds the React SPA → `python:3.14-slim` runtime serves both API and SPA) |
-| CI/CD | GitHub Actions — CalVer tags, Docker Hub push, auto-generated categorized changelog |
+Investments follow the same shape from a different source: a connector either
+holds an encrypted API token and caches the provider's answer, or ingests a
+statement and values the holdings from public market data. Both land in
+`/api/investments/combined-overview`, which is what the dashboards read.
 
 ---
 
@@ -201,7 +179,7 @@ Indexa Capital API token          Fidelity "open lots" CSV
 ### Prerequisites
 
 - [Docker](https://docs.docker.com/get-docker/) + [Docker Compose](https://docs.docker.com/compose/)
-- An OpenAI-compatible endpoint for AI extraction *(optional but strongly recommended — without it, extraction is disabled)*
+- An OpenAI-compatible endpoint for AI extraction and the finance assistant *(optional — without it both report themselves disabled and the rest of the app works normally)*
 
 ### 1. Configure
 
@@ -220,12 +198,12 @@ POSTGRES_PASSWORD=a-strong-password
 # Generate: python -c "import secrets; print(secrets.token_urlsafe(32))"
 AUTH_SECRET=your-own-generated-secret
 
-# Optional — set all three to enable AI-powered extraction
+# Optional — set all three to enable AI extraction and the finance assistant
 OPENAI_API_KEY=your-key
 OPENAI_BASE_URL=https://api.openai.com/v1
 OPENAI_MODEL=your-model-name
 
-# Required to use the Indexa Capital connector (token encryption)
+# Required by the investment connectors (token encryption)
 # Generate: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 FINLYTICS_ENCRYPTION_KEY=your-fernet-key
 ```
@@ -263,75 +241,16 @@ Same stack, but built from the current checkout instead of the published image �
 
 Navigate to **http://localhost:7777** and create the initial user account.
 
-> The port can be changed by setting `FINLYTICS_PORT` in `.env` (default: `7777`).
+`.env.example` documents every remaining variable, and
+[SECURITY.md](./SECURITY.md) lists the settings a deployment reachable from
+outside your network has to get right.
 
-### Optional: the public demo
-
-There is a second, backend-less build for showing the app off without exposing any
-real data. MSW intercepts every `/api/*` call in the browser and answers from a
-synthetic dataset generated at page load, so there is no API container, no
-database and nothing to reset — a reload restores everything.
-
-```bash
-docker compose -f docker-compose.demo.yml up -d      # drdonoso/finlytics-demo, nginx only
-```
-
-Log in with `demo` / `demo`. The same bundle (`npm run build:demo`) also deploys
-to a static CDN; `frontend/wrangler.jsonc` carries the Cloudflare settings.
-
-> ⚠️ The demo **only works over HTTPS** (or `localhost`). Its API layer is a
-> Service Worker, and browsers refuse to register those outside a secure
-> context. On plain HTTP nothing loads.
-
----
-
-## ⚙️ Configuration Reference
-
-All configuration lives in `.env` (copy from `.env.example`).
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `POSTGRES_PASSWORD` | *(required)* | PostgreSQL password |
-| `POSTGRES_USER` | `finlytics` | PostgreSQL username |
-| `POSTGRES_DB` | `finlytics` | PostgreSQL database name |
-| `POSTGRES_HOST` | `db` | Only needed when running the API outside docker-compose |
-| `POSTGRES_PORT` | `5432` | Only needed when running the API outside docker-compose |
-| `OPENAI_API_KEY` | *(unset)* | API key for the OpenAI-compatible endpoint |
-| `OPENAI_BASE_URL` | *(unset)* | Base URL of the endpoint (e.g. `https://host/v1`) |
-| `OPENAI_MODEL` | *(unset)* | Model name to use for extraction |
-| `OPENAI_TEMPERATURE` | *(unset)* | Sampling temperature. Leave unset unless your model accepts it — when unset the parameter is not sent at all, which is the only thing that works on the GPT-5 family and the o-series (they reject any explicit temperature with a 400, including their own default value) |
-| `FINLYTICS_ENCRYPTION_KEY` | *(unset)* | Fernet key for encrypting connector API tokens and the Telegram bot token at rest. Required to use the Indexa Capital connector. Generate: `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` |
-| `FINLYTICS_PORT` | `7777` | Host port the app is exposed on |
-| `FINLYTICS_DATA_DIR` | `./data` | Host directory mounted at `/app/data`; original statement PDFs land in `<dir>/uploads/`. On Linux it must be writable by uid 1000 |
-| `TIMEZONE` | `Europe/Madrid` | Calendar day the reminders reason about, and the process clock inside the container. The image runs in UTC, so without it a reminder is evaluated against the wrong day whenever UTC and local time disagree |
-| `AUTH_SECRET` | *(random)* | Secret for signing session tokens. If unset, a new key is generated on each startup — sessions won't survive container restarts. Generate: `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
-| `AUTH_COOKIE_SECURE` | `false` | Set to `true` when serving over HTTPS so the session cookie gets the `Secure` flag |
-| `AUTH_TOKEN_EXPIRE_DAYS` | `7` | Session lifetime |
-| `AUTH_REMEMBER_EXPIRE_DAYS` | `30` | Session lifetime when "remember me" is used |
-| `AUTH_LOGIN_MAX_ATTEMPTS` | `10` | Failed logins allowed per client IP inside the window. `0` disables the limit |
-| `AUTH_LOGIN_WINDOW_SECONDS` | `300` | Width of the failed-login window |
-| `NOTIFICATIONS_LOOP_ENABLED` | `true` | Background detector loop. Set `false` on all but one instance if you ever run several workers |
-| `NOTIFICATIONS_EVAL_INTERVAL_SECONDS` | `300` | Seconds between detector evaluation cycles |
-| `TELEGRAM_SEND_ENABLED` | `true` | Global kill switch for Telegram delivery |
-| `ASSISTANT_ENABLED` | `true` | Kill switch for the finance chat assistant |
-| `ASSISTANT_MAX_TOOL_ITERATIONS` | `5` | Hard stop on the tool-call loop. Each iteration is a paid LLM round-trip |
-| `ASSISTANT_HISTORY_MESSAGES` | `20` | Past turns replayed as context; older ones are dropped |
-| `ASSISTANT_MAX_MESSAGE_CHARS` | `4000` | Longest user message accepted |
-| `ASSISTANT_MAX_TOOL_RESULT_ROWS` | `100` | Rows any single query may feed back to the model |
-| `ASSISTANT_MAX_CONVERSATIONS` | `100` | Threads kept per user |
-| `ASSISTANT_RATE_LIMIT_MESSAGES` | `30` | Default messages allowed per user inside the window; overridable in Settings → Assistant |
-| `ASSISTANT_RATE_LIMIT_WINDOW_SECONDS` | `3600` | Default width of the assistant rate-limit window; overridable in Settings → Assistant |
-| `ASSISTANT_PROJECTION_RATES` | `2,5,8` | Annual real-return assumptions (%) for the projection tool, as conservative,base,optimistic |
-
-> **AI extraction** requires all three `OPENAI_*` variables to be set. Leaving them unset disables extraction; you can still import statements and edit transactions manually.
->
-> **The finance assistant** reuses those same `OPENAI_*` variables — there is no separate key. With them unset it reports itself disabled and the UI hides its launcher.
->
-> **Investments / Indexa Capital** requires `FINLYTICS_ENCRYPTION_KEY`. Without it the app starts normally but connecting a provider returns HTTP 503.
->
-> **Behind HTTPS**, set `AUTH_COOKIE_SECURE=true` and a fixed `AUTH_SECRET`. The session cookie is already `HttpOnly` + `SameSite=Lax`; without a fixed secret every restart logs everyone out. Also run uvicorn with `--proxy-headers` so the login throttle sees the real client IP instead of the proxy's.
->
-> **Behind a reverse proxy**, make sure it does not buffer responses, or the assistant's answer arrives in one lump at the end instead of streaming. The app already sends `X-Accel-Buffering: no`, which nginx honours; other proxies may need `proxy_buffering off` or their equivalent.
+> **Behind a reverse proxy**, make sure it does not buffer responses, or the
+> assistant's answer arrives in one lump at the end instead of streaming. The app
+> already sends `X-Accel-Buffering: no`, which nginx honours; other proxies may
+> need `proxy_buffering off` or their equivalent. Run uvicorn with
+> `--proxy-headers` too, so the login throttle sees the real client IP rather
+> than the proxy's.
 
 ---
 

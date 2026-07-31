@@ -827,7 +827,7 @@ const es: Dict = {
   assistantPromptSafetyNote: 'Puedes guardarlo igualmente, es tu instancia. Pero ten en cuenta que si el modelo empieza a inventarse números no verás ningún error: la respuesta sonará igual de segura que siempre.',
   assistantLimitsLabel: 'Límites',
   assistantLimitsHint: 'Cada mensaje cuesta dinero. Estos son los topes.',
-  assistantLimitsInheritHint: 'Deja un campo vacío para heredar el valor del entorno (el que se muestra en gris).',
+  assistantLimitsInheritHint: 'Deja un campo vacío para usar el valor por defecto (el que se muestra en gris).',
   assistantLimitMessages: 'Mensajes por ventana',
   assistantLimitWindow: 'Ventana (segundos)',
   assistantBudgetField: 'Presupuesto mensual (tokens)',

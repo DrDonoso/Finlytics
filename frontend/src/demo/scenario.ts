@@ -106,11 +106,16 @@ const ACCOUNT_MAIN = 'Cuenta Nómina'
 const ACCOUNT_SAVINGS = 'Cuenta Ahorro'
 const ACCOUNT_CARD = 'Tarjeta Crédito'
 
-const TAG_WATER = 'agua'
+/** Tags are plain user data: unlike categories, `Tag` carries no `name_es`, so
+ *  whatever is written here renders verbatim in both languages. English keeps
+ *  them legible in the filter bar, where they sit right next to UI chrome and a
+ *  Spanish word beside an English label reads as a missing translation rather
+ *  than as data. */
+const TAG_WATER = 'water'
 const TAG_GAS = 'gas'
 const TAG_INTERNET = 'internet'
-const TAG_POWER = 'luz'
-const TAG_PHONE = 'teléfono'
+const TAG_POWER = 'power'
+const TAG_PHONE = 'phone'
 
 /** Fictional merchants. Any resemblance to a real business is coincidental. */
 const MERCHANTS = {

@@ -1,5 +1,11 @@
 """Per-user assistant settings, token accounting and limit enforcement.
 
+The cost guards below are fixed, not configurable from the environment: they
+are the shape of the feature (one message is one to three paid LLM calls), and
+what a self-hosted owner actually wants to tune — the message rate limit, the
+monthly token budget, the system prompt — is editable in Settings → Assistant
+and stored per user.
+
 Two different guards live here and they do different jobs:
 
 * the **message rate limit** is an in-memory sliding window. It stops a burst,
@@ -26,18 +32,48 @@ from finlytics.assistant.prompts import (
     MAX_SYSTEM_PROMPT_CHARS,
     missing_safety_markers,
 )
-from finlytics.config import settings as app_settings
 from finlytics.db.models import AssistantMessage, AssistantSettings
 
 log = logging.getLogger(__name__)
+
+# ── Cost guards ──────────────────────────────────────────────────────────────
+# Hard stop on the tool-call loop. Every iteration is a paid LLM round-trip, and
+# a model that keeps asking for one more query would otherwise bill indefinitely
+# for a single user message.
+MAX_TOOL_ITERATIONS = 5
+# Past turns replayed as context. Older ones are dropped: the cost of a message
+# grows with the length of the thread otherwise.
+HISTORY_MESSAGES = 20
+# Longest user message accepted, in characters.
+MAX_MESSAGE_CHARS = 4000
+# Rows any single tool may return before truncation. A multi-year transaction
+# search would otherwise blow the context window on its own.
+MAX_TOOL_RESULT_ROWS = 100
+# Conversations kept per user; creating beyond this is rejected.
+MAX_CONVERSATIONS = 100
+# Messages per user per window, unless overridden in Settings → Assistant.
+DEFAULT_RATE_LIMIT_MESSAGES = 30
+DEFAULT_RATE_LIMIT_WINDOW_SECONDS = 3600
+# Annual real-return assumptions (%) for the deterministic projection tool, as
+# (conservative, base, optimistic). Long-run diversified equity/bond figures —
+# they are assumptions, not predictions.
+PROJECTION_RATES: tuple[float, float, float] = (2.0, 5.0, 8.0)
 
 __all__ = [
     "EffectiveSettings",
     "UsageTotals",
     "CONTEXT_PLACEHOLDER",
     "DEFAULT_SYSTEM_PROMPT",
+    "DEFAULT_RATE_LIMIT_MESSAGES",
+    "DEFAULT_RATE_LIMIT_WINDOW_SECONDS",
+    "HISTORY_MESSAGES",
+    "MAX_CONVERSATIONS",
     "MAX_CUSTOM_INSTRUCTIONS_CHARS",
+    "MAX_MESSAGE_CHARS",
     "MAX_SYSTEM_PROMPT_CHARS",
+    "MAX_TOOL_ITERATIONS",
+    "MAX_TOOL_RESULT_ROWS",
+    "PROJECTION_RATES",
     "missing_safety_markers",
     "get_settings_row",
     "resolve_settings",
@@ -50,7 +86,7 @@ __all__ = [
 
 @dataclass(frozen=True)
 class EffectiveSettings:
-    """Stored overrides resolved against the environment defaults."""
+    """Stored overrides resolved against the shipped defaults."""
 
     custom_instructions: str | None
     system_prompt: str | None
@@ -80,11 +116,11 @@ async def get_settings_row(db: AsyncSession, user_id: int) -> AssistantSettings 
 
 
 def resolve_settings(row: AssistantSettings | None) -> EffectiveSettings:
-    """Resolve stored overrides against the environment defaults.
+    """Resolve stored overrides against the shipped defaults.
 
-    A null column means "use the environment", not "zero". That distinction is
-    what lets an operator keep tuning ``ASSISTANT_*`` in the compose file after
-    someone has saved an unrelated field in the UI.
+    A null column means "use the default", not "zero". That distinction is what
+    lets an emptied field in the UI go back to the shipped value instead of
+    freezing whatever was typed once.
     """
     overridden: set[str] = set()
 
@@ -92,13 +128,13 @@ def resolve_settings(row: AssistantSettings | None) -> EffectiveSettings:
         rate_messages = row.rate_limit_messages
         overridden.add("rate_limit_messages")
     else:
-        rate_messages = app_settings.assistant_rate_limit_messages
+        rate_messages = DEFAULT_RATE_LIMIT_MESSAGES
 
     if row is not None and row.rate_limit_window_seconds is not None:
         rate_window = row.rate_limit_window_seconds
         overridden.add("rate_limit_window_seconds")
     else:
-        rate_window = app_settings.assistant_rate_limit_window_seconds
+        rate_window = DEFAULT_RATE_LIMIT_WINDOW_SECONDS
 
     budget = row.monthly_token_budget if row is not None else None
     if budget is not None:

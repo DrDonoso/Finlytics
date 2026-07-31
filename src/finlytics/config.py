@@ -83,7 +83,6 @@ class Settings(BaseSettings):
 
     # ── App config ────────────────────────────────────────────────────────────
     timezone: str = "Europe/Madrid"
-    port: int = 7777
     upload_dir: str = "/app/data/uploads"
 
     # ── Auth ──────────────────────────────────────────────────────────────────
@@ -106,63 +105,6 @@ class Settings(BaseSettings):
     # operations fail (HTTP 503) if the key is missing or invalid.
     # Generate: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
     finlytics_encryption_key: str | None = None
-
-    # ── Notifications background loop ─────────────────────────────────────────
-    # Set NOTIFICATIONS_LOOP_ENABLED=false to suppress the loop (e.g. in
-    # local dev or when running tests that don't need a live DB).
-    notifications_loop_enabled: bool = True
-    # Seconds between detector evaluation cycles.
-    notifications_eval_interval_seconds: int = 300
-    # Set TELEGRAM_SEND_ENABLED=false to suppress all Telegram sends globally
-    # (useful for ops maintenance or test environments with real channels).
-    telegram_send_enabled: bool = True
-
-    # ── Finance assistant (chat) ──────────────────────────────────────────────
-    # Reuses the OPENAI_* credentials above — there is no separate key. When
-    # those are unset the assistant reports itself disabled and the UI hides it.
-    assistant_enabled: bool = True
-    # Hard stop on the tool-call loop. Every iteration is a paid LLM round-trip,
-    # and a model that keeps asking for one more query would otherwise bill
-    # indefinitely for a single user message.
-    assistant_max_tool_iterations: int = 5
-    # How many past turns are replayed as context. Older ones are dropped: the
-    # cost of a message grows with the length of the thread otherwise.
-    assistant_history_messages: int = 20
-    # Longest user message accepted, in characters.
-    assistant_max_message_chars: int = 4000
-    # Rows/points any single tool may return before truncation. A multi-year
-    # transaction search would otherwise blow the context window on its own.
-    assistant_max_tool_result_rows: int = 100
-    # Conversations kept per user; creating beyond this is rejected.
-    assistant_max_conversations: int = 100
-    # Messages per user per window (LLM calls cost money — this is the cap).
-    assistant_rate_limit_messages: int = 30
-    assistant_rate_limit_window_seconds: int = 3600
-    # Annual real-return assumptions (%) for the deterministic projection tool,
-    # as "conservative,base,optimistic". Defaults are long-run diversified
-    # equity/bond figures — they are assumptions, not predictions.
-    assistant_projection_rates: str = "2,5,8"
-
-    @property
-    def assistant_projection_rate_values(self) -> tuple[float, float, float]:
-        """Parse ``assistant_projection_rates`` into (conservative, base, optimistic).
-
-        Falls back to the documented defaults when the value is malformed, so a
-        typo in .env degrades the projection assumptions rather than breaking
-        every chat message.
-        """
-        try:
-            parts = [float(p.strip()) for p in self.assistant_projection_rates.split(",")]
-        except ValueError:
-            parts = []
-        if len(parts) != 3:
-            logging.getLogger("finlytics.config").warning(
-                "ASSISTANT_PROJECTION_RATES must be three comma-separated numbers "
-                "(got %r) — falling back to 2,5,8.",
-                self.assistant_projection_rates,
-            )
-            return (2.0, 5.0, 8.0)
-        return (parts[0], parts[1], parts[2])
 
     @model_validator(mode="after")
     def _ensure_auth_secret(self) -> "Settings":

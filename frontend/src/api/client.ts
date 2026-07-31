@@ -697,7 +697,7 @@ export async function getAssistantSettings(): Promise<AssistantSettings> {
 }
 
 /** PUT /api/assistant/settings → replaces the overrides.
- *  A null field clears that override so the environment default applies again. */
+ *  A null field clears that override so the shipped default applies again. */
 export async function putAssistantSettings(
   body: AssistantSettingsPayload,
 ): Promise<AssistantSettings> {

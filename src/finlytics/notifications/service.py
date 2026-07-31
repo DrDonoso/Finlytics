@@ -43,6 +43,11 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
+# How often the background loop in ``app.py`` re-evaluates every detector. Five
+# minutes is well below the granularity of what the detectors reason about (a
+# calendar day), so there is nothing to gain from making it configurable.
+EVAL_INTERVAL_SECONDS = 300
+
 
 async def evaluate_notifications(
     db: AsyncSession,
@@ -181,11 +186,6 @@ async def deliver_new(
     (returns immediately — Slice 1 behaviour is preserved).
     """
     if not new_notifs:
-        return
-
-    from finlytics.config import settings  # deferred to avoid import-time side effects
-
-    if not settings.telegram_send_enabled:
         return
 
     # ── Query enabled channels ────────────────────────────────────────────────

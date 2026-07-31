@@ -8,8 +8,9 @@
 .env.*
 !.env.example
 # Exception: frontend/.env.demo only sets VITE_DEMO=1 (no secret) and is REQUIRED
-# by Dockerfile.demo — `vite build --mode demo` reads it. Without this rule the
-# demo image would silently ship the production SPA, i.e. no mock API at all.
+# by the Dockerfile's `demo` target — `vite build --mode demo` reads it. Without
+# this rule the demo image would silently ship the production SPA, i.e. no mock
+# API at all.
 !frontend/.env.demo
 
 # Python artifacts
@@ -29,6 +30,9 @@ frontend/.vite/
 
 # Tests (not needed at runtime)
 tests/
+
+# Documentation assets (README screenshots — never used at runtime)
+docs/
 
 # Project management / squad docs
 .squad/

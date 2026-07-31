@@ -59,7 +59,6 @@ from finlytics.api.summary import router as summary_router
 from finlytics.api.tags import router as tags_router
 from finlytics.api.transactions import router as transactions_router
 from finlytics.api.version import router as version_router
-from finlytics.config import settings
 
 log = logging.getLogger(__name__)
 
@@ -78,9 +77,12 @@ async def _notifications_loop() -> None:
     from finlytics.clock import today as local_today
     from finlytics.db.models import User
     from finlytics.db.session import async_session_factory
-    from finlytics.notifications.service import evaluate_notifications
+    from finlytics.notifications.service import (
+        EVAL_INTERVAL_SECONDS,
+        evaluate_notifications,
+    )
 
-    interval = settings.notifications_eval_interval_seconds
+    interval = EVAL_INTERVAL_SECONDS
     log.info("Notification loop started (interval=%ds)", interval)
 
     while True:
@@ -119,23 +121,22 @@ async def lifespan(app_: FastAPI):
     _task: asyncio.Task | None = None
 
     # Guard: never run the loop inside pytest (no real DB; httpx may trigger
-    # lifespan in newer versions).  Also respect the explicit setting.
+    # lifespan in newer versions).
     _in_test = "pytest" in sys.modules
 
     # The loop lives inside the web process, so starting the application with
     # several uvicorn workers would run it once per worker: every notification
     # would be evaluated N times and the user would receive N Telegram messages.
-    # Today the entrypoint starts a single worker, but the loop cannot take that
-    # for granted, so it warns in the log instead of failing silently the day
+    # The entrypoint starts a single worker, but the loop cannot take that for
+    # granted, so it warns in the log instead of failing silently the day
     # someone scales the service.
-    if settings.notifications_loop_enabled and not _in_test:
+    if not _in_test:
         workers = os.environ.get("WEB_CONCURRENCY") or os.environ.get("UVICORN_WORKERS")
         if workers and workers.isdigit() and int(workers) > 1:
             log.warning(
                 "Notification loop running with %s workers: notifications will be "
-                "evaluated once per worker and delivered multiple times. Move the "
-                "loop to a dedicated process or set NOTIFICATIONS_LOOP_ENABLED=false "
-                "on all but one instance.",
+                "evaluated once per worker and delivered multiple times. Run a "
+                "single worker, or move the loop to a dedicated process.",
                 workers,
             )
         _task = asyncio.create_task(_notifications_loop())

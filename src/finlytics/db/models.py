@@ -676,10 +676,10 @@ class NotificationDelivery(Base):
 class AssistantSettings(Base):
     """Per-user assistant configuration, editable from the UI.
 
-    Every column is nullable and means "fall back to the environment default".
-    That keeps a self-hosted operator's ``ASSISTANT_*`` env vars authoritative
-    until someone deliberately overrides one in Settings, instead of the first
-    save silently freezing today's defaults into the database.
+    Every column is nullable and means "fall back to the shipped default".
+    That keeps an emptied field in the UI going back to the shipped value
+    instead of the first save silently freezing today's defaults into the
+    database.
 
     ``custom_instructions`` is APPENDED to the system prompt.  ``system_prompt``
     REPLACES it outright — this is a self-hosted app and its owner may have good

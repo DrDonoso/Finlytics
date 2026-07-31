@@ -9,7 +9,6 @@ Coverage:
   - Calling deliver_new twice with the same notification does NOT double-send
     (idempotency guard: second call skips, telegram_send_message called once)
   - A Telegram failure records status='failed' without raising
-  - telegram_send_enabled=False is a complete no-op
   - Config encryption roundtrip: encrypt_token → decrypt_token
 """
 
@@ -198,25 +197,6 @@ async def test_failed_send_records_error_no_raise(db: AsyncSession):
     assert rows[0].status == "failed"
     assert "403" in (rows[0].error or "")
     assert rows[0].sent_at is None
-
-
-async def test_send_enabled_false_skips(db: AsyncSession, monkeypatch):
-    """When telegram_send_enabled=False, deliver_new is a complete no-op."""
-    notif = await _insert_notification(db)
-    await _insert_channel(db, user_id=1)
-
-    from finlytics.config import settings as real_settings
-    monkeypatch.setattr(real_settings, "telegram_send_enabled", False)
-
-    with patch(
-        "finlytics.notifications.service.telegram_send_message",
-        new_callable=AsyncMock,
-    ) as mock_send:
-        await deliver_new(db, user_id=1, new_notifs=[notif])
-
-    mock_send.assert_not_called()
-    result = await db.execute(select(NotificationDelivery))
-    assert result.scalars().all() == []
 
 
 async def test_config_encryption_roundtrip(monkeypatch):

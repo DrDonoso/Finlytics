@@ -100,9 +100,15 @@ pipeline is unaffected.
 > imported PDFs and are attacker-influencable in principle. The system prompt says so
 > explicitly; keep that clause if you rewrite it.
 
-Cost guards live in `config.py` (`ASSISTANT_*`): iteration cap, history window, result-row
-cap, message length, conversation count and a per-user rate limit. They are not decoration —
-each message is one to three paid LLM calls.
+Cost guards are module constants in `assistant/settings.py`: iteration cap, history window,
+result-row cap, message length, conversation count and the default rate limit. They are not
+decoration — each message is one to three paid LLM calls.
+
+> **They are constants on purpose, not settings.** Anything a self-hosted owner actually wants
+> to change — the rate limit, the monthly token budget, the custom instructions, the system
+> prompt — is per user in the database and editable in Settings → Assistant, where it applies
+> without a restart. Do not reintroduce `ASSISTANT_*` env vars: the two would then disagree and
+> the UI could no longer say what is in force.
 
 > **The rate limit and the monthly budget are not interchangeable.** The rate limit is an
 > in-process sliding window: it stops a burst, and it resets on every restart. That makes it
@@ -263,3 +269,7 @@ Rules when touching the frontend:
   writes, uploads or asks for third-party credentials stays out.
 - Keep the demo free of MSW leakage into production: the dynamic import in `main.tsx` is guarded
   by a literal `import.meta.env.VITE_DEMO` check so the bundler can drop it.
+- **The README screenshots in `docs/screenshots/` are captures of this demo build** (`npm run dev:demo`,
+  logged in as `demo`/`demo`), which is the only source they may come from — a real instance would put
+  someone's actual balances in a public repo. Regenerate them from the demo when a screen changes, and
+  keep the "this is demo data" note under them. `docs/` is in `.dockerignore`: it never reaches an image.

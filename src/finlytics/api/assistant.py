@@ -90,8 +90,6 @@ _TITLE_CHARS = 60
 
 def _assistant_available() -> tuple[bool, str | None]:
     """Whether the assistant can run, and why not when it cannot."""
-    if not settings.assistant_enabled:
-        return False, "The assistant is disabled on this instance."
     if not is_llm_configured(settings):
         return False, (
             "LLM not configured — set OPENAI_API_KEY, OPENAI_BASE_URL and "
@@ -208,7 +206,7 @@ async def update_assistant_settings(
 ) -> AssistantSettingsOut:
     """Replace the user's overrides.
 
-    A null field clears that override so the environment default applies again;
+    A null field clears that override so the shipped default applies again;
     it is not stored as zero. That is why the whole body is replaced rather than
     patched — "unset this" needs to be expressible.
     """
@@ -292,11 +290,11 @@ async def create_conversation(
             .select_from(AssistantConversation)
             .where(AssistantConversation.user_id == user.id)
         )
-        if (count or 0) >= settings.assistant_max_conversations:
+        if (count or 0) >= assistant_settings.MAX_CONVERSATIONS:
             raise HTTPException(
                 status_code=409,
                 detail=(
-                    f"You have reached the limit of {settings.assistant_max_conversations} "
+                    f"You have reached the limit of {assistant_settings.MAX_CONVERSATIONS} "
                     "conversations. Delete one to start another."
                 ),
             )
@@ -380,11 +378,11 @@ async def send_message(
     """
     _require_available()
 
-    if len(body.content) > settings.assistant_max_message_chars:
+    if len(body.content) > assistant_settings.MAX_MESSAGE_CHARS:
         raise HTTPException(
             status_code=413,
             detail=(
-                f"Message is too long (max {settings.assistant_max_message_chars} "
+                f"Message is too long (max {assistant_settings.MAX_MESSAGE_CHARS} "
                 "characters)."
             ),
         )
@@ -437,7 +435,7 @@ async def send_message(
                 select(AssistantMessage)
                 .where(AssistantMessage.conversation_id == conversation.id)
                 .order_by(AssistantMessage.id.desc())
-                .limit(settings.assistant_history_messages)
+                .limit(assistant_settings.HISTORY_MESSAGES)
             )
         ).scalars().all()
 
@@ -460,9 +458,9 @@ async def send_message(
 
     llm = LLMClient.from_settings(settings)
     limits = AgentLimits(
-        max_tool_iterations=settings.assistant_max_tool_iterations,
-        max_tool_result_rows=settings.assistant_max_tool_result_rows,
-        projection_rates=settings.assistant_projection_rate_values,
+        max_tool_iterations=assistant_settings.MAX_TOOL_ITERATIONS,
+        max_tool_result_rows=assistant_settings.MAX_TOOL_RESULT_ROWS,
+        projection_rates=assistant_settings.PROJECTION_RATES,
     )
     today = local_today()
     conversation_id_value = conversation.id
