@@ -4,6 +4,11 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260731.03] - 2026-07-31
+
+- feat(assistant): read-only chat assistant over your own financial data (#43)
+
+
 ## [20260731.02] - 2026-07-31
 
 - feat(notifications): route Telegram messages to a forum topic (#42)
