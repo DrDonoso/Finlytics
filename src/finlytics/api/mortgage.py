@@ -68,10 +68,16 @@ from finlytics.mortgage.simulator import simulate_prepayment
 
 router = APIRouter(prefix="/mortgages", tags=["mortgages"])
 
-# A charge has to repeat this many distinct months before it looks like an
-# instalment rather than a coincidence of equal amounts.
-_MIN_RECURRING_MONTHS = 3
+# A charge has to repeat this many times before it looks like an instalment
+# rather than a coincidence of equal amounts.
+_MIN_RECURRING_CHARGES = 3
+# ...and span more than a single month, so three purchases in one week do not
+# qualify. Three monthly charges span ~59 days at the short end (Jan→Mar).
+_MIN_RECURRING_SPAN_DAYS = 50
 _MAX_CANDIDATES = 5
+# How far a charge may sit from its due date and still be that instalment.
+# Covers last-working-day drift across a month boundary and a weekend.
+_MATCH_WINDOW_DAYS = 10
 
 _RELATIONS = (
     selectinload(Mortgage.rate_periods),
@@ -251,8 +257,13 @@ async def get_payment_candidates(
     expected = Decimal(str(amount)) if amount is not None else None
     candidates: list[dict] = []
     for (account_id, category_id, charged), dates in groups.items():
-        distinct_months = {(d.year, d.month) for d in dates}
-        if len(distinct_months) < _MIN_RECURRING_MONTHS:
+        # Counting occurrences rather than distinct calendar months: banks charge
+        # on the last working day, so a payment can land on the 1st of the next
+        # month and two consecutive instalments share a calendar month. Counting
+        # months there reports fewer charges than the ledger visibly holds.
+        first_seen, last_seen = min(dates), max(dates)
+        span_days = (last_seen - first_seen).days
+        if len(dates) < _MIN_RECURRING_CHARGES or span_days < _MIN_RECURRING_SPAN_DAYS:
             continue
         entry: dict = {
             "account_id": account_id,
@@ -260,9 +271,9 @@ async def get_payment_candidates(
             "category_id": category_id,
             "category_name": category_names.get(category_id) if category_id else None,
             "amount": float(charged),
-            "months_matched": len(distinct_months),
-            "first_seen": min(dates),
-            "last_seen": max(dates),
+            "occurrences": len(dates),
+            "first_seen": first_seen,
+            "last_seen": last_seen,
             "deviation": None,
             "deviation_pct": None,
         }
@@ -272,11 +283,11 @@ async def get_payment_candidates(
             entry["deviation_pct"] = round(float(deviation / expected * 100), 2)
         candidates.append(entry)
 
-    # Closest to the expected instalment first; without one, the most regular.
+    # Closest to the expected instalment first; without one, the most frequent.
     if expected is not None:
-        candidates.sort(key=lambda c: (abs(c["deviation"] or 0), -c["months_matched"]))
+        candidates.sort(key=lambda c: (abs(c["deviation"] or 0), -c["occurrences"]))
     else:
-        candidates.sort(key=lambda c: -c["months_matched"])
+        candidates.sort(key=lambda c: -c["occurrences"])
 
     return {
         "expected_payment": float(expected) if expected is not None else None,
@@ -450,13 +461,17 @@ async def get_reconciliation(
     today = date.today()
     past = [r for r in schedules.actual.rows if r.date <= today][-months:]
 
-    # One query for the whole window instead of one per month. Grouping happens
-    # in Python so the query stays portable across dialects.
-    charged: dict[tuple[int, int], Decimal] = {}
+    # One query for the whole window instead of one per month.
+    #
+    # Expenses only: a linked category also holds the loan disbursement, which is
+    # income. Summing it with abs() reported the December charge as a quarter of
+    # a million euros.
+    charges: list[tuple[date, Decimal]] = []
     if past:
-        window_start = date(past[0].date.year, past[0].date.month, 1)
+        window_start = add_months(past[0].date, -1)
         conditions = [
             Transaction.transaction_date >= window_start,
+            Transaction.amount < 0,
             Transaction.is_system.is_(False),
         ]
         if mortgage.linked_account_id is not None:
@@ -467,16 +482,36 @@ async def get_reconciliation(
         result = await db.execute(
             select(Transaction.transaction_date, Transaction.amount).where(*conditions)
         )
-        for tx_date, amount in result.all():
-            key = (tx_date.year, tx_date.month)
-            charged[key] = charged.get(key, Decimal("0")) + abs(amount)
+        charges = sorted((d, abs(a)) for d, a in result.all())
+
+    # Match by proximity in time, not by calendar month: banks charge on the last
+    # working day, so an instalment routinely lands on the 1st of the next month.
+    # Bucketing by month then loses it and picks up whatever else shares the
+    # category. Within the window the nearest amount wins, and each charge is
+    # consumed so two instalments in one month are not counted twice.
+    used: set[int] = set()
+
+    def match_for(due: date, expected: Decimal) -> Decimal | None:
+        best_idx, best_key = None, None
+        for idx, (charged_on, charged) in enumerate(charges):
+            if idx in used or abs((charged_on - due).days) > _MATCH_WINDOW_DAYS:
+                continue
+            key = (abs(charged - expected), abs((charged_on - due).days))
+            if best_key is None or key < best_key:
+                best_idx, best_key = idx, key
+        if best_idx is None:
+            return None
+        used.add(best_idx)
+        return charges[best_idx][1]
 
     rows = []
     total_expected = Decimal("0")
     total_actual = Decimal("0")
     for row in past:
-        expected = row.payment + row.prepayment
-        actual = charged.get((row.date.year, row.date.month))
+        # The instalment alone: a prepayment is usually a separate transfer and
+        # already has its own table, so folding it in here only adds noise.
+        expected = row.payment
+        actual = match_for(row.date, expected)
         total_expected += expected
         entry: dict = {
             "period": row.date,

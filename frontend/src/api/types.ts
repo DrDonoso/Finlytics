@@ -1139,7 +1139,7 @@ export interface MortgagePaymentCandidate {
   category_id: number | null
   category_name: string | null
   amount: number
-  months_matched: number
+  occurrences: number
   first_seen: string
   last_seen: string
   deviation: number | null

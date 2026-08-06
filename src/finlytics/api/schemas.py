@@ -1480,7 +1480,7 @@ class PaymentCandidateOut(BaseModel):
     category_id: int | None = None
     category_name: str | None = None
     amount: float
-    months_matched: int
+    occurrences: int
     first_seen: date
     last_seen: date
     # Populated when an expected instalment was supplied: charged − expected.

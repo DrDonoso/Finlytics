@@ -4,6 +4,7 @@ import { createMortgage, updateMortgage, formatEur } from '../api/client'
 import { errorMessage } from '../api/errors'
 import { useEuriborSeries, useMortgagePaymentCandidates } from '../api/queries'
 import { IconAlert, IconClose } from './icons'
+import DatePicker from './DatePicker'
 import { useT, categoryLabel } from '../i18n'
 import { previewSchedule } from '../mortgage/calc'
 
@@ -234,7 +235,13 @@ export default function MortgageFormModal({ mortgage, accounts, categories, onCl
               </div>
               <div className="form-group">
                 <label htmlFor="mf-start">{t.mortgageFormStartDate}</label>
-                <input id="mf-start" type="date" className="form-input" value={form.startDate} onChange={e => set('startDate', e.target.value)} />
+                {/* The native date input renders its calendar in the browser's
+                    locale, ignoring the language chosen in the app. */}
+                <DatePicker
+                  value={form.startDate}
+                  onChange={v => set('startDate', v)}
+                  ariaLabel={t.mortgageFormStartDate}
+                />
               </div>
               <div className="form-group">
                 <label htmlFor="mf-term">{t.mortgageFormTermYears}</label>
@@ -367,7 +374,11 @@ export default function MortgageFormModal({ mortgage, accounts, categories, onCl
               {candidates.data && candidates.data.candidates.length > 0 && (
                 <div className="mortgage-form__detected">
                   {candidates.data.candidates.slice(0, 3).map(c => {
-                    const off = c.deviation != null && Math.abs(c.deviation) >= 0.01
+                    // Only a charge in the same ballpark as the instalment can
+                    // be the mortgage; the rest are other recurring expenses and
+                    // must not be reported as a wrong term.
+                    const plausible = c.deviation_pct != null && Math.abs(c.deviation_pct) <= 20
+                    const off = plausible && Math.abs(c.deviation ?? 0) >= 0.01
                     return (
                       <button
                         key={`${c.account_id}-${c.category_id}-${c.amount}`}
@@ -382,7 +393,7 @@ export default function MortgageFormModal({ mortgage, accounts, categories, onCl
                           <strong>{formatEur(c.amount)}</strong>
                           {' · '}{c.account_name}
                           {c.category_name ? ` · ${categoryLabel(c.category_name, lang, dynamicEs)}` : ''}
-                          {' · '}{t.mortgageFormDetectedMonths(c.months_matched)}
+                          {' · '}{t.mortgageFormDetectedCharges(c.occurrences)}
                         </span>
                         {off ? (
                           <span className="mortgage-form__detected-warn">
@@ -392,9 +403,13 @@ export default function MortgageFormModal({ mortgage, accounts, categories, onCl
                               `${c.deviation! >= 0 ? '+' : ''}${formatEur(c.deviation!)}`,
                             )}
                           </span>
-                        ) : (
+                        ) : plausible ? (
                           <span className="mortgage-form__detected-ok">
                             {t.mortgageFormDetectedMatch}
+                          </span>
+                        ) : (
+                          <span className="mortgage-form__detected-other">
+                            {t.mortgageFormDetectedOther}
                           </span>
                         )}
                       </button>

@@ -4,6 +4,7 @@ import type { MortgageSimulation, PrepaymentMode } from '../api/types'
 import { simulateMortgagePrepayment, createMortgagePrepayment, formatEur } from '../api/client'
 import { errorMessage } from '../api/errors'
 import { IconAlert, IconClose } from './icons'
+import DatePicker from './DatePicker'
 import { IS_DEMO } from '../demo/config'
 import { useT } from '../i18n'
 
@@ -105,7 +106,7 @@ export default function MortgagePrepaymentSimulator({ mortgageId, onClose, onApp
             </div>
             <div className="form-group">
               <label htmlFor="sim-date">{t.mortgageSimDate}</label>
-              <input id="sim-date" type="date" className="form-input" value={date} onChange={e => setDate(e.target.value)} />
+              <DatePicker value={date} onChange={setDate} ariaLabel={t.mortgageSimDate} />
             </div>
             <div className="form-group">
               <label htmlFor="sim-fee">{t.mortgageSimFee}</label>
