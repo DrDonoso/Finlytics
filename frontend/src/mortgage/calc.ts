@@ -200,6 +200,8 @@ export function buildFixedSchedule(input: FixedScheduleInput): MortgageScheduleR
       closing_balance: balance,
       annual_rate: annualRatePct,
       projected: false,
+      status: 'pending',
+      charged: null,
     })
 
     if (balance <= 0) break

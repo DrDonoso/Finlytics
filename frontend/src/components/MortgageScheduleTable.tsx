@@ -1,19 +1,27 @@
 import { useState } from 'react'
 import type { MortgageScheduleYear } from '../api/types'
 import { formatEur } from '../api/client'
-import { IconAlert, IconChevronDown, IconLoading } from './icons'
+import { IconAlert, IconCheck, IconChevronDown, IconLoading } from './icons'
 import { useT, formatDate } from '../i18n'
 
 interface Props {
   years: MortgageScheduleYear[]
+  /** Whether an account/category is linked: without one a past row can only
+   *  be reported as elapsed, never as confirmed paid. */
+  linked: boolean
+  /** Oldest charge on record. Years ending before it are outside what the
+   *  ledger covers, so no payment count is claimed for them. */
+  chargesFrom?: string | null
   loading: boolean
   error: string | null
 }
 
 /** Amortization table, collapsed to one row per year and expandable to months. */
-export default function MortgageScheduleTable({ years, loading, error }: Props) {
+export default function MortgageScheduleTable({ years, linked, chargesFrom, loading, error }: Props) {
   const { t, lang } = useT()
   const [expanded, setExpanded] = useState<Set<number>>(new Set())
+
+  const coverageYear = chargesFrom ? Number(chargesFrom.slice(0, 4)) : null
 
   function toggle(year: number) {
     setExpanded(prev => {
@@ -77,6 +85,13 @@ export default function MortgageScheduleTable({ years, loading, error }: Props) 
               >
                 <td className="cat-td-name">
                   <IconChevronDown size={14} className={`sidebar-arrow${open ? ' open' : ''}`} /> {year.year}
+                  {year.months_elapsed > 0 && (!linked || coverageYear == null || year.year >= coverageYear) && (
+                    <span className="mortgage-schedule__year-progress">
+                      {linked
+                        ? t.mortgageSchedulePaidCount(year.months_paid, year.months_total)
+                        : t.mortgageScheduleElapsedCount(year.months_elapsed, year.months_total)}
+                    </span>
+                  )}
                 </td>
                 <td className="cat-td-num">{formatEur(year.payment)}</td>
                 <td className="cat-td-num">{formatEur(year.interest)}</td>
@@ -85,8 +100,22 @@ export default function MortgageScheduleTable({ years, loading, error }: Props) 
                 <td className="cat-td-num">{formatEur(year.closing_balance)}</td>
               </tr>,
               ...(open ? year.months.map(row => (
-                <tr key={`${year.year}-${row.period_index}`} className="cat-row mortgage-schedule__month">
+                <tr
+                  key={`${year.year}-${row.period_index}`}
+                  className={`cat-row mortgage-schedule__month${linked ? ` is-${row.status}` : ''}`}
+                >
                   <td className="cat-td-name">
+                    <span className="mortgage-schedule__marker">
+                      {row.status === 'paid' && (
+                        <IconCheck
+                          size={13}
+                          className="mortgage-schedule__paid"
+                          title={row.charged != null
+                            ? t.mortgageSchedulePaidOn(formatEur(row.charged))
+                            : t.mortgageSchedulePaid}
+                        />
+                      )}
+                    </span>
                     {formatDate(row.date, lang)}
                     {row.projected && <span className="mortgage-schedule__projected" title={t.mortgageProjectionNote}>~</span>}
                     <span className="mortgage-schedule__rate">{row.annual_rate.toFixed(3)} %</span>

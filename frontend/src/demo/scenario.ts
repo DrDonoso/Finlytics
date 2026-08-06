@@ -856,14 +856,18 @@ function groupByYear(rows: MortgageScheduleRow[], includeMonths: boolean): Mortg
   const years = new Map<number, MortgageScheduleYear>()
   for (const row of rows) {
     const year = Number(row.date.slice(0, 4))
-    const bucket = years.get(year) ?? {
-      year, payment: 0, interest: 0, principal: 0, prepayment: 0, closing_balance: 0, months: [],
+    const bucket: MortgageScheduleYear = years.get(year) ?? {
+      year, payment: 0, interest: 0, principal: 0, prepayment: 0, closing_balance: 0,
+      months_total: 0, months_paid: 0, months_elapsed: 0, months: [],
     }
     bucket.payment += row.payment
     bucket.interest += row.interest
     bucket.principal += row.principal
     bucket.prepayment += row.prepayment
     bucket.closing_balance = row.closing_balance
+    bucket.months_total += 1
+    if (row.status === 'paid') bucket.months_paid += 1
+    if (row.status !== 'pending') bucket.months_elapsed += 1
     if (includeMonths) bucket.months.push(row)
     years.set(year, bucket)
   }
@@ -913,6 +917,39 @@ function buildMortgage(
     startDate,
     paymentDay: MORTGAGE_PAYMENT_DAY,
   })
+
+  // Mark instalments the ledger confirms, the same way the API does: nearest
+  // charge within a ten-day window, each consumed once. A past due date alone
+  // is not treated as proof of payment.
+  const charges = transactions
+    .filter(tx => tx.account === ACCOUNT_MAIN && tx.category === 'Housing' && tx.amount < 0)
+    .map(tx => ({ date: tx.transaction_date, amount: Math.abs(tx.amount), used: false }))
+    .sort((a, b) => a.date.localeCompare(b.date))
+
+  const chargesFrom = charges.length > 0 ? charges[0].date : null
+
+  const dayGap = (a: string, b: string) =>
+    Math.abs(Date.parse(`${a}T00:00:00Z`) - Date.parse(`${b}T00:00:00Z`)) / 86_400_000
+
+  for (const row of rows) {
+    if (row.date > todayIso) continue
+    let best: typeof charges[number] | null = null
+    let bestKey = Infinity
+    for (const c of charges) {
+      if (c.used) continue
+      const gap = dayGap(c.date, row.date)
+      if (gap > 10) continue
+      const key = Math.abs(c.amount - row.payment) * 100 + gap
+      if (key < bestKey) { best = c; bestKey = key }
+    }
+    if (best) {
+      best.used = true
+      row.status = 'paid'
+      row.charged = best.amount
+    } else {
+      row.status = 'elapsed'
+    }
+  }
 
   const past = rows.filter(r => r.date <= todayIso)
   const upcoming = rows.find(r => r.date > todayIso) ?? rows[rows.length - 1]
@@ -1025,6 +1062,8 @@ function buildMortgage(
     schedule: {
       mortgage_id: 1,
       granularity: 'year',
+      linked: true,
+      charges_from: chargesFrom,
       rows: [],
       years: groupByYear(rows, true),
       total_payment: totalPaid,

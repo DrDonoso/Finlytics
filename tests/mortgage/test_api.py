@@ -257,6 +257,140 @@ class TestSchedule:
         assert resp.status_code == 422
 
 
+class TestSchedulePaymentStatus:
+    """Rows carry whether the instalment was actually charged.
+
+    The distinction matters: a due date in the past proves time passed, not
+    that money moved. Marking those as paid would be the app asserting
+    something it cannot know without a linked account.
+    """
+
+    async def _seed_charges(self, factory, days):
+        async with factory() as s:
+            account = Account(name="Piso", type="bank", currency="EUR")
+            cat = Category(name="Housing")
+            s.add_all([account, cat])
+            await s.flush()
+            run = ImportRun(account_id=account.id, source_filename="seed.pdf")
+            s.add(run)
+            await s.flush()
+            for idx, day in enumerate(days, start=1):
+                s.add(Transaction(
+                    id=idx, account_id=account.id, import_run_id=run.id,
+                    transaction_date=day, amount=Decimal("-843.21"), currency="EUR",
+                    description="Cuota hipoteca", category_id=cat.id,
+                    dedup_hash=f"paid-{idx}", is_system=False,
+                ))
+            await s.commit()
+            return account.id, cat.id
+
+    async def _months(self, client, **overrides):
+        created = await _create(client, **overrides)
+        body = (
+            await client.get(f"/api/mortgages/{created['id']}/schedule?granularity=month")
+        ).json()
+        return body
+
+    async def test_future_instalments_are_pending(self, client):
+        body = await self._months(client)
+        assert body["rows"][-1]["status"] == "pending"
+
+    async def test_unlinked_past_instalments_are_elapsed_not_paid(self, client):
+        """Without a link the app cannot know a charge landed, so it must not
+        claim one did."""
+        body = await self._months(client)
+        assert body["linked"] is False
+        past = [r for r in body["rows"] if r["status"] != "pending"]
+        assert past
+        assert all(r["status"] == "elapsed" for r in past)
+        assert all(r["charged"] is None for r in past)
+
+    async def test_a_matched_charge_marks_the_instalment_paid(self, client, factory):
+        account_id, category_id = await self._seed_charges(
+            factory, [date(2024, 1, 1), date(2024, 2, 1)]
+        )
+        body = await self._months(
+            client, linked_account_id=account_id, linked_category_id=category_id
+        )
+        assert body["linked"] is True
+        by_date = {r["date"]: r for r in body["rows"]}
+        assert by_date["2024-01-01"]["status"] == "paid"
+        assert by_date["2024-01-01"]["charged"] == pytest.approx(843.21)
+        assert by_date["2024-02-01"]["status"] == "paid"
+
+    async def test_a_month_without_a_charge_stays_elapsed(self, client, factory):
+        account_id, category_id = await self._seed_charges(factory, [date(2024, 1, 1)])
+        body = await self._months(
+            client, linked_account_id=account_id, linked_category_id=category_id
+        )
+        by_date = {r["date"]: r for r in body["rows"]}
+        assert by_date["2024-01-01"]["status"] == "paid"
+        assert by_date["2024-02-01"]["status"] == "elapsed"
+
+    async def test_a_charge_that_drifts_into_the_next_month_still_counts(
+        self, client, factory
+    ):
+        """Same last-working-day drift the reconciliation handles."""
+        account_id, category_id = await self._seed_charges(factory, [date(2024, 2, 2)])
+        body = await self._months(
+            client, linked_account_id=account_id, linked_category_id=category_id
+        )
+        by_date = {r["date"]: r for r in body["rows"]}
+        assert by_date["2024-02-01"]["status"] == "paid"
+
+    async def test_reports_the_oldest_charge_as_the_ledger_coverage(
+        self, client, factory
+    ):
+        """A mortgage usually predates the oldest imported statement.
+
+        Callers need that boundary to tell 'no instalment was paid' apart from
+        'nothing is known here', which otherwise both read as zero.
+        """
+        account_id, category_id = await self._seed_charges(
+            factory, [date(2024, 2, 1), date(2024, 1, 1)]
+        )
+        body = await self._months(
+            client, linked_account_id=account_id, linked_category_id=category_id
+        )
+        assert body["charges_from"] == "2024-01-01"
+
+    async def test_coverage_is_absent_when_nothing_is_linked(self, client):
+        body = await self._months(client)
+        assert body["charges_from"] is None
+
+    async def test_yearly_rollup_counts_paid_and_elapsed(self, client, factory):
+        account_id, category_id = await self._seed_charges(
+            factory, [date(2024, 1, 1), date(2024, 2, 1)]
+        )
+        created = await _create(
+            client, linked_account_id=account_id, linked_category_id=category_id
+        )
+        body = (await client.get(f"/api/mortgages/{created['id']}/schedule")).json()
+        first = body["years"][0]
+        assert first["months_total"] == 12
+        assert first["months_paid"] == 2
+        assert first["months_elapsed"] == 12   # all of 2024 is in the past
+
+    async def test_status_agrees_with_the_reconciliation_table(self, client, factory):
+        """Both read the same matcher, so they cannot disagree about a month."""
+        account_id, category_id = await self._seed_charges(
+            factory, [date(2024, 1, 1), date(2024, 2, 2)]
+        )
+        created = await _create(
+            client, linked_account_id=account_id, linked_category_id=category_id
+        )
+        schedule = (
+            await client.get(f"/api/mortgages/{created['id']}/schedule?granularity=month")
+        ).json()
+        recon = (
+            await client.get(f"/api/mortgages/{created['id']}/reconciliation?months=360")
+        ).json()
+
+        paid = {r["date"] for r in schedule["rows"] if r["status"] == "paid"}
+        matched = {r["period"] for r in recon["rows"] if r["matched"]}
+        assert paid == matched
+
+
 class TestCharts:
     async def test_returns_both_series(self, client):
         created = await _create(client)
