@@ -87,6 +87,37 @@ class TestFixedRateSchedule:
         assert build_schedule(_spec(term_months=0)).rows == []
 
 
+class TestRealWorldTerms:
+    """A term is not always a whole number of years.
+
+    A loan signed mid-month usually charges interest-only for the stub period,
+    so capital is amortized over 359 instalments rather than 360. Entering 360
+    understates the instalment by a couple of euros, which reads like an engine
+    bug rather than a data-entry one — these pin the difference down.
+    """
+
+    SIGNED = dict(
+        initial_principal=D("291200"),
+        start_date=date(2024, 1, 1),
+        payment_day=1,
+        rate_periods=(RatePeriodSpec(start_month=0, kind="fixed", fixed_rate=D("2")),),
+    )
+
+    def test_359_instalments(self):
+        schedule = build_schedule(MortgageSpec(**self.SIGNED, term_months=359))
+        assert schedule.rows[0].payment == D("1078.52")
+
+    def test_360_instalments(self):
+        schedule = build_schedule(MortgageSpec(**self.SIGNED, term_months=360))
+        assert schedule.rows[0].payment == D("1076.33")
+
+    def test_one_instalment_fewer_costs_more_per_month(self):
+        shorter = build_schedule(MortgageSpec(**self.SIGNED, term_months=359))
+        longer = build_schedule(MortgageSpec(**self.SIGNED, term_months=360))
+        assert shorter.rows[0].payment > longer.rows[0].payment
+        assert shorter.totals.total_interest < longer.totals.total_interest
+
+
 class TestPaymentDay:
     def test_uses_contractual_pay_day(self):
         schedule = build_schedule(_spec(payment_day=15))

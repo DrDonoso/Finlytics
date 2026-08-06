@@ -32,6 +32,7 @@ interface FormState {
   principal: string
   startDate: string
   termYears: string
+  termExtraMonths: string
   paymentDay: string
   rateType: MortgageRateType
   fixedRate: string
@@ -66,7 +67,8 @@ function initialState(mortgage?: Mortgage | null): FormState {
     lender: mortgage?.lender ?? '',
     principal: mortgage ? String(mortgage.initial_principal) : '',
     startDate: mortgage?.start_date ?? '',
-    termYears: mortgage ? String(Math.round(mortgage.term_months / 12)) : '30',
+    termYears: mortgage ? String(Math.floor(mortgage.term_months / 12)) : '30',
+    termExtraMonths: mortgage ? String(mortgage.term_months % 12) : '0',
     paymentDay: mortgage ? String(mortgage.payment_day) : '1',
     rateType: mortgage?.rate_type ?? 'fixed',
     fixedRate: fixed?.fixed_rate != null ? String(fixed.fixed_rate) : '',
@@ -105,7 +107,10 @@ export default function MortgageFormModal({ mortgage, accounts, categories, onCl
     setForm(f => ({ ...f, [key]: value }))
   }
 
-  const termMonths = Math.round(num(form.termYears) * 12)
+  // Terms are not always a whole number of years: a loan signed mid-month
+  // often amortizes over 359 instalments because the first charge only
+  // covers interest, and a year-only field cannot express that.
+  const termMonths = Math.round(num(form.termYears)) * 12 + Math.round(num(form.termExtraMonths))
 
   const preview = useMemo(() => previewSchedule({
     principal: num(form.principal),
@@ -228,6 +233,12 @@ export default function MortgageFormModal({ mortgage, accounts, categories, onCl
               <div className="form-group">
                 <label htmlFor="mf-term">{t.mortgageFormTermYears}</label>
                 <input id="mf-term" className="form-input" inputMode="numeric" value={form.termYears} onChange={e => set('termYears', e.target.value)} />
+                <span className="form-hint">{t.mortgageFormTermTotal(termMonths)}</span>
+              </div>
+              <div className="form-group">
+                <label htmlFor="mf-term-months">{t.mortgageFormTermExtraMonths}</label>
+                <input id="mf-term-months" className="form-input" inputMode="numeric" value={form.termExtraMonths} onChange={e => set('termExtraMonths', e.target.value)} />
+                <span className="form-hint">{t.mortgageFormTermExtraMonthsInfo}</span>
               </div>
               <div className="form-group">
                 <label htmlFor="mf-day">{t.mortgageFormPaymentDay}</label>
