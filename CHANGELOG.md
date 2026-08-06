@@ -4,6 +4,11 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260806.04] - 2026-08-06
+
+- fix(mortgage): match charges by date, count them, and localise the calendar (#55)
+
+
 ## [20260806.03] - 2026-08-06
 
 - feat(mortgage): check the terms against the ledger while they are entered (#54)
