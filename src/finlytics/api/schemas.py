@@ -1155,3 +1155,319 @@ class AssistantUsageOut(BaseModel):
     # instead of showing a confident zero.
     usage_available: bool = True
 
+
+
+# ── Mortgages ─────────────────────────────────────────────────────────────────
+
+RateKind = Literal["fixed", "variable"]
+RateType = Literal["fixed", "variable", "mixed"]
+PrepaymentMode = Literal["reduce_term", "reduce_payment"]
+
+
+class RatePeriodIn(BaseModel):
+    """One interest-rate tranche. Percentages are raw numbers (3.25 = 3.25%)."""
+
+    start_month: int = 0
+    kind: RateKind
+    fixed_rate: float | None = None
+    index_name: str | None = None
+    spread: float | None = None
+    review_months: int | None = None
+    review_lag_months: int = 2
+    floor_rate: float | None = None
+    cap_rate: float | None = None
+
+    @model_validator(mode="after")
+    def _check_kind_fields(self) -> RatePeriodIn:
+        if self.kind == "fixed":
+            if self.fixed_rate is None:
+                raise ValueError("fixed_rate is required for a fixed rate period")
+        elif self.spread is None:
+            raise ValueError("spread is required for a variable rate period")
+        if self.start_month < 0:
+            raise ValueError("start_month must not be negative")
+        return self
+
+
+class RatePeriodOut(RatePeriodIn):
+    id: int
+
+
+class BonusIn(BaseModel):
+    """A linked product that discounts the applied rate while active."""
+
+    name: str
+    spread_reduction: float = 0.0
+    annual_cost: float = 0.0
+    active: bool = True
+    start_date: date | None = None
+    end_date: date | None = None
+
+
+class BonusOut(BonusIn):
+    id: int
+
+
+class PrepaymentIn(BaseModel):
+    payment_date: date
+    amount: float
+    mode: PrepaymentMode
+    fee: float = 0.0
+    notes: str | None = None
+
+    @field_validator("amount")
+    @classmethod
+    def _positive_amount(cls, value: float) -> float:
+        if value <= 0:
+            raise ValueError("amount must be greater than zero")
+        return value
+
+
+class PrepaymentOut(PrepaymentIn):
+    id: int
+
+
+class MortgageBase(BaseModel):
+    name: str
+    lender: str | None = None
+    initial_principal: float
+    start_date: date
+    term_months: int
+    payment_day: int = 1
+    rate_type: RateType
+    linked_account_id: int | None = None
+    linked_category_id: int | None = None
+    property_value: float | None = None
+    property_value_date: date | None = None
+    include_in_net_worth: bool = True
+    notes: str | None = None
+
+    @field_validator("initial_principal")
+    @classmethod
+    def _positive_principal(cls, value: float) -> float:
+        if value <= 0:
+            raise ValueError("initial_principal must be greater than zero")
+        return value
+
+    @field_validator("term_months")
+    @classmethod
+    def _positive_term(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("term_months must be greater than zero")
+        return value
+
+    @field_validator("payment_day")
+    @classmethod
+    def _valid_pay_day(cls, value: int) -> int:
+        if not 1 <= value <= 31:
+            raise ValueError("payment_day must be between 1 and 31")
+        return value
+
+
+class MortgageCreate(MortgageBase):
+    """Request body for POST /api/mortgages."""
+
+    rate_periods: list[RatePeriodIn]
+    bonuses: list[BonusIn] = []
+
+    @model_validator(mode="after")
+    def _check_periods(self) -> MortgageCreate:
+        if not self.rate_periods:
+            raise ValueError("at least one rate period is required")
+        kinds = {p.kind for p in self.rate_periods}
+        if self.rate_type == "mixed" and kinds != {"fixed", "variable"}:
+            raise ValueError("a mixed mortgage needs one fixed and one variable period")
+        if self.rate_type in ("fixed", "variable") and kinds != {self.rate_type}:
+            raise ValueError(f"a {self.rate_type} mortgage only accepts {self.rate_type} periods")
+        if len({p.start_month for p in self.rate_periods}) != len(self.rate_periods):
+            raise ValueError("rate periods must have distinct start_month values")
+        if not any(p.start_month == 0 for p in self.rate_periods):
+            raise ValueError("the first rate period must start at month 0")
+        return self
+
+
+class MortgageUpdate(MortgageCreate):
+    """Request body for PUT /api/mortgages/{id} — same shape as create."""
+
+
+class MortgageOut(MortgageBase):
+    id: int
+    rate_periods: list[RatePeriodOut] = []
+    bonuses: list[BonusOut] = []
+    prepayments: list[PrepaymentOut] = []
+
+
+class MortgageSummary(BaseModel):
+    """Lightweight list item."""
+
+    id: int
+    name: str
+    lender: str | None = None
+    rate_type: str
+    outstanding_balance: float
+    monthly_payment: float
+    progress_pct: float
+
+
+class MortgageOverview(BaseModel):
+    """KPI payload for the mortgage page header."""
+
+    id: int
+    name: str
+    lender: str | None = None
+    rate_type: str
+    initial_principal: float
+    outstanding_balance: float
+    amortized_principal: float
+    progress_pct: float
+    current_payment: float
+    current_rate: float
+    next_payment_date: date | None = None
+    interest_paid: float
+    interest_remaining: float
+    total_interest: float
+    total_cost: float
+    months_elapsed: int
+    months_remaining: int
+    end_date: date | None = None
+    original_end_date: date | None = None
+    months_saved: int
+    interest_saved: float
+    property_value: float | None = None
+    ltv_pct: float | None = None
+    total_prepaid: float
+    annual_bonus_cost: float
+    has_projection: bool
+    include_in_net_worth: bool
+    linked_account_id: int | None = None
+    linked_category_id: int | None = None
+
+
+class ScheduleRowOut(BaseModel):
+    period_index: int
+    date: date
+    opening_balance: float
+    payment: float
+    interest: float
+    principal: float
+    prepayment: float
+    fee: float
+    closing_balance: float
+    annual_rate: float
+    projected: bool
+
+
+class ScheduleYearOut(BaseModel):
+    """Yearly roll-up so the UI can render a collapsed table by default."""
+
+    year: int
+    payment: float
+    interest: float
+    principal: float
+    prepayment: float
+    closing_balance: float
+    months: list[ScheduleRowOut] = []
+
+
+class ScheduleOut(BaseModel):
+    mortgage_id: int
+    granularity: Literal["month", "year"]
+    rows: list[ScheduleRowOut] = []
+    years: list[ScheduleYearOut] = []
+    total_payment: float
+    total_interest: float
+    total_principal: float
+
+
+class BalancePointOut(BaseModel):
+    date: date
+    balance: float
+    projected: bool
+
+
+class MortgageChartsOut(BaseModel):
+    """Series for the balance curve and the yearly principal/interest split."""
+
+    balance: list[BalancePointOut] = []
+    composition: list[ScheduleYearOut] = []
+
+
+class EuriborPointOut(BaseModel):
+    period: date
+    rate: float
+
+
+class EuriborSeriesOut(BaseModel):
+    index_name: str
+    points: list[EuriborPointOut] = []
+    latest: float | None = None
+    latest_period: date | None = None
+
+
+class ReconciliationRowOut(BaseModel):
+    period: date
+    expected: float
+    actual: float | None = None
+    deviation: float | None = None
+    deviation_pct: float | None = None
+    matched: bool
+
+
+class ReconciliationOut(BaseModel):
+    mortgage_id: int
+    linked: bool
+    account_id: int | None = None
+    category_id: int | None = None
+    rows: list[ReconciliationRowOut] = []
+    total_expected: float
+    total_actual: float
+
+
+class SimulationRequest(BaseModel):
+    amount: float
+    payment_date: date
+    mode: PrepaymentMode
+    fee: float = 0.0
+    alt_return_pct: float | None = None
+
+    @field_validator("amount")
+    @classmethod
+    def _positive_amount(cls, value: float) -> float:
+        if value <= 0:
+            raise ValueError("amount must be greater than zero")
+        return value
+
+
+class SimulationSideOut(BaseModel):
+    months: int
+    end_date: date | None = None
+    total_interest: float
+    total_paid: float
+    monthly_payment: float
+
+
+class SimulationOut(BaseModel):
+    before: SimulationSideOut
+    after: SimulationSideOut
+    amount: float
+    fee: float
+    mode: str
+    interest_saved: float
+    months_saved: int
+    payment_delta: float
+    net_saving: float
+    implied_annual_return: float | None = None
+    alternative_gain: float | None = None
+    worth_it: bool | None = None
+    balance_before: list[BalancePointOut] = []
+    balance_after: list[BalancePointOut] = []
+
+
+class MortgageNetWorthOut(BaseModel):
+    """Aggregate contribution of every mortgage to the Dashboard net-worth KPI."""
+
+    outstanding_debt: float
+    property_value: float
+    net_contribution: float
+    count: int
+

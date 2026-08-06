@@ -13,6 +13,7 @@ import { IS_DEMO } from '../demo/config'
 import {
   IconMenu, IconHome, IconWallet, IconReceipt, IconChartLine, IconFileText,
   IconTrendingUp, IconSettings, IconChevronDown, IconUser, IconLogout,
+  IconBuilding,
 } from './icons'
 
 const LS_COLLAPSED = 'finlytics_sidebar_collapsed'
@@ -219,6 +220,12 @@ export default function Layout() {
               </div>
             )}
           </div>
+
+          {/* Mortgage */}
+          <NavLink to="/mortgage" className={navLinkClass}>
+            <IconBuilding size={17} className="nav-icon" />
+            <span className="nav-label">{t.navMortgage}</span>
+          </NavLink>
 
           {/* Ajustes expandable section */}
           <div className="sidebar-section">

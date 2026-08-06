@@ -47,9 +47,9 @@ The `IMAGE_TAG` / `BUILD_DATE` build args are injected there and surfaced by
 
 ## Migrations
 
-Alembic migrations live in `alembic/versions/`. The current head is `0020_add_assistant_system_prompt.py`.
+Alembic migrations live in `alembic/versions/`. The current head is `0021_add_mortgages.py`.
 
-- Always create a new numbered migration (`0021_...`) for schema changes.
+- Always create a new numbered migration (`0022_...`) for schema changes.
 - Verify the head before writing one — this file goes stale. `down_revision` in the
   highest-numbered file is the source of truth, not this document.
 - The entrypoint runs `alembic upgrade head` automatically on container start.
@@ -172,6 +172,52 @@ All connector API tokens are encrypted at rest using Fernet (AES-128-CBC + HMAC-
 - Key: `FINLYTICS_ENCRYPTION_KEY` env var (must be a valid Fernet key).
 - Fail-closed: any encrypt/decrypt operation raises `EncryptionNotConfiguredError` → HTTP 503 when the key is absent or invalid.
 - Tokens NEVER appear in logs, API responses, or any non-encrypted DB column.
+
+---
+
+## Mortgage module
+
+The only **liability** in the app. Lives in `src/finlytics/mortgage/` and is deliberately
+independent from the investment plugin model.
+
+| File | Responsibility |
+|------|----------------|
+| `schedule.py` | Pure French-system amortization engine. No DB, no I/O — takes an immutable `MortgageSpec` and returns the full instalment table. |
+| `euribor.py` | Fetches the 12-month Euribor monthly average from the ECB Data Portal and caches it in `euribor_rates`. |
+| `simulator.py` | Builds two schedules (with/without a hypothetical prepayment) and reports the delta. Persists nothing. |
+| `service.py` | Bridges ORM models ↔ engine specs; derives the KPI, chart and reconciliation payloads. |
+
+### Rate model
+
+Fixed, variable and mixed mortgages all use the same structure — a list of
+`mortgage_rate_periods` tranches — so the engine has no per-type branching:
+
+- **fixed** → one `kind='fixed'` tranche
+- **variable** → one `kind='variable'` tranche
+- **mixed** → a `fixed` tranche followed by a `variable` one
+
+The instalment is recomputed when a tranche starts, when a variable tranche hits a
+review, when a bonus window opens or closes, and after a `reduce_payment` prepayment.
+A `reduce_term` prepayment deliberately keeps the instalment and shortens the loan.
+
+### Conventions and constraints
+
+- **Decimal everywhere.** A `float` accumulated over 360 instalments drifts the closing
+  balance by several euros. The final instalment absorbs the rounding residue so the
+  balance closes at exactly zero.
+- **Euribor source:** `https://data-api.ecb.europa.eu/service/data/FM/M.U2.EUR.RT.MM.EURIBOR1YD_.HSTA`
+  — public, no API key. Network failures degrade to the cached series.
+- **Projection honesty:** future variable instalments hold the last published index flat
+  and are flagged `projected=true` so the UI can render them as estimates.
+- **Review lag:** Spanish deeds usually apply the index published 2 months before the
+  review date. Configurable per tranche via `review_lag_months`.
+- **Optional linking:** `linked_account_id` / `linked_category_id` are nullable. Without
+  them the module is a pure calculator; with them `/reconciliation` compares the expected
+  instalment against real transactions.
+- **Net worth:** only mortgages with `include_in_net_worth = true` reach
+  `GET /api/mortgages/net-worth`, which the Dashboard adds to its KPI.
+- **Demo:** the demo scenario has no mortgage. `demo/handlers.ts` answers the two
+  Dashboard-facing endpoints with "none configured" so the catch-all never returns 501.
 
 ---
 

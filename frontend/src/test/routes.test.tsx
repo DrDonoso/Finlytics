@@ -32,6 +32,7 @@ import ConnectorsPage from '../pages/ConnectorsPage'
 import Dashboard from '../pages/Dashboard'
 import FinancesOverviewPage from '../pages/FinancesOverviewPage'
 import InvestmentsLandingPage from '../pages/InvestmentsLandingPage'
+import MortgagePage from '../pages/MortgagePage'
 import RulesPage from '../pages/RulesPage'
 import SettingsPage from '../pages/SettingsPage'
 import StatementsPage from '../pages/StatementsPage'
@@ -76,6 +77,20 @@ vi.mock('../api/client', () => {
     getStatementMonths: empty([]),
     getStatementReminder: empty({ year: null, month: null, missing_account_ids: [] }),
     getStatementOriginals: empty([]),
+    getMortgages: empty([]),
+    getMortgage: empty(null),
+    getMortgageOverview: empty(null),
+    getMortgageSchedule: empty({ mortgage_id: 0, granularity: 'year', rows: [], years: [], total_payment: 0, total_interest: 0, total_principal: 0 }),
+    getMortgageCharts: empty({ balance: [], composition: [] }),
+    getMortgageReconciliation: empty({ mortgage_id: 0, linked: false, account_id: null, category_id: null, rows: [], total_expected: 0, total_actual: 0 }),
+    getMortgageNetWorth: empty({ outstanding_debt: 0, property_value: 0, net_contribution: 0, count: 0 }),
+    getEuriborSeries: empty({ index_name: 'euribor_12m', points: [], latest: null, latest_period: null }),
+    createMortgage: vi.fn(),
+    updateMortgage: vi.fn(),
+    deleteMortgage: vi.fn(),
+    createMortgagePrepayment: vi.fn(),
+    deleteMortgagePrepayment: vi.fn(),
+    simulateMortgagePrepayment: vi.fn(),
     getAppVersion: empty({ version: '0.1.0', commit: null, built_at: null }),
     getNotifications: empty([]),
     getUnreadCount: empty({ count: 0 }),
@@ -141,6 +156,7 @@ const ROUTES: [string, React.ReactNode][] = [
   ['/analytics', <AnalyticsPage key="a" />],
   ['/statements', <StatementsPage key="s" />],
   ['/investments', <InvestmentsLandingPage key="i" />],
+  ['/mortgage', <MortgagePage key="m" />],
   ['/settings/accounts', <AccountsPage key="sa" />],
   ['/settings/tags', <SettingsPage key="st" />],
   ['/settings/categories', <CategoriesPage key="sc" />],

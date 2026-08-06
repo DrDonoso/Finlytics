@@ -342,6 +342,25 @@ const assistant = [
   }),
 ]
 
+// ─── Mortgage ─────────────────────────────────────────────────────────────────
+//
+// The demo scenario includes a fixed-rate mortgage, so these serve the same
+// payloads the API would. Writes stay unhandled: the demo is read-only.
+
+const mortgage = [
+  http.get('/api/mortgages', () => HttpResponse.json(store.mortgages())),
+  http.get('/api/mortgages/net-worth', () => HttpResponse.json(store.mortgageNetWorth())),
+  http.get('/api/mortgages/:id/overview', () => HttpResponse.json(store.mortgageOverview())),
+  http.get('/api/mortgages/:id/schedule', () => HttpResponse.json(store.mortgageSchedule())),
+  http.get('/api/mortgages/:id/charts', () => HttpResponse.json(store.mortgageCharts())),
+  http.get('/api/mortgages/:id/reconciliation', () => HttpResponse.json(store.mortgageReconciliation())),
+  http.post('/api/mortgages/:id/simulate', async ({ request }) => {
+    const body = await request.json() as Parameters<typeof store.simulateMortgagePrepayment>[0]
+    return HttpResponse.json(store.simulateMortgagePrepayment(body))
+  }),
+  http.get('/api/mortgages/:id', () => HttpResponse.json(store.mortgage())),
+]
+
 // ─── Misc ─────────────────────────────────────────────────────────────────────
 
 const misc = [
@@ -375,6 +394,7 @@ export const handlers = [
   ...investments,
   ...notifications,
   ...assistant,
+  ...mortgage,
   ...misc,
   unhandledApi,
 ]
