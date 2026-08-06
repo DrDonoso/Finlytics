@@ -4,6 +4,13 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260806.07] - 2026-08-06
+
+- [Release notes](https://github.com/nodejs/undici/releases)
+- [Commits](https://github.com/nodejs/undici/compare/v7.28.0...v7.29.0)
+- dependency-name: undici dependency-version: 7.29.0 dependency-type: indirect
+
+
 ## [20260806.06] - 2026-08-06
 
 - feat(mortgage): mark paid instalments in the amortization schedule (#57)
