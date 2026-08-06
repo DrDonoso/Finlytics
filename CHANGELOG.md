@@ -4,6 +4,16 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260806] - 2026-08-06
+
+- Decimal throughout. A float accumulated over 360 instalments drifts the closing balance by several euros; the final instalment absorbs the rounding residue so the balance lands on exactly zero.
+- The Euribor comes from the ECB Data Portal (12-month monthly average, the index Spanish mortgages actually reference). No API key, and network failures fall back to the cached series.
+- Future variable instalments hold the last published index flat and are flagged as projections rather than presented as fact.
+- The prepayment simulator builds two schedules and reports the delta, including the implied annual return, so an overpayment can be compared against investing the same money. It persists nothing until applied.
+- Linking a bank account or category is optional: with it the page reconciles expected against actual charges, without it the module is a calculator.
+- Net worth subtracts the debt and adds the property value, behind a per-mortgage toggle that leaves the home KPI untouched when disabled.
+
+
 ## [20260731.08] - 2026-07-31
 
 - docs: add demo screenshots and cut the configuration surface (#48)
