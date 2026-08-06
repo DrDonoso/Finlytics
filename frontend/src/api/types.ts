@@ -904,3 +904,231 @@ export interface AssistantUsage {
   usage_available: boolean
 }
 
+// ─── Mortgage ─────────────────────────────────────────────────────────────────
+
+export type MortgageRateType = 'fixed' | 'variable' | 'mixed'
+export type MortgageRateKind = 'fixed' | 'variable'
+export type PrepaymentMode = 'reduce_term' | 'reduce_payment'
+
+export interface MortgageRatePeriod {
+  id?: number
+  start_month: number
+  kind: MortgageRateKind
+  fixed_rate?: number | null
+  index_name?: string | null
+  spread?: number | null
+  review_months?: number | null
+  review_lag_months: number
+  floor_rate?: number | null
+  cap_rate?: number | null
+}
+
+export interface MortgageBonus {
+  id?: number
+  name: string
+  spread_reduction: number
+  annual_cost: number
+  active: boolean
+  start_date?: string | null
+  end_date?: string | null
+}
+
+export interface MortgagePrepayment {
+  id: number
+  payment_date: string
+  amount: number
+  mode: PrepaymentMode
+  fee: number
+  notes?: string | null
+}
+
+export interface MortgagePrepaymentInput {
+  payment_date: string
+  amount: number
+  mode: PrepaymentMode
+  fee?: number
+  notes?: string | null
+}
+
+export interface MortgageInput {
+  name: string
+  lender?: string | null
+  initial_principal: number
+  start_date: string
+  term_months: number
+  payment_day: number
+  rate_type: MortgageRateType
+  linked_account_id?: number | null
+  linked_category_id?: number | null
+  property_value?: number | null
+  property_value_date?: string | null
+  include_in_net_worth: boolean
+  notes?: string | null
+  rate_periods: MortgageRatePeriod[]
+  bonuses: MortgageBonus[]
+}
+
+export interface Mortgage extends MortgageInput {
+  id: number
+  rate_periods: MortgageRatePeriod[]
+  bonuses: MortgageBonus[]
+  prepayments: MortgagePrepayment[]
+}
+
+export interface MortgageSummary {
+  id: number
+  name: string
+  lender: string | null
+  rate_type: MortgageRateType
+  outstanding_balance: number
+  monthly_payment: number
+  progress_pct: number
+}
+
+export interface MortgageOverview {
+  id: number
+  name: string
+  lender: string | null
+  rate_type: MortgageRateType
+  initial_principal: number
+  outstanding_balance: number
+  amortized_principal: number
+  progress_pct: number
+  current_payment: number
+  current_rate: number
+  next_payment_date: string | null
+  interest_paid: number
+  interest_remaining: number
+  total_interest: number
+  total_cost: number
+  months_elapsed: number
+  months_remaining: number
+  end_date: string | null
+  original_end_date: string | null
+  months_saved: number
+  interest_saved: number
+  property_value: number | null
+  ltv_pct: number | null
+  total_prepaid: number
+  annual_bonus_cost: number
+  has_projection: boolean
+  include_in_net_worth: boolean
+  linked_account_id: number | null
+  linked_category_id: number | null
+}
+
+export interface MortgageScheduleRow {
+  period_index: number
+  date: string
+  opening_balance: number
+  payment: number
+  interest: number
+  principal: number
+  prepayment: number
+  fee: number
+  closing_balance: number
+  annual_rate: number
+  projected: boolean
+}
+
+export interface MortgageScheduleYear {
+  year: number
+  payment: number
+  interest: number
+  principal: number
+  prepayment: number
+  closing_balance: number
+  months: MortgageScheduleRow[]
+}
+
+export interface MortgageSchedule {
+  mortgage_id: number
+  granularity: 'month' | 'year'
+  rows: MortgageScheduleRow[]
+  years: MortgageScheduleYear[]
+  total_payment: number
+  total_interest: number
+  total_principal: number
+}
+
+export interface MortgageBalancePoint {
+  date: string
+  balance: number
+  projected: boolean
+}
+
+export interface MortgageCharts {
+  balance: MortgageBalancePoint[]
+  composition: MortgageScheduleYear[]
+}
+
+export interface EuriborPoint {
+  period: string
+  rate: number
+}
+
+export interface EuriborSeries {
+  index_name: string
+  points: EuriborPoint[]
+  latest: number | null
+  latest_period: string | null
+}
+
+export interface MortgageReconciliationRow {
+  period: string
+  expected: number
+  actual: number | null
+  deviation: number | null
+  deviation_pct: number | null
+  matched: boolean
+}
+
+export interface MortgageReconciliation {
+  mortgage_id: number
+  linked: boolean
+  account_id: number | null
+  category_id: number | null
+  rows: MortgageReconciliationRow[]
+  total_expected: number
+  total_actual: number
+}
+
+export interface MortgageSimulationRequest {
+  amount: number
+  payment_date: string
+  mode: PrepaymentMode
+  fee?: number
+  alt_return_pct?: number | null
+}
+
+export interface MortgageSimulationSide {
+  months: number
+  end_date: string | null
+  total_interest: number
+  total_paid: number
+  monthly_payment: number
+}
+
+export interface MortgageSimulation {
+  before: MortgageSimulationSide
+  after: MortgageSimulationSide
+  amount: number
+  fee: number
+  mode: PrepaymentMode
+  interest_saved: number
+  months_saved: number
+  payment_delta: number
+  net_saving: number
+  implied_annual_return: number | null
+  alternative_gain: number | null
+  worth_it: boolean | null
+  balance_before: MortgageBalancePoint[]
+  balance_after: MortgageBalancePoint[]
+}
+
+export interface MortgageNetWorth {
+  outstanding_debt: number
+  property_value: number
+  net_contribution: number
+  count: number
+}

@@ -30,6 +30,7 @@
   - [Import & rules](#-import--rules)
   - [Dashboards](#-dashboards)
   - [Investments](#-investments)
+  - [Mortgage](#-mortgage)
   - [Notifications](#-notifications)
   - [Talk to your finances](#-talk-to-your-finances)
   - [Management](#️-management)
@@ -86,6 +87,20 @@ Connectors are a plugin model, and there are two kinds of them:
 
 Both feed one **combined overview**: total value, invested, gain/loss, and allocation by provider and by asset class — plus a detail view per provider with its own charts and tables. Adding a third connector is a new plugin, not a new dashboard.
 
+### 🏡 Mortgage
+
+The counterweight to the investments side: the first **liability** the app models. Enter the loan terms once and Finlytics builds the whole amortization schedule.
+
+- **Fixed, variable and mixed** are all expressed as a list of rate tranches, so a mixed loan is simply a fixed tranche followed by a variable one — no special cases.
+- **The Euribor is fetched automatically** from the ECB Data Portal (the 12-month monthly average that Spanish mortgages are actually referenced to). Reviews recompute the instalment using the index published `n` months earlier, as your deed specifies.
+- **Prepayments**, either reducing the term or the instalment, with a **simulator that runs before you commit the money**: interest saved, months saved, the new instalment, and the implied annual return — compared against what the same cash would earn invested instead.
+- **Optional reconciliation.** Link a bank account or category and the page compares the theoretical instalment against what was really charged, month by month. Leave it unlinked and the module is a pure calculator.
+- **Net worth.** Outstanding debt is subtracted and the property value added, with a per-mortgage toggle to leave the home KPI exactly as it was.
+
+> **Every figure is computed in `Decimal`, never floats.** Accumulated over 360 instalments a float drifts the closing balance by several euros, and the last instalment absorbs the rounding residue so the balance lands on exactly zero.
+
+> **Projections say so.** A variable tranche's future instalments depend on an index nobody knows yet. Those months hold the last published Euribor flat and are flagged as estimates rather than presented as fact.
+
 ### 🔔 Notifications
 
 Detectors run in the background and raise reminders when something needs you — today a missing monthly statement or an overdue ESPP upload; adding another is one entry in a registry. They surface in the in-app bell (read/dismissed state stored server-side, so it follows you across devices) and, optionally, in **Telegram**: connect a bot from Settings → Connectors and the same reminders arrive there too.
@@ -131,6 +146,11 @@ Categories, tags and accounts are editable from Settings, along with the connect
 | <img src="docs/screenshots/indexa.png" alt="Indexa Capital portfolio detail"> | <img src="docs/screenshots/fidelity.png" alt="Fidelity ESPP portfolio detail"> |
 | Portfolio value, TWR / MWR / volatility, monthly returns table and allocation by instrument. | MSFT shares and lots, EUR cost basis, daily valuation and the invested-vs-value evolution chart. |
 
+| Mortgage | Prepayment simulator |
+| :--: | :--: |
+| <img src="docs/screenshots/mortgage.png" alt="Mortgage page: outstanding debt, LTV, balance curve and amortization schedule"> | <img src="docs/screenshots/mortgage-simulator.png" alt="Prepayment simulator comparing interest saved against investing the same money"> |
+| Outstanding debt, capital repaid, LTV, the balance curve and the instalment split that flips from interest to capital over the years. | What an overpayment would actually buy you — and whether investing that money instead would have bought more. |
+
 > 📌 **Footer note on every image above: this is demo data.** All the figures come from
 > [demo.finlytics.drdonoso.com](https://demo.finlytics.drdonoso.com) — a synthetic dataset
 > generated in the browser, with no backend and no database behind it. No real account,
@@ -171,6 +191,13 @@ Investments follow the same shape from a different source: a connector either
 holds an encrypted API token and caches the provider's answer, or ingests a
 statement and values the holdings from public market data. Both land in
 `/api/investments/combined-overview`, which is what the dashboards read.
+
+The mortgage module inverts that flow: nothing is ingested. The loan terms are
+the input and a pure amortization engine derives everything else — schedule,
+KPIs, charts and simulations — from them, with the Euribor as the only external
+dependency. It is the one place where the app computes figures rather than
+reading them back, which is why the engine is isolated from the database and
+covered by its own tests.
 
 ---
 

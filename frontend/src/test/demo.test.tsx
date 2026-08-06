@@ -28,6 +28,7 @@ import AppearancePage from '../pages/AppearancePage'
 import Dashboard from '../pages/Dashboard'
 import FinancesOverviewPage from '../pages/FinancesOverviewPage'
 import InvestmentsLandingPage from '../pages/InvestmentsLandingPage'
+import MortgagePage from '../pages/MortgagePage'
 import TransactionsPage from '../pages/TransactionsPage'
 
 vi.mock('../contexts/AuthContext', () => ({
@@ -69,6 +70,7 @@ const DEMO_ROUTES: [string, React.ReactNode][] = [
   ['/transactions', <TransactionsPage key="t" />],
   ['/analytics', <AnalyticsPage key="a" />],
   ['/investments', <InvestmentsLandingPage key="i" />],
+  ['/mortgage', <MortgagePage key="m" />],
   ['/settings/appearance', <AppearancePage key="sa" />],
   ['/settings/about', <AboutPage key="sab" />],
 ]

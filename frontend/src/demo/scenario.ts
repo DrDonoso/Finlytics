@@ -22,8 +22,34 @@ import type {
   FidelityLots, FidelityReminderResponse,
   InvestmentConnection, InvestmentHolding, InvestmentPortfolio,
   MonthlyReturnRow, ValuePoint,
+  Mortgage, MortgageCharts, MortgageNetWorth, MortgageOverview,
+  MortgageReconciliation, MortgageSchedule, MortgageScheduleRow,
+  MortgageScheduleYear, MortgageSummary,
 } from '../api/types'
+import { buildFixedSchedule, frenchPayment } from '../mortgage/calc'
 import { DEMO_MONTHS, DEMO_SEED } from './config'
+
+// ─── Mortgage terms ───────────────────────────────────────────────────────────
+//
+// A plain fixed-rate Spanish mortgage. The instalment is derived from the terms
+// rather than written down, so the recurring charge below and the amortization
+// schedule can never drift apart.
+
+const MORTGAGE_PRINCIPAL = 210_000
+const MORTGAGE_RATE_PCT = 2.9
+const MORTGAGE_TERM_MONTHS = 360
+const MORTGAGE_PAYMENT_DAY = 3
+/** Months before the current one that the loan was signed. */
+const MORTGAGE_STARTED_MONTHS_AGO = 59
+/** Months before the current one that the lump-sum overpayment landed. */
+const MORTGAGE_PREPAID_MONTHS_AGO = 26
+const MORTGAGE_PREPAYMENT = 12_000
+const MORTGAGE_PROPERTY_VALUE = 295_000
+const MORTGAGE_LENDER = 'Banco Vega'
+
+const MORTGAGE_PAYMENT = Math.round(
+  frenchPayment(MORTGAGE_PRINCIPAL, MORTGAGE_RATE_PCT, MORTGAGE_TERM_MONTHS) * 100,
+) / 100
 
 // ─── Seeded PRNG ──────────────────────────────────────────────────────────────
 
@@ -144,7 +170,7 @@ interface Recurring {
 
 const RECURRING: readonly Recurring[] = [
   { day: 25, description: 'Nómina mensual', merchant: 'Consultora Nexo', category: 'Income', account: ACCOUNT_MAIN, min: 2380, max: 2610 },
-  { day: 3, description: 'Alquiler vivienda', merchant: 'Administración Fincas Rosales', category: 'Housing', account: ACCOUNT_MAIN, min: -935, max: -935 },
+  { day: MORTGAGE_PAYMENT_DAY, description: 'Cuota hipoteca', merchant: MORTGAGE_LENDER, category: 'Housing', account: ACCOUNT_MAIN, min: -MORTGAGE_PAYMENT, max: -MORTGAGE_PAYMENT },
   { day: 8, description: 'Factura electricidad', merchant: 'Eléctrica Peninsular', category: 'Utilities', account: ACCOUNT_MAIN, min: -92, max: -46, tags: [TAG_POWER] },
   { day: 12, description: 'Factura agua', merchant: 'Aguas Municipales', category: 'Utilities', account: ACCOUNT_MAIN, min: -34, max: -18, tags: [TAG_WATER] },
   { day: 15, description: 'Factura gas', merchant: 'Distribuidora Gas Vega', category: 'Utilities', account: ACCOUNT_MAIN, min: -61, max: -22, tags: [TAG_GAS] },
@@ -751,6 +777,18 @@ export interface DemoScenario {
     lots: FidelityLots
     reminder: FidelityReminderResponse
   }
+  mortgage: DemoMortgage
+}
+
+/** Every mortgage payload the API would serve, precomputed for the demo. */
+export interface DemoMortgage {
+  detail: Mortgage
+  summary: MortgageSummary
+  overview: MortgageOverview
+  schedule: MortgageSchedule
+  charts: MortgageCharts
+  reconciliation: MortgageReconciliation
+  netWorth: MortgageNetWorth
 }
 
 /** Builds the whole dataset. `tx_count` is left at 0 here — the store derives it
@@ -794,6 +832,223 @@ export function buildScenario(today: Date = new Date()): DemoScenario {
       evolution: espp.evolution,
       lots: espp.lots,
       reminder: espp.reminder,
+    },
+    mortgage: buildMortgage(today, transactions, accounts, categories),
+  }
+}
+
+// ─── Mortgage ─────────────────────────────────────────────────────────────────
+
+/** ISO date `monthsAgo` months before `today`, on `day`. */
+function isoMonthsAgo(today: Date, monthsAgo: number, day: number): string {
+  const target = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - monthsAgo, 1))
+  const lastDay = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate()
+  const d = Math.min(day, lastDay)
+  return `${target.getUTCFullYear()}-${String(target.getUTCMonth() + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+}
+
+function round2(value: number): number {
+  return Math.round(value * 100) / 100
+}
+
+/** Roll instalments up per calendar year, optionally keeping the monthly detail. */
+function groupByYear(rows: MortgageScheduleRow[], includeMonths: boolean): MortgageScheduleYear[] {
+  const years = new Map<number, MortgageScheduleYear>()
+  for (const row of rows) {
+    const year = Number(row.date.slice(0, 4))
+    const bucket = years.get(year) ?? {
+      year, payment: 0, interest: 0, principal: 0, prepayment: 0, closing_balance: 0, months: [],
+    }
+    bucket.payment += row.payment
+    bucket.interest += row.interest
+    bucket.principal += row.principal
+    bucket.prepayment += row.prepayment
+    bucket.closing_balance = row.closing_balance
+    if (includeMonths) bucket.months.push(row)
+    years.set(year, bucket)
+  }
+  return [...years.values()]
+    .sort((a, b) => a.year - b.year)
+    .map(y => ({
+      ...y,
+      payment: round2(y.payment),
+      interest: round2(y.interest),
+      principal: round2(y.principal),
+      prepayment: round2(y.prepayment),
+      closing_balance: round2(y.closing_balance),
+    }))
+}
+
+/**
+ * Build every mortgage payload from the same schedule the backend would compute.
+ *
+ * The reconciliation table is derived from the generated transactions, so the
+ * "expected vs charged" comparison is genuine rather than a hardcoded match.
+ */
+function buildMortgage(
+  today: Date,
+  transactions: Transaction[],
+  accounts: Account[],
+  categories: Category[],
+): DemoMortgage {
+  const startDate = isoMonthsAgo(today, MORTGAGE_STARTED_MONTHS_AGO, MORTGAGE_PAYMENT_DAY)
+  const prepaymentDate = isoMonthsAgo(today, MORTGAGE_PREPAID_MONTHS_AGO, MORTGAGE_PAYMENT_DAY)
+  const todayIso = today.toISOString().slice(0, 10)
+
+  const account = accounts.find(a => a.name === ACCOUNT_MAIN)
+  const category = categories.find(c => c.name === 'Housing')
+
+  const rows = buildFixedSchedule({
+    principal: MORTGAGE_PRINCIPAL,
+    annualRatePct: MORTGAGE_RATE_PCT,
+    termMonths: MORTGAGE_TERM_MONTHS,
+    startDate,
+    paymentDay: MORTGAGE_PAYMENT_DAY,
+    prepayments: [{ date: prepaymentDate, amount: MORTGAGE_PREPAYMENT, mode: 'reduce_term' }],
+  })
+  const baseline = buildFixedSchedule({
+    principal: MORTGAGE_PRINCIPAL,
+    annualRatePct: MORTGAGE_RATE_PCT,
+    termMonths: MORTGAGE_TERM_MONTHS,
+    startDate,
+    paymentDay: MORTGAGE_PAYMENT_DAY,
+  })
+
+  const past = rows.filter(r => r.date <= todayIso)
+  const upcoming = rows.find(r => r.date > todayIso) ?? rows[rows.length - 1]
+  const outstanding = past.length > 0 ? past[past.length - 1].closing_balance : MORTGAGE_PRINCIPAL
+  const amortized = round2(MORTGAGE_PRINCIPAL - outstanding)
+
+  const totalInterest = round2(rows.reduce((s, r) => s + r.interest, 0))
+  const interestPaid = round2(past.reduce((s, r) => s + r.interest, 0))
+  const totalPaid = round2(rows.reduce((s, r) => s + r.payment + r.prepayment + r.fee, 0))
+  const baselineInterest = round2(baseline.reduce((s, r) => s + r.interest, 0))
+
+  const detail: Mortgage = {
+    id: 1,
+    name: 'Vivienda habitual',
+    lender: MORTGAGE_LENDER,
+    initial_principal: MORTGAGE_PRINCIPAL,
+    start_date: startDate,
+    term_months: MORTGAGE_TERM_MONTHS,
+    payment_day: MORTGAGE_PAYMENT_DAY,
+    rate_type: 'fixed',
+    linked_account_id: account?.id ?? null,
+    linked_category_id: category?.id ?? null,
+    property_value: MORTGAGE_PROPERTY_VALUE,
+    property_value_date: null,
+    include_in_net_worth: true,
+    notes: null,
+    rate_periods: [{
+      id: 1, start_month: 0, kind: 'fixed', fixed_rate: MORTGAGE_RATE_PCT,
+      index_name: null, spread: null, review_months: null, review_lag_months: 2,
+      floor_rate: null, cap_rate: null,
+    }],
+    bonuses: [],
+    prepayments: [{
+      id: 1, payment_date: prepaymentDate, amount: MORTGAGE_PREPAYMENT,
+      mode: 'reduce_term', fee: 0, notes: null,
+    }],
+  }
+
+  const overview: MortgageOverview = {
+    id: 1,
+    name: detail.name,
+    lender: detail.lender ?? null,
+    rate_type: 'fixed',
+    initial_principal: MORTGAGE_PRINCIPAL,
+    outstanding_balance: outstanding,
+    amortized_principal: amortized,
+    progress_pct: round2((amortized / MORTGAGE_PRINCIPAL) * 100),
+    current_payment: upcoming?.payment ?? MORTGAGE_PAYMENT,
+    current_rate: MORTGAGE_RATE_PCT,
+    next_payment_date: rows.find(r => r.date > todayIso)?.date ?? null,
+    interest_paid: interestPaid,
+    interest_remaining: round2(totalInterest - interestPaid),
+    total_interest: totalInterest,
+    total_cost: totalPaid,
+    months_elapsed: past.length,
+    months_remaining: rows.length - past.length,
+    end_date: rows[rows.length - 1]?.date ?? null,
+    original_end_date: baseline[baseline.length - 1]?.date ?? null,
+    months_saved: Math.max(baseline.length - rows.length, 0),
+    interest_saved: round2(baselineInterest - totalInterest),
+    property_value: MORTGAGE_PROPERTY_VALUE,
+    ltv_pct: round2((outstanding / MORTGAGE_PROPERTY_VALUE) * 100),
+    total_prepaid: MORTGAGE_PREPAYMENT,
+    annual_bonus_cost: 0,
+    has_projection: false,
+    include_in_net_worth: true,
+    linked_account_id: detail.linked_account_id ?? null,
+    linked_category_id: detail.linked_category_id ?? null,
+  }
+
+  // Expected vs charged over the same 24-month window the API uses by default.
+  const window = past.slice(-24)
+  const chargedByMonth = new Map<string, number>()
+  for (const tx of transactions) {
+    if (tx.account !== ACCOUNT_MAIN) continue
+    if (tx.category !== 'Housing') continue
+    const key = tx.transaction_date.slice(0, 7)
+    chargedByMonth.set(key, (chargedByMonth.get(key) ?? 0) + Math.abs(tx.amount))
+  }
+
+  const reconciliationRows = window.map(row => {
+    const expected = round2(row.payment + row.prepayment)
+    const actual = chargedByMonth.get(row.date.slice(0, 7)) ?? null
+    if (actual === null) {
+      return { period: row.date, expected, actual: null, deviation: null, deviation_pct: null, matched: false }
+    }
+    const deviation = round2(actual - expected)
+    return {
+      period: row.date,
+      expected,
+      actual: round2(actual),
+      deviation,
+      deviation_pct: expected > 0 ? round2((deviation / expected) * 100) : null,
+      matched: true,
+    }
+  })
+
+  return {
+    detail,
+    summary: {
+      id: 1,
+      name: detail.name,
+      lender: detail.lender ?? null,
+      rate_type: 'fixed',
+      outstanding_balance: outstanding,
+      monthly_payment: overview.current_payment,
+      progress_pct: overview.progress_pct,
+    },
+    overview,
+    schedule: {
+      mortgage_id: 1,
+      granularity: 'year',
+      rows: [],
+      years: groupByYear(rows, true),
+      total_payment: totalPaid,
+      total_interest: totalInterest,
+      total_principal: round2(rows.reduce((s, r) => s + r.principal, 0)),
+    },
+    charts: {
+      balance: rows.map(r => ({ date: r.date, balance: r.closing_balance, projected: false })),
+      composition: groupByYear(rows, false),
+    },
+    reconciliation: {
+      mortgage_id: 1,
+      linked: true,
+      account_id: detail.linked_account_id ?? null,
+      category_id: detail.linked_category_id ?? null,
+      rows: reconciliationRows,
+      total_expected: round2(reconciliationRows.reduce((s, r) => s + r.expected, 0)),
+      total_actual: round2(reconciliationRows.reduce((s, r) => s + (r.actual ?? 0), 0)),
+    },
+    netWorth: {
+      outstanding_debt: outstanding,
+      property_value: MORTGAGE_PROPERTY_VALUE,
+      net_contribution: round2(MORTGAGE_PROPERTY_VALUE - outstanding),
+      count: 1,
     },
   }
 }

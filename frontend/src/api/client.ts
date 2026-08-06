@@ -16,6 +16,9 @@ import type {
   AssistantConversation, AssistantConversationDetail, AssistantStatus,
   AssistantStreamEvent, AssistantSuggestions,
   AssistantSettings, AssistantSettingsPayload, AssistantUsage,
+  Mortgage, MortgageInput, MortgageSummary, MortgageOverview, MortgageSchedule,
+  MortgageCharts, MortgageReconciliation, MortgagePrepayment, MortgagePrepaymentInput,
+  MortgageSimulation, MortgageSimulationRequest, MortgageNetWorth, EuriborSeries,
 } from './types'
 import {
   mockGetAccounts, mockGetCategories, mockGetTags, mockGetTransactions,
@@ -829,3 +832,114 @@ export async function streamAssistantMessage(
   }
 }
 
+// ─── Mortgage ─────────────────────────────────────────────────────────────────
+
+/** GET /api/mortgages — list with live KPIs. */
+export async function getMortgages(): Promise<MortgageSummary[]> {
+  return apiFetch<MortgageSummary[]>(buildUrl('/api/mortgages'))
+}
+
+/** GET /api/mortgages/{id} — full configuration (tranches, bonuses, prepayments). */
+export async function getMortgage(id: number): Promise<Mortgage> {
+  return apiFetch<Mortgage>(buildUrl(`/api/mortgages/${id}`))
+}
+
+/** POST /api/mortgages — create a mortgage. */
+export async function createMortgage(body: MortgageInput): Promise<Mortgage> {
+  return apiFetch<Mortgage>('/api/mortgages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+/** PUT /api/mortgages/{id} — replace the configuration. */
+export async function updateMortgage(id: number, body: MortgageInput): Promise<Mortgage> {
+  return apiFetch<Mortgage>(`/api/mortgages/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+/** DELETE /api/mortgages/{id} — remove the mortgage and every child row. */
+export async function deleteMortgage(id: number): Promise<void> {
+  const res = await fetch(`/api/mortgages/${id}`, { method: 'DELETE', credentials: 'same-origin' })
+  if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`)
+}
+
+/** GET /api/mortgages/{id}/overview — KPI payload. */
+export async function getMortgageOverview(id: number): Promise<MortgageOverview> {
+  return apiFetch<MortgageOverview>(buildUrl(`/api/mortgages/${id}/overview`))
+}
+
+/** GET /api/mortgages/{id}/schedule — amortization table. */
+export async function getMortgageSchedule(
+  id: number,
+  granularity: 'month' | 'year' = 'year',
+): Promise<MortgageSchedule> {
+  return apiFetch<MortgageSchedule>(buildUrl(`/api/mortgages/${id}/schedule`, { granularity }))
+}
+
+/** GET /api/mortgages/{id}/charts — balance curve + yearly principal/interest split. */
+export async function getMortgageCharts(id: number): Promise<MortgageCharts> {
+  return apiFetch<MortgageCharts>(buildUrl(`/api/mortgages/${id}/charts`))
+}
+
+/** GET /api/mortgages/{id}/reconciliation — expected vs actually charged. */
+export async function getMortgageReconciliation(
+  id: number,
+  months = 24,
+): Promise<MortgageReconciliation> {
+  return apiFetch<MortgageReconciliation>(
+    buildUrl(`/api/mortgages/${id}/reconciliation`, { months }),
+  )
+}
+
+/** POST /api/mortgages/{id}/prepayments — register an overpayment. */
+export async function createMortgagePrepayment(
+  id: number,
+  body: MortgagePrepaymentInput,
+): Promise<MortgagePrepayment> {
+  return apiFetch<MortgagePrepayment>(`/api/mortgages/${id}/prepayments`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+/** DELETE /api/mortgages/{id}/prepayments/{prepaymentId}. */
+export async function deleteMortgagePrepayment(id: number, prepaymentId: number): Promise<void> {
+  const res = await fetch(`/api/mortgages/${id}/prepayments/${prepaymentId}`, {
+    method: 'DELETE',
+    credentials: 'same-origin',
+  })
+  if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`)
+}
+
+/** POST /api/mortgages/{id}/simulate — preview a prepayment; persists nothing. */
+export async function simulateMortgagePrepayment(
+  id: number,
+  body: MortgageSimulationRequest,
+): Promise<MortgageSimulation> {
+  return apiFetch<MortgageSimulation>(`/api/mortgages/${id}/simulate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+/** GET /api/mortgages/euribor — cached index series for the chart. */
+export async function getEuriborSeries(): Promise<EuriborSeries> {
+  return apiFetch<EuriborSeries>(buildUrl('/api/mortgages/euribor'))
+}
+
+/** GET /api/mortgages/net-worth — mortgage contribution to the net-worth KPI.
+ *  Degrades to zeros so the Dashboard never breaks when the module is unused. */
+export async function getMortgageNetWorth(): Promise<MortgageNetWorth> {
+  try {
+    return await apiFetch<MortgageNetWorth>(buildUrl('/api/mortgages/net-worth'))
+  } catch {
+    return { outstanding_debt: 0, property_value: 0, net_contribution: 0, count: 0 }
+  }
+}

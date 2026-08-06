@@ -14,6 +14,7 @@ import AccountsPage from './pages/AccountsPage'
 import LoginPage from './pages/LoginPage'
 import SetupPage from './pages/SetupPage'
 import InvestmentsLandingPage from './pages/InvestmentsLandingPage'
+import MortgagePage from './pages/MortgagePage'
 import FinancesOverviewPage from './pages/FinancesOverviewPage'
 import PluginViewWrapper from './investments/PluginViewWrapper'
 import ConnectorsPage from './pages/ConnectorsPage'
@@ -41,6 +42,7 @@ function DemoRoutes() {
           <Route index element={<InvestmentsLandingPage />} />
           <Route path=":pluginId" element={<PluginViewWrapper />} />
         </Route>
+        <Route path="mortgage" element={<MortgagePage />} />
         <Route path="settings" element={<SettingsLayout />}>
           <Route index element={<Navigate to="appearance" replace />} />
           <Route path="appearance" element={<AppearancePage />} />
@@ -66,6 +68,7 @@ function FullRoutes() {
           <Route path=":pluginId" element={<PluginViewWrapper />} />
         </Route>
         <Route path="statements" element={<StatementsPage />} />
+        <Route path="mortgage" element={<MortgagePage />} />
         <Route path="rules" element={<Navigate to="/settings/rules" replace />} />
         <Route path="settings" element={<SettingsLayout />}>
           <Route index element={<Navigate to="tags" replace />} />

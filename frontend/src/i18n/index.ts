@@ -464,6 +464,7 @@ export interface Dict {
   /** Desglose del patrimonio en la KPI destacada: cuentas vs inversiones. */
   dashboardNetWorthAccounts: string
   dashboardNetWorthInvestments: string
+  dashboardNetWorthMortgage: string
   /** Se muestra en el desglose cuando el valor de inversiones no se ha podido leer. */
   dashboardNetWorthUnavailable: string
   /** Aviso cuando el patrimonio excluye las inversiones por un fallo de lectura. */
@@ -840,6 +841,144 @@ export interface Dict {
   assistantBudgetNone: string
   assistantBudgetNote: string
   settingsSubAssistant: string
+  // ── Mortgage ──────────────────────────────────────────────────────────────
+  navMortgage: string
+  mortgageTitle: string
+  mortgageEmptyText: string
+  mortgageAddBtn: string
+  mortgageEditBtn: string
+  mortgageDeleteBtn: string
+  mortgageDeleteConfirm: string
+  mortgageProjectionNote: string
+  // KPIs
+  mortgageKpiOutstanding: string
+  mortgageKpiOutstandingInfo: string
+  mortgageKpiAmortized: string
+  mortgageKpiPayment: string
+  mortgageKpiInterestPaid: string
+  mortgageKpiInterestRemaining: string
+  mortgageKpiEndDate: string
+  mortgageKpiLtv: string
+  mortgageKpiLtvInfo: string
+  mortgageKpiTotalInterest: string
+  mortgageKpiSavedByPrepayments: string
+  mortgageMonthsShort: string
+  mortgageRemainingSuffix: string
+  // Rate types
+  mortgageRateFixed: string
+  mortgageRateVariable: string
+  mortgageRateMixed: string
+  // Charts
+  mortgageChartBalance: string
+  mortgageChartBalanceInfo: string
+  mortgageChartComposition: string
+  mortgageChartCompositionInfo: string
+  mortgageChartEuribor: string
+  mortgageSeriesBalance: string
+  mortgageSeriesPrincipal: string
+  mortgageSeriesInterest: string
+  mortgageSeriesProjected: string
+  // Schedule table
+  mortgageScheduleTitle: string
+  mortgageColYear: string
+  mortgageColDate: string
+  mortgageColPayment: string
+  mortgageColInterest: string
+  mortgageColPrincipal: string
+  mortgageColPrepayment: string
+  mortgageColBalance: string
+  mortgageColRate: string
+  mortgageScheduleTotal: string
+  // Prepayments
+  mortgagePrepaymentsTitle: string
+  mortgagePrepaymentsEmpty: string
+  mortgagePrepaymentAdd: string
+  mortgagePrepaymentDelete: string
+  mortgagePrepaymentDeleteConfirm: string
+  mortgageModeReduceTerm: string
+  mortgageModeReducePayment: string
+  mortgageColMode: string
+  mortgageColFee: string
+  // Simulator
+  mortgageSimulatorTitle: string
+  mortgageSimulatorIntro: string
+  mortgageSimAmount: string
+  mortgageSimDate: string
+  mortgageSimMode: string
+  mortgageSimFee: string
+  mortgageSimAltReturn: string
+  mortgageSimAltReturnInfo: string
+  mortgageSimRun: string
+  mortgageSimApply: string
+  mortgageSimApplied: string
+  mortgageSimBefore: string
+  mortgageSimAfter: string
+  mortgageSimInterestSaved: string
+  mortgageSimMonthsSaved: string
+  mortgageSimNewPayment: string
+  mortgageSimNewEnd: string
+  mortgageSimImpliedReturn: string
+  mortgageSimImpliedReturnInfo: string
+  mortgageSimAlternative: string
+  mortgageSimWorthIt: string
+  mortgageSimNotWorthIt: string
+  mortgageSimNetSaving: string
+  // Reconciliation
+  mortgageReconTitle: string
+  mortgageReconIntro: string
+  mortgageReconNotLinked: string
+  mortgageReconColPeriod: string
+  mortgageReconColExpected: string
+  mortgageReconColActual: string
+  mortgageReconColDeviation: string
+  mortgageReconMissing: string
+  // Form wizard
+  mortgageFormCreateTitle: string
+  mortgageFormEditTitle: string
+  mortgageFormStepLoan: string
+  mortgageFormStepRate: string
+  mortgageFormStepLink: string
+  mortgageFormName: string
+  mortgageFormLender: string
+  mortgageFormPrincipal: string
+  mortgageFormStartDate: string
+  mortgageFormTermYears: string
+  mortgageFormPaymentDay: string
+  mortgageFormRateType: string
+  mortgageFormTin: string
+  mortgageFormSpread: string
+  mortgageFormIndex: string
+  mortgageFormReviewMonths: string
+  mortgageFormReviewLag: string
+  mortgageFormReviewLagInfo: string
+  mortgageFormFloor: string
+  mortgageFormCap: string
+  mortgageFormFixedYears: string
+  mortgageFormBonuses: string
+  mortgageFormBonusesInfo: string
+  mortgageFormBonusName: string
+  mortgageFormBonusReduction: string
+  mortgageFormBonusCost: string
+  mortgageFormBonusAdd: string
+  mortgageFormLinkAccount: string
+  mortgageFormLinkCategory: string
+  mortgageFormLinkInfo: string
+  mortgageFormPropertyValue: string
+  mortgageFormIncludeNetWorth: string
+  mortgageFormIncludeNetWorthInfo: string
+  mortgageFormNotes: string
+  mortgageFormNone: string
+  mortgageFormPreview: string
+  mortgageFormPreviewPayment: string
+  mortgageFormPreviewTotalInterest: string
+  mortgageFormBack: string
+  mortgageFormNext: string
+  mortgageFormSave: string
+  mortgageFormCancel: string
+  // Dashboard card
+  mortgageCardTitle: string
+  mortgageCardViewDetail: string
+  mortgageKpiNetWorthInfo: string
 }
 
 const ES_LABELS: Record<string, string> = {

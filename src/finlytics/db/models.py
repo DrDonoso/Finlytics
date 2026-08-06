@@ -15,6 +15,11 @@ price_history               – daily EOD close cache for portfolio valuation
 investment_portfolio_cache  – per-connection DB cache for live portfolio data (24h freshness)
 assistant_conversations     – chat threads with the finance assistant (per user)
 assistant_messages          – user/assistant turns inside a conversation
+mortgages                   – mortgage loan contract (fixed / variable / mixed)
+mortgage_rate_periods       – interest-rate tranches; models all three rate types uniformly
+mortgage_bonuses            – linked-product discounts that reduce the effective spread
+mortgage_prepayments        – lump-sum overpayments (reduce term or reduce payment)
+euribor_rates               – monthly Euribor index series (ECB Data Portal)
 """
 
 from __future__ import annotations
@@ -790,3 +795,237 @@ class AssistantMessage(Base):
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"<AssistantMessage id={self.id} conv={self.conversation_id} role={self.role!r}>"
+
+
+# ── Mortgage ─────────────────────────────────────────────────────────────────
+
+class Mortgage(Base):
+    """A mortgage loan contract.
+
+    The contract row holds only what never changes over the life of the loan.
+    Interest conditions live in ``mortgage_rate_periods`` so that fixed,
+    variable and mixed mortgages are all expressed with the same structure:
+
+        fixed     → 1 period  kind='fixed'
+        variable  → 1 period  kind='variable'
+        mixed     → 1 period  kind='fixed'  +  1 period  kind='variable'
+
+    ``linked_account_id`` / ``linked_category_id`` are OPTIONAL.  When set, the
+    reconciliation endpoint compares the theoretical schedule against the real
+    transactions charged in that account/category.  When NULL the mortgage
+    behaves as a pure amortization calculator.
+
+    ``include_in_net_worth`` gates whether the outstanding debt and the
+    property value participate in the Dashboard net-worth KPI.
+    """
+
+    __tablename__ = "mortgages"
+    __table_args__ = (
+        Index("ix_mortgages_user_id", "user_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    lender: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    initial_principal: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
+    start_date: Mapped[date] = mapped_column(Date, nullable=False)
+    term_months: Mapped[int] = mapped_column(Integer, nullable=False)
+    payment_day: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
+    # 'fixed' | 'variable' | 'mixed'
+    rate_type: Mapped[str] = mapped_column(String(10), nullable=False)
+    # 'french' is the only system supported in v1
+    amortization_system: Mapped[str] = mapped_column(
+        String(20), nullable=False, server_default="french"
+    )
+    linked_account_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("accounts.id", ondelete="SET NULL"), nullable=True
+    )
+    linked_category_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("categories.id", ondelete="SET NULL"), nullable=True
+    )
+    property_value: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    property_value_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    include_in_net_worth: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("true")
+    )
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    rate_periods: Mapped[list["MortgageRatePeriod"]] = relationship(
+        back_populates="mortgage",
+        cascade="all, delete-orphan",
+        order_by="MortgageRatePeriod.start_month",
+    )
+    bonuses: Mapped[list["MortgageBonus"]] = relationship(
+        back_populates="mortgage", cascade="all, delete-orphan"
+    )
+    prepayments: Mapped[list["MortgagePrepayment"]] = relationship(
+        back_populates="mortgage",
+        cascade="all, delete-orphan",
+        order_by="MortgagePrepayment.payment_date",
+    )
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return (
+            f"<Mortgage id={self.id} name={self.name!r} "
+            f"principal={self.initial_principal} type={self.rate_type!r}>"
+        )
+
+
+class MortgageRatePeriod(Base):
+    """One interest-rate tranche of a mortgage.
+
+    ``start_month`` is a 0-based offset from the first instalment, so tranches
+    are independent of calendar dates and survive a change of ``start_date``.
+
+    For ``kind='variable'`` the applied annual rate at each review is:
+
+        rate = euribor(review_date − review_lag_months) + spread − Σ active bonuses
+
+    clamped to [floor_rate, cap_rate] when those are set.  ``review_lag_months``
+    defaults to 2 because Spanish deeds typically apply the index published two
+    months before the review date, but it varies by contract.
+    """
+
+    __tablename__ = "mortgage_rate_periods"
+    __table_args__ = (
+        Index("ix_mortgage_rate_periods_mortgage_id", "mortgage_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    mortgage_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("mortgages.id", ondelete="CASCADE"), nullable=False
+    )
+    start_month: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    # 'fixed' | 'variable'
+    kind: Mapped[str] = mapped_column(String(10), nullable=False)
+    # Annual nominal rate (TIN) as a percentage, e.g. 3.25 = 3.25%
+    fixed_rate: Mapped[Decimal | None] = mapped_column(Numeric(8, 5), nullable=True)
+    index_name: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    spread: Mapped[Decimal | None] = mapped_column(Numeric(8, 5), nullable=True)
+    review_months: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    review_lag_months: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default="2"
+    )
+    floor_rate: Mapped[Decimal | None] = mapped_column(Numeric(8, 5), nullable=True)
+    cap_rate: Mapped[Decimal | None] = mapped_column(Numeric(8, 5), nullable=True)
+
+    mortgage: Mapped["Mortgage"] = relationship(back_populates="rate_periods")
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return (
+            f"<MortgageRatePeriod id={self.id} mortgage={self.mortgage_id} "
+            f"start_month={self.start_month} kind={self.kind!r}>"
+        )
+
+
+class MortgageBonus(Base):
+    """A linked product (home/life insurance, payroll…) that discounts the rate.
+
+    ``spread_reduction`` is subtracted from the applied annual rate while the
+    bonus is active.  ``annual_cost`` records what the product actually costs,
+    so the UI can show whether the discount is worth it.
+    """
+
+    __tablename__ = "mortgage_bonuses"
+    __table_args__ = (
+        Index("ix_mortgage_bonuses_mortgage_id", "mortgage_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    mortgage_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("mortgages.id", ondelete="CASCADE"), nullable=False
+    )
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    spread_reduction: Mapped[Decimal] = mapped_column(
+        Numeric(8, 5), nullable=False, server_default="0"
+    )
+    annual_cost: Mapped[Decimal] = mapped_column(
+        Numeric(18, 2), nullable=False, server_default="0"
+    )
+    active: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("true")
+    )
+    start_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+
+    mortgage: Mapped["Mortgage"] = relationship(back_populates="bonuses")
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return (
+            f"<MortgageBonus id={self.id} name={self.name!r} "
+            f"reduction={self.spread_reduction}>"
+        )
+
+
+class MortgagePrepayment(Base):
+    """A lump-sum overpayment applied on top of a scheduled instalment.
+
+    mode='reduce_term'    → instalment unchanged, remaining term shortens
+    mode='reduce_payment' → term unchanged, instalment is recomputed
+    """
+
+    __tablename__ = "mortgage_prepayments"
+    __table_args__ = (
+        Index("ix_mortgage_prepayments_mortgage_date", "mortgage_id", "payment_date"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    mortgage_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("mortgages.id", ondelete="CASCADE"), nullable=False
+    )
+    payment_date: Mapped[date] = mapped_column(Date, nullable=False)
+    amount: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
+    # 'reduce_term' | 'reduce_payment'
+    mode: Mapped[str] = mapped_column(String(20), nullable=False)
+    fee: Mapped[Decimal] = mapped_column(
+        Numeric(18, 2), nullable=False, server_default="0"
+    )
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    mortgage: Mapped["Mortgage"] = relationship(back_populates="prepayments")
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return (
+            f"<MortgagePrepayment id={self.id} date={self.payment_date} "
+            f"amount={self.amount} mode={self.mode!r}>"
+        )
+
+
+class EuriborRate(Base):
+    """Monthly average of a reference index, sourced from the ECB Data Portal.
+
+    ``period`` is the first day of the month the average belongs to.
+    UNIQUE(index_name, period) makes the backfill/top-up idempotent via
+    INSERT ... ON CONFLICT, mirroring ``price_history``.
+    """
+
+    __tablename__ = "euribor_rates"
+    __table_args__ = (
+        UniqueConstraint("index_name", "period", name="uq_euribor_rates_index_period"),
+        Index("ix_euribor_rates_index_period", "index_name", "period"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    index_name: Mapped[str] = mapped_column(String(20), nullable=False)
+    period: Mapped[date] = mapped_column(Date, nullable=False)
+    # Annual rate as a percentage, e.g. 2.855 = 2.855%
+    rate: Mapped[Decimal] = mapped_column(Numeric(8, 5), nullable=False)
+    source: Mapped[str] = mapped_column(String(20), nullable=False, server_default="ecb")
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return (
+            f"<EuriborRate index={self.index_name!r} period={self.period} "
+            f"rate={self.rate}>"
+        )

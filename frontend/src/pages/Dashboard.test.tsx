@@ -24,6 +24,7 @@ const getOverviewMonths = vi.fn()
 const getByAccount = vi.fn()
 const getCombinedOverview = vi.fn()
 const getStatementReminder = vi.fn()
+const getMortgageNetWorth = vi.fn()
 
 vi.mock('../api/client', () => ({
   getAccounts: (...a: unknown[]) => getAccounts(...a),
@@ -32,10 +33,16 @@ vi.mock('../api/client', () => ({
   getByAccount: (...a: unknown[]) => getByAccount(...a),
   getCombinedOverview: (...a: unknown[]) => getCombinedOverview(...a),
   getStatementReminder: (...a: unknown[]) => getStatementReminder(...a),
+  getMortgageNetWorth: (...a: unknown[]) => getMortgageNetWorth(...a),
 }))
 
 // The investments card has its own load; stub it out here.
 vi.mock('../components/InvestmentSnapshotCard', () => ({
+  default: () => null,
+}))
+
+// Same for the mortgage card: it runs its own queries and is covered elsewhere.
+vi.mock('../components/MortgageSnapshotCard', () => ({
   default: () => null,
 }))
 
@@ -103,6 +110,10 @@ beforeEach(() => {
   getOverviewMonths.mockResolvedValue({ months: ['2026-05', '2026-06'], latest: '2026-06' })
   getCombinedOverview.mockResolvedValue(COMBINED)
   getStatementReminder.mockResolvedValue({ year: null, month: null, missing_account_ids: [] })
+  // No mortgage configured: the KPI must stay exactly as it was before the module.
+  getMortgageNetWorth.mockResolvedValue({
+    outstanding_debt: 0, property_value: 0, net_contribution: 0, count: 0,
+  })
 })
 
 // ── Happy path ────────────────────────────────────────────────────────────────

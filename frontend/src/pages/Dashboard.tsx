@@ -3,11 +3,12 @@ import type { MouseEvent, ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useNavigate } from 'react-router'
 import {
-  useAccounts, useByAccount, useCombinedOverview,
+  useAccounts, useByAccount, useCombinedOverview, useMortgageNetWorth,
   useOverview, useOverviewMonths, useStatementReminder,
 } from '../api/queries'
 import { errorMessage } from '../api/errors'
 import InvestmentSnapshotCard from '../components/InvestmentSnapshotCard'
+import MortgageSnapshotCard from '../components/MortgageSnapshotCard'
 import { useT } from '../i18n'
 import type { Lang } from '../i18n'
 import { useNotifications } from '../contexts/NotificationsContext'
@@ -179,6 +180,7 @@ export default function Dashboard() {
   const byAccountQuery = useByAccount()
   const monthsQuery = useOverviewMonths()
   const reminderQuery = useStatementReminder()
+  const mortgageQuery = useMortgageNetWorth()
 
   const accounts = accountsQuery.data ?? EMPTY
   const byAccount = byAccountQuery.data ?? EMPTY
@@ -228,7 +230,13 @@ export default function Dashboard() {
   const investmentsFailed = Boolean(investmentsQuery.error)
   const accountsPending = byAccountQuery.isPending || Boolean(byAccountQuery.error)
   const netWorthPending = accountsPending || investmentsQuery.isPending
-  const totalNetWorth = accountNetTotal + (investmentsFailed ? 0 : investmentsValue)
+  // Mortgages only contribute when the user left them included; the endpoint
+  // already filters, and it degrades to zeros so a failure never blanks the KPI.
+  const mortgageNetWorth = mortgageQuery.data
+  const mortgageContribution = mortgageNetWorth?.net_contribution ?? 0
+  const hasMortgage = (mortgageNetWorth?.count ?? 0) > 0
+  const totalNetWorth =
+    accountNetTotal + (investmentsFailed ? 0 : investmentsValue) + mortgageContribution
   const missingStatementAccountIds = statementReminder?.year != null && statementReminder.month != null
     ? new Set(statementReminder.missing_account_ids)
     : new Set<number>()
@@ -257,6 +265,12 @@ export default function Dashboard() {
                   ? <span className="dashboard-kpi-breakdown__missing">{t.dashboardNetWorthUnavailable}</span>
                   : formatEur(investmentsValue)}
               </span>
+              {hasMortgage && (
+                <span>
+                  <span className="dashboard-kpi-breakdown__label">{t.dashboardNetWorthMortgage}</span>
+                  {formatEur(mortgageContribution)}
+                </span>
+              )}
             </div>
           )}
           {!netWorthPending && investmentsFailed && (
@@ -372,6 +386,8 @@ export default function Dashboard() {
       </div>
 
       <InvestmentSnapshotCard />
+
+      <MortgageSnapshotCard />
 
       {(() => {
         const activeEspp = notifications.find(n => n.source === 'espp')

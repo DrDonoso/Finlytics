@@ -21,9 +21,11 @@ import type {
   Account, AccountSummary, CashflowSummary, Category, CategorySummary,
   CombinedOverview, DaySummary, FidelityEvolution, FidelityKpis, FidelityLots,
   FidelityReminderResponse, InvestmentConnection, InvestmentPortfolio,
-  MerchantSummary, MonthSummary, Overview, SummaryMonths,
+  MerchantSummary, MonthSummary, MortgageSimulation, Overview, SummaryMonths,
   Tag, Transaction, TransactionPage, TransactionPatch,
 } from '../api/types'
+import type { FixedSchedulePrepayment } from '../mortgage/calc'
+import { buildFixedSchedule } from '../mortgage/calc'
 import { buildScenario } from './scenario'
 
 const scenario = buildScenario()
@@ -336,3 +338,92 @@ export function esppKpis(): FidelityKpis { return scenario.espp.kpis }
 export function esppEvolution(): FidelityEvolution { return scenario.espp.evolution }
 export function esppLots(): FidelityLots { return scenario.espp.lots }
 export function esppReminder(): FidelityReminderResponse { return scenario.espp.reminder }
+
+// ─── Mortgage ─────────────────────────────────────────────────────────────────
+
+export function mortgages() { return [scenario.mortgage.summary] }
+export function mortgage() { return scenario.mortgage.detail }
+export function mortgageOverview() { return scenario.mortgage.overview }
+export function mortgageSchedule() { return scenario.mortgage.schedule }
+export function mortgageCharts() { return scenario.mortgage.charts }
+export function mortgageReconciliation() { return scenario.mortgage.reconciliation }
+export function mortgageNetWorth() { return scenario.mortgage.netWorth }
+
+/** Simulate a prepayment against the demo mortgage. Mirrors the backend delta:
+ *  two schedules, one with the extra payment, and the difference between them. */
+export function simulateMortgagePrepayment(req: {
+  amount: number
+  payment_date: string
+  mode: 'reduce_term' | 'reduce_payment'
+  fee?: number
+  alt_return_pct?: number | null
+}): MortgageSimulation {
+  const m = scenario.mortgage.detail
+  const terms = {
+    principal: m.initial_principal,
+    annualRatePct: m.rate_periods[0]?.fixed_rate ?? 0,
+    termMonths: m.term_months,
+    startDate: m.start_date,
+    paymentDay: m.payment_day,
+  }
+  const existing: FixedSchedulePrepayment[] = m.prepayments.map(p => ({
+    date: p.payment_date, amount: p.amount, mode: p.mode, fee: p.fee,
+  }))
+
+  const before = buildFixedSchedule({ ...terms, prepayments: existing })
+  const after = buildFixedSchedule({
+    ...terms,
+    prepayments: [...existing, {
+      date: req.payment_date, amount: req.amount, mode: req.mode, fee: req.fee ?? 0,
+    }],
+  })
+
+  const round2 = (v: number) => Math.round(v * 100) / 100
+  const side = (rows: typeof before) => {
+    const upcoming = rows.find(r => r.date > req.payment_date) ?? rows[rows.length - 1]
+    return {
+      months: rows.length,
+      end_date: rows[rows.length - 1]?.date ?? null,
+      total_interest: round2(rows.reduce((s, r) => s + r.interest, 0)),
+      total_paid: round2(rows.reduce((s, r) => s + r.payment + r.prepayment + r.fee, 0)),
+      monthly_payment: upcoming?.payment ?? 0,
+    }
+  }
+
+  const b = side(before)
+  const a = side(after)
+  const interestSaved = round2(b.total_interest - a.total_interest)
+  const fee = req.fee ?? 0
+  const netSaving = round2(interestSaved - fee)
+
+  // The cash stays committed for whatever is left of the loan after the payment.
+  const monthsCommitted = after.filter(r => r.date >= req.payment_date).length
+  const years = monthsCommitted / 12
+  const implied = req.amount > 0 && years > 0
+    ? Math.round((interestSaved / req.amount / years) * 100 * 1000) / 1000
+    : null
+
+  let alternativeGain: number | null = null
+  let worthIt: boolean | null = null
+  if (req.alt_return_pct != null && years > 0) {
+    alternativeGain = round2(req.amount * Math.pow(1 + req.alt_return_pct / 100, years) - req.amount)
+    worthIt = netSaving >= alternativeGain
+  }
+
+  return {
+    before: b,
+    after: a,
+    amount: round2(req.amount),
+    fee: round2(fee),
+    mode: req.mode,
+    interest_saved: interestSaved,
+    months_saved: Math.max(b.months - a.months, 0),
+    payment_delta: round2(a.monthly_payment - b.monthly_payment),
+    net_saving: netSaving,
+    implied_annual_return: implied,
+    alternative_gain: alternativeGain,
+    worth_it: worthIt,
+    balance_before: before.map(r => ({ date: r.date, balance: r.closing_balance, projected: false })),
+    balance_after: after.map(r => ({ date: r.date, balance: r.closing_balance, projected: false })),
+  }
+}

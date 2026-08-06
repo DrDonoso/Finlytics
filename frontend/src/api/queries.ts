@@ -30,8 +30,16 @@ import {
   getCategories,
   getCombinedOverview,
   getConnections,
+  getEuriborSeries,
   getInvestmentPlugins,
   getInvestmentPortfolio,
+  getMortgage,
+  getMortgageCharts,
+  getMortgageNetWorth,
+  getMortgageOverview,
+  getMortgageReconciliation,
+  getMortgageSchedule,
+  getMortgages,
   getOverview,
   getOverviewMonths,
   getRules,
@@ -55,12 +63,20 @@ import type {
   CategorySummary,
   CombinedOverview,
   DaySummary,
+  EuriborSeries,
   InvestmentConnection,
   InvestmentPlugin,
   InvestmentPortfolio,
   MerchantSummary,
   MonthSummary,
   MonthSummaryParams,
+  Mortgage,
+  MortgageCharts,
+  MortgageNetWorth,
+  MortgageOverview,
+  MortgageReconciliation,
+  MortgageSchedule,
+  MortgageSummary,
   Overview,
   Rule,
   StatementMonth,
@@ -114,6 +130,16 @@ export const queryKeys = {
   assistantConversation: (id: number) => ['assistant', 'conversation', id] as const,
   assistantSettings: ['assistant', 'settings'] as const,
   assistantUsage: ['assistant', 'usage'] as const,
+  mortgages: ['mortgages'] as const,
+  mortgage: (id: number) => ['mortgages', id] as const,
+  mortgageOverview: (id: number) => ['mortgages', id, 'overview'] as const,
+  mortgageSchedule: (id: number, granularity: 'month' | 'year') =>
+    ['mortgages', id, 'schedule', granularity] as const,
+  mortgageCharts: (id: number) => ['mortgages', id, 'charts'] as const,
+  mortgageReconciliation: (id: number, months: number) =>
+    ['mortgages', id, 'reconciliation', months] as const,
+  mortgageNetWorth: ['mortgages', 'net-worth'] as const,
+  euribor: ['mortgages', 'euribor'] as const,
 }
 
 // ── Catalogs ─────────────────────────────────────────────────────────────────
@@ -280,6 +306,86 @@ export function useAppVersion(): UseQueryResult<AppVersion> {
     queryKey: queryKeys.appVersion,
     queryFn: getAppVersion,
     staleTime: CATALOG_STALE_MS,
+  })
+}
+
+// ── Mortgage ─────────────────────────────────────────────────────────────────
+//
+// The schedule is derived from the loan terms, so it only changes when the user
+// edits the mortgage or records a prepayment. Both paths invalidate the
+// ['mortgages'] prefix, which covers every key below.
+
+export function useMortgages(options?: QueryOptions): UseQueryResult<MortgageSummary[]> {
+  return useQuery({
+    queryKey: queryKeys.mortgages,
+    queryFn: getMortgages,
+    staleTime: CATALOG_STALE_MS,
+    enabled: options?.enabled,
+  })
+}
+
+export function useMortgage(id: number | null): UseQueryResult<Mortgage> {
+  return useQuery({
+    queryKey: queryKeys.mortgage(id ?? 0),
+    queryFn: () => getMortgage(id as number),
+    enabled: id !== null,
+  })
+}
+
+export function useMortgageOverview(id: number | null): UseQueryResult<MortgageOverview> {
+  return useQuery({
+    queryKey: queryKeys.mortgageOverview(id ?? 0),
+    queryFn: () => getMortgageOverview(id as number),
+    enabled: id !== null,
+  })
+}
+
+export function useMortgageSchedule(
+  id: number | null,
+  granularity: 'month' | 'year' = 'year',
+): UseQueryResult<MortgageSchedule> {
+  return useQuery({
+    queryKey: queryKeys.mortgageSchedule(id ?? 0, granularity),
+    queryFn: () => getMortgageSchedule(id as number, granularity),
+    enabled: id !== null,
+  })
+}
+
+export function useMortgageCharts(id: number | null): UseQueryResult<MortgageCharts> {
+  return useQuery({
+    queryKey: queryKeys.mortgageCharts(id ?? 0),
+    queryFn: () => getMortgageCharts(id as number),
+    enabled: id !== null,
+  })
+}
+
+export function useMortgageReconciliation(
+  id: number | null,
+  months = 24,
+): UseQueryResult<MortgageReconciliation> {
+  return useQuery({
+    queryKey: queryKeys.mortgageReconciliation(id ?? 0, months),
+    queryFn: () => getMortgageReconciliation(id as number, months),
+    enabled: id !== null,
+  })
+}
+
+export function useMortgageNetWorth(options?: QueryOptions): UseQueryResult<MortgageNetWorth> {
+  return useQuery({
+    queryKey: queryKeys.mortgageNetWorth,
+    queryFn: getMortgageNetWorth,
+    staleTime: CATALOG_STALE_MS,
+    enabled: options?.enabled,
+  })
+}
+
+export function useEuriborSeries(options?: QueryOptions): UseQueryResult<EuriborSeries> {
+  return useQuery({
+    queryKey: queryKeys.euribor,
+    queryFn: getEuriborSeries,
+    // A monthly series: re-fetching it while the user is in the app is pointless.
+    staleTime: Infinity,
+    enabled: options?.enabled,
   })
 }
 

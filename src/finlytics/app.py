@@ -24,6 +24,7 @@ Route layout:
   GET  /api/version       — app version + optional build metadata (PROTECTED)
   /api/notifications      — notification list, badge count, read/dismiss
   /api/assistant          — finance chat assistant (SSE streaming, read-only tools)
+  /api/mortgages          — mortgage CRUD, amortization schedule, prepayment simulator
 
   /{full_path:path}       — React SPA catch-all (GET only; registered AFTER /api)
                             Serves frontend/dist/<path> when the file exists;
@@ -52,6 +53,7 @@ from finlytics.api.deps import get_current_user
 from finlytics.api.fidelity import router as fidelity_router
 from finlytics.api.imports import router as imports_router
 from finlytics.api.investments import router as investments_router
+from finlytics.api.mortgage import router as mortgage_router
 from finlytics.api.notifications import router as notifications_router
 from finlytics.api.rules import router as rules_router
 from finlytics.api.statements import router as statements_router
@@ -179,6 +181,7 @@ app.include_router(summary_router,       prefix="/api", dependencies=_auth)
 app.include_router(imports_router,       prefix="/api", dependencies=_auth)
 app.include_router(investments_router,   prefix="/api", dependencies=_auth)
 app.include_router(fidelity_router,      prefix="/api", dependencies=_auth)
+app.include_router(mortgage_router,      prefix="/api", dependencies=_auth)
 app.include_router(notifications_router, prefix="/api", dependencies=_auth)
 app.include_router(version_router,       prefix="/api", dependencies=_auth)
 
