@@ -32,6 +32,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from finlytics.db.models import EuriborRate
+from finlytics.log_safety import one_line
 
 log = logging.getLogger(__name__)
 
@@ -78,7 +79,7 @@ async def fetch_ecb_series(index_name: str = INDEX_EURIBOR_12M) -> list[tuple[da
     """Download the full monthly series for *index_name*.  Returns ``[]`` on failure."""
     series = _ECB_SERIES.get(index_name)
     if series is None:
-        log.warning("Unknown index %r — no ECB series mapped", index_name)
+        log.warning("Unknown index %r — no ECB series mapped", one_line(index_name))
         return []
 
     url = f"{_ECB_BASE}/{series}"
@@ -90,7 +91,7 @@ async def fetch_ecb_series(index_name: str = INDEX_EURIBOR_12M) -> list[tuple[da
             resp.raise_for_status()
         return parse_ecb_csv(resp.text)
     except Exception as exc:
-        log.warning("ECB fetch failed for %r: %s", index_name, exc)
+        log.warning("ECB fetch failed for %r: %s", one_line(index_name), exc)
         return []
 
 
@@ -126,7 +127,7 @@ async def sync_index(db: AsyncSession, index_name: str = INDEX_EURIBOR_12M) -> i
             )
         )
 
-    log.info("Euribor sync: upserted %d rows for %r", len(values), index_name)
+    log.info("Euribor sync: upserted %d rows for %r", len(values), one_line(index_name))
     return len(values)
 
 

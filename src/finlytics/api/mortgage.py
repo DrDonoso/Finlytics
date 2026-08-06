@@ -25,6 +25,7 @@ from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
@@ -173,7 +174,9 @@ async def create_mortgage(
 
 @router.get("/euribor", response_model=EuriborSeriesOut)
 async def get_euribor(
-    index_name: str = Query(INDEX_EURIBOR_12M),
+    # Constrained to the indices actually mapped to an ECB series: a free-form
+    # string here would flow into a log line and into the series lookup.
+    index_name: Literal["euribor_12m"] = Query(INDEX_EURIBOR_12M),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> dict:

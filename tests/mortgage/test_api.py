@@ -519,6 +519,12 @@ class TestEuribor:
         assert body["latest"] == pytest.approx(3.671)
         assert body["latest_period"] == "2024-02-01"
 
+    async def test_rejects_an_unmapped_index(self, client):
+        """The parameter is constrained: an arbitrary string must not reach the
+        series lookup or the log line."""
+        resp = await client.get("/api/mortgages/euribor?index_name=made-up")
+        assert resp.status_code == 422
+
 
 class TestVariableRateMortgage:
     async def test_uses_the_cached_index_and_flags_projection(self, client, factory):
