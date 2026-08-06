@@ -44,7 +44,7 @@ const server = setupServer(
         category_id: 1,
         category_name: 'Housing',
         amount: charged,
-        months_matched: 6,
+        occurrences: 6,
         first_seen: '2025-01-03',
         last_seen: '2025-06-03',
         deviation: Number((charged - expected).toFixed(2)),
@@ -63,6 +63,15 @@ beforeAll(() => server.listen({ onUnhandledRequest: 'bypass' }))
 afterAll(() => server.close())
 beforeEach(() => { saved = [] })
 afterEach(() => server.resetHandlers())
+
+/** The start date uses the app's own DatePicker, not a native date input, so
+ *  the browser locale never leaks into the calendar. Any day will do here. */
+async function pickStartDate(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('button', { name: /start date/i }))
+  const grid = await screen.findByRole('grid')
+  const days = [...grid.querySelectorAll('button.day-cell:not(.is-disabled):not(.is-outside)')]
+  await user.click(days[0] as HTMLElement)
+}
 
 function renderWizard() {
   return render(
@@ -87,7 +96,7 @@ async function submitWithTerm(years: string, months: string) {
   await user.type(screen.getByLabelText(/name/i), 'Home')
   await user.clear(screen.getByLabelText(/amount borrowed/i))
   await user.type(screen.getByLabelText(/amount borrowed/i), '291200')
-  await user.type(screen.getByLabelText(/start date/i), '2024-01-01')
+  await pickStartDate(user)
 
   const yearsField = screen.getByLabelText(/term \(years\)/i)
   await user.clear(yearsField)
@@ -159,7 +168,7 @@ describe('the linking step checks the terms against what the bank really charges
     await user.type(screen.getByLabelText(/name/i), 'Home')
     await user.clear(screen.getByLabelText(/amount borrowed/i))
     await user.type(screen.getByLabelText(/amount borrowed/i), '291200')
-    await user.type(screen.getByLabelText(/start date/i), '2024-01-01')
+    await pickStartDate(user)
 
     const yearsField = screen.getByLabelText(/term \(years\)/i)
     await user.clear(yearsField)

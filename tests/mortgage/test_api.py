@@ -496,6 +496,109 @@ class TestReconciliation:
         assert body["linked"] is True
         assert all(not row["matched"] for row in body["rows"])
 
+    async def _seed_noisy_month(self, factory, amounts):
+        """A linked category holding more than just the mortgage."""
+        async with factory() as s:
+            account = Account(name="Piso", type="bank", currency="EUR")
+            cat = Category(name="Housing")
+            s.add_all([account, cat])
+            await s.flush()
+            run = ImportRun(account_id=account.id, source_filename="seed.pdf")
+            s.add(run)
+            await s.flush()
+            for idx, amount in enumerate(amounts, start=1):
+                s.add(Transaction(
+                    id=idx, account_id=account.id, import_run_id=run.id,
+                    transaction_date=date(2024, 1, 2), amount=Decimal(amount),
+                    currency="EUR", description="Movimiento", category_id=cat.id,
+                    dedup_hash=f"noise-{idx}", is_system=False,
+                ))
+            await s.commit()
+            return account.id, cat.id
+
+    async def _january(self, client, account_id, category_id):
+        created = await _create(
+            client, linked_account_id=account_id, linked_category_id=category_id
+        )
+        body = (
+            await client.get(f"/api/mortgages/{created['id']}/reconciliation?months=360")
+        ).json()
+        return next(r for r in body["rows"] if r["period"].startswith("2024-01"))
+
+    async def test_excludes_income_from_the_charged_column(self, client, factory):
+        """The loan disbursement lands in the same category as the instalment.
+
+        Summing the month with abs() reported it as a charge of a quarter of a
+        million euros.
+        """
+        ids = await self._seed_noisy_month(factory, ["-843.21", "291200.00"])
+        january = await self._january(client, *ids)
+        assert january["actual"] == pytest.approx(843.21)
+
+    async def test_picks_the_charge_nearest_the_instalment(self, client, factory):
+        """Insurance and council tax share the housing category; they must not be
+        added to the instalment."""
+        ids = await self._seed_noisy_month(factory, ["-843.21", "-61.40", "-215.00"])
+        january = await self._january(client, *ids)
+        assert january["actual"] == pytest.approx(843.21)
+        assert january["deviation"] == pytest.approx(0, abs=0.01)
+
+    async def test_reports_a_smaller_first_charge_rather_than_hiding_it(
+        self, client, factory
+    ):
+        """A loan signed mid-month starts with an interest-only stub. Showing it
+        with its deviation is more useful than reporting no charge at all."""
+        ids = await self._seed_noisy_month(factory, ["-143.61"])
+        january = await self._january(client, *ids)
+        assert january["actual"] == pytest.approx(143.61)
+        assert january["deviation"] == pytest.approx(143.61 - 843.21, abs=0.01)
+
+    async def test_matches_a_charge_that_lands_in_the_next_month(
+        self, client, factory
+    ):
+        """Banks charge on the last working day, so an instalment routinely lands
+        on the 1st of the following month. Bucketing by calendar month lost it
+        and picked up whatever else shared the category."""
+        async with factory() as s:
+            account = Account(name="Piso", type="bank", currency="EUR")
+            cat = Category(name="Housing")
+            s.add_all([account, cat])
+            await s.flush()
+            run = ImportRun(account_id=account.id, source_filename="seed.pdf")
+            s.add(run)
+            await s.flush()
+            # Due on the 1st; charged a day late, in the previous/next month.
+            rows = [
+                (date(2024, 1, 2), "-843.21"),   # January's instalment
+                (date(2024, 2, 1), "-843.21"),   # February's, on time
+                (date(2024, 2, 29), "-843.21"),  # March's, charged early
+                (date(2024, 2, 10), "-61.40"),   # insurance, must not be picked
+            ]
+            for idx, (day, amount) in enumerate(rows, start=1):
+                s.add(Transaction(
+                    id=idx, account_id=account.id, import_run_id=run.id,
+                    transaction_date=day, amount=Decimal(amount), currency="EUR",
+                    description="Movimiento", category_id=cat.id,
+                    dedup_hash=f"drift-{idx}", is_system=False,
+                ))
+            await s.commit()
+            account_id, category_id = account.id, cat.id
+
+        created = await _create(
+            client, linked_account_id=account_id, linked_category_id=category_id
+        )
+        body = (
+            await client.get(f"/api/mortgages/{created['id']}/reconciliation?months=360")
+        ).json()
+        matched = {r["period"]: r["actual"] for r in body["rows"] if r["matched"]}
+
+        # Each of the three instalments is claimed by its own month, and none is
+        # counted twice.
+        assert matched.get("2024-01-01") == pytest.approx(843.21)
+        assert matched.get("2024-02-01") == pytest.approx(843.21)
+        assert matched.get("2024-03-01") == pytest.approx(843.21)
+        assert sum(1 for v in matched.values() if v == pytest.approx(843.21)) == 3
+
 
 # ── Euribor ──────────────────────────────────────────────────────────────────
 
@@ -548,10 +651,61 @@ class TestPaymentCandidates:
         assert top["account_id"] == account_id
         assert top["category_id"] == category_id
         assert top["amount"] == pytest.approx(1078.52)
-        assert top["months_matched"] == 6
+        assert top["occurrences"] == 6
 
     async def test_ignores_a_charge_seen_only_twice(self, client, factory):
         await self._seed(factory, ["-1078.52"] * 2)
+        body = (await client.get("/api/mortgages/payment-candidates")).json()
+        assert body["candidates"] == []
+
+    async def test_counts_charges_not_calendar_months(self, client, factory):
+        """Banks charge on the last working day, so a payment can land on the
+        1st of the next month and two instalments share a calendar month.
+        Counting months there reported fewer charges than the ledger holds."""
+        async with factory() as s:
+            account = Account(name="Piso", type="bank", currency="EUR")
+            cat = Category(name="Housing")
+            s.add_all([account, cat])
+            await s.flush()
+            run = ImportRun(account_id=account.id, source_filename="seed.pdf")
+            s.add(run)
+            await s.flush()
+            # The reported ledger: seven charges, but only five distinct months.
+            days = [
+                date(2026, 2, 2), date(2026, 3, 2), date(2026, 3, 31),
+                date(2026, 4, 30), date(2026, 6, 1), date(2026, 6, 30),
+                date(2026, 7, 31),
+            ]
+            for idx, day in enumerate(days, start=1):
+                s.add(Transaction(
+                    id=idx, account_id=account.id, import_run_id=run.id,
+                    transaction_date=day, amount=Decimal("-1078.52"), currency="EUR",
+                    description="Cuota hipoteca", category_id=cat.id,
+                    dedup_hash=f"drift-{idx}", is_system=False,
+                ))
+            await s.commit()
+
+        body = (await client.get("/api/mortgages/payment-candidates")).json()
+        assert body["candidates"][0]["occurrences"] == 7
+
+    async def test_ignores_a_burst_within_one_month(self, client, factory):
+        """Three identical charges in the same week are not an instalment."""
+        async with factory() as s:
+            account = Account(name="Piso", type="bank", currency="EUR")
+            s.add(account)
+            await s.flush()
+            run = ImportRun(account_id=account.id, source_filename="seed.pdf")
+            s.add(run)
+            await s.flush()
+            for idx, day in enumerate((1, 3, 5), start=1):
+                s.add(Transaction(
+                    id=idx, account_id=account.id, import_run_id=run.id,
+                    transaction_date=date(2026, 5, day), amount=Decimal("-40.00"),
+                    currency="EUR", description="Compra", dedup_hash=f"burst-{idx}",
+                    is_system=False,
+                ))
+            await s.commit()
+
         body = (await client.get("/api/mortgages/payment-candidates")).json()
         assert body["candidates"] == []
 

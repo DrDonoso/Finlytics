@@ -372,3 +372,6 @@
   font-size: 12px;
   color: var(--expense);
 }
+
+.mortgage-form__detected-row.other { border-left-color: var(--border); }
+.mortgage-form__detected-other { font-size: 12px; color: var(--text-muted); }
