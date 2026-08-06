@@ -4,6 +4,11 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260806.02] - 2026-08-06
+
+- fix(mortgage): let the term be entered in months, not whole years only (#53)
+
+
 ## [20260806] - 2026-08-06
 
 - Decimal throughout. A float accumulated over 360 instalments drifts the closing balance by several euros; the final instalment absorbs the rounding residue so the balance lands on exactly zero.
