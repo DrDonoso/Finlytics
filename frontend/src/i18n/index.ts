@@ -943,6 +943,9 @@ export interface Dict {
   mortgageFormPrincipal: string
   mortgageFormStartDate: string
   mortgageFormTermYears: string
+  mortgageFormTermExtraMonths: string
+  mortgageFormTermExtraMonthsInfo: string
+  mortgageFormTermTotal: (months: number) => string
   mortgageFormPaymentDay: string
   mortgageFormRateType: string
   mortgageFormTin: string
