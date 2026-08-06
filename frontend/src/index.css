@@ -325,3 +325,50 @@
   .mortgage-form__bonus-row { grid-template-columns: 1fr 1fr; }
   .mortgage-snapshot__side { gap: 18px; }
 }
+
+/* Recurring charges detected in the ledger while setting up a mortgage. */
+.mortgage-form__detected {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 0 4px;
+}
+
+.mortgage-form__detected-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  width: 100%;
+  padding: 10px 12px;
+  text-align: left;
+  font: inherit;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--income);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.mortgage-form__detected-row:hover { border-color: var(--primary); }
+
+.mortgage-form__detected-row.mismatch {
+  border-left-color: var(--expense);
+  background: rgba(var(--expense-rgb), 0.05);
+}
+
+.mortgage-form__detected-main { font-size: 13px; }
+
+.mortgage-form__detected-ok {
+  font-size: 12px;
+  color: var(--income);
+}
+
+.mortgage-form__detected-warn {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--expense);
+}

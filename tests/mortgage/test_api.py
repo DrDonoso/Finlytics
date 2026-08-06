@@ -499,6 +499,106 @@ class TestReconciliation:
 
 # ── Euribor ──────────────────────────────────────────────────────────────────
 
+class TestPaymentCandidates:
+    """Spotting the instalment already sitting in the ledger.
+
+    The point is not convenience: a recurring charge that differs from the
+    computed instalment is the signal that the terms were entered wrong, and it
+    is only actionable while the user is still on the form.
+    """
+
+    async def _seed(self, factory, amounts, category=True):
+        """Seed one charge per month, newest first, with the given amounts."""
+        async with factory() as s:
+            account = Account(name="BBVA", type="bank", currency="EUR")
+            cat = Category(name="Housing")
+            s.add_all([account, cat])
+            await s.flush()
+            run = ImportRun(account_id=account.id, source_filename="seed.pdf")
+            s.add(run)
+            await s.flush()
+
+            today = date.today()
+            for idx, amount in enumerate(amounts, start=1):
+                month = today.month - idx
+                year = today.year + (month - 1) // 12
+                month = (month - 1) % 12 + 1
+                s.add(
+                    Transaction(
+                        id=idx,
+                        account_id=account.id,
+                        import_run_id=run.id,
+                        transaction_date=date(year, month, 3),
+                        amount=Decimal(amount),
+                        currency="EUR",
+                        description="Cuota hipoteca",
+                        category_id=cat.id if category else None,
+                        dedup_hash=f"cand-{idx}",
+                        is_system=False,
+                    )
+                )
+            await s.commit()
+            return account.id, cat.id
+
+    async def test_finds_a_recurring_charge(self, client, factory):
+        account_id, category_id = await self._seed(factory, ["-1078.52"] * 6)
+        body = (await client.get("/api/mortgages/payment-candidates")).json()
+        assert len(body["candidates"]) == 1
+        top = body["candidates"][0]
+        assert top["account_id"] == account_id
+        assert top["category_id"] == category_id
+        assert top["amount"] == pytest.approx(1078.52)
+        assert top["months_matched"] == 6
+
+    async def test_ignores_a_charge_seen_only_twice(self, client, factory):
+        await self._seed(factory, ["-1078.52"] * 2)
+        body = (await client.get("/api/mortgages/payment-candidates")).json()
+        assert body["candidates"] == []
+
+    async def test_reports_the_deviation_against_the_expected_instalment(
+        self, client, factory
+    ):
+        """The 291.200 EUR case: 360 instalments computes 1076,33 while the bank
+        charges 1078,52, because capital is amortized over 359."""
+        await self._seed(factory, ["-1078.52"] * 6)
+        body = (
+            await client.get("/api/mortgages/payment-candidates?amount=1076.33")
+        ).json()
+        top = body["candidates"][0]
+        assert body["expected_payment"] == pytest.approx(1076.33)
+        assert top["deviation"] == pytest.approx(2.19, abs=0.01)
+        assert top["deviation_pct"] == pytest.approx(0.2, abs=0.01)
+
+    async def test_no_deviation_when_the_terms_are_right(self, client, factory):
+        await self._seed(factory, ["-1078.52"] * 6)
+        body = (
+            await client.get("/api/mortgages/payment-candidates?amount=1078.52")
+        ).json()
+        assert body["candidates"][0]["deviation"] == pytest.approx(0, abs=0.01)
+
+    async def test_ranks_the_closest_charge_first(self, client, factory):
+        # A gym membership and a mortgage both recur; only one is near the target.
+        await self._seed(factory, ["-1078.52", "-34.90"] * 4)
+        body = (
+            await client.get("/api/mortgages/payment-candidates?amount=1076.33")
+        ).json()
+        assert body["candidates"][0]["amount"] == pytest.approx(1078.52)
+
+    async def test_works_without_a_category(self, client, factory):
+        await self._seed(factory, ["-1078.52"] * 4, category=False)
+        body = (await client.get("/api/mortgages/payment-candidates")).json()
+        assert body["candidates"][0]["category_id"] is None
+
+    async def test_empty_ledger_yields_no_candidates(self, client):
+        body = (await client.get("/api/mortgages/payment-candidates")).json()
+        assert body["candidates"] == []
+
+    async def test_suggests_without_persisting_anything(self, client, factory):
+        await self._seed(factory, ["-1078.52"] * 6)
+        await client.get("/api/mortgages/payment-candidates?amount=1076.33")
+        assert (await client.get("/api/mortgages")).json() == []
+
+
 class TestEuribor:
     async def test_returns_the_cached_series(self, client, factory):
         async with factory() as s:

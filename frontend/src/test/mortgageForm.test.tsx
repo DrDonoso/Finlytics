@@ -33,6 +33,25 @@ const server = setupServer(
   http.get('/api/mortgages/euribor', () => HttpResponse.json({
     index_name: 'euribor_12m', points: [], latest: null, latest_period: null,
   })),
+  http.get('/api/mortgages/payment-candidates', ({ request }) => {
+    const expected = Number(new URL(request.url).searchParams.get('amount'))
+    const charged = 1078.52
+    return HttpResponse.json({
+      expected_payment: expected,
+      candidates: [{
+        account_id: 1,
+        account_name: 'Main',
+        category_id: 1,
+        category_name: 'Housing',
+        amount: charged,
+        months_matched: 6,
+        first_seen: '2025-01-03',
+        last_seen: '2025-06-03',
+        deviation: Number((charged - expected).toFixed(2)),
+        deviation_pct: Number(((charged - expected) / expected * 100).toFixed(2)),
+      }],
+    })
+  }),
   http.post('/api/mortgages', async ({ request }) => {
     const body = await request.json() as Record<string, unknown>
     saved.push(body)
@@ -128,5 +147,57 @@ describe('the live preview reflects the exact term', () => {
     await waitFor(() => {
       expect(screen.getByText(/359 instalments in total/i)).toBeTruthy()
     })
+  })
+})
+
+describe('the linking step checks the terms against what the bank really charges', () => {
+  /** Fill step 1 and 2 with the reported loan, then land on the linking step. */
+  async function reachLinkingStep(years: string, months: string) {
+    const user = userEvent.setup()
+    renderWizard()
+
+    await user.type(screen.getByLabelText(/name/i), 'Home')
+    await user.clear(screen.getByLabelText(/amount borrowed/i))
+    await user.type(screen.getByLabelText(/amount borrowed/i), '291200')
+    await user.type(screen.getByLabelText(/start date/i), '2024-01-01')
+
+    const yearsField = screen.getByLabelText(/term \(years\)/i)
+    await user.clear(yearsField)
+    await user.type(yearsField, years)
+    const monthsField = screen.getByLabelText(/extra months/i)
+    await user.clear(monthsField)
+    if (months) await user.type(monthsField, months)
+
+    await user.click(screen.getByRole('button', { name: /next/i }))
+    await user.type(screen.getByLabelText(/nominal rate/i), '2')
+    await user.click(screen.getByRole('button', { name: /next/i }))
+    return user
+  }
+
+  it('warns when the recurring charge does not match the computed instalment', async () => {
+    // 360 instalments computes 1076,33 while the bank charges 1078,52.
+    await reachLinkingStep('30', '0')
+    await waitFor(() => {
+      expect(screen.getByText(/check the term/i)).toBeTruthy()
+    })
+  })
+
+  it('confirms the match once the term is right', async () => {
+    // 359 instalments reproduces the bank figure exactly.
+    await reachLinkingStep('29', '11')
+    await waitFor(() => {
+      expect(screen.getByText(/matches your instalment/i)).toBeTruthy()
+    })
+  })
+
+  it('applies the detected account and category when clicked', async () => {
+    const user = await reachLinkingStep('29', '11')
+    await waitFor(() => expect(screen.getByText(/matches your instalment/i)).toBeTruthy())
+
+    await user.click(screen.getByText(/matches your instalment/i))
+    await user.click(screen.getByRole('button', { name: /^save$/i }))
+
+    await waitFor(() => expect(saved).toHaveLength(1))
+    expect(saved[0]).toMatchObject({ linked_account_id: 1, linked_category_id: 1 })
   })
 })

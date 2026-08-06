@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import type { Account, Category, Mortgage, MortgageInput, MortgageRatePeriod, MortgageRateType, MortgageBonus } from '../api/types'
 import { createMortgage, updateMortgage, formatEur } from '../api/client'
 import { errorMessage } from '../api/errors'
-import { useEuriborSeries } from '../api/queries'
+import { useEuriborSeries, useMortgagePaymentCandidates } from '../api/queries'
 import { IconAlert, IconClose } from './icons'
 import { useT, categoryLabel } from '../i18n'
 import { previewSchedule } from '../mortgage/calc'
@@ -97,7 +97,6 @@ export default function MortgageFormModal({ mortgage, accounts, categories, onCl
   // Only the variable/mixed paths need the index, so the query stays disabled otherwise.
   const euribor = useEuriborSeries({ enabled: form.rateType !== 'fixed' })
   const latestIndex = euribor.data?.latest ?? 0
-
   const dynamicEs = useMemo(
     () => Object.fromEntries(categories.filter(c => c.name_es).map(c => [c.name, c.name_es!])),
     [categories],
@@ -121,6 +120,13 @@ export default function MortgageFormModal({ mortgage, accounts, categories, onCl
     latestIndex,
     fixedYears: num(form.fixedYears),
   }), [form.principal, termMonths, form.rateType, form.fixedRate, form.spread, latestIndex, form.fixedYears])
+
+  // Queried only on the linking step, and keyed by the computed instalment so
+  // the deviation always refers to the terms currently on screen.
+  const candidates = useMortgagePaymentCandidates(
+    preview.payment > 0 ? preview.payment : undefined,
+    { enabled: step === 3 },
+  )
 
   const step1Valid = form.name.trim() !== '' && num(form.principal) > 0 && form.startDate !== '' && termMonths > 0
   const step2Valid = form.rateType === 'fixed'
@@ -354,6 +360,49 @@ export default function MortgageFormModal({ mortgage, accounts, categories, onCl
           {step === 3 && (
             <>
               <p className="form-hint">{t.mortgageFormLinkInfo}</p>
+
+              {/* A recurring charge that differs from the computed instalment is
+                  the signal that the terms are wrong, and this is the last
+                  moment where fixing them is one click away. */}
+              {candidates.data && candidates.data.candidates.length > 0 && (
+                <div className="mortgage-form__detected">
+                  {candidates.data.candidates.slice(0, 3).map(c => {
+                    const off = c.deviation != null && Math.abs(c.deviation) >= 0.01
+                    return (
+                      <button
+                        key={`${c.account_id}-${c.category_id}-${c.amount}`}
+                        type="button"
+                        className={`mortgage-form__detected-row${off ? ' mismatch' : ''}`}
+                        onClick={() => {
+                          set('linkedAccountId', String(c.account_id))
+                          set('linkedCategoryId', c.category_id != null ? String(c.category_id) : '')
+                        }}
+                      >
+                        <span className="mortgage-form__detected-main">
+                          <strong>{formatEur(c.amount)}</strong>
+                          {' · '}{c.account_name}
+                          {c.category_name ? ` · ${categoryLabel(c.category_name, lang, dynamicEs)}` : ''}
+                          {' · '}{t.mortgageFormDetectedMonths(c.months_matched)}
+                        </span>
+                        {off ? (
+                          <span className="mortgage-form__detected-warn">
+                            <IconAlert size={13} />
+                            {t.mortgageFormDetectedMismatch(
+                              formatEur(preview.payment),
+                              `${c.deviation! >= 0 ? '+' : ''}${formatEur(c.deviation!)}`,
+                            )}
+                          </span>
+                        ) : (
+                          <span className="mortgage-form__detected-ok">
+                            {t.mortgageFormDetectedMatch}
+                          </span>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+
               <div className="mortgage-form__grid">
                 <div className="form-group">
                   <label htmlFor="mf-account">{t.mortgageFormLinkAccount}</label>

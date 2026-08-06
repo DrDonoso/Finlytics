@@ -1132,3 +1132,21 @@ export interface MortgageNetWorth {
   net_contribution: number
   count: number
 }
+
+export interface MortgagePaymentCandidate {
+  account_id: number
+  account_name: string
+  category_id: number | null
+  category_name: string | null
+  amount: number
+  months_matched: number
+  first_seen: string
+  last_seen: string
+  deviation: number | null
+  deviation_pct: number | null
+}
+
+export interface MortgagePaymentCandidates {
+  expected_payment: number | null
+  candidates: MortgagePaymentCandidate[]
+}
