@@ -4,6 +4,11 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260806.05] - 2026-08-06
+
+- fix(mortgage): model the interest-only charge of a mid-month signature (#56)
+
+
 ## [20260806.04] - 2026-08-06
 
 - fix(mortgage): match charges by date, count them, and localise the calendar (#55)
