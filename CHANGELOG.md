@@ -4,6 +4,11 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260806.06] - 2026-08-06
+
+- feat(mortgage): mark paid instalments in the amortization schedule (#57)
+
+
 ## [20260806.05] - 2026-08-06
 
 - fix(mortgage): model the interest-only charge of a mid-month signature (#56)
