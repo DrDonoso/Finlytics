@@ -4,6 +4,11 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260806.03] - 2026-08-06
+
+- feat(mortgage): check the terms against the ledger while they are entered (#54)
+
+
 ## [20260806.02] - 2026-08-06
 
 - fix(mortgage): let the term be entered in months, not whole years only (#53)
