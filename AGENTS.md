@@ -47,9 +47,9 @@ The `IMAGE_TAG` / `BUILD_DATE` build args are injected there and surfaced by
 
 ## Migrations
 
-Alembic migrations live in `alembic/versions/`. The current head is `0021_add_mortgages.py`.
+Alembic migrations live in `alembic/versions/`. The current head is `0022_add_mortgage_signature_date.py`.
 
-- Always create a new numbered migration (`0022_...`) for schema changes.
+- Always create a new numbered migration (`0023_...`) for schema changes.
 - Verify the head before writing one — this file goes stale. `down_revision` in the
   highest-numbered file is the source of truth, not this document.
 - The entrypoint runs `alembic upgrade head` automatically on container start.
@@ -217,6 +217,11 @@ A `reduce_term` prepayment deliberately keeps the instalment and shortens the lo
 - **Term entry accepts months, not just whole years.** A loan signed mid-month usually
   amortizes capital over 359 instalments because the first charge covers interest alone,
   and a year-only field silently understates the instalment by a couple of euros.
+- **`signature_date` models the opening interest stub.** When it precedes the first
+  payment date, the engine emits an interest-only row (accrued on actual days over a
+  365-day year, which is what reproduces the lender's figure) and starts amortizing with
+  the following instalment. Without it the schedule repays capital that never was and
+  finishes a month early.
 - **`/payment-candidates` checks the terms against the ledger** at setup time: it looks
   for a recurring charge and reports the deviation from the computed instalment. It only
   suggests — nothing is linked or modified server-side.

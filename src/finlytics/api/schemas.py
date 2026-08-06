@@ -1232,6 +1232,9 @@ class MortgageBase(BaseModel):
     lender: str | None = None
     initial_principal: float
     start_date: date
+    # Deed date. When earlier than start_date, the first charge covers only
+    # the interest accrued in between and capital amortizes from the next one.
+    signature_date: date | None = None
     term_months: int
     payment_day: int = 1
     rate_type: RateType

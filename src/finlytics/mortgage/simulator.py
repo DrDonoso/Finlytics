@@ -12,7 +12,7 @@ returns it is risk-free and untaxed.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from decimal import Decimal, ROUND_HALF_UP
 
@@ -116,13 +116,11 @@ def simulate_prepayment(
     """
     before = build_schedule(spec, index)
 
-    simulated = MortgageSpec(
-        initial_principal=spec.initial_principal,
-        start_date=spec.start_date,
-        term_months=spec.term_months,
-        payment_day=spec.payment_day,
-        rate_periods=spec.rate_periods,
-        bonuses=spec.bonuses,
+    # replace() rather than rebuilding by hand: a spec field added later would
+    # otherwise be silently dropped, and the simulation would quietly model a
+    # different loan than the one on screen.
+    simulated = replace(
+        spec,
         prepayments=(
             *spec.prepayments,
             PrepaymentSpec(payment_date=when, amount=amount, mode=mode, fee=fee),

@@ -955,6 +955,7 @@ export interface MortgageInput {
   lender?: string | null
   initial_principal: number
   start_date: string
+  signature_date?: string | null
   term_months: number
   payment_day: number
   rate_type: MortgageRateType

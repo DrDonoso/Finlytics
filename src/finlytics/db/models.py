@@ -831,7 +831,13 @@ class Mortgage(Base):
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     lender: Mapped[str | None] = mapped_column(String(100), nullable=True)
     initial_principal: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
+    # Date of the first instalment. When signature_date is set and earlier, this
+    # is the interest-only opening charge and capital starts amortizing a month
+    # later.
     start_date: Mapped[date] = mapped_column(Date, nullable=False)
+    # Date the deed was signed. Optional: without it the loan is modelled as
+    # amortizing from the first charge, which is what most calculators assume.
+    signature_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     term_months: Mapped[int] = mapped_column(Integer, nullable=False)
     payment_day: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
     # 'fixed' | 'variable' | 'mixed'

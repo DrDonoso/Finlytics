@@ -81,6 +81,7 @@ def spec_from_model(mortgage: Mortgage, *, with_prepayments: bool = True) -> Mor
     return MortgageSpec(
         initial_principal=mortgage.initial_principal,
         start_date=mortgage.start_date,
+        signature_date=mortgage.signature_date,
         term_months=mortgage.term_months,
         payment_day=mortgage.payment_day,
         rate_periods=periods,

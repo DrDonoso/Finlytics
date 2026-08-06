@@ -137,6 +137,7 @@ def _apply_contract(mortgage: Mortgage, body: MortgageCreate) -> None:
     mortgage.lender = body.lender
     mortgage.initial_principal = Decimal(str(body.initial_principal))
     mortgage.start_date = body.start_date
+    mortgage.signature_date = body.signature_date
     mortgage.term_months = body.term_months
     mortgage.payment_day = body.payment_day
     mortgage.rate_type = body.rate_type
