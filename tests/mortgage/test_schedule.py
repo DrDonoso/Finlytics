@@ -118,6 +118,72 @@ class TestRealWorldTerms:
         assert shorter.totals.total_interest < longer.totals.total_interest
 
 
+class TestInterestOnlyOpeningCharge:
+    """A loan signed mid-month is charged interest alone until the first payment
+    date; capital amortizes from the instalment after it.
+
+    Treating that charge as a full instalment repays principal that never was —
+    ~600 EUR of phantom capital here — and ends the loan a month early. The
+    figures below are the ones the lender's own app reports.
+    """
+
+    SIGNED = dict(
+        initial_principal=D("291200"),
+        start_date=date(2025, 12, 31),
+        signature_date=date(2025, 12, 22),
+        term_months=359,
+        payment_day=31,
+        rate_periods=(RatePeriodSpec(start_month=0, kind="fixed", fixed_rate=D("2")),),
+    )
+    TODAY = date(2026, 8, 6)
+
+    @pytest.fixture
+    def schedule(self):
+        return build_schedule(MortgageSpec(**self.SIGNED))
+
+    def test_opening_charge_is_interest_only(self, schedule):
+        first = schedule.rows[0]
+        assert first.date == date(2025, 12, 31)
+        assert first.principal == D("0")
+        # 291.200 x 2% x 9 days / 365
+        assert first.payment == D("143.61")
+
+    def test_the_balance_is_untouched_by_the_opening_charge(self, schedule):
+        assert schedule.rows[0].closing_balance == D("291200.00")
+
+    def test_capital_amortizes_from_the_following_instalment(self, schedule):
+        second = schedule.rows[1]
+        assert second.date == date(2026, 1, 31)
+        assert second.payment == D("1078.52")
+        assert second.principal > 0
+
+    def test_outstanding_matches_the_lender(self, schedule):
+        assert schedule.balance_on(self.TODAY) == D("287026.86")
+
+    def test_end_date_matches_the_lender(self, schedule):
+        assert schedule.totals.end_date == date(2055, 11, 30)
+
+    def test_the_stub_adds_a_row_on_top_of_the_term(self, schedule):
+        assert len(schedule.rows) == 360   # 1 interest-only + 359 amortizing
+
+    def test_principal_still_closes_at_exactly_the_amount_borrowed(self, schedule):
+        assert schedule.totals.total_principal == D("291200.00")
+
+    def test_without_a_signature_date_the_first_charge_amortizes(self):
+        spec = {k: v for k, v in self.SIGNED.items() if k != "signature_date"}
+        schedule = build_schedule(MortgageSpec(**spec))
+        assert schedule.rows[0].principal > 0
+        assert len(schedule.rows) == 359
+        # The old behaviour: ~600 EUR of capital repaid that the lender has not.
+        assert schedule.balance_on(self.TODAY) == D("286426.72")
+
+    def test_a_signature_on_the_first_payment_date_adds_no_stub(self):
+        spec = {**self.SIGNED, "signature_date": date(2025, 12, 31)}
+        schedule = build_schedule(MortgageSpec(**spec))
+        assert schedule.rows[0].principal > 0
+        assert len(schedule.rows) == 359
+
+
 class TestPaymentDay:
     def test_uses_contractual_pay_day(self):
         schedule = build_schedule(_spec(payment_day=15))

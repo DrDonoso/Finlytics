@@ -64,10 +64,10 @@ afterAll(() => server.close())
 beforeEach(() => { saved = [] })
 afterEach(() => server.resetHandlers())
 
-/** The start date uses the app's own DatePicker, not a native date input, so
+/** The date fields use the app's own DatePicker, not a native date input, so
  *  the browser locale never leaks into the calendar. Any day will do here. */
 async function pickStartDate(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByRole('button', { name: /start date/i }))
+  await user.click(screen.getByRole('button', { name: /first payment date/i }))
   const grid = await screen.findByRole('grid')
   const days = [...grid.querySelectorAll('button.day-cell:not(.is-disabled):not(.is-outside)')]
   await user.click(days[0] as HTMLElement)

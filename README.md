@@ -93,6 +93,7 @@ The counterweight to the investments side: the first **liability** the app model
 
 - **Fixed, variable and mixed** are all expressed as a list of rate tranches, so a mixed loan is simply a fixed tranche followed by a variable one — no special cases.
 - **The Euribor is fetched automatically** from the ECB Data Portal (the 12-month monthly average that Spanish mortgages are actually referenced to). Reviews recompute the instalment using the index published `n` months earlier, as your deed specifies.
+- **Signed mid-month?** Give it the signature date and the first charge is modelled as the interest-only stub it really is, instead of repaying capital you never did.
 - **Prepayments**, either reducing the term or the instalment, with a **simulator that runs before you commit the money**: interest saved, months saved, the new instalment, and the implied annual return — compared against what the same cash would earn invested instead.
 - **Optional reconciliation.** Link a bank account or category and the page compares the theoretical instalment against what was really charged, month by month. Leave it unlinked and the module is a pure calculator.
 - **The terms are checked against your ledger while you type them.** Setting up a mortgage scans your existing transactions for the recurring charge and, if it differs from the instalment your terms produce, says so and by how much — a steady two-euro gap is the signature of a wrong term, not of a bank error. One click links the account and category it found.

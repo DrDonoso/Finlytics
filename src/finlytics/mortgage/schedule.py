@@ -45,6 +45,10 @@ _RATE_Q = Decimal("0.00001")
 _ZERO = Decimal("0")
 _HUNDRED = Decimal("100")
 _MONTHS_PER_YEAR = Decimal("12")
+# The opening interest stub accrues on actual days over a 365-day year, which is
+# what reproduces the figure Spanish banks charge between signature and the
+# first payment date.
+_DAYS_PER_YEAR = Decimal("365")
 
 # Hard stop so a pathological input (instalment below the accrued interest)
 # can never spin forever.
@@ -109,6 +113,9 @@ class MortgageSpec:
     rate_periods: tuple[RatePeriodSpec, ...] = ()
     bonuses: tuple[BonusSpec, ...] = ()
     prepayments: tuple[PrepaymentSpec, ...] = ()
+    # When set and earlier than start_date, the first charge covers only the
+    # interest accrued since signature and capital amortizes from the next one.
+    signature_date: date | None = None
 
 
 @dataclass(frozen=True)
@@ -348,6 +355,36 @@ def build_schedule(
             prepayment
         )
 
+    # A loan signed mid-month is charged interest alone for the days up to the
+    # first payment date; capital amortizes from the instalment after it.
+    # Treating that charge as a full instalment repays principal that never was.
+    stub_offset = 0
+    if spec.signature_date is not None and spec.signature_date < spec.start_date:
+        stub_period = _active_period(periods, 0) or periods[0]
+        stub_rate, stub_projected = resolve_rate(
+            stub_period, spec.start_date, spec.bonuses, index
+        )
+        elapsed = Decimal((spec.start_date - spec.signature_date).days)
+        stub_interest = _q(
+            balance * (stub_rate / _HUNDRED) * elapsed / _DAYS_PER_YEAR
+        )
+        schedule.rows.append(
+            ScheduleRow(
+                period_index=1,
+                date=spec.start_date,
+                opening_balance=balance,
+                payment=stub_interest,
+                interest=stub_interest,
+                principal=_ZERO,
+                prepayment=_ZERO,
+                fee=_ZERO,
+                closing_balance=balance,
+                annual_rate=stub_rate,
+                projected=stub_projected,
+            )
+        )
+        stub_offset = 1
+
     scheduled_end = spec.term_months   # index of the last instalment (exclusive)
     payment = _ZERO
     rate_pct = _ZERO
@@ -360,7 +397,7 @@ def build_schedule(
 
     month = 0
     while month < scheduled_end and month < _MAX_PERIODS:
-        when = _instalment_date(spec.start_date, spec.payment_day, month)
+        when = _instalment_date(spec.start_date, spec.payment_day, month + stub_offset)
         period = _active_period(periods, month) or periods[0]
 
         # The contractual rate is refreshed only when a tranche starts or a
@@ -417,7 +454,7 @@ def build_schedule(
 
         schedule.rows.append(
             ScheduleRow(
-                period_index=month + 1,
+                period_index=month + 1 + stub_offset,
                 date=when,
                 opening_balance=opening,
                 payment=actual_payment,

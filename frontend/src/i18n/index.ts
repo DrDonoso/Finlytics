@@ -942,6 +942,8 @@ export interface Dict {
   mortgageFormLender: string
   mortgageFormPrincipal: string
   mortgageFormStartDate: string
+  mortgageFormSignatureDate: string
+  mortgageFormSignatureDateInfo: string
   mortgageFormTermYears: string
   mortgageFormTermExtraMonths: string
   mortgageFormTermExtraMonthsInfo: string

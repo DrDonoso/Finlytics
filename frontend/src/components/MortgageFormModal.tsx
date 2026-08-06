@@ -32,6 +32,7 @@ interface FormState {
   lender: string
   principal: string
   startDate: string
+  signatureDate: string
   termYears: string
   termExtraMonths: string
   paymentDay: string
@@ -68,6 +69,7 @@ function initialState(mortgage?: Mortgage | null): FormState {
     lender: mortgage?.lender ?? '',
     principal: mortgage ? String(mortgage.initial_principal) : '',
     startDate: mortgage?.start_date ?? '',
+    signatureDate: mortgage?.signature_date ?? '',
     termYears: mortgage ? String(Math.floor(mortgage.term_months / 12)) : '30',
     termExtraMonths: mortgage ? String(mortgage.term_months % 12) : '0',
     paymentDay: mortgage ? String(mortgage.payment_day) : '1',
@@ -166,6 +168,7 @@ export default function MortgageFormModal({ mortgage, accounts, categories, onCl
       lender: form.lender.trim() || null,
       initial_principal: num(form.principal),
       start_date: form.startDate,
+      signature_date: form.signatureDate || null,
       term_months: termMonths,
       payment_day: Math.round(num(form.paymentDay)) || 1,
       rate_type: form.rateType,
@@ -232,6 +235,15 @@ export default function MortgageFormModal({ mortgage, accounts, categories, onCl
               <div className="form-group">
                 <label htmlFor="mf-principal">{t.mortgageFormPrincipal}</label>
                 <input id="mf-principal" className="form-input" inputMode="decimal" value={form.principal} onChange={e => set('principal', e.target.value)} />
+              </div>
+              <div className="form-group">
+                <label htmlFor="mf-signature">{t.mortgageFormSignatureDate}</label>
+                <DatePicker
+                  value={form.signatureDate}
+                  onChange={v => set('signatureDate', v)}
+                  ariaLabel={t.mortgageFormSignatureDate}
+                />
+                <span className="form-hint">{t.mortgageFormSignatureDateInfo}</span>
               </div>
               <div className="form-group">
                 <label htmlFor="mf-start">{t.mortgageFormStartDate}</label>
