@@ -11,9 +11,10 @@ from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal, ROUND_HALF_UP
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from finlytics.db.models import Mortgage
+from finlytics.db.models import Mortgage, Transaction
 from finlytics.mortgage.euribor import INDEX_EURIBOR_12M, ensure_series, make_resolver
 from finlytics.mortgage.schedule import (
     BonusSpec,
@@ -23,6 +24,7 @@ from finlytics.mortgage.schedule import (
     RatePeriodSpec,
     Schedule,
     ScheduleRow,
+    add_months,
     build_schedule,
     zero_index,
 )
@@ -223,45 +225,91 @@ def row_payload(row: ScheduleRow) -> dict:
         "closing_balance": _f(row.closing_balance),
         "annual_rate": _f(row.annual_rate),
         "projected": row.projected,
+        "status": "pending",
+        "charged": None,
     }
 
 
-def group_by_year(rows: list[ScheduleRow], *, include_months: bool) -> list[dict]:
-    """Roll instalments up per calendar year, optionally keeping the detail."""
+def annotate_status(
+    rows: list[dict],
+    today: date,
+    matcher: "ChargeMatcher | None" = None,
+) -> None:
+    """Tag each instalment as paid, elapsed or pending, in place.
+
+    The distinction matters: a due date in the past is not proof of payment,
+    only of time passing. Marking those as paid would be the app asserting
+    something it cannot know — and the schedule already diverged from reality
+    once. So:
+
+      paid    — a real charge was matched to it (only possible when linked)
+      elapsed — its due date has passed, but nothing confirms it
+      pending — still in the future
+
+    Without a matcher every past row is 'elapsed', which is an honest
+    "time has passed" rather than a claim about money.
+    """
+    for row in rows:
+        if row["date"] > today:
+            continue
+        charged = (
+            matcher.match(row["date"], Decimal(str(row["payment"])))
+            if matcher is not None
+            else None
+        )
+        if charged is not None:
+            row["status"] = "paid"
+            row["charged"] = _f(charged)
+        else:
+            row["status"] = "elapsed"
+
+
+def group_by_year(rows: list[dict], *, include_months: bool) -> list[dict]:
+    """Roll instalment payloads up per calendar year, optionally keeping detail.
+
+    Takes payloads rather than engine rows so the caller can annotate them with
+    payment status first, and the yearly counts stay consistent with the months
+    they summarise.
+    """
     years: dict[int, dict] = {}
     for row in rows:
+        year = row["date"].year
         bucket = years.setdefault(
-            row.date.year,
+            year,
             {
-                "year": row.date.year,
-                "payment": _ZERO,
-                "interest": _ZERO,
-                "principal": _ZERO,
-                "prepayment": _ZERO,
-                "closing_balance": _ZERO,
+                "year": year,
+                "payment": 0.0,
+                "interest": 0.0,
+                "principal": 0.0,
+                "prepayment": 0.0,
+                "closing_balance": 0.0,
                 "months": [],
             },
         )
-        bucket["payment"] += row.payment
-        bucket["interest"] += row.interest
-        bucket["principal"] += row.principal
-        bucket["prepayment"] += row.prepayment
-        bucket["closing_balance"] = row.closing_balance
-        if include_months:
-            bucket["months"].append(row_payload(row))
+        bucket["payment"] += row["payment"]
+        bucket["interest"] += row["interest"]
+        bucket["principal"] += row["principal"]
+        bucket["prepayment"] += row["prepayment"]
+        bucket["closing_balance"] = row["closing_balance"]
+        bucket["months"].append(row)
 
-    return [
-        {
+    out = []
+    for b in sorted(years.values(), key=lambda b: b["year"]):
+        months = b["months"]
+        out.append({
             "year": b["year"],
-            "payment": _f(_q(b["payment"])),
-            "interest": _f(_q(b["interest"])),
-            "principal": _f(_q(b["principal"])),
-            "prepayment": _f(_q(b["prepayment"])),
-            "closing_balance": _f(_q(b["closing_balance"])),
-            "months": b["months"],
-        }
-        for b in sorted(years.values(), key=lambda b: b["year"])
-    ]
+            "payment": round(b["payment"], 2),
+            "interest": round(b["interest"], 2),
+            "principal": round(b["principal"], 2),
+            "prepayment": round(b["prepayment"], 2),
+            "closing_balance": round(b["closing_balance"], 2),
+            # Counts so a collapsed year still shows how far along it is.
+            "months_total": len(months),
+            "months_paid": sum(1 for m in months if m["status"] == "paid"),
+            "months_elapsed": sum(1 for m in months if m["status"] != "pending"),
+            "months": months if include_months else [],
+        })
+    return out
 
 
 def balance_series(schedule: Schedule, *, max_points: int = 480) -> list[dict]:
@@ -289,3 +337,94 @@ def balance_series(schedule: Schedule, *, max_points: int = 480) -> list[dict]:
             }
         )
     return points
+
+
+# ── Matching instalments to real charges ─────────────────────────────────────
+
+# How far a charge may sit from its due date and still be that instalment.
+# Covers last-working-day drift across a month boundary and a weekend.
+MATCH_WINDOW_DAYS = 10
+
+
+def is_linked(mortgage: Mortgage) -> bool:
+    """True when the mortgage points at an account or a category."""
+    return (
+        mortgage.linked_account_id is not None
+        or mortgage.linked_category_id is not None
+    )
+
+
+async def load_charges(
+    db: AsyncSession, mortgage: Mortgage, since: date
+) -> list[tuple[date, Decimal]]:
+    """Expenses in the linked account/category from *since*, oldest first.
+
+    Expenses only: a linked category also holds the loan disbursement, which is
+    income, and treating its absolute value as a charge reports a quarter of a
+    million euros for that month.
+    """
+    if not is_linked(mortgage):
+        return []
+
+    conditions = [
+        Transaction.transaction_date >= since,
+        Transaction.amount < 0,
+        Transaction.is_system.is_(False),
+    ]
+    if mortgage.linked_account_id is not None:
+        conditions.append(Transaction.account_id == mortgage.linked_account_id)
+    if mortgage.linked_category_id is not None:
+        conditions.append(Transaction.category_id == mortgage.linked_category_id)
+
+    result = await db.execute(
+        select(Transaction.transaction_date, Transaction.amount).where(*conditions)
+    )
+    return sorted((d, abs(a)) for d, a in result.all())
+
+
+class ChargeMatcher:
+    """Assigns each due instalment the real charge that most likely paid it.
+
+    Matching is by proximity in time, not by calendar month: banks charge on the
+    last working day, so an instalment routinely lands on the 1st of the next
+    month. Bucketing by month loses it and picks up whatever else shares the
+    category instead.
+
+    Within the window the nearest amount wins, and each charge is consumed, so
+    two instalments falling in one calendar month are not paid by the same
+    transaction twice.
+
+    Stateful by design: call ``match`` in due order.
+    """
+
+    def __init__(self, charges: list[tuple[date, Decimal]]) -> None:
+        self._charges = charges
+        self._used: set[int] = set()
+
+    @property
+    def covers_from(self) -> date | None:
+        """Earliest charge on record, or None when there is nothing to match.
+
+        Before this date the ledger simply has no data, which is not the same
+        as an instalment going unpaid — a mortgage usually predates the oldest
+        imported statement. Callers use it to stay quiet instead of reporting
+        a confident zero.
+        """
+        return min((when for when, _ in self._charges), default=None)
+
+    def match(self, due: date, expected: Decimal) -> Decimal | None:
+        best_idx: int | None = None
+        best_key: tuple[Decimal, int] | None = None
+        for idx, (charged_on, charged) in enumerate(self._charges):
+            if idx in self._used:
+                continue
+            distance = abs((charged_on - due).days)
+            if distance > MATCH_WINDOW_DAYS:
+                continue
+            key = (abs(charged - expected), distance)
+            if best_key is None or key < best_key:
+                best_idx, best_key = idx, key
+        if best_idx is None:
+            return None
+        self._used.add(best_idx)
+        return self._charges[best_idx][1]

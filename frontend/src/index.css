@@ -375,3 +375,32 @@
 
 .mortgage-form__detected-row.other { border-left-color: var(--border); }
 .mortgage-form__detected-other { font-size: 12px; color: var(--text-muted); }
+
+/* Payment status in the amortization schedule. */
+.mortgage-schedule__marker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  margin-right: 4px;
+  vertical-align: -2px;
+}
+
+.mortgage-schedule__paid { color: var(--income); }
+
+/* Elapsed but unconfirmed: dimmed rather than ticked, because a past due date
+   proves time passed, not that the charge landed. */
+.mortgage-schedule__month.is-elapsed .cat-td-name,
+.mortgage-schedule__month.is-elapsed .cat-td-num { opacity: 0.62; }
+
+.mortgage-schedule__month.is-paid .cat-td-name { color: var(--text); }
+
+.mortgage-schedule__year-progress {
+  margin-left: 8px;
+  padding: 1px 6px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: var(--bg);
+  border-radius: 999px;
+}

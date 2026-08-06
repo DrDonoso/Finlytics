@@ -316,6 +316,8 @@ export default function MortgagePage() {
             <h3 className="card-title">{t.mortgageScheduleTitle}</h3>
             <MortgageScheduleTable
               years={schedule.data?.years ?? []}
+              linked={schedule.data?.linked ?? false}
+              chargesFrom={schedule.data?.charges_from ?? null}
               loading={schedule.isPending}
               error={schedule.error ? errorMessage(schedule.error, t) : null}
             />

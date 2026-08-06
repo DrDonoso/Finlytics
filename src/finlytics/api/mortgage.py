@@ -75,9 +75,6 @@ _MIN_RECURRING_CHARGES = 3
 # qualify. Three monthly charges span ~59 days at the short end (Jan→Mar).
 _MIN_RECURRING_SPAN_DAYS = 50
 _MAX_CANDIDATES = 5
-# How far a charge may sit from its due date and still be that instalment.
-# Covers last-working-day drift across a month boundary and a weekend.
-_MATCH_WINDOW_DAYS = 10
 
 _RELATIONS = (
     selectinload(Mortgage.rate_periods),
@@ -404,9 +401,23 @@ async def get_schedule(
     schedules = await service.build_schedules(db, mortgage)
     schedule = schedules.actual
 
+    rows = [service.row_payload(r) for r in schedule.rows]
+
+    # Mark what has actually been charged. Without a link the rows are only
+    # tagged as elapsed: a past due date proves time passed, not payment.
+    matcher = None
+    if rows and service.is_linked(mortgage):
+        charges = await service.load_charges(
+            db, mortgage, add_months(rows[0]["date"], -1)
+        )
+        matcher = service.ChargeMatcher(charges)
+    service.annotate_status(rows, date.today(), matcher)
+
     payload: dict = {
         "mortgage_id": mortgage_id,
         "granularity": granularity,
+        "linked": service.is_linked(mortgage),
+        "charges_from": matcher.covers_from if matcher else None,
         "rows": [],
         "years": [],
         "total_payment": float(schedule.totals.total_paid),
@@ -414,9 +425,9 @@ async def get_schedule(
         "total_principal": float(schedule.totals.total_principal),
     }
     if granularity == "month":
-        payload["rows"] = [service.row_payload(r) for r in schedule.rows]
+        payload["rows"] = rows
     else:
-        payload["years"] = service.group_by_year(schedule.rows, include_months=True)
+        payload["years"] = service.group_by_year(rows, include_months=True)
     return payload
 
 
@@ -430,7 +441,10 @@ async def get_charts(
     schedules = await service.build_schedules(db, mortgage)
     return {
         "balance": service.balance_series(schedules.actual),
-        "composition": service.group_by_year(schedules.actual.rows, include_months=False),
+        "composition": service.group_by_year(
+            [service.row_payload(r) for r in schedules.actual.rows],
+            include_months=False,
+        ),
     }
 
 
@@ -447,7 +461,7 @@ async def get_reconciliation(
     is configured — the link is optional by design.
     """
     mortgage = await _load(db, mortgage_id, user.id)
-    if mortgage.linked_account_id is None and mortgage.linked_category_id is None:
+    if not service.is_linked(mortgage):
         return {
             "mortgage_id": mortgage_id,
             "linked": False,
@@ -462,48 +476,12 @@ async def get_reconciliation(
     today = date.today()
     past = [r for r in schedules.actual.rows if r.date <= today][-months:]
 
-    # One query for the whole window instead of one per month.
-    #
-    # Expenses only: a linked category also holds the loan disbursement, which is
-    # income. Summing it with abs() reported the December charge as a quarter of
-    # a million euros.
-    charges: list[tuple[date, Decimal]] = []
-    if past:
-        window_start = add_months(past[0].date, -1)
-        conditions = [
-            Transaction.transaction_date >= window_start,
-            Transaction.amount < 0,
-            Transaction.is_system.is_(False),
-        ]
-        if mortgage.linked_account_id is not None:
-            conditions.append(Transaction.account_id == mortgage.linked_account_id)
-        if mortgage.linked_category_id is not None:
-            conditions.append(Transaction.category_id == mortgage.linked_category_id)
-
-        result = await db.execute(
-            select(Transaction.transaction_date, Transaction.amount).where(*conditions)
-        )
-        charges = sorted((d, abs(a)) for d, a in result.all())
-
-    # Match by proximity in time, not by calendar month: banks charge on the last
-    # working day, so an instalment routinely lands on the 1st of the next month.
-    # Bucketing by month then loses it and picks up whatever else shares the
-    # category. Within the window the nearest amount wins, and each charge is
-    # consumed so two instalments in one month are not counted twice.
-    used: set[int] = set()
-
-    def match_for(due: date, expected: Decimal) -> Decimal | None:
-        best_idx, best_key = None, None
-        for idx, (charged_on, charged) in enumerate(charges):
-            if idx in used or abs((charged_on - due).days) > _MATCH_WINDOW_DAYS:
-                continue
-            key = (abs(charged - expected), abs((charged_on - due).days))
-            if best_key is None or key < best_key:
-                best_idx, best_key = idx, key
-        if best_idx is None:
-            return None
-        used.add(best_idx)
-        return charges[best_idx][1]
+    charges = (
+        await service.load_charges(db, mortgage, add_months(past[0].date, -1))
+        if past
+        else []
+    )
+    matcher = service.ChargeMatcher(charges)
 
     rows = []
     total_expected = Decimal("0")
@@ -512,7 +490,7 @@ async def get_reconciliation(
         # The instalment alone: a prepayment is usually a separate transfer and
         # already has its own table, so folding it in here only adds noise.
         expected = row.payment
-        actual = match_for(row.date, expected)
+        actual = matcher.match(row.date, expected)
         total_expected += expected
         entry: dict = {
             "period": row.date,

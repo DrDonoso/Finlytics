@@ -889,6 +889,10 @@ export interface Dict {
   mortgageColBalance: string
   mortgageColRate: string
   mortgageScheduleTotal: string
+  mortgageSchedulePaid: string
+  mortgageSchedulePaidOn: (amount: string) => string
+  mortgageSchedulePaidCount: (paid: number, total: number) => string
+  mortgageScheduleElapsedCount: (elapsed: number, total: number) => string
   // Prepayments
   mortgagePrepaymentsTitle: string
   mortgagePrepaymentsEmpty: string

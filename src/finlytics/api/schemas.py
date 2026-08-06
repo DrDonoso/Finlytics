@@ -1358,6 +1358,11 @@ class ScheduleRowOut(BaseModel):
     closing_balance: float
     annual_rate: float
     projected: bool
+    # 'paid'    — a real charge was matched to this instalment
+    # 'elapsed' — its due date has passed, but nothing confirms payment
+    # 'pending' — still in the future
+    status: Literal["paid", "elapsed", "pending"] = "pending"
+    charged: float | None = None
 
 
 class ScheduleYearOut(BaseModel):
@@ -1369,12 +1374,21 @@ class ScheduleYearOut(BaseModel):
     principal: float
     prepayment: float
     closing_balance: float
+    months_total: int = 0
+    months_paid: int = 0
+    months_elapsed: int = 0
     months: list[ScheduleRowOut] = []
 
 
 class ScheduleOut(BaseModel):
     mortgage_id: int
     granularity: Literal["month", "year"]
+    # False when no account/category is linked: rows can then only be reported
+    # as elapsed, never as confirmed paid.
+    linked: bool = False
+    # Oldest charge on record. Years ending before it are outside what the
+    # ledger can vouch for, so the UI reports nothing there rather than zero.
+    charges_from: date | None = None
     rows: list[ScheduleRowOut] = []
     years: list[ScheduleYearOut] = []
     total_payment: float

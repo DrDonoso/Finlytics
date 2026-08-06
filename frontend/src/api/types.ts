@@ -1030,6 +1030,10 @@ export interface MortgageScheduleRow {
   closing_balance: number
   annual_rate: number
   projected: boolean
+  /** 'paid' = a real charge was matched; 'elapsed' = due date passed but
+   *  nothing confirms it; 'pending' = still in the future. */
+  status: 'paid' | 'elapsed' | 'pending'
+  charged: number | null
 }
 
 export interface MortgageScheduleYear {
@@ -1039,12 +1043,18 @@ export interface MortgageScheduleYear {
   principal: number
   prepayment: number
   closing_balance: number
+  months_total: number
+  months_paid: number
+  months_elapsed: number
   months: MortgageScheduleRow[]
 }
 
 export interface MortgageSchedule {
   mortgage_id: number
   granularity: 'month' | 'year'
+  linked: boolean
+  /** Oldest charge on record; years ending before it cannot be vouched for. */
+  charges_from: string | null
   rows: MortgageScheduleRow[]
   years: MortgageScheduleYear[]
   total_payment: number
