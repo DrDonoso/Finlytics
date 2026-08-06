@@ -37,6 +37,7 @@ import {
   getMortgageCharts,
   getMortgageNetWorth,
   getMortgageOverview,
+  getMortgagePaymentCandidates,
   getMortgageReconciliation,
   getMortgageSchedule,
   getMortgages,
@@ -74,6 +75,7 @@ import type {
   MortgageCharts,
   MortgageNetWorth,
   MortgageOverview,
+  MortgagePaymentCandidates,
   MortgageReconciliation,
   MortgageSchedule,
   MortgageSummary,
@@ -139,6 +141,8 @@ export const queryKeys = {
   mortgageReconciliation: (id: number, months: number) =>
     ['mortgages', id, 'reconciliation', months] as const,
   mortgageNetWorth: ['mortgages', 'net-worth'] as const,
+  mortgagePaymentCandidates: (amount: number | null) =>
+    ['mortgages', 'payment-candidates', amount] as const,
   euribor: ['mortgages', 'euribor'] as const,
 }
 
@@ -385,6 +389,18 @@ export function useEuriborSeries(options?: QueryOptions): UseQueryResult<Euribor
     queryFn: getEuriborSeries,
     // A monthly series: re-fetching it while the user is in the app is pointless.
     staleTime: Infinity,
+    enabled: options?.enabled,
+  })
+}
+
+export function useMortgagePaymentCandidates(
+  amount: number | undefined,
+  options?: QueryOptions,
+): UseQueryResult<MortgagePaymentCandidates> {
+  return useQuery({
+    queryKey: queryKeys.mortgagePaymentCandidates(amount ?? null),
+    queryFn: () => getMortgagePaymentCandidates(amount),
+    staleTime: CATALOG_STALE_MS,
     enabled: options?.enabled,
   })
 }

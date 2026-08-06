@@ -1471,3 +1471,24 @@ class MortgageNetWorthOut(BaseModel):
     net_contribution: float
     count: int
 
+
+class PaymentCandidateOut(BaseModel):
+    """A recurring charge in the ledger that looks like a mortgage instalment."""
+
+    account_id: int
+    account_name: str
+    category_id: int | None = None
+    category_name: str | None = None
+    amount: float
+    months_matched: int
+    first_seen: date
+    last_seen: date
+    # Populated when an expected instalment was supplied: charged − expected.
+    deviation: float | None = None
+    deviation_pct: float | None = None
+
+
+class PaymentCandidatesOut(BaseModel):
+    expected_payment: float | None = None
+    candidates: list[PaymentCandidateOut] = []
+

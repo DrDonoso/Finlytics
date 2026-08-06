@@ -42,6 +42,7 @@ from finlytics.api.schemas import (
     MortgageOverview,
     MortgageSummary,
     MortgageUpdate,
+    PaymentCandidatesOut,
     PrepaymentIn,
     PrepaymentOut,
     ReconciliationOut,
@@ -50,6 +51,8 @@ from finlytics.api.schemas import (
     SimulationRequest,
 )
 from finlytics.db.models import (
+    Account,
+    Category,
     EuriborRate,
     Mortgage,
     MortgageBonus,
@@ -60,9 +63,15 @@ from finlytics.db.models import (
 )
 from finlytics.mortgage import service
 from finlytics.mortgage.euribor import INDEX_EURIBOR_12M, ensure_series
+from finlytics.mortgage.schedule import add_months
 from finlytics.mortgage.simulator import simulate_prepayment
 
 router = APIRouter(prefix="/mortgages", tags=["mortgages"])
+
+# A charge has to repeat this many distinct months before it looks like an
+# instalment rather than a coincidence of equal amounts.
+_MIN_RECURRING_MONTHS = 3
+_MAX_CANDIDATES = 5
 
 _RELATIONS = (
     selectinload(Mortgage.rate_periods),
@@ -188,6 +197,90 @@ async def get_euribor(
         "points": points,
         "latest": points[-1]["rate"] if points else None,
         "latest_period": points[-1]["period"] if points else None,
+    }
+
+
+@router.get("/payment-candidates", response_model=PaymentCandidatesOut)
+async def get_payment_candidates(
+    amount: float | None = Query(None, gt=0),
+    months: int = Query(24, ge=3, le=120),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    """Find recurring charges in the ledger that look like a mortgage instalment.
+
+    A mortgage is a fixed charge repeated every month, which is a strong enough
+    signal to spot without asking the user to hunt for it. Passing the expected
+    instalment additionally reports the deviation, which is what turns a silent
+    couple-of-euros gap into something visible while the terms can still be
+    corrected.
+
+    Suggestion only: nothing is linked or modified here.
+    """
+    window_start = add_months(date(date.today().year, date.today().month, 1), -months)
+
+    result = await db.execute(
+        select(
+            Transaction.account_id,
+            Transaction.category_id,
+            Transaction.amount,
+            Transaction.transaction_date,
+        )
+        .where(
+            Transaction.transaction_date >= window_start,
+            Transaction.amount < 0,
+            Transaction.is_system.is_(False),
+        )
+    )
+
+    # A mortgage instalment repeats to the cent, so an exact grouping on the
+    # amount is both precise and cheap. A variable-rate loan simply produces one
+    # cluster per review period, which still surfaces.
+    groups: dict[tuple[int, int | None, Decimal], list[date]] = {}
+    for account_id, category_id, tx_amount, tx_date in result.all():
+        key = (account_id, category_id, abs(tx_amount))
+        groups.setdefault(key, []).append(tx_date)
+
+    account_names = dict(
+        (await db.execute(select(Account.id, Account.name))).all()
+    )
+    category_names = dict(
+        (await db.execute(select(Category.id, Category.name))).all()
+    )
+
+    expected = Decimal(str(amount)) if amount is not None else None
+    candidates: list[dict] = []
+    for (account_id, category_id, charged), dates in groups.items():
+        distinct_months = {(d.year, d.month) for d in dates}
+        if len(distinct_months) < _MIN_RECURRING_MONTHS:
+            continue
+        entry: dict = {
+            "account_id": account_id,
+            "account_name": account_names.get(account_id, "?"),
+            "category_id": category_id,
+            "category_name": category_names.get(category_id) if category_id else None,
+            "amount": float(charged),
+            "months_matched": len(distinct_months),
+            "first_seen": min(dates),
+            "last_seen": max(dates),
+            "deviation": None,
+            "deviation_pct": None,
+        }
+        if expected is not None and expected > 0:
+            deviation = charged - expected
+            entry["deviation"] = float(deviation)
+            entry["deviation_pct"] = round(float(deviation / expected * 100), 2)
+        candidates.append(entry)
+
+    # Closest to the expected instalment first; without one, the most regular.
+    if expected is not None:
+        candidates.sort(key=lambda c: (abs(c["deviation"] or 0), -c["months_matched"]))
+    else:
+        candidates.sort(key=lambda c: -c["months_matched"])
+
+    return {
+        "expected_payment": float(expected) if expected is not None else None,
+        "candidates": candidates[:_MAX_CANDIDATES],
     }
 
 

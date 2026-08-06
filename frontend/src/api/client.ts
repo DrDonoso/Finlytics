@@ -19,6 +19,7 @@ import type {
   Mortgage, MortgageInput, MortgageSummary, MortgageOverview, MortgageSchedule,
   MortgageCharts, MortgageReconciliation, MortgagePrepayment, MortgagePrepaymentInput,
   MortgageSimulation, MortgageSimulationRequest, MortgageNetWorth, EuriborSeries,
+  MortgagePaymentCandidates,
 } from './types'
 import {
   mockGetAccounts, mockGetCategories, mockGetTags, mockGetTransactions,
@@ -942,4 +943,14 @@ export async function getMortgageNetWorth(): Promise<MortgageNetWorth> {
   } catch {
     return { outstanding_debt: 0, property_value: 0, net_contribution: 0, count: 0 }
   }
+}
+
+/** GET /api/mortgages/payment-candidates — recurring charges that look like an
+ *  instalment. Suggestion only; nothing is linked server-side. */
+export async function getMortgagePaymentCandidates(
+  amount?: number,
+): Promise<MortgagePaymentCandidates> {
+  return apiFetch<MortgagePaymentCandidates>(
+    buildUrl('/api/mortgages/payment-candidates', { amount }),
+  )
 }

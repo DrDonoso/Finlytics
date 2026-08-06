@@ -95,6 +95,7 @@ The counterweight to the investments side: the first **liability** the app model
 - **The Euribor is fetched automatically** from the ECB Data Portal (the 12-month monthly average that Spanish mortgages are actually referenced to). Reviews recompute the instalment using the index published `n` months earlier, as your deed specifies.
 - **Prepayments**, either reducing the term or the instalment, with a **simulator that runs before you commit the money**: interest saved, months saved, the new instalment, and the implied annual return — compared against what the same cash would earn invested instead.
 - **Optional reconciliation.** Link a bank account or category and the page compares the theoretical instalment against what was really charged, month by month. Leave it unlinked and the module is a pure calculator.
+- **The terms are checked against your ledger while you type them.** Setting up a mortgage scans your existing transactions for the recurring charge and, if it differs from the instalment your terms produce, says so and by how much — a steady two-euro gap is the signature of a wrong term, not of a bank error. One click links the account and category it found.
 - **Net worth.** Outstanding debt is subtracted and the property value added, with a per-mortgage toggle to leave the home KPI exactly as it was.
 
 > **Every figure is computed in `Decimal`, never floats.** Accumulated over 360 instalments a float drifts the closing balance by several euros, and the last instalment absorbs the rounding residue so the balance lands on exactly zero.

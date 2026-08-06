@@ -966,6 +966,9 @@ export interface Dict {
   mortgageFormLinkAccount: string
   mortgageFormLinkCategory: string
   mortgageFormLinkInfo: string
+  mortgageFormDetectedMonths: (months: number) => string
+  mortgageFormDetectedMatch: string
+  mortgageFormDetectedMismatch: (expected: string, deviation: string) => string
   mortgageFormPropertyValue: string
   mortgageFormIncludeNetWorth: string
   mortgageFormIncludeNetWorthInfo: string

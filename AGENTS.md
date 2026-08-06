@@ -214,6 +214,12 @@ A `reduce_term` prepayment deliberately keeps the instalment and shortens the lo
 - **Optional linking:** `linked_account_id` / `linked_category_id` are nullable. Without
   them the module is a pure calculator; with them `/reconciliation` compares the expected
   instalment against real transactions.
+- **Term entry accepts months, not just whole years.** A loan signed mid-month usually
+  amortizes capital over 359 instalments because the first charge covers interest alone,
+  and a year-only field silently understates the instalment by a couple of euros.
+- **`/payment-candidates` checks the terms against the ledger** at setup time: it looks
+  for a recurring charge and reports the deviation from the computed instalment. It only
+  suggests — nothing is linked or modified server-side.
 - **Net worth:** only mortgages with `include_in_net_worth = true` reach
   `GET /api/mortgages/net-worth`, which the Dashboard adds to its KPI.
 - **Demo:** the demo scenario has no mortgage. `demo/handlers.ts` answers the two
