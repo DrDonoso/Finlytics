@@ -4,6 +4,14 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260819] - 2026-08-19
+
+- [Release notes](https://github.com/postcss/postcss/releases)
+- [Changelog](https://github.com/postcss/postcss/blob/main/CHANGELOG.md)
+- [Commits](https://github.com/postcss/postcss/compare/8.5.21...8.5.26)
+- dependency-name: postcss dependency-version: 8.5.26 dependency-type: indirect
+
+
 ## [20260806.07] - 2026-08-06
 
 - [Release notes](https://github.com/nodejs/undici/releases)
