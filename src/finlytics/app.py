@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import mimetypes
 import os
 import sys
 from contextlib import asynccontextmanager, suppress
@@ -194,6 +195,10 @@ async def health() -> dict:
 # ── React SPA catch-all (optional — API works without it) ─────────────────────
 # Registered AFTER all /api routes so it never shadows them.
 _SPA_DIR = Path("frontend/dist")
+
+# Python's mimetypes table has no entry for .webmanifest, so FileResponse would
+# fall back to text/plain for the PWA manifest.
+mimetypes.add_type("application/manifest+json", ".webmanifest")
 
 
 @app.get("/{full_path:path}", include_in_schema=False)

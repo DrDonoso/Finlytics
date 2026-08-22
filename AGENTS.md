@@ -250,6 +250,34 @@ A `reduce_term` prepayment deliberately keeps the instalment and shortens the lo
 - **Plugin view registry:** `frontend/src/investments/registry.ts` — maps `plugin_id → { icon, name, component }`. Add an entry here for any new investment connector view.
 - **Design tokens:** Single `index.css` with CSS custom properties (`--bg`, `--surface`, `--border`, `--primary`, `--radius`, `--shadow`). Light/dark via `[data-theme="dark"]`.
 
+### Home-screen install (PWA)
+
+`frontend/public/` holds `manifest.webmanifest` plus the icon set. Both builds copy
+`public/` verbatim, so the demo and the production image get them for free — FastAPI's
+SPA catch-all and `nginx.demo.conf` already serve any real file at the root.
+
+> **`logo.svg` and `icon.svg` are two different marks, deliberately.** The favicon is a
+> transparent gradient mark so it reads on a light or dark tab strip. A home-screen tile is
+> composited over the wallpaper and iOS flattens transparency onto black, where thin navy
+> strokes vanish — so `icon.svg` is full-bleed instead: gradient tile, white mark. Do not
+> "unify" them.
+
+> **iOS cannot use an SVG icon at all**, which is the only reason the PNGs exist. Without
+> `apple-touch-icon.png`, "Add to Home Screen" falls back to a generated letter tile. The
+> PNGs are rasterised from `icon.svg` at 180 (Apple), 192 and 512, plus a `maskable` 512
+> whose mark is scaled to 0.72 so Android's mask cannot clip it. Regenerate all four with
+> any rasteriser when the mark changes — there is no build step for it, and no npm
+> dependency is carried for a once-a-year task.
+
+> **`theme-color` is media-less on purpose.** The theme is a stored user choice, so a
+> `prefers-color-scheme` media query would get it wrong whenever the two disagree. The
+> FOUC-prevention script in `index.html` sets it on first paint and `ThemeContext.applyTheme`
+> keeps it in step; both mirror `--bg` from `tokens.css`.
+
+> **`app.py` registers the `.webmanifest` MIME type.** Python's `mimetypes` table has no
+> entry for it, so `FileResponse` would serve the manifest as `text/plain`. nginx has
+> shipped the mapping since 1.21.4, so the demo needs nothing.
+
 ## Public demo (`frontend/src/demo/`)
 
 `npm run build:demo` (flag `VITE_DEMO=1`, via `.env.demo`) emits a backend-less build to

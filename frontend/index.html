@@ -4,6 +4,29 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+
+    <!-- Home-screen install (PWA).
+
+         iOS Safari ignores `rel="icon"` when you "Add to Home Screen" and it
+         cannot read SVG icons at all, so without this apple-touch-icon PNG it
+         falls back to a screenshot or a generated letter tile. It is also the
+         reason the icon artwork is a separate file from logo.svg — see
+         public/icon.svg.
+
+         `apple-mobile-web-app-capable` is superseded by the manifest's
+         `display: standalone`, but iOS below 15.4 only honours the meta. -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Finlytics" />
+    <!-- Not `black-translucent`: that puts content under the status bar, which
+         needs safe-area insets the layout doesn't use. -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <!-- Kept media-less and rewritten below (and by ThemeContext) so it tracks
+         the *chosen* theme, not just the OS one. -->
+    <meta name="theme-color" content="#f4f6f9" />
+
     <title>Finlytics</title>
     <script>
       (function () {
@@ -11,6 +34,8 @@
           var t = localStorage.getItem('finlytics_theme') || 'system'
           if (t === 'system') t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
           document.documentElement.setAttribute('data-theme', t)
+          var m = document.querySelector('meta[name="theme-color"]')
+          if (m) m.setAttribute('content', t === 'dark' ? '#0c1420' : '#f4f6f9')
           var p = localStorage.getItem('finlytics_accent_palette') || 'classic'
           if (['classic', 'emerald', 'violet', 'amber', 'contrast'].indexOf(p) === -1) p = 'classic'
           document.documentElement.setAttribute('data-palette', p)
