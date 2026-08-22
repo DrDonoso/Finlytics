@@ -4,6 +4,15 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260822] - 2026-08-22
+
+- Add `icon.svg`, full-bleed gradient tile with a white mark. Kept separate from `logo.svg` because iOS flattens transparency onto black, where the favicon's thin navy strokes disappear.
+- Rasterise it to `apple-touch-icon.png` (180), `icon-192`, `icon-512` and a `maskable` 512 whose mark is scaled to 0.72 for Android's safe zone.
+- Add `manifest.webmanifest` with `display: standalone`, and link it along with the Apple meta tags. Status bar style is `default` rather than `black-translucent`, which would need safe-area insets the layout lacks.
+- Drive `theme-color` from the stored theme instead of a media query, since the two disagree whenever the user overrides the OS preference.
+- Register the `.webmanifest` MIME type: Python's `mimetypes` has no entry for it, so `FileResponse` served the manifest as `text/plain`.
+
+
 ## [20260819] - 2026-08-19
 
 - [Release notes](https://github.com/postcss/postcss/releases)
