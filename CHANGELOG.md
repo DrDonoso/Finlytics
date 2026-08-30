@@ -4,6 +4,15 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260830] - 2026-08-30
+
+- PrivacyContext persists the choice in localStorage and sets data-privacy="on" on <html>. The FOUC guard in index.html reads it on first paint, otherwise amounts render sharp for one frame on reload.
+- Money/Private funnel every rendered amount through a .private class that styles/privacy.css blurs, so coverage is one CSS rule rather than a per-component concern.
+- Native title tooltips cannot be blurred by CSS, so the heatmap and the amortization table drop the figure from the tooltip text instead.
+- Public market data (share price, FX rate), percentages, dates and counts stay readable, so the app remains usable with the toggle on.
+- privacy.test.tsx mounts the money-bearing routes against the demo dataset and fails on any euro text without a .private ancestor. A leak is invisible in a passing build without it.
+
+
 ## [20260822] - 2026-08-22
 
 - Add `icon.svg`, full-bleed gradient tile with a white mark. Kept separate from `logo.svg` because iOS flattens transparency onto black, where the favicon's thin navy strokes disappear.
