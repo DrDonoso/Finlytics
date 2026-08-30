@@ -5,6 +5,7 @@ import './index.css'
 import App from './App'
 import { LanguageProvider } from './i18n'
 import { ThemeProvider } from './contexts/ThemeContext'
+import { PrivacyProvider } from './contexts/PrivacyContext'
 import { queryClient } from './api/queryClient'
 
 function render() {
@@ -12,9 +13,11 @@ function render() {
     <StrictMode>
       <QueryClientProvider client={queryClient}>
         <ThemeProvider>
-          <LanguageProvider>
-            <App />
-          </LanguageProvider>
+          <PrivacyProvider>
+            <LanguageProvider>
+              <App />
+            </LanguageProvider>
+          </PrivacyProvider>
         </ThemeProvider>
       </QueryClientProvider>
     </StrictMode>,

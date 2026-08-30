@@ -11,6 +11,7 @@ import { MortgageBalanceChart, MortgageCompositionChart } from '../components/Mo
 import MortgageFormModal from '../components/MortgageFormModal'
 import MortgagePrepaymentSimulator from '../components/MortgagePrepaymentSimulator'
 import MortgageScheduleTable from '../components/MortgageScheduleTable'
+import { Private } from '../components/Money'
 import { IconAlert, IconBuilding, IconInfo, IconLoading, IconTrash } from '../components/icons'
 import { IS_DEMO } from '../demo/config'
 import { formatDate, useT } from '../i18n'
@@ -173,7 +174,7 @@ export default function MortgagePage() {
               <div className="inv-kpi-card__label">
                 {t.mortgageKpiOutstanding} <InfoTip text={t.mortgageKpiOutstandingInfo} />
               </div>
-              <div className="inv-kpi-card__value">{formatEur(data.outstanding_balance)}</div>
+              <div className="inv-kpi-card__value private">{formatEur(data.outstanding_balance)}</div>
               <div className="inv-kpi-card__sub">
                 {data.months_remaining} {t.mortgageMonthsShort} {t.mortgageRemainingSuffix}
               </div>
@@ -181,7 +182,7 @@ export default function MortgagePage() {
 
             <div className="inv-kpi-card">
               <div className="inv-kpi-card__label">{t.mortgageKpiAmortized}</div>
-              <div className="inv-kpi-card__value">{formatEur(data.amortized_principal)}</div>
+              <div className="inv-kpi-card__value private">{formatEur(data.amortized_principal)}</div>
               <div
                 className="mortgage-progress"
                 role="progressbar"
@@ -199,7 +200,7 @@ export default function MortgagePage() {
 
             <div className="inv-kpi-card">
               <div className="inv-kpi-card__label">{t.mortgageKpiPayment}</div>
-              <div className="inv-kpi-card__value">{formatEur(data.current_payment)}</div>
+              <div className="inv-kpi-card__value private">{formatEur(data.current_payment)}</div>
               <div className="inv-kpi-card__sub">
                 {data.next_payment_date ? formatDate(data.next_payment_date, lang) : '—'}
               </div>
@@ -207,11 +208,11 @@ export default function MortgagePage() {
 
             <div className="inv-kpi-card">
               <div className="inv-kpi-card__label">{t.mortgageKpiInterestPaid}</div>
-              <div className="inv-kpi-card__value inv-kpi-card__value--neg">
+              <div className="inv-kpi-card__value inv-kpi-card__value--neg private">
                 {formatEur(data.interest_paid)}
               </div>
               <div className="inv-kpi-card__sub">
-                {t.mortgageKpiInterestRemaining}: {formatEur(data.interest_remaining)}
+                {t.mortgageKpiInterestRemaining}: <Private>{formatEur(data.interest_remaining)}</Private>
               </div>
             </div>
 
@@ -233,7 +234,7 @@ export default function MortgagePage() {
                   {t.mortgageKpiLtv} <InfoTip text={t.mortgageKpiLtvInfo} />
                 </div>
                 <div className="inv-kpi-card__value">{data.ltv_pct.toFixed(1)} %</div>
-                <div className="inv-kpi-card__sub">{formatEur(data.property_value ?? 0)}</div>
+                <div className="inv-kpi-card__sub private">{formatEur(data.property_value ?? 0)}</div>
               </div>
             )}
           </div>
@@ -279,11 +280,11 @@ export default function MortgagePage() {
                     {mortgage.data.prepayments.map(p => (
                       <tr key={p.id} className="cat-row">
                         <td className="cat-td-name">{formatDate(p.payment_date, lang)}</td>
-                        <td className="cat-td-num">{formatEur(p.amount)}</td>
+                        <td className="cat-td-num private">{formatEur(p.amount)}</td>
                         <td className="cat-td-name">
                           {p.mode === 'reduce_term' ? t.mortgageModeReduceTerm : t.mortgageModeReducePayment}
                         </td>
-                        <td className="cat-td-num">{p.fee > 0 ? formatEur(p.fee) : '—'}</td>
+                        <td className="cat-td-num">{p.fee > 0 ? <Private>{formatEur(p.fee)}</Private> : '—'}</td>
                         <td className="cat-td-num">
                           {!IS_DEMO && (
                             <button
@@ -302,7 +303,7 @@ export default function MortgagePage() {
                 </table>
                 {data.interest_saved > 0 && (
                   <p className="mortgage-saving-note inv-kpi-card__value--pos">
-                    {t.mortgageKpiSavedByPrepayments}: {formatEur(data.interest_saved)}
+                    {t.mortgageKpiSavedByPrepayments}: <Private>{formatEur(data.interest_saved)}</Private>
                   </p>
                 )}
               </div>
@@ -350,14 +351,14 @@ export default function MortgagePage() {
                         return (
                           <tr key={row.period} className="cat-row">
                             <td className="cat-td-name">{formatDate(row.period, lang)}</td>
-                            <td className="cat-td-num">{formatEur(row.expected)}</td>
+                            <td className="cat-td-num private">{formatEur(row.expected)}</td>
                             <td className="cat-td-num">
-                              {row.actual == null ? t.mortgageReconMissing : formatEur(row.actual)}
+                              {row.actual == null ? t.mortgageReconMissing : <Private>{formatEur(row.actual)}</Private>}
                             </td>
                             <td className={`cat-td-num${off ? ' inv-kpi-card__value--neg' : ''}`}>
                               {row.deviation == null
                                 ? '—'
-                                : `${row.deviation >= 0 ? '+' : ''}${formatEur(row.deviation)}`}
+                                : <Private>{`${row.deviation >= 0 ? '+' : ''}${formatEur(row.deviation)}`}</Private>}
                             </td>
                           </tr>
                         )

@@ -7,6 +7,7 @@ import { IconAlert, IconClose } from './icons'
 import DatePicker from './DatePicker'
 import { useT, categoryLabel } from '../i18n'
 import { previewSchedule } from '../mortgage/calc'
+import { Private } from './Money'
 
 const INDEX_NAME = 'euribor_12m'
 
@@ -201,6 +202,21 @@ export default function MortgageFormModal({ mortgage, accounts, categories, onCl
   }
 
   const steps = [t.mortgageFormStepLoan, t.mortgageFormStepRate, t.mortgageFormStepLink]
+  function renderDetectedMismatch(expected: string, deviation: string) {
+    const text = t.mortgageFormDetectedMismatch(expected, deviation)
+    const expectedAt = text.indexOf(expected)
+    if (expectedAt < 0) return <Private>{text}</Private>
+    const beforeExpected = text.slice(0, expectedAt)
+    const afterExpected = text.slice(expectedAt + expected.length)
+    const deviationAt = afterExpected.indexOf(deviation)
+    if (deviationAt < 0) return <Private>{text}</Private>
+    return (
+      <>
+        {beforeExpected}<Private>{expected}</Private>{afterExpected.slice(0, deviationAt)}
+        <Private>{deviation}</Private>{afterExpected.slice(deviationAt + deviation.length)}
+      </>
+    )
+  }
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -402,7 +418,7 @@ export default function MortgageFormModal({ mortgage, accounts, categories, onCl
                         }}
                       >
                         <span className="mortgage-form__detected-main">
-                          <strong>{formatEur(c.amount)}</strong>
+                          <strong className="private">{formatEur(c.amount)}</strong>
                           {' · '}{c.account_name}
                           {c.category_name ? ` · ${categoryLabel(c.category_name, lang, dynamicEs)}` : ''}
                           {' · '}{t.mortgageFormDetectedCharges(c.occurrences)}
@@ -410,7 +426,7 @@ export default function MortgageFormModal({ mortgage, accounts, categories, onCl
                         {off ? (
                           <span className="mortgage-form__detected-warn">
                             <IconAlert size={13} />
-                            {t.mortgageFormDetectedMismatch(
+                            {renderDetectedMismatch(
                               formatEur(preview.payment),
                               `${c.deviation! >= 0 ? '+' : ''}${formatEur(c.deviation!)}`,
                             )}
@@ -479,11 +495,11 @@ export default function MortgageFormModal({ mortgage, accounts, categories, onCl
           <div className="mortgage-form__preview-values">
             <div>
               <span className="mortgage-form__preview-key">{t.mortgageFormPreviewPayment}</span>
-              <span className="mortgage-form__preview-value">{formatEur(preview.payment)}</span>
+              <span className="mortgage-form__preview-value private">{formatEur(preview.payment)}</span>
             </div>
             <div>
               <span className="mortgage-form__preview-key">{t.mortgageFormPreviewTotalInterest}</span>
-              <span className="mortgage-form__preview-value">{formatEur(preview.totalInterest)}</span>
+              <span className="mortgage-form__preview-value private">{formatEur(preview.totalInterest)}</span>
             </div>
           </div>
         </div>

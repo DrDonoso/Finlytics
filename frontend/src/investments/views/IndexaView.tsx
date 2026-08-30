@@ -10,6 +10,7 @@ import { errorMessage } from '../../api/errors'
 import { useT, langLocale } from '../../i18n'
 import type { Dict } from '../../i18n'
 import { IconLoading, IconAlert, IconChartPie, IconChartLine, IconReceipt, IconBanknote, IconLink, IconChevronUp, IconChevronDown, IconChevronRight } from '../../components/icons'
+import Money, { Private } from '../../components/Money'
 
 const ASSET_CLASS_COLORS: Record<string, string> = {
   equity:       '#2563eb',
@@ -330,9 +331,9 @@ export default function IndexaView() {
                       const v  = matrixMode === 'pct'
                         ? (row.months_pct[mk] ?? null)
                         : (row.months_eur[mk] ?? null)
-                      return <td key={i} className={cellCls(v)}>{fmtCell(v, matrixMode)}</td>
+                      return <td key={i} className={cellCls(v, matrixMode === 'eur' ? 'private' : '')}>{fmtCell(v, matrixMode)}</td>
                     })}
-                    <td className={cellCls(tot, 'returns-matrix-cell--total')}>
+                    <td className={cellCls(tot, matrixMode === 'eur' ? 'returns-matrix-cell--total private' : 'returns-matrix-cell--total')}>
                       {fmtCell(tot, matrixMode)}
                     </td>
                     <td className={cellCls(bench, 'returns-matrix-cell--bench')}>
@@ -346,12 +347,25 @@ export default function IndexaView() {
         </div>
         {portfolio.drawdown && (
           <p className="inv-drawdown-note">
-            {t.invDrawdownNote(
-              `${(Math.abs(portfolio.drawdown.max_drawdown) * 100).toFixed(1)}%`,
-              formatCurrency(Math.abs(portfolio.drawdown.max_drawdown_eur)),
-              new Date(portfolio.drawdown.start_date).toLocaleDateString(locale, { day: '2-digit', month: '2-digit', year: 'numeric' }),
-              new Date(portfolio.drawdown.end_date).toLocaleDateString(locale, { day: '2-digit', month: '2-digit', year: 'numeric' }),
-            )}
+            {(() => {
+              const eur = formatCurrency(Math.abs(portfolio.drawdown.max_drawdown_eur))
+              const note = t.invDrawdownNote(
+                `${(Math.abs(portfolio.drawdown.max_drawdown) * 100).toFixed(1)}%`,
+                eur,
+                new Date(portfolio.drawdown.start_date).toLocaleDateString(locale, { day: '2-digit', month: '2-digit', year: 'numeric' }),
+                new Date(portfolio.drawdown.end_date).toLocaleDateString(locale, { day: '2-digit', month: '2-digit', year: 'numeric' }),
+              )
+              // Split on the rendered amount itself: if a translation stops
+              // interpolating it there is nothing to hide and the sentence
+              // still renders whole.
+              const at = note.indexOf(eur)
+              if (at === -1) return note
+              return <>
+                {note.slice(0, at)}
+                <Private>{eur}</Private>
+                {note.slice(at + eur.length)}
+              </>
+            })()}
           </p>
         )}
       </div>
@@ -409,7 +423,7 @@ export default function IndexaView() {
               <div className="inv-summary-row inv-summary-row--total">
                 <span className="inv-summary-label">{t.invSummaryValorTotal}</span>
                 <span className="inv-summary-value inv-summary-value--big">
-                  {formatCurrency(portfolio!.total_value)}
+                  <Money value={portfolio!.total_value} />
                 </span>
               </div>
 
@@ -419,10 +433,12 @@ export default function IndexaView() {
                   (portfolio!.returns?.pl ?? 0) >= 0 ? 'inv-summary-value--pos' : 'inv-summary-value--neg'
                 }`}>
                   {portfolio!.returns?.pl != null
-                    ? `${portfolio!.returns.pl >= 0 ? '+' : ''}${formatCurrency(portfolio!.returns.pl)}` +
-                      (portfolio!.returns.money_return != null
-                        ? ` (${portfolio!.returns.money_return >= 0 ? '+' : ''}${new Intl.NumberFormat(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(portfolio!.returns.money_return * 100)} %)`
-                        : '')
+                    ? <>
+                        <Money value={portfolio!.returns.pl} signed />
+                        {portfolio!.returns.money_return != null
+                          ? ` (${portfolio!.returns.money_return >= 0 ? '+' : ''}${new Intl.NumberFormat(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(portfolio!.returns.money_return * 100)} %)`
+                          : ''}
+                      </>
                     : '—'}
                 </span>
               </div>
@@ -431,7 +447,7 @@ export default function IndexaView() {
                 <span className="inv-summary-label">{t.invSummaryAportaciones}</span>
                 <span className="inv-summary-value">
                   {portfolio!.returns?.aportaciones != null
-                    ? `+${formatCurrency(portfolio!.returns.aportaciones)}`
+                    ? <Private>{`+${formatCurrency(portfolio!.returns.aportaciones)}`}</Private>
                     : '—'}
                 </span>
               </div>
@@ -440,7 +456,7 @@ export default function IndexaView() {
                 <span className="inv-summary-label">{t.invSummaryRetenciones}</span>
                 <span className="inv-summary-value inv-summary-value--neg">
                   {portfolio!.returns?.retenciones != null
-                    ? formatCurrency(-Math.abs(portfolio!.returns.retenciones))
+                    ? <Private>{formatCurrency(-Math.abs(portfolio!.returns.retenciones))}</Private>
                     : '—'}
                 </span>
               </div>
@@ -544,7 +560,7 @@ export default function IndexaView() {
                       </ResponsiveContainer>
                       <div className="cat-donut-center">
                         <span className="cat-donut-label">{t.invDonutAssetTitle}</span>
-                        <span className="cat-donut-total">{formatCurrency(portfolio!.total_value)}</span>
+                        <span className="cat-donut-total"><Money value={portfolio!.total_value} /></span>
                       </div>
                     </div>
                     <div className="cat-table-wrap">
@@ -565,7 +581,7 @@ export default function IndexaView() {
                                   <span className="cat-td-label">{assetLabel(item.name, t)}</span>
                                 </div>
                               </td>
-                              <td className="cat-td-num">{formatCurrency(item.value)}</td>
+                              <td className="cat-td-num"><Money value={item.value} /></td>
                               <td className="cat-td-num cat-td-weight">
                                 {portfolio!.total_value > 0
                                   ? (item.value / portfolio!.total_value * 100).toFixed(1)
@@ -611,7 +627,7 @@ export default function IndexaView() {
                       </ResponsiveContainer>
                       <div className="cat-donut-center">
                         <span className="cat-donut-label">{t.invDonutInstrumentTitle}</span>
-                        <span className="cat-donut-total">{formatCurrency(portfolio!.total_value)}</span>
+                        <span className="cat-donut-total"><Money value={portfolio!.total_value} /></span>
                       </div>
                     </div>
                     <div className="inv-donut-compact-legend">
@@ -918,12 +934,12 @@ export default function IndexaView() {
                               {assetLabel(h.asset_class, t)}
                             </span>
                           </td>
-                          <td className="inv-td-num">{fmtUnits}</td>
-                          <td className="inv-td-num">{formatCurrency(h.current_value)}</td>
+                          <td className="inv-td-num"><Private>{fmtUnits}</Private></td>
+                          <td className="inv-td-num"><Money value={h.current_value} /></td>
                           <td className="inv-td-weight">{weight}%</td>
-                          <td className="inv-td-num">{formatCurrency(h.cost_basis)}</td>
+                          <td className="inv-td-num"><Money value={h.cost_basis} /></td>
                           <td className={`inv-td-num ${isPos ? 'inv-pnl--pos' : 'inv-pnl--neg'}`}>
-                            {isPos ? '+' : ''}{formatCurrency(h.gain_loss)}
+                            <Money value={h.gain_loss} signed />
                           </td>
                           <td className={`inv-td-num ${isPos ? 'inv-pnl--pos' : 'inv-pnl--neg'}`}>
                             {isPos ? '+' : ''}{(h.gain_loss_pct * 100).toFixed(2)}%
@@ -960,7 +976,6 @@ export default function IndexaView() {
                       <tbody>
                         {events.map((ev, i) => {
                           const isPos = ev.amount >= 0
-                          const sign  = isPos ? '+' : ''
                           return (
                             <tr key={i}>
                               <td>
@@ -971,9 +986,9 @@ export default function IndexaView() {
                                 </span>
                               </td>
                               <td className={`inv-td-num ${isPos ? 'inv-pnl--pos' : 'inv-pnl--neg'}`}>
-                                {sign}{formatCurrency(ev.amount)}
+                                <Money value={ev.amount} signed />
                               </td>
-                              <td className="inv-td-num">{formatCurrency(ev.cumulative)}</td>
+                              <td className="inv-td-num"><Money value={ev.cumulative} /></td>
                             </tr>
                           )
                         })}

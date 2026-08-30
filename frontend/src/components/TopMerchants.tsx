@@ -119,7 +119,7 @@ export default function TopMerchants({ globalFilters, selectedMerchant, onMercha
             </ResponsiveContainer>
             <div className="cat-donut-center">
               <span className="cat-donut-label">{t.topMerchantsCenterLabel}</span>
-              <span className="cat-donut-total">{formatCurrency(total)}</span>
+              <span className="cat-donut-total private">{formatCurrency(total)}</span>
               {!selectedMerchant && periodTotalExpense != null && periodTotalExpense > 0 && (
                 <span className="cat-donut-coverage">
                   {t.merchantCoverage(Math.max(0, Math.min(100, Math.round(total / periodTotalExpense * 100))))}
@@ -159,7 +159,7 @@ export default function TopMerchants({ globalFilters, selectedMerchant, onMercha
                           <span className="cat-td-label">{item.merchant}</span>
                         </div>
                       </td>
-                      <td className="cat-td-num">{formatCurrency(item.amount)}</td>
+                      <td className="cat-td-num private">{formatCurrency(item.amount)}</td>
                       <td className="cat-td-num cat-td-weight">{weight}%</td>
                     </tr>
                   )

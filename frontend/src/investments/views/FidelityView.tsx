@@ -17,6 +17,7 @@ import { useT, langLocale } from '../../i18n'
 import { IS_DEMO } from '../../demo/config'
 import { useNotifications } from '../../contexts/NotificationsContext'
 import { IconChevronUp, IconChevronDown, IconLoading, IconAlert, IconBriefcase, IconChartLine, IconReceipt, IconClose, IconFolder, IconCheck, IconArrowLeft, IconArrowRight } from '../../components/icons'
+import Money, { Private } from '../../components/Money'
 
 // ── Date helpers (mirrored from IndexaView) ────────────────────────────────────
 
@@ -406,7 +407,7 @@ export default function FidelityView() {
               <div className="kpi-label">{t.fidelityKpiShares}</div>
               <div className="kpi-value">
                 {kpis != null
-                  ? `${new Intl.NumberFormat(locale, { minimumFractionDigits: 3, maximumFractionDigits: 3 }).format(kpis.total_shares)} MSFT`
+                  ? <><Private>{new Intl.NumberFormat(locale, { minimumFractionDigits: 3, maximumFractionDigits: 3 }).format(kpis.total_shares)}</Private> MSFT</>
                   : '—'}
               </div>
               <div className="kpi-sub">
@@ -418,7 +419,7 @@ export default function FidelityView() {
             <div className="kpi-card">
               <div className="kpi-label">{t.fidelityKpiInvested}</div>
               <div className="kpi-value">
-                {kpis != null ? formatCurrency(kpis.invested_eur) : '—'}
+                {kpis != null ? <Money value={kpis.invested_eur} /> : '—'}
               </div>
             </div>
 
@@ -426,7 +427,7 @@ export default function FidelityView() {
             <div className="kpi-card">
               <div className="kpi-label">{t.fidelityKpiCurrentValue}</div>
               <div className="kpi-value">
-                {kpis?.current_value_eur != null ? formatCurrency(kpis.current_value_eur) : '—'}
+                {kpis?.current_value_eur != null ? <Money value={kpis.current_value_eur} /> : '—'}
               </div>
               {kpis?.msft_price_usd != null && kpis.usd_eur_rate != null && (
                 <div className="kpi-sub">
@@ -440,7 +441,7 @@ export default function FidelityView() {
               <div className="kpi-label">{t.fidelityKpiGainLoss}</div>
               <div className={`kpi-value${kpis?.gain_loss_eur != null ? (kpis.gain_loss_eur >= 0 ? ' net-pos' : ' net-neg') : ''}`}>
                 {kpis?.gain_loss_eur != null
-                  ? `${kpis.gain_loss_eur >= 0 ? '+' : ''}${formatCurrency(kpis.gain_loss_eur)}`
+                  ? <Money value={kpis.gain_loss_eur} signed />
                   : '—'}
               </div>
               {kpis?.gain_loss_pct != null && (
@@ -666,19 +667,19 @@ export default function FidelityView() {
                             </span>
                           </td>
                           <td className="inv-td-num">
-                            {new Intl.NumberFormat(locale, {
+                            <Private>{new Intl.NumberFormat(locale, {
                               minimumFractionDigits: 3,
                               maximumFractionDigits: 3,
-                            }).format(lot.shares)}
+                            }).format(lot.shares)}</Private>
                           </td>
-                          <td className="inv-td-num">{formatCurrency(lot.cost_basis_per_share_eur)}</td>
-                          <td className="inv-td-num">{formatCurrency(lot.cost_basis_total_eur)}</td>
+                          <td className="inv-td-num"><Money value={lot.cost_basis_per_share_eur} /></td>
+                          <td className="inv-td-num"><Money value={lot.cost_basis_total_eur} /></td>
                           <td className="inv-td-num">
-                            {lot.current_value_eur != null ? formatCurrency(lot.current_value_eur) : '—'}
+                            {lot.current_value_eur != null ? <Money value={lot.current_value_eur} /> : '—'}
                           </td>
                           <td className={`inv-td-num ${gainCls}`}>
                             {lot.gain_loss_eur != null
-                              ? `${isPos ? '+' : ''}${formatCurrency(lot.gain_loss_eur)}`
+                              ? <Money value={lot.gain_loss_eur} signed />
                               : '—'}
                           </td>
                           <td className={`inv-td-num ${gainCls}`}>
@@ -814,13 +815,13 @@ export default function FidelityView() {
                                 </span>
                               </td>
                               <td className="inv-td-num">
-                                {new Intl.NumberFormat(locale, {
+                                <Private>{new Intl.NumberFormat(locale, {
                                   minimumFractionDigits: 3,
                                   maximumFractionDigits: 3,
-                                }).format(lot.shares)}
+                                }).format(lot.shares)}</Private>
                               </td>
-                              <td className="inv-td-num">{formatCurrency(lot.cost_basis_per_share_eur)}</td>
-                              <td className="inv-td-num">{formatCurrency(lot.cost_basis_total_eur)}</td>
+                              <td className="inv-td-num"><Money value={lot.cost_basis_per_share_eur} /></td>
+                              <td className="inv-td-num"><Money value={lot.cost_basis_total_eur} /></td>
                             </tr>
                           ))}
                         </tbody>

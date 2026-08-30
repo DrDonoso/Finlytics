@@ -426,7 +426,7 @@ export default function TransactionsTable({ globalFilters, categories, allTags, 
                           </div>
                         )}
                       </td>
-                      <td className={`td-amount ${tx.amount < 0 ? 'neg' : 'pos'}`}>
+                      <td className={`td-amount private ${tx.amount < 0 ? 'neg' : 'pos'}`}>
                         {formatCurrency(tx.amount)}
                       </td>
                       <td>

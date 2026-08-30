@@ -412,11 +412,11 @@ export default function TransactionsPage() {
           <>
             <div className="tx-total tx-total--income">
               <span className="tx-total-label">{t.kpiTotalIncome}</span>
-              <span className="tx-total-value">{formatCurrency(overview.total_income)}</span>
+              <span className="tx-total-value private">{formatCurrency(overview.total_income)}</span>
             </div>
             <div className="tx-total tx-total--expense">
               <span className="tx-total-label">{t.kpiTotalExpense}</span>
-              <span className="tx-total-value">{formatCurrency(overview.total_expense)}</span>
+              <span className="tx-total-value private">{formatCurrency(overview.total_expense)}</span>
             </div>
           </>
         ) : null}

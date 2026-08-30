@@ -1,0 +1,107 @@
+/* ─── Privacy mode ─────────────────────────────────────────────────────────
+
+   Blurs monetary values so the app can be opened next to someone else. This is
+   a visual guard only: the text stays in the DOM, so it is still selectable by
+   a determined user and readable by assistive tech. It defends against a glance
+   over the shoulder or a screen share, not against someone at the keyboard.
+
+   `filter` is used rather than replacing the string with dots because it leaves
+   layout untouched — no column reflow, no jumping KPI cards on toggle. */
+
+[data-privacy="on"] .private {
+  filter: blur(7px);
+  user-select: none;
+  -webkit-user-select: none;
+  /* Nudges the caret away without blocking clicks: the amount cell in the
+     transactions table sits inside a clickable row. */
+  cursor: default;
+}
+
+.private { transition: filter 0.18s ease; }
+
+/* Charts keep their shapes — a bar's height is a relative hint, not a figure —
+   but every rendered number goes. */
+[data-privacy="on"] .recharts-tooltip-wrapper,
+[data-privacy="on"] .recharts-yAxis .recharts-cartesian-axis-tick-value,
+[data-privacy="on"] .recharts-label-list text {
+  filter: blur(5px);
+}
+
+/* Charts whose value axis is X and whose Y axis holds category labels
+   (horizontal bars). Without this the account names blur and the euros don't. */
+[data-privacy="on"] .chart-value-x .recharts-yAxis .recharts-cartesian-axis-tick-value {
+  filter: none;
+}
+
+[data-privacy="on"] .chart-value-x .recharts-xAxis .recharts-cartesian-axis-tick-value {
+  filter: blur(5px);
+}
+
+/* ── Topbar toggle ─────────────────────────────────────────────────────── */
+
+.privacy-btn {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  font-family: inherit;
+  flex-shrink: 0;
+}
+
+.privacy-btn:hover { background: var(--bg); }
+.privacy-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.privacy-btn.active { color: var(--primary); }
+
+/* ── Settings row ──────────────────────────────────────────────────────── */
+
+.privacy-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.privacy-shortcut {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--text-muted);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+}
+
+.privacy-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+.privacy-switch:hover { border-color: var(--primary); }
+
+.privacy-switch.active {
+  color: var(--primary-contrast);
+  background: var(--primary);
+  border-color: var(--primary);
+}

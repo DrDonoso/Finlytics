@@ -21,7 +21,7 @@ export default function MortgageSnapshotCard() {
       <div className="mortgage-snapshot__body">
         <div className="mortgage-snapshot__main">
           <span className="mortgage-snapshot__label">{t.mortgageKpiOutstanding}</span>
-          <span className="mortgage-snapshot__value">{formatEur(data.outstanding_balance)}</span>
+          <span className="mortgage-snapshot__value private">{formatEur(data.outstanding_balance)}</span>
           <div
             className="mortgage-progress"
             role="progressbar"
@@ -41,7 +41,7 @@ export default function MortgageSnapshotCard() {
         <div className="mortgage-snapshot__side">
           <div>
             <span className="mortgage-snapshot__label">{t.mortgageKpiPayment}</span>
-            <span className="mortgage-snapshot__side-value">{formatEur(data.current_payment)}</span>
+            <span className="mortgage-snapshot__side-value private">{formatEur(data.current_payment)}</span>
           </div>
           <div>
             <span className="mortgage-snapshot__label">{t.mortgageKpiEndDate}</span>

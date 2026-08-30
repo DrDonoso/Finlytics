@@ -152,6 +152,13 @@ export interface Dict {
   paletteViolet: string
   paletteAmber: string
   paletteHighContrast: string
+  // ── Privacy mode ──────────────────────────────────────────────────────────
+  settingsPrivacyLabel: string
+  settingsPrivacyHint: string
+  privacyHide: string
+  privacyShow: string
+  privacyStateHidden: string
+  privacyStateVisible: string
   // ── Category chart table ──────────────────────────────────────────────
   catColCategories: string
   catColValue: string

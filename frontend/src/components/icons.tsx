@@ -334,6 +334,18 @@ export const IconGlobe = make('IconGlobe', <>
   <path d="M12 2.9a13.6 13.6 0 0 1 0 18.2 13.6 13.6 0 0 1 0-18.2Z" />
 </>)
 
+export const IconEye = make('IconEye', <>
+  <path d="M2.2 12S5.9 5.4 12 5.4 21.8 12 21.8 12 18.1 18.6 12 18.6 2.2 12 2.2 12Z" />
+  <circle cx="12" cy="12" r="3.2" />
+</>)
+
+export const IconEyeOff = make('IconEyeOff', <>
+  <path d="M10.7 6.6A9.7 9.7 0 0 1 12 5.4c6.1 0 9.8 6.6 9.8 6.6a18 18 0 0 1-3.1 4" />
+  <path d="M6.8 7.6A17.4 17.4 0 0 0 2.2 12s3.7 6.6 9.8 6.6a9.4 9.4 0 0 0 4-.9" />
+  <path d="M9.8 9.8a3.2 3.2 0 0 0 4.4 4.4" />
+  <path d="M3.4 3.4l17.2 17.2" />
+</>)
+
 /* ── Finance assistant ──────────────────────────────────────────────────── */
 
 export const IconSparkles = make('IconSparkles', <>

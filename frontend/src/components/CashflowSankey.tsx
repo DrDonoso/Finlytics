@@ -55,7 +55,7 @@ function SankeyTooltip({ active, payload }: any) {
       boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
     }}>
       <div style={{ fontWeight: 600, marginBottom: 2, color: 'var(--text)' }}>{name}</div>
-      <div style={{ color: 'var(--text-muted)' }}>{formatCurrency(amount, lang)}</div>
+      <div className="private" style={{ color: 'var(--text-muted)' }}>{formatCurrency(amount, lang)}</div>
     </div>
   )
 }
@@ -217,6 +217,7 @@ export default function CashflowSankey({ data, loading, error, categories, selec
               textAnchor={labelAnchor}
               fontSize={10}
               fill="var(--text-muted)"
+              className="private"
               style={{ pointerEvents: 'none' }}
             >
               {fmtCur(payload.amount)}
@@ -256,10 +257,10 @@ export default function CashflowSankey({ data, loading, error, categories, selec
         <div>
           <div className="cashflow-totals">
             <span style={{ color: 'var(--income)' }}>
-              <IconArrowUp size={13} /> {fmtCur(data!.total_income)} {t.legendIncome}
+              <IconArrowUp size={13} /> <span className="private">{fmtCur(data!.total_income)}</span> {t.legendIncome}
             </span>
             <span style={{ color: 'var(--expense)' }}>
-              <IconArrowDown size={13} /> {fmtCur(data!.total_expense)} {t.legendExpense}
+              <IconArrowDown size={13} /> <span className="private">{fmtCur(data!.total_expense)}</span> {t.legendExpense}
             </span>
           </div>
           <div className="sankey-scroll-wrapper">

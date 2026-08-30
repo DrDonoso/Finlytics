@@ -4,6 +4,7 @@ import { useCombinedOverview } from '../api/queries'
 import { getPluginLogo, pluginInitial } from '../investments/registry'
 import { useT } from '../i18n'
 import { IconAlert, IconLoading, IconChevronRight } from './icons'
+import { Private } from './Money'
 
 function fmtEur(value: number | null): string {
   if (value === null || value === undefined) return '—'
@@ -43,7 +44,7 @@ export default function InvestmentSnapshotCard() {
         <div className="inv-snapshot-body">
           <div className="inv-snapshot-total">
             <span className="inv-snapshot-total-label">{t.invCombinedTotalValue}</span>
-            <span className="inv-snapshot-total-value">{fmtEur(data.total_value_eur)}</span>
+            <span className="inv-snapshot-total-value">{data.total_value_eur == null ? '—' : <Private>{fmtEur(data.total_value_eur)}</Private>}</span>
           </div>
           <div className="inv-snapshot-providers">
             {data.providers.map(p => (
@@ -54,7 +55,7 @@ export default function InvestmentSnapshotCard() {
                   <span className="plugin-logo-fallback inv-snapshot-provider-logo" aria-label={p.name}>{pluginInitial(p.name)}</span>
                 )}
                 <span className="inv-snapshot-provider-name">{p.name}</span>
-                <span className="inv-snapshot-provider-value">{fmtEur(p.value_eur)}</span>
+                <span className="inv-snapshot-provider-value">{p.value_eur == null ? '—' : <Private>{fmtEur(p.value_eur)}</Private>}</span>
               </Link>
             ))}
           </div>

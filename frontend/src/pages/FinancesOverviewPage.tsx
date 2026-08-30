@@ -13,6 +13,7 @@ import SpendingHeatmap from '../components/SpendingHeatmap'
 import ImportModal from '../components/ImportModal'
 import ImportLauncher, { type ImportLauncherHandle } from '../components/ImportLauncher'
 import TransactionsTable from '../components/TransactionsTable'
+import { Private } from '../components/Money'
 import { useT, categoryLabel, formatDate } from '../i18n'
 import { defaultRange } from '../utils'
 import { IconClose, IconChevronRight } from '../components/icons'
@@ -142,7 +143,7 @@ export default function FinancesOverviewPage() {
             <div className="finances-historic-net-kpi">
               <div className="finances-historic-net-kpi__label">{t.dashboardAccountsNet}</div>
               <div className={`finances-historic-net-kpi__value${historicNet !== null ? historicNet >= 0 ? ' inv-kpi-card__value--pos' : ' inv-kpi-card__value--neg' : ''}`}>
-                {historicNet === null ? '—' : formatEur(historicNet)}
+                {historicNet === null ? '—' : <Private>{formatEur(historicNet)}</Private>}
               </div>
             </div>
             <button

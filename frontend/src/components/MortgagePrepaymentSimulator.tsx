@@ -7,6 +7,7 @@ import { IconAlert, IconClose } from './icons'
 import DatePicker from './DatePicker'
 import { IS_DEMO } from '../demo/config'
 import { useT } from '../i18n'
+import { Private } from './Money'
 
 interface Props {
   mortgageId: number
@@ -148,7 +149,7 @@ export default function MortgagePrepaymentSimulator({ mortgageId, onClose, onApp
               <div className="mortgage-sim__headline">
                 <div className="mortgage-sim__headline-item">
                   <span className="mortgage-sim__key">{t.mortgageSimInterestSaved}</span>
-                  <span className="mortgage-sim__value inv-kpi-card__value--pos">{formatEur(result.interest_saved)}</span>
+                  <span className="mortgage-sim__value inv-kpi-card__value--pos private">{formatEur(result.interest_saved)}</span>
                 </div>
                 <div className="mortgage-sim__headline-item">
                   <span className="mortgage-sim__key">{t.mortgageSimMonthsSaved}</span>
@@ -173,8 +174,8 @@ export default function MortgagePrepaymentSimulator({ mortgageId, onClose, onApp
                 <tbody>
                   <tr className="cat-row">
                     <td className="cat-td-name">{t.mortgageKpiPayment}</td>
-                    <td className="cat-td-num">{formatEur(result.before.monthly_payment)}</td>
-                    <td className="cat-td-num">{formatEur(result.after.monthly_payment)}</td>
+                    <td className="cat-td-num private">{formatEur(result.before.monthly_payment)}</td>
+                    <td className="cat-td-num private">{formatEur(result.after.monthly_payment)}</td>
                   </tr>
                   <tr className="cat-row">
                     <td className="cat-td-name">{t.mortgageKpiEndDate}</td>
@@ -183,8 +184,8 @@ export default function MortgagePrepaymentSimulator({ mortgageId, onClose, onApp
                   </tr>
                   <tr className="cat-row">
                     <td className="cat-td-name">{t.mortgageKpiTotalInterest}</td>
-                    <td className="cat-td-num">{formatEur(result.before.total_interest)}</td>
-                    <td className="cat-td-num">{formatEur(result.after.total_interest)}</td>
+                    <td className="cat-td-num private">{formatEur(result.before.total_interest)}</td>
+                    <td className="cat-td-num private">{formatEur(result.after.total_interest)}</td>
                   </tr>
                 </tbody>
               </table>
@@ -193,7 +194,7 @@ export default function MortgagePrepaymentSimulator({ mortgageId, onClose, onApp
                 <div className={`mortgage-sim__verdict${result.worth_it ? ' positive' : ' negative'}`}>
                   <strong>{result.worth_it ? t.mortgageSimWorthIt : t.mortgageSimNotWorthIt}</strong>
                   <span>
-                    {t.mortgageSimNetSaving}: {formatEur(result.net_saving)} · {t.mortgageSimAlternative}: {formatEur(result.alternative_gain)}
+                    {t.mortgageSimNetSaving}: <Private>{formatEur(result.net_saving)}</Private> · {t.mortgageSimAlternative}: <Private>{formatEur(result.alternative_gain)}</Private>
                   </span>
                 </div>
               )}

@@ -29,7 +29,7 @@ function DeltaCell({ row }: { row: MoverRow }) {
 
   return (
     <span className={`movers-delta ${cls}`}>
-      <TrendArrow value={row.delta.abs} /> {sign}{formatCurrency(row.delta.abs)} ({sign}{row.delta.pct.toFixed(1)}%)
+      <TrendArrow value={row.delta.abs} /> <span className="private">{sign}{formatCurrency(row.delta.abs)}</span> ({sign}{row.delta.pct.toFixed(1)}%)
     </span>
   )
 }
@@ -96,9 +96,9 @@ export default function CategoryMovers({
                 <td className="movers-td movers-td-name">
                   {categoryLabel(row.category, lang, dynamicEs)}
                 </td>
-                <td className="movers-td movers-td-num">{formatCurrency(row.current)}</td>
+                <td className="movers-td movers-td-num private">{formatCurrency(row.current)}</td>
                 <td className="movers-td movers-td-num movers-td-prev">
-                  {row.previous !== null ? formatCurrency(row.previous) : '—'}
+                  {row.previous !== null ? <span className="private">{formatCurrency(row.previous)}</span> : '—'}
                 </td>
                 <td className="movers-td movers-td-change">
                   <DeltaCell row={row} />

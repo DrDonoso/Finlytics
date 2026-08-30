@@ -39,6 +39,11 @@
           var p = localStorage.getItem('finlytics_accent_palette') || 'classic'
           if (['classic', 'emerald', 'violet', 'amber', 'contrast'].indexOf(p) === -1) p = 'classic'
           document.documentElement.setAttribute('data-palette', p)
+          // Without this the amounts render sharp for one frame on every
+          // reload, which is exactly what the privacy toggle exists to avoid.
+          if (localStorage.getItem('finlytics_privacy') === '1') {
+            document.documentElement.setAttribute('data-privacy', 'on')
+          }
         } catch (e) { /* ignore */ }
       })()
     </script>

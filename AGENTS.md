@@ -250,6 +250,34 @@ A `reduce_term` prepayment deliberately keeps the instalment and shortens the lo
 - **Plugin view registry:** `frontend/src/investments/registry.ts` — maps `plugin_id → { icon, name, component }`. Add an entry here for any new investment connector view.
 - **Design tokens:** Single `index.css` with CSS custom properties (`--bg`, `--surface`, `--border`, `--primary`, `--radius`, `--shadow`). Light/dark via `[data-theme="dark"]`.
 
+### Privacy mode
+
+An eye button in the topbar blurs every monetary value so the app can be opened
+next to someone else. `PrivacyContext` persists the choice under
+`finlytics_privacy` and sets `data-privacy="on"` on `<html>`; `styles/privacy.css`
+blurs anything carrying the `private` class.
+
+> **Render amounts through `components/Money.tsx`.** `<Money value={n} />` for a
+> plain figure, `<Private>` for one an existing formatter already produced, or
+> append `private` to the enclosing element when it contains only the amount.
+> A new amount that skips all three is simply not covered — and nothing throws.
+
+> **`privacy.test.tsx` mounts the money-bearing routes against the demo dataset
+> and fails on any euro text without a `.private` ancestor.** That test is the
+> reason a missed call site surfaces at all, since a leak is invisible in a
+> passing build. Add a route there when you add a screen that shows money.
+
+> **A native `title` tooltip cannot be blurred by CSS.** The heatmap and the
+> amortization table therefore read `usePrivacy()` and drop the figure from the
+> tooltip text instead. Any new `title` carrying an amount needs the same.
+
+> **Blur is a visual guard, not redaction.** The text stays in the DOM, so it is
+> selectable and readable by assistive tech — it defends against a glance over
+> the shoulder or a screen share, not against someone at the keyboard. Public
+> market data (a share price, an FX rate) is deliberately left sharp; it says
+> nothing about the user. Percentages, dates and counts stay readable too, so
+> the app remains usable with the toggle on.
+
 ### Home-screen install (PWA)
 
 `frontend/public/` holds `manifest.webmanifest` plus the icon set. Both builds copy

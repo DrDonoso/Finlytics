@@ -47,7 +47,7 @@ export default function SpendingByAccount({ data, loading, error, selectedFlow, 
       )}
 
       {!error && !loading && data.length > 0 && (
-        <ResponsiveContainer width="100%" height={220}>
+        <ResponsiveContainer width="100%" height={220} className="chart-value-x">
           <BarChart
             data={data}
             layout="vertical"
