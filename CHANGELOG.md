@@ -4,6 +4,11 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260926.07] - 2026-09-26
+
+- chore(deps-dev): bump vitest and @vitest/coverage-v8 to 4.1.11 (#73)
+
+
 ## [20260926.06] - 2026-09-26
 
 - fix(deps): resolve the frontend lockfile from the public npm registry (#72)
