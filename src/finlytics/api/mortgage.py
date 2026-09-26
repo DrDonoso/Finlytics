@@ -33,6 +33,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from finlytics.api.deps import get_current_user, get_db
+from finlytics.clock import today as local_today
 from finlytics.api.schemas import (
     EuriborSeriesOut,
     MortgageChartsOut,
@@ -157,7 +158,7 @@ async def list_mortgages(
         select(Mortgage).where(Mortgage.user_id == user.id).options(*_RELATIONS)
     )
     mortgages = result.scalars().all()
-    today = date.today()
+    today = local_today()
     out = []
     for mortgage in mortgages:
         schedules = await service.build_schedules(db, mortgage)
@@ -221,7 +222,7 @@ async def get_payment_candidates(
 
     Suggestion only: nothing is linked or modified here.
     """
-    window_start = add_months(date(date.today().year, date.today().month, 1), -months)
+    window_start = add_months(local_today().replace(day=1), -months)
 
     result = await db.execute(
         select(
@@ -310,7 +311,7 @@ async def get_net_worth(
     )
     mortgages = result.scalars().all()
 
-    today = date.today()
+    today = local_today()
     debt = Decimal("0")
     property_value = Decimal("0")
     for mortgage in mortgages:
@@ -387,7 +388,7 @@ async def get_overview(
 ) -> dict:
     mortgage = await _load(db, mortgage_id, user.id)
     schedules = await service.build_schedules(db, mortgage)
-    return service.overview_payload(mortgage, schedules, date.today())
+    return service.overview_payload(mortgage, schedules, local_today())
 
 
 @router.get("/{mortgage_id}/schedule", response_model=ScheduleOut)
@@ -411,7 +412,7 @@ async def get_schedule(
             db, mortgage, add_months(rows[0]["date"], -1)
         )
         matcher = service.ChargeMatcher(charges)
-    service.annotate_status(rows, date.today(), matcher)
+    service.annotate_status(rows, local_today(), matcher)
 
     payload: dict = {
         "mortgage_id": mortgage_id,
@@ -473,7 +474,7 @@ async def get_reconciliation(
         }
 
     schedules = await service.build_schedules(db, mortgage)
-    today = date.today()
+    today = local_today()
     past = [r for r in schedules.actual.rows if r.date <= today][-months:]
 
     charges = (

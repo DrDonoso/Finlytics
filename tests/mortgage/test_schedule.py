@@ -10,6 +10,7 @@ from finlytics.mortgage.schedule import (
     MortgageSpec,
     PrepaymentSpec,
     RatePeriodSpec,
+    _remaining_periods,
     add_months,
     build_schedule,
     french_payment,
@@ -305,6 +306,21 @@ class TestPrepaymentEdgeCases:
         # prepayment must still add up to exactly what was borrowed.
         total = schedule.totals.total_principal + schedule.totals.total_prepayments
         assert total == D("200000.00")
+
+
+class TestRemainingPeriods:
+    def test_matches_the_original_term(self):
+        assert _remaining_periods(D("200000"), D("0.03") / 12, D("843.21")) == 360
+
+    def test_exact_multiple_at_zero_rate_has_no_phantom_instalment(self):
+        """36,002.40 / 300.02 is exactly 120; float division yields 120.000...01."""
+        assert _remaining_periods(D("36002.40"), D("0"), D("300.02")) == 120
+
+    def test_one_extra_cent_at_zero_rate_needs_one_more_instalment(self):
+        assert _remaining_periods(D("36002.41"), D("0"), D("300.02")) == 121
+
+    def test_instalment_below_interest_never_amortizes(self):
+        assert _remaining_periods(D("200000"), D("0.03") / 12, D("500")) is None
 
 
 # ── Rate tranches ────────────────────────────────────────────────────────────

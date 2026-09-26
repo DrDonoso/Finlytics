@@ -33,10 +33,9 @@ by several euros over 360 instalments.
 from __future__ import annotations
 
 import calendar
-import math
 from dataclasses import dataclass, field
 from datetime import date
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal, ROUND_CEILING, ROUND_HALF_UP
 from typing import Callable, Protocol
 
 # Money is rounded to cents; rates keep 5 decimals like the DB columns.
@@ -252,11 +251,15 @@ def _remaining_periods(balance: Decimal, i: Decimal, payment: Decimal) -> int | 
     if payment <= _ZERO:
         return None
     if i <= _ZERO:
-        return math.ceil(float(balance) / float(payment))
+        return _ceil_int(balance / payment)
     if payment <= balance * i:
         return None
-    ratio = 1 - (float(balance) * float(i) / float(payment))
-    return math.ceil(-math.log(ratio) / math.log(1 + float(i)))
+    ratio = Decimal(1) - balance * i / payment
+    return _ceil_int(-ratio.ln() / (Decimal(1) + i).ln())
+
+
+def _ceil_int(value: Decimal) -> int:
+    return int(value.to_integral_value(rounding=ROUND_CEILING))
 
 
 # ── Rate resolution ──────────────────────────────────────────────────────────
