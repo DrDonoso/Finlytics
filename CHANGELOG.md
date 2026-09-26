@@ -4,6 +4,11 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260926.06] - 2026-09-26
+
+- fix(deps): resolve the frontend lockfile from the public npm registry (#72)
+
+
 ## [20260926.05] - 2026-09-26
 
 - [Release notes](https://github.com/jsdom/jsdom/releases)
