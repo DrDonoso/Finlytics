@@ -4,6 +4,13 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260926.05] - 2026-09-26
+
+- [Release notes](https://github.com/jsdom/jsdom/releases)
+- [Commits](https://github.com/jsdom/jsdom/compare/v29.1.1...v30.0.1)
+- dependency-name: jsdom dependency-version: 30.0.1 dependency-type: direct:development update-type: version-update:semver-major
+
+
 ## [20260926.04] - 2026-09-26
 
 - ci: test on the Node and Python versions the image ships (#71)
