@@ -59,6 +59,7 @@ class RateLimiter:
     window_seconds: int
     _hits: dict[str, deque[float]] = field(default_factory=dict, repr=False)
     _lock: Lock = field(default_factory=Lock, repr=False)
+    _last_sweep: float = field(default=float("-inf"), repr=False)
 
     def check(self, key: str, *, now: float | None = None) -> RateLimitResult:
         """Record an attempt for ``key`` and report whether it is allowed.
@@ -66,10 +67,19 @@ class RateLimiter:
         The attempt is counted ONLY if it is allowed: once blocked, an IP cannot
         extend its own punishment by hammering the endpoint, which is what would
         happen if every rejected request also pushed the window forward.
+
+        At most once per window it also drops the keys that have gone idle.
+        Every failed attempt from a new address adds a key, and nothing else
+        removes it, so without this sweep the dict grows for the life of the
+        process.
         """
         moment = time.monotonic() if now is None else now
 
         with self._lock:
+            if moment - self._last_sweep >= self.window_seconds:
+                self._drop_stale(moment - self.window_seconds)
+                self._last_sweep = moment
+
             hits = self._hits.get(key)
             if hits is None:
                 hits = deque()
@@ -96,24 +106,28 @@ class RateLimiter:
             self._hits.pop(key, None)
 
     def purge(self, *, now: float | None = None) -> int:
-        """Drop keys whose window has expired completely.
+        """Drop keys whose window has expired completely, right now.
 
-        Stops the dict from growing without bound when many distinct IPs make
-        the odd isolated attempt.  Returns how many keys were removed.
+        ``check()`` already does this once per window; this forces it.  Returns
+        how many keys were removed.
         """
         moment = time.monotonic() if now is None else now
-        cutoff = moment - self.window_seconds
 
         with self._lock:
-            stale = [k for k, hits in self._hits.items() if not hits or hits[-1] <= cutoff]
-            for k in stale:
-                del self._hits[k]
-            return len(stale)
+            return self._drop_stale(moment - self.window_seconds)
 
     def clear(self) -> None:
         """Wipe all state. Intended to isolate tests from each other."""
         with self._lock:
             self._hits.clear()
+            self._last_sweep = float("-inf")
+
+    def _drop_stale(self, cutoff: float) -> int:
+        """Remove keys with no attempt after ``cutoff``. The caller holds the lock."""
+        stale = [k for k, hits in self._hits.items() if not hits or hits[-1] <= cutoff]
+        for k in stale:
+            del self._hits[k]
+        return len(stale)
 
 
 def client_ip(request) -> str:  # noqa: ANN001 — avoids importing Starlette here

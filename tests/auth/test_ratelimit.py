@@ -109,13 +109,41 @@ def test_retry_after_is_at_least_one_second():
 def test_purge_drops_expired_keys_only():
     limiter = RateLimiter(max_attempts=5, window_seconds=60)
     limiter.check("old", now=0.0)
-    limiter.check("recent", now=100.0)
+    limiter.check("recent", now=50.0)
 
-    removed = limiter.purge(now=120.0)
+    removed = limiter.purge(now=100.0)
 
     assert removed == 1
     # The recent key retains its history.
-    assert limiter.check("recent", now=120.0).remaining == 3
+    assert limiter.check("recent", now=100.0).remaining == 3
+
+
+def test_check_sweeps_idle_keys_on_its_own():
+    """Nothing in the app calls purge(), so check() has to keep the dict bounded.
+
+    Each failed login from a new address adds a key; a scan from many addresses
+    would otherwise grow the limiter for as long as the process lives.
+    """
+    limiter = RateLimiter(max_attempts=5, window_seconds=60)
+    for i in range(100):
+        limiter.check(f"198.51.100.{i}", now=i / 10)
+
+    limiter.check("203.0.113.7", now=200.0)
+
+    assert limiter.purge(now=200.0) == 0
+
+
+def test_the_sweep_keeps_keys_that_are_still_in_their_window():
+    limiter = RateLimiter(max_attempts=2, window_seconds=60)
+    limiter.check("blocked", now=0.0)
+    limiter.check("blocked", now=40.0)
+
+    # This check sweeps (a window has passed since the last one), but the
+    # attempt at t=40 is still live, so the block must survive it.
+    limiter.check("other", now=61.0)
+
+    assert limiter.check("blocked", now=61.0).allowed is True
+    assert limiter.check("blocked", now=61.0).allowed is False
 
 
 def test_clear_wipes_everything():
