@@ -9,7 +9,7 @@ Dockerfile without evidence that the main one fails.
 
 | Target | Produces | Used by |
 |--------|----------|---------|
-| `base` *(default)* | `node:26-alpine` compiles the SPA, `python:3.14-slim` serves API + SPA. | CI/prod — `docker-compose.yml`, `docker-compose.local.yml` |
+| `base` *(default)* | `node:26-alpine` compiles the SPA, `python:3.14-slim` installs `uv.lock` with uv and serves API + SPA. | CI/prod — `docker-compose.yml`, `docker-compose.local.yml` |
 | `demo` | The same SPA built with `VITE_DEMO=1`, served by `nginx:alpine`. No Python, no API, no database. | Public demo — `docker-compose.demo.yml` |
 
 ```
@@ -291,6 +291,9 @@ non-empty — the detail line.
 - **Schemas:** Pydantic `BaseModel` in `schemas.py`. Amounts as `float`, percentages as raw numbers (e.g. `12.5` = 12.5%).
 - **Auth:** All `/api/*` routes (except `/api/auth/*`) are auth-gated via the `get_current_user` dependency.
 - **Config:** `pydantic-settings` `BaseSettings` in `config.py` — env vars + `.env` file.
+- **Dependencies:** `uv.lock` is the source of truth. The image and CI install with `uv sync --locked`, which fails when the lock is out of date with `pyproject.toml` — after editing dependencies, run `uv lock` and commit both files. Local setup: `uv sync --extra test`, then `uv run pytest` and `uv run mypy`. Dependabot's `uv` ecosystem moves the lock; the uv binary itself is pinned once, in the Dockerfile's `uv` stage, and CI reads it from there.
+- **Lockfile:** every `registry` in `uv.lock` must be `https://pypi.org/simple` and every artefact `url` must be on `https://files.pythonhosted.org/`; CI rejects anything else, for the same reason as `package-lock.json` below. A lock resolved through a private mirror (`UV_DEFAULT_INDEX`, `UV_INDEX_URL` or a user-level `uv.toml`) records the mirror's URLs — re-lock against PyPI instead of committing it.
+- **Types:** mypy covers the whole package and CI gates it. Handlers declare the query layer's TypedDicts (`db/queries/types.py`) as their return type and let `response_model` validate them. Do not annotate a handler with a Pydantic model it never constructs: the checker then trusts a type the function does not return.
 
 ## Frontend conventions
 

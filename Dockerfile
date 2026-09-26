@@ -59,6 +59,12 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD wget -qO- http://127.0.0.1:7778/healthz || exit 1
 
 
+# ─── uv binary ───────────────────────────────────────────────────────────────
+# A FROM line of its own, so Dependabot's docker ecosystem bumps it, and CI reads
+# the same tag. The base stage mounts the binary instead of copying it.
+FROM ghcr.io/astral-sh/uv:0.12.19 AS uv
+
+
 # ─── Stage 4: Python runtime (DEFAULT TARGET — keep last) ────────────────────
 # A plain `docker build .` builds the LAST stage, so this one must stay at the
 # bottom: moving it above `demo` would silently make the demo image the default
@@ -77,21 +83,32 @@ RUN groupadd --gid 1000 app && \
 
 WORKDIR /app
 
-# Install Python dependencies (cache-friendly: re-runs when pyproject.toml,
-# README.md or LICENSE change — the latter two are referenced by the
-# [project] readme / license-files metadata, so the build needs them present).
-COPY pyproject.toml README.md LICENSE ./
-RUN mkdir -p src/finlytics && touch src/finlytics/__init__.py && \
-    pip install --no-cache-dir .
+# Dependencies come from uv.lock, and --locked fails the build when the lock is
+# out of date with pyproject.toml instead of silently re-resolving. uv is only
+# mounted for the install steps, so the binary never reaches the image. The venv
+# is first on PATH, so the entrypoint's `alembic` and `python` resolve to it.
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    UV_NO_CACHE=1 \
+    UV_PYTHON_DOWNLOADS=never \
+    PATH="/app/.venv/bin:$PATH"
+
+# Dependencies only, so this layer re-runs when the lock changes, not on code edits.
+COPY pyproject.toml uv.lock ./
+RUN --mount=from=uv,source=/uv,target=/usr/local/bin/uv \
+    uv sync --locked --no-dev --no-install-project
 
 # Create writable dir for uploads BEFORE copying source,
 # so this layer stays cached when only the app code changes.
 RUN mkdir -p /app/data/uploads && chown -R app:app /app/data
 
-# Copy full source and reinstall package (deps already cached).
+# The project itself, as a regular (non-editable) install. README.md and LICENSE
+# are referenced by the [project] readme / license-files metadata.
 # These are the only layers that change on a normal code update.
+COPY README.md LICENSE ./
 COPY src/ ./src/
-RUN pip install --no-cache-dir --no-deps .
+RUN --mount=from=uv,source=/uv,target=/usr/local/bin/uv \
+    uv sync --locked --no-dev --no-editable
 
 # Copy migration + seed artefacts (needed by the entrypoint)
 COPY alembic.ini seed.py ./
