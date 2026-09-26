@@ -4,6 +4,13 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260926.09] - 2026-09-26
+
+- api/mortgage.py and investments/market_data.py called date.today(), which returns the UTC date inside the container. They now use clock.today(), like every other module; the payment-candidates window also stops calling it twice.
+- _remaining_periods() was the only float code in the Decimal engine. At 0% an exact multiple (36,002.40 / 300.02 = 120) came out as 121 instalments.
+- A guard test fails if any module other than clock.py reads the process date.
+
+
 ## [20260926.08] - 2026-09-26
 
 - fix: revocable sessions, account-id dedup keys, upload caps and no mock fallbacks (#74)
