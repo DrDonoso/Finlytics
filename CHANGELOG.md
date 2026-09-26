@@ -4,6 +4,37 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260926] - 2026-09-26
+
+- [Release notes](https://github.com/react/react/releases)
+- [Changelog](https://github.com/react/react/blob/main/CHANGELOG.md)
+- [Commits](https://github.com/react/react/commits/v19.3.0/packages/react)
+- [Release notes](https://github.com/DefinitelyTyped/DefinitelyTyped/releases)
+- [Commits](https://github.com/DefinitelyTyped/DefinitelyTyped/commits/HEAD/types/react)
+- [Release notes](https://github.com/react/react/releases)
+- [Changelog](https://github.com/react/react/blob/main/CHANGELOG.md)
+- [Commits](https://github.com/react/react/commits/v19.3.0/packages/react-dom)
+- [Release notes](https://github.com/DefinitelyTyped/DefinitelyTyped/releases)
+- [Commits](https://github.com/DefinitelyTyped/DefinitelyTyped/commits/HEAD/types/react-dom)
+- [Release notes](https://github.com/DefinitelyTyped/DefinitelyTyped/releases)
+- [Commits](https://github.com/DefinitelyTyped/DefinitelyTyped/commits/HEAD/types/react)
+- [Release notes](https://github.com/DefinitelyTyped/DefinitelyTyped/releases)
+- [Commits](https://github.com/DefinitelyTyped/DefinitelyTyped/commits/HEAD/types/react-dom)
+- dependency-name: react dependency-version: 19.3.0 dependency-type: direct:production update-type: version-update:semver-minor dependency-group: react
+- dependency-name: "@types/react" dependency-version: 19.3.0 dependency-type: direct:development update-type: version-update:semver-minor dependency-group: react
+- dependency-name: react-dom dependency-version: 19.3.0 dependency-type: direct:production update-type: version-update:semver-minor dependency-group: react
+- dependency-name: "@types/react-dom" dependency-version: 19.3.0 dependency-type: direct:development update-type: version-update:semver-minor dependency-group: react
+- dependency-name: "@types/react" dependency-version: 19.3.0 dependency-type: direct:development update-type: version-update:semver-minor dependency-group: react
+- dependency-name: "@types/react-dom" dependency-version: 19.3.0 dependency-type: direct:development update-type: version-update:semver-minor dependency-group: react
+- [Release notes](https://github.com/actions/setup-node/releases)
+- [Commits](https://github.com/actions/setup-node/compare/v5...v7)
+- dependency-name: actions/setup-node dependency-version: '7' dependency-type: direct:production update-type: version-update:semver-major
+- [Release notes](https://github.com/github/codeql-action/releases)
+- [Changelog](https://github.com/github/codeql-action/blob/main/CHANGELOG.md)
+- [Commits](https://github.com/github/codeql-action/compare/v4.37.1...v4.37.8)
+- dependency-name: github/codeql-action dependency-version: 4.37.8 dependency-type: direct:production update-type: version-update:semver-patch dependency-group: github-actions-minor-patch
+
+
 ## [20260830] - 2026-08-30
 
 - PrivacyContext persists the choice in localStorage and sets data-privacy="on" on <html>. The FOUC guard in index.html reads it on first paint, otherwise amounts render sharp for one frame on reload.
