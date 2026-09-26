@@ -4,6 +4,18 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260926.03] - 2026-09-26
+
+- [Release notes](https://github.com/remix-run/react-router/releases)
+- [Changelog](https://github.com/remix-run/react-router/blob/main/packages/react-router/CHANGELOG.md)
+- [Commits](https://github.com/remix-run/react-router/commits/react-router@8.4.0/packages/react-router)
+- [Release notes](https://github.com/recharts/recharts/releases)
+- [Changelog](https://github.com/recharts/recharts/blob/main/CHANGELOG.md)
+- [Commits](https://github.com/recharts/recharts/compare/v3.10.0...v3.10.1)
+- dependency-name: react-router dependency-version: 8.4.0 dependency-type: direct:production update-type: version-update:semver-minor dependency-group: npm-minor-patch
+- dependency-name: recharts dependency-version: 3.10.1 dependency-type: direct:production update-type: version-update:semver-patch dependency-group: npm-minor-patch
+
+
 ## [20260926.02] - 2026-09-26
 
 - [Release notes](https://github.com/vitejs/vite-plugin-react/releases)
