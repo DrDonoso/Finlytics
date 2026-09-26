@@ -11,8 +11,10 @@
 #   * `alembic upgrade head` and `seed.py`, which the entrypoint runs on boot
 #   * the SPA actually being built and copied into the image
 #
-# `tests` is the fast unit-level signal; `frontend` covers lint + type-check +
-# build for the SPA; `image` is the one that decides whether the thing runs.
+# `tests` is the fast unit-level signal, plus `tests/pg`: the upserts, queries,
+# backup restore and migration chain that only PostgreSQL can execute, run
+# against a service container. `frontend` covers lint + type-check + build for
+# the SPA; `image` is the one that decides whether the thing runs.
 
 name: CI
 
@@ -35,6 +37,23 @@ jobs:
     name: Unit tests (pytest)
     runs-on: ubuntu-latest
     timeout-minutes: 15
+
+    # Dependabot does not bump service images: keep in lockstep with the db
+    # image in docker-compose.yml by hand.
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: finlytics
+          POSTGRES_PASSWORD: finlytics
+          POSTGRES_DB: finlytics
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U finlytics"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 20
 
     steps:
       - name: Checkout repository
@@ -83,9 +102,12 @@ jobs:
       - name: Install locked dependencies with test extras
         run: uv sync --locked --extra test
 
+      # tests/pg skips without TEST_DATABASE_URL locally, but fails under CI, so
+      # losing the service cannot quietly turn that coverage off.
       - name: Run test suite
         env:
           AUTH_SECRET: ci-only-not-a-real-secret-value-000000
+          TEST_DATABASE_URL: postgresql+asyncpg://finlytics:finlytics@localhost:5432/finlytics
         run: uv run --no-sync pytest -q
 
       # The whole package. The API layer returns the query layer's TypedDicts,
