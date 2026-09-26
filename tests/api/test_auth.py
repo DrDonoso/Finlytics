@@ -45,8 +45,10 @@ async def auth_client(mock_session: MagicMock):
 
 def _fake_user(username: str = "drdonoso", password: str = "MyStr0ngP@ss!") -> MagicMock:
     user = MagicMock(spec=User)
+    user.id = 1
     user.username = username
     user.password_hash = hash_password(password)
+    user.token_version = 0
     return user
 
 
@@ -78,7 +80,7 @@ async def test_status_initialized_not_authenticated(auth_client):
 
 async def test_status_authenticated_with_valid_cookie(auth_client):
     client, session = auth_client
-    token = create_token("drdonoso")
+    token = create_token("drdonoso", version=0)
     user = _fake_user()
     # First scalar call: count (→ 1), second: user lookup (→ user)
     session.scalar = AsyncMock(side_effect=[1, user])
@@ -492,7 +494,7 @@ async def test_me_401_with_invalid_cookie(auth_client):
 
 async def test_me_200_with_valid_cookie(auth_client):
     client, _session = auth_client
-    token = create_token("drdonoso")
+    token = create_token("drdonoso", version=0)
 
     # After fix: get_current_user opens its own session via async_session_factory,
     # not the get_db session. Patch the factory to return a mock auth session.
@@ -528,7 +530,7 @@ async def test_data_endpoint_401_with_invalid_cookie(auth_client):
 async def test_data_endpoint_200_with_valid_cookie(auth_client):
     """A data endpoint is reachable with a valid session cookie."""
     client, _session = auth_client
-    token = create_token("drdonoso")
+    token = create_token("drdonoso", version=0)
 
     auth_session = MagicMock()
     auth_session.scalar = AsyncMock(return_value=_fake_user())

@@ -306,6 +306,9 @@ export default function Layout() {
                         <NavLink to="/settings/backup" className={navLinkClass}>
                           <span className="nav-label">{t.settingsSubBackup}</span>
                         </NavLink>
+                        <NavLink to="/settings/security" className={navLinkClass}>
+                          <span className="nav-label">{t.settingsSubSecurity}</span>
+                        </NavLink>
                       </>
                     )}
                   </>

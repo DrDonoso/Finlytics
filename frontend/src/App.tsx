@@ -9,6 +9,7 @@ import SettingsPage from './pages/SettingsPage'
 import CategoriesPage from './pages/CategoriesPage'
 import AppearancePage from './pages/AppearancePage'
 import BackupPage from './pages/BackupPage'
+import SecurityPage from './pages/SecurityPage'
 import RulesPage from './pages/RulesPage'
 import AccountsPage from './pages/AccountsPage'
 import LoginPage from './pages/LoginPage'
@@ -77,6 +78,7 @@ function FullRoutes() {
           <Route path="categories" element={<CategoriesPage />} />
           <Route path="appearance" element={<AppearancePage />} />
           <Route path="backup" element={<BackupPage />} />
+          <Route path="security" element={<SecurityPage />} />
           <Route path="connectors" element={<ConnectorsPage />} />
           <Route path="assistant" element={<AssistantSettingsPage />} />
           <Route path="rules" element={<RulesPage />} />

@@ -7,6 +7,7 @@ bcrypt library directly — same algorithm, same cost factor, same security.
 
 from __future__ import annotations
 
+import secrets
 from datetime import datetime, timedelta, timezone
 
 import bcrypt
@@ -28,11 +29,24 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         return False
 
 
-def create_token(username: str, expire_days: int | None = None) -> str:
-    days = expire_days if expire_days is not None else settings.auth_token_expire_days
+def create_token(username: str, *, version: int, remember: bool = False) -> str:
+    """Mint a session token for ``username``.
+
+    ``version`` must be the user's current ``token_version``: bumping that column
+    ends every session at once.  ``jti`` names this one token so that logout can
+    revoke it alone, and ``rem`` records the remember-me choice, so a token
+    re-issued later keeps the lifetime the user asked for.
+    """
+    days = settings.auth_remember_expire_days if remember else settings.auth_token_expire_days
     now = datetime.now(timezone.utc)
-    expire = now + timedelta(days=days)
-    payload = {"sub": username, "exp": expire, "iat": now}
+    payload = {
+        "sub": username,
+        "ver": version,
+        "jti": secrets.token_hex(16),
+        "rem": remember,
+        "iat": now,
+        "exp": now + timedelta(days=days),
+    }
     return jwt.encode(payload, settings.auth_secret, algorithm="HS256")
 
 

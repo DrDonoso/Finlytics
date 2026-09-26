@@ -47,9 +47,9 @@ The `IMAGE_TAG` / `BUILD_DATE` build args are injected there and surfaced by
 
 ## Migrations
 
-Alembic migrations live in `alembic/versions/`. The current head is `0022_add_mortgage_signature_date.py`.
+Alembic migrations live in `alembic/versions/`. The current head is `0023_add_revocable_sessions.py`.
 
-- Always create a new numbered migration (`0023_...`) for schema changes.
+- Always create a new numbered migration (`0024_...`) for schema changes.
 - Verify the head before writing one — this file goes stale. `down_revision` in the
   highest-numbered file is the source of truth, not this document.
 - The entrypoint runs `alembic upgrade head` automatically on container start.
@@ -231,6 +231,30 @@ A `reduce_term` prepayment deliberately keeps the instalment and shortens the lo
   which would overstate net worth by the whole outstanding debt.
 - **Demo:** the demo scenario has no mortgage. `demo/handlers.ts` answers the two
   Dashboard-facing endpoints with "none configured" so the catch-all never returns 501.
+
+---
+
+## Auth sessions
+
+The session is a JWT in an HttpOnly cookie, and it is revocable. Each token carries a `jti`
+and the `ver` (`users.token_version`) it was minted under; `load_session_user` in
+`api/deps.py` checks both in one query.
+
+- `POST /api/auth/logout` records the `jti` in `revoked_tokens` until the token's own
+  expiry (expired rows are purged on each logout), so a copied cookie dies with the logout.
+- `POST /api/auth/logout-others` and `POST /api/auth/password` bump `token_version`, which
+  ends every session at once, then re-issue the cookie so the calling device stays in.
+- A token without `ver`/`jti` — anything issued before migration 0023 — is refused, so
+  every user signs in once after that deploy.
+
+> **A wrong current password answers 400, not 401.** The SPA treats any 401 from a
+> protected call as "the session has ended" and signs out, so a typo would log the user
+> out. `sessionPost()` in `client.ts` routes only a real 401 to that handler.
+
+> **The password change shares the login rate limiter.** Without it, a stolen session
+> becomes an unthrottled oracle for guessing the current password.
+
+> **`/settings/security` stays out of the demo.** It writes credentials.
 
 ---
 

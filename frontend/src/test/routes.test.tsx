@@ -34,6 +34,7 @@ import FinancesOverviewPage from '../pages/FinancesOverviewPage'
 import InvestmentsLandingPage from '../pages/InvestmentsLandingPage'
 import MortgagePage from '../pages/MortgagePage'
 import RulesPage from '../pages/RulesPage'
+import SecurityPage from '../pages/SecurityPage'
 import SettingsPage from '../pages/SettingsPage'
 import StatementsPage from '../pages/StatementsPage'
 import TransactionsPage from '../pages/TransactionsPage'
@@ -137,6 +138,8 @@ vi.mock('../api/client', () => {
     getMe: vi.fn(),
     getAuthStatus: vi.fn(),
     setupUser: vi.fn(),
+    changePassword: vi.fn(),
+    logoutOtherSessions: vi.fn(),
   }
 })
 
@@ -165,6 +168,7 @@ const ROUTES: [string, React.ReactNode][] = [
   ['/settings/connectors', <ConnectorsPage key="scon" />],
   ['/settings/assistant', <AssistantSettingsPage key="sasi" />],
   ['/settings/backup', <BackupPage key="sb" />],
+  ['/settings/security', <SecurityPage key="ssec" />],
   ['/settings/about', <AboutPage key="sab" />],
 ]
 

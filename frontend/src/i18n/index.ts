@@ -136,6 +136,21 @@ export interface Dict {
   authErrorTooManyAttempts: (minutes: number) => string
   authErrorUnexpected: string
   authRememberMe: string
+  // ── Security page ─────────────────────────────────────────────────────────
+  settingsSubSecurity: string
+  securityPageTitle: string
+  securityPasswordTitle: string
+  securityPasswordHint: string
+  securityCurrentPassword: string
+  securityNewPassword: string
+  securityConfirmPassword: string
+  securityPasswordBtn: string
+  securityPasswordChanged: string
+  securityErrorWrongPassword: string
+  securitySessionsTitle: string
+  securitySessionsHint: string
+  securityLogoutOthersBtn: string
+  securityLogoutOthersDone: string
   // ── Flow filter ───────────────────────────────────────────────────────────
   filterExpenseOnly: string
   filterIncomeOnly: string

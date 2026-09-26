@@ -102,6 +102,17 @@ async function authPost<T>(path: string, body: unknown): Promise<T> {
   return res.json() as Promise<T>
 }
 
+/** authPost for endpoints behind a session: a 401 there means the session has
+ *  ended, so it goes through the global handler like any protected call. */
+async function sessionPost<T>(path: string, body: unknown): Promise<T> {
+  try {
+    return await authPost<T>(path, body)
+  } catch (err) {
+    if ((err as { status?: number }).status === 401) _on401?.()
+    throw err
+  }
+}
+
 // ─── Public API ───────────────────────────────────────────────────────────────
 //
 // No `catch { return mockX() }` on real requests: a failed call must surface as
@@ -458,6 +469,18 @@ export async function logout(): Promise<void> {
 export async function getMe(): Promise<AuthUser> {
   if (USE_MOCK) return mockGetMe()
   return apiFetch<AuthUser>(buildUrl('/api/auth/me'))
+}
+
+/** Signs out every other device; this one gets a fresh session cookie. */
+export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+  await sessionPost('/api/auth/password', {
+    current_password: currentPassword,
+    new_password: newPassword,
+  })
+}
+
+export async function logoutOtherSessions(): Promise<void> {
+  await sessionPost('/api/auth/logout-others', {})
 }
 
 // ─── Investments ──────────────────────────────────────────────────────────────

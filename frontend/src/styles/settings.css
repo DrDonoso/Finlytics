@@ -209,6 +209,33 @@
   font-size: 12px;
   margin-top: 3px;
 }
+
+/* ─── Security (password, sessions) ─────────────────────────────────── */
+.security-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 360px;
+}
+.security-field { display: flex; flex-direction: column; gap: 4px; }
+.security-field-label { font-size: 12.5px; color: var(--text-muted); }
+.security-input {
+  padding: 8px 11px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13.5px;
+}
+.security-input:focus { outline: none; border-color: var(--primary); }
+.security-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.security-ok { font-size: 12.5px; color: var(--income); }
+.security-error { font-size: 12.5px; color: var(--expense); }
 .theme-segmented {
   display: flex;
   gap: 8px;
