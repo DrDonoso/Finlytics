@@ -4,6 +4,11 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260926.08] - 2026-09-26
+
+- fix: revocable sessions, account-id dedup keys, upload caps and no mock fallbacks (#74)
+
+
 ## [20260926.07] - 2026-09-26
 
 - chore(deps-dev): bump vitest and @vitest/coverage-v8 to 4.1.11 (#73)
