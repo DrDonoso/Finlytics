@@ -470,6 +470,7 @@ const es: Dict = {
   dashboardNetWorthMortgage: 'Hipoteca',
   dashboardNetWorthUnavailable: 'no disponible',
   dashboardNetWorthPartial: 'Sin las inversiones: no se han podido consultar.',
+  dashboardNetWorthPartialMortgage: 'Sin la hipoteca: no se ha podido consultar.',
   dashboardSavingsRateVsPrevMonth: 'vs mes anterior',
   dashboardMonthsTracked: (months: number) => `${months} ${months === 1 ? 'mes' : 'meses'} con datos`,
   // ── Investments page ──────────────────────────────────────────────────────

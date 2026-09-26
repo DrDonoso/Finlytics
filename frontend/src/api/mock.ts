@@ -309,10 +309,6 @@ export function mockGetByAccount(params?: SummaryParams): Promise<AccountSummary
   return delay(result)
 }
 
-export function mockPostImport(_file: File, _accountName: string): Promise<ImportResult> {
-  return delay({ import_run_id: 1, num_parsed: 10, num_inserted: 10, num_duplicates: 0 })
-}
-
 // ─── Mock import preview / confirm ───────────────────────────────────────────
 
 const MOCK_PREVIEW_TXNS: ImportTransaction[] = [

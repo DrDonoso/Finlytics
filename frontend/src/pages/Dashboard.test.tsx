@@ -15,6 +15,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import Dashboard from './Dashboard'
 import { createQueryClient } from '../api/queryClient'
 import type { AccountSummary, CombinedOverview, Overview } from '../api/types'
+import es from '../i18n/es'
 
 // ── API layer doubles ────────────────────────────────────────────────────────
 
@@ -189,6 +190,40 @@ describe('Dashboard with the investments connector down', () => {
     expect(table).not.toBeNull()
     expect(within(table as HTMLElement).getByText('BBVA')).toBeInTheDocument()
     expect(within(table as HTMLElement).getByText('Santander')).toBeInTheDocument()
+  })
+})
+
+describe('Dashboard with the mortgage endpoint down', () => {
+  beforeEach(() => {
+    getMortgageNetWorth.mockRejectedValue(new TypeError('Failed to fetch'))
+  })
+
+  it('still shows net worth from accounts and investments', async () => {
+    renderDashboard()
+
+    await waitFor(() => expect(heroText()).toContain('71.001,10'))
+  })
+
+  it('flags the mortgage as unavailable instead of counting it as zero', async () => {
+    renderDashboard()
+
+    await waitFor(() => expect(heroText()).toContain('71.001,10'))
+    const missing = document.querySelector('.dashboard-kpi-breakdown__missing')
+    expect(missing?.textContent).toBe(es.dashboardNetWorthUnavailable)
+    expect(heroText()).toContain(es.dashboardNetWorthPartialMortgage)
+  })
+})
+
+describe('Dashboard with a mortgage included in net worth', () => {
+  it('adds the property value net of the outstanding debt', async () => {
+    getMortgageNetWorth.mockResolvedValue({
+      outstanding_debt: 150000, property_value: 200000, net_contribution: 50000, count: 1,
+    })
+
+    renderDashboard()
+
+    await waitFor(() => expect(heroText()).toContain('121.001,10'))
+    expect(document.querySelector('.dashboard-kpi-hero__notice')).toBeNull()
   })
 })
 

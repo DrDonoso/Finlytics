@@ -476,6 +476,8 @@ export interface Dict {
   dashboardNetWorthUnavailable: string
   /** Aviso cuando el patrimonio excluye las inversiones por un fallo de lectura. */
   dashboardNetWorthPartial: string
+  /** Aviso cuando el patrimonio excluye la hipoteca por un fallo de lectura. */
+  dashboardNetWorthPartialMortgage: string
   /** Variación de la tasa de ahorro del último mes con datos frente al anterior. */
   dashboardSavingsRateVsPrevMonth: string
   /** Nº de meses sobre los que se calcula el promedio mensual. */

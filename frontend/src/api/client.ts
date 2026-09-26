@@ -24,7 +24,7 @@ import type {
 import {
   mockGetAccounts, mockGetCategories, mockGetTags, mockGetTransactions,
   mockGetOverview, mockGetByCategory, mockGetByMonth,
-  mockGetByAccount, mockPostImport, mockPreviewImport, mockConfirmImport,
+  mockGetByAccount, mockPreviewImport, mockConfirmImport,
   mockUpdateTransaction, mockGetCashflow,
   mockCreateTag, mockUpdateTag, mockDeleteTag, mockUpdateCategory,
   mockCreateCategory,
@@ -103,11 +103,13 @@ async function authPost<T>(path: string, body: unknown): Promise<T> {
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
+//
+// No `catch { return mockX() }` on real requests: a failed call must surface as
+// an error, not render invented figures as if they were the user's.
 
 export async function getAccounts(): Promise<Account[]> {
   if (USE_MOCK) return mockGetAccounts()
-  try { return await apiFetch<Account[]>(buildUrl('/api/accounts')) }
-  catch { return mockGetAccounts() }
+  return apiFetch<Account[]>(buildUrl('/api/accounts'))
 }
 
 /** PATCH /api/accounts/{id} body { name } → updated account. (Name only; number immutable.) */
@@ -144,66 +146,47 @@ export async function createAccount(payload: AccountCreatePayload): Promise<Acco
 
 export async function getCategories(): Promise<Category[]> {
   if (USE_MOCK) return mockGetCategories()
-  try { return await apiFetch<Category[]>(buildUrl('/api/categories')) }
-  catch { return mockGetCategories() }
+  return apiFetch<Category[]>(buildUrl('/api/categories'))
 }
 
 export async function getTags(): Promise<Tag[]> {
   if (USE_MOCK) return mockGetTags()
-  try { return await apiFetch<Tag[]>(buildUrl('/api/tags')) }
-  catch { return mockGetTags() }
+  return apiFetch<Tag[]>(buildUrl('/api/tags'))
 }
 
 export async function getTransactions(params?: TransactionsParams): Promise<TransactionPage> {
   if (USE_MOCK) return mockGetTransactions(params)
-  try { return await apiFetch<TransactionPage>(buildUrl('/api/transactions', params as Record<string, unknown>)) }
-  catch { return mockGetTransactions(params) }
+  return apiFetch<TransactionPage>(buildUrl('/api/transactions', params as Record<string, unknown>))
 }
 
 export async function getOverview(params?: SummaryParams): Promise<Overview> {
   if (USE_MOCK) return mockGetOverview(params)
-  try { return await apiFetch<Overview>(buildUrl('/api/summary/overview', params as Record<string, unknown>)) }
-  catch { return mockGetOverview(params) }
+  return apiFetch<Overview>(buildUrl('/api/summary/overview', params as Record<string, unknown>))
 }
 
 export async function getByCategory(params?: SummaryParams): Promise<CategorySummary[]> {
   if (USE_MOCK) return mockGetByCategory(params)
-  try { return await apiFetch<CategorySummary[]>(buildUrl('/api/summary/by-category', params as Record<string, unknown>)) }
-  catch { return mockGetByCategory(params) }
+  return apiFetch<CategorySummary[]>(buildUrl('/api/summary/by-category', params as Record<string, unknown>))
 }
 
 export async function getByMonth(params?: MonthSummaryParams): Promise<MonthSummary[]> {
   if (USE_MOCK) return mockGetByMonth(params)
-  try { return await apiFetch<MonthSummary[]>(buildUrl('/api/summary/by-month', params as Record<string, unknown>)) }
-  catch { return mockGetByMonth(params) }
+  return apiFetch<MonthSummary[]>(buildUrl('/api/summary/by-month', params as Record<string, unknown>))
 }
 
 export async function getByAccount(params?: SummaryParams): Promise<AccountSummary[]> {
   if (USE_MOCK) return mockGetByAccount(params)
-  try { return await apiFetch<AccountSummary[]>(buildUrl('/api/summary/by-account', params as Record<string, unknown>)) }
-  catch { return mockGetByAccount(params) }
+  return apiFetch<AccountSummary[]>(buildUrl('/api/summary/by-account', params as Record<string, unknown>))
 }
 
 export async function getByMerchant(params?: SummaryParams): Promise<MerchantSummary[]> {
   if (USE_MOCK) return mockGetByMerchant(params)
-  try { return await apiFetch<MerchantSummary[]>(buildUrl('/api/summary/by-merchant', params as Record<string, unknown>)) }
-  catch { return mockGetByMerchant(params) }
+  return apiFetch<MerchantSummary[]>(buildUrl('/api/summary/by-merchant', params as Record<string, unknown>))
 }
 
 export async function getByDay(params?: MonthSummaryParams): Promise<DaySummary[]> {
   if (USE_MOCK) return mockGetByDay(params)
-  try { return await apiFetch<DaySummary[]>(buildUrl('/api/summary/by-day', params as Record<string, unknown>)) }
-  catch { return mockGetByDay(params) }
-}
-
-export async function postImport(file: File, accountName: string): Promise<ImportResult> {
-  if (USE_MOCK) return mockPostImport(file, accountName)
-  try {
-    const form = new FormData()
-    form.append('file', file)
-    form.append('account_name', accountName)
-    return await apiFetch<ImportResult>('/api/imports', { method: 'POST', body: form })
-  } catch { return mockPostImport(file, accountName) }
+  return apiFetch<DaySummary[]>(buildUrl('/api/summary/by-day', params as Record<string, unknown>))
 }
 
 // ─── Two-step import ──────────────────────────────────────────────────────────
@@ -252,8 +235,7 @@ export async function updateTransaction(id: number, patch: TransactionPatch): Pr
 
 export async function getCashflow(params?: SummaryParams): Promise<CashflowSummary> {
   if (USE_MOCK) return mockGetCashflow(params)
-  try { return await apiFetch<CashflowSummary>(buildUrl('/api/summary/cashflow', params as Record<string, unknown>)) }
-  catch { return mockGetCashflow(params) }
+  return apiFetch<CashflowSummary>(buildUrl('/api/summary/cashflow', params as Record<string, unknown>))
 }
 
 // ─── Tag CRUD ─────────────────────────────────────────────────────────────────
@@ -602,8 +584,7 @@ export async function getAppVersion(): Promise<AppVersion> {
 /** GET /api/notifications — full notification list (excludes dismissed+resolved; sorted warning→info, newest first). */
 export async function getNotifications(): Promise<NotificationOut[]> {
   if (USE_MOCK) return mockGetNotifications()
-  try { return await apiFetch<NotificationOut[]>('/api/notifications') }
-  catch { return mockGetNotifications() }
+  return apiFetch<NotificationOut[]>('/api/notifications')
 }
 
 /** GET /api/notifications/unread-count — cheap, poll-safe badge count. */
@@ -936,13 +917,10 @@ export async function getEuriborSeries(): Promise<EuriborSeries> {
 }
 
 /** GET /api/mortgages/net-worth — mortgage contribution to the net-worth KPI.
- *  Degrades to zeros so the Dashboard never breaks when the module is unused. */
+ *  An unused module already answers zeros; a failure throws so the Dashboard can
+ *  flag the figure as partial instead of silently dropping the debt from it. */
 export async function getMortgageNetWorth(): Promise<MortgageNetWorth> {
-  try {
-    return await apiFetch<MortgageNetWorth>(buildUrl('/api/mortgages/net-worth'))
-  } catch {
-    return { outstanding_debt: 0, property_value: 0, net_contribution: 0, count: 0 }
-  }
+  return apiFetch<MortgageNetWorth>(buildUrl('/api/mortgages/net-worth'))
 }
 
 /** GET /api/mortgages/payment-candidates — recurring charges that look like an

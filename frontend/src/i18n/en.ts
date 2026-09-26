@@ -470,6 +470,7 @@ const en: Dict = {
   dashboardNetWorthMortgage: 'Mortgage',
   dashboardNetWorthUnavailable: 'unavailable',
   dashboardNetWorthPartial: 'Excludes investments: they could not be read.',
+  dashboardNetWorthPartialMortgage: 'Excludes the mortgage: it could not be read.',
   dashboardSavingsRateVsPrevMonth: 'vs previous month',
   dashboardMonthsTracked: (months: number) => `${months} ${months === 1 ? 'month' : 'months'} of data`,
   // ── Investments page ──────────────────────────────────────────────────────
