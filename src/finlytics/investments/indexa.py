@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
+from collections.abc import Iterable
 from typing import Any
 
 import httpx
@@ -128,6 +129,7 @@ def _compute_monthly_returns(
 
     # Benchmark lookup by date — real Indexa returns a dict keyed by date;
     # also accept a list defensively (test mocks, legacy shapes).
+    bm_entries: Iterable[Any]
     if isinstance(benchmark, dict):
         bm_entries = benchmark.values()
     else:

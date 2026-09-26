@@ -19,6 +19,7 @@ from finlytics.api.schemas import (
 from finlytics.clock import today as local_today
 from finlytics.config import settings
 from finlytics.db import queries
+from finlytics.db.queries.types import StatementMonthRow, StatementOriginalRow
 from finlytics.db.models import ImportRun
 from finlytics.log_safety import one_line
 
@@ -64,7 +65,7 @@ def compute_statement_reminder(
 async def list_statement_months(
     account_id: int | None = Query(None),
     session: AsyncSession = Depends(get_db),
-) -> list[dict]:
+) -> list[StatementMonthRow]:
     """List all (year, month) pairs that contain ≥1 transaction, sorted DESC.
 
     Pass ``?account_id=<id>`` to restrict to one account; omit for all accounts.
@@ -118,7 +119,7 @@ async def list_statement_originals(
     month: int = Query(..., ge=1, le=12),
     account_id: int | None = Query(None),
     session: AsyncSession = Depends(get_db),
-) -> list[dict]:
+) -> list[StatementOriginalRow]:
     """List ImportRuns that have an original PDF on disk for the given month.
 
     Pass ``?account_id=<id>`` to restrict to one account; omit for all accounts.

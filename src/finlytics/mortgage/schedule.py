@@ -36,7 +36,7 @@ import calendar
 from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal, ROUND_CEILING, ROUND_HALF_UP
-from typing import Callable, Protocol
+from typing import Protocol
 
 # Money is rounded to cents; rates keep 5 decimals like the DB columns.
 _CENTS = Decimal("0.01")
@@ -188,7 +188,7 @@ class IndexResolver(Protocol):
     so the UI can render those instalments as provisional.
     """
 
-    def __call__(self, index_name: str | None, when: date) -> tuple[Decimal, bool]: ...
+    def __call__(self, index_name: str | None, when: date, /) -> tuple[Decimal, bool]: ...
 
 
 def zero_index(index_name: str | None, when: date) -> tuple[Decimal, bool]:
@@ -334,7 +334,7 @@ def _is_review_month(period: RatePeriodSpec, month: int) -> bool:
 
 def build_schedule(
     spec: MortgageSpec,
-    index: IndexResolver | Callable[[str | None, date], tuple[Decimal, bool]] = zero_index,
+    index: IndexResolver = zero_index,
 ) -> Schedule:
     """Build the full amortization schedule for *spec*.
 

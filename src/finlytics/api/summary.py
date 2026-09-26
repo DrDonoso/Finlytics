@@ -15,6 +15,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from finlytics.api.deps import get_db
 from finlytics.api.schemas import ByAccountRow, ByCategoryRow, ByDayRow, ByMerchantRow, ByMonthRow, CashflowOut, OverviewOut, TransactionMonthsOut
 from finlytics.db import queries
+from finlytics.db.queries.types import (
+    AccountSummaryRow,
+    CashflowSummary,
+    CategorySummaryRow,
+    DaySummaryRow,
+    MerchantSummaryRow,
+    MonthSummaryRow,
+    OverviewSummary,
+)
 
 router = APIRouter(prefix="/summary", tags=["summary"])
 
@@ -33,7 +42,7 @@ async def overview(
     merchant: str | None = Query(None),
     day: date | None = Query(None, alias="day"),
     session: AsyncSession = Depends(get_db),
-) -> OverviewOut:
+) -> OverviewSummary:
     return await queries.get_overview(
         session,
         from_date=from_date,
@@ -60,7 +69,7 @@ async def by_category(
     merchant: str | None = Query(None),
     day: date | None = Query(None, alias="day"),
     session: AsyncSession = Depends(get_db),
-) -> list[ByCategoryRow]:
+) -> list[CategorySummaryRow]:
     return await queries.get_by_category(
         session, from_date=from_date, to_date=to_date, account_id=account_id, tags=tag, flow=flow,
         merchant=merchant, day=day,
@@ -76,7 +85,7 @@ async def by_month(
     tag: list[str] | None = Query(None),
     flow: Literal["expense", "income"] | None = Query(None),
     session: AsyncSession = Depends(get_db),
-) -> list[ByMonthRow]:
+) -> list[MonthSummaryRow]:
     return await queries.get_by_month(
         session,
         from_date=from_date,
@@ -98,7 +107,7 @@ async def by_day(
     flow: Literal["expense", "income"] | None = Query(None),
     merchant: str | None = Query(None),
     session: AsyncSession = Depends(get_db),
-) -> list[ByDayRow]:
+) -> list[DaySummaryRow]:
     return await queries.get_by_day(
         session,
         from_date=from_date,
@@ -121,7 +130,7 @@ async def by_merchant(
     category_id: int | None = Query(None),
     day: date | None = Query(None, alias="day"),
     session: AsyncSession = Depends(get_db),
-) -> list[ByMerchantRow]:
+) -> list[MerchantSummaryRow]:
     return await queries.get_by_merchant(
         session, from_date=from_date, to_date=to_date, account_id=account_id, tags=tag, flow=flow,
         category_id=category_id, day=day,
@@ -136,7 +145,7 @@ async def by_account(
     tag: list[str] | None = Query(None),
     flow: Literal["expense", "income"] | None = Query(None),
     session: AsyncSession = Depends(get_db),
-) -> list[ByAccountRow]:
+) -> list[AccountSummaryRow]:
     return await queries.get_by_account(
         session, from_date=from_date, to_date=to_date, category_id=category_id, tags=tag, flow=flow
     )
@@ -151,7 +160,7 @@ async def cashflow(
     tag: list[str] | None = Query(None),
     flow: Literal["expense", "income"] | None = Query(None),
     session: AsyncSession = Depends(get_db),
-) -> CashflowOut:
+) -> CashflowSummary:
     """Income and expense per category for a Sankey diagram.
 
     Amounts are always positive magnitudes.  Transactions without a category

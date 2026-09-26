@@ -327,12 +327,12 @@ async def import_backup(
         account_id_map: dict[str, int] = {}  # name → id
 
         for acc in body.accounts:
-            row = (
+            account_row = (
                 await session.execute(select(Account).where(Account.name == acc.name))
             ).scalar_one_or_none()
-            if row is not None:
+            if account_row is not None:
                 accounts_existing += 1
-                account_id_map[acc.name] = row.id
+                account_id_map[acc.name] = account_row.id
             else:
                 new_acc = Account(name=acc.name, type=acc.type, currency=acc.currency)
                 session.add(new_acc)
@@ -348,15 +348,15 @@ async def import_backup(
         category_id_map: dict[str, int] = {}  # name → id
 
         for cat in body.categories:
-            row = (
+            category_row = (
                 await session.execute(select(Category).where(Category.name == cat.name))
             ).scalar_one_or_none()
-            if row is not None:
-                row.color = cat.color
-                row.name_es = cat.name_es   # restore backup value (may be None)
+            if category_row is not None:
+                category_row.color = cat.color
+                category_row.name_es = cat.name_es   # restore backup value (may be None)
                 await session.flush()
                 categories_updated += 1
-                category_id_map[cat.name] = row.id
+                category_id_map[cat.name] = category_row.id
             else:
                 new_cat = Category(
                     name=cat.name,
@@ -376,15 +376,15 @@ async def import_backup(
 
         for tag_in in body.tags:
             norm = tag_in.name.strip().lower()
-            row = (
+            tag_row = (
                 await session.execute(select(Tag).where(Tag.name == norm))
             ).scalar_one_or_none()
-            if row is not None:
-                row.color = tag_in.color
-                row.emoji = tag_in.emoji    # restore backup value (may be None)
+            if tag_row is not None:
+                tag_row.color = tag_in.color
+                tag_row.emoji = tag_in.emoji    # restore backup value (may be None)
                 await session.flush()
                 tags_updated += 1
-                tag_id_map[norm] = row.id
+                tag_id_map[norm] = tag_row.id
             else:
                 kwargs: dict = {"name": norm, "color": tag_in.color}
                 if tag_in.emoji is not None:
@@ -481,7 +481,7 @@ async def import_backup(
 
         # ── Rules ────────────────────────────────────────────────────────────
         for rule_in in body.rules:
-            row = (
+            rule_row = (
                 await session.execute(select(Rule).where(Rule.name == rule_in.name))
             ).scalar_one_or_none()
             values = {
@@ -509,10 +509,10 @@ async def import_backup(
                 "add_tags": rule_in.add_tags,
                 "skip_ai": rule_in.skip_ai,
             }
-            if row is not None:
+            if rule_row is not None:
                 for key, value in values.items():
-                    setattr(row, key, value)
-                row.updated_at = datetime.now(timezone.utc)
+                    setattr(rule_row, key, value)
+                rule_row.updated_at = datetime.now(timezone.utc)
                 await session.flush()
                 rules_updated += 1
             else:
@@ -525,7 +525,7 @@ async def import_backup(
         investments_in = body.investments
         if investments_in is not None:
             for conn_in in investments_in.connections:
-                row = (
+                connection_row = (
                     await session.execute(
                         select(InvestmentConnection).where(
                             InvestmentConnection.user_id == current_user.id,
@@ -533,14 +533,14 @@ async def import_backup(
                         )
                     )
                 ).scalar_one_or_none()
-                if row is not None:
-                    row.status = conn_in.status
-                    row.account_label_masked = conn_in.account_label_masked
-                    row.token_enc = conn_in.token_enc
-                    row.last_synced_at = conn_in.last_synced_at
+                if connection_row is not None:
+                    connection_row.status = conn_in.status
+                    connection_row.account_label_masked = conn_in.account_label_masked
+                    connection_row.token_enc = conn_in.token_enc
+                    connection_row.last_synced_at = conn_in.last_synced_at
                     await session.flush()
                     investment_connections_updated += 1
-                    investment_connection_id_map[conn_in.plugin_id] = row.id
+                    investment_connection_id_map[conn_in.plugin_id] = connection_row.id
                 else:
                     new_conn = InvestmentConnection(
                         user_id=current_user.id,

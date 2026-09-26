@@ -96,19 +96,19 @@ class FidelityESPPProvider(InvestmentProvider):
 
     # ── ABC stubs — not used for statement_import providers ──────────────────
 
-    async def validate_token(self, token: str) -> ValidationResult:  # type: ignore[override]
+    async def validate_token(self, token: str) -> ValidationResult:
         raise NotImplementedError(
             "fidelity-espp is a statement_import provider; no token API."
         )
 
-    async def get_portfolio(  # type: ignore[override]
+    async def get_portfolio(
         self, token: str, account_numbers: list[str]
     ) -> NormalizedPortfolio:
         raise NotImplementedError(
             "fidelity-espp is a statement_import provider; use import_lots()."
         )
 
-    async def get_performance(  # type: ignore[override]
+    async def get_performance(
         self, token: str, account_number: str
     ) -> NormalizedPerformance:
         raise NotImplementedError(

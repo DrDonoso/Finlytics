@@ -83,8 +83,8 @@ class LLMClient:
 
     def __init__(
         self,
-        api_key: str,
-        base_url: str,
+        api_key: str | None,
+        base_url: str | None,
         model: str,
         *,
         temperature: float | None = None,
@@ -112,7 +112,7 @@ class LLMClient:
         return cls(
             api_key=settings.openai_api_key,
             base_url=settings.openai_base_url,
-            model=settings.openai_model,
+            model=settings.openai_model or "",
             temperature=settings.openai_temperature,
             _client=_client,
         )

@@ -235,7 +235,7 @@ async def _bg_refresh_connection(
             return
 
         acc_by_mask = {_mask_account(a.account_number): a for a in validation.accounts}
-        acc = acc_by_mask.get(account_label_masked)
+        acc = acc_by_mask.get(account_label_masked) if account_label_masked is not None else None
         if acc is None:
             log.warning("Background refresh: no account matches mask %r for connection %d", account_label_masked, connection_id)
             return
@@ -539,7 +539,8 @@ async def get_portfolio(
         }
 
         for conn in need_fetch:
-            acc = acc_by_mask.get(conn.account_label_masked)
+            label = conn.account_label_masked
+            acc = acc_by_mask.get(label) if label is not None else None
             if acc is None:
                 log.warning(
                     "No Indexa account matches mask %r for connection %d — skipping",
@@ -778,12 +779,12 @@ def _aggregate(
 
     drawdown_out: DrawdownOut | None = None
     if single_account and first_perf and first_perf.drawdown:
-        d = first_perf.drawdown
+        perf_drawdown = first_perf.drawdown
         drawdown_out = DrawdownOut(
-            max_drawdown=d.max_drawdown,
-            max_drawdown_eur=d.max_drawdown_eur,
-            start_date=d.start_date,
-            end_date=d.end_date,
+            max_drawdown=perf_drawdown.max_drawdown,
+            max_drawdown_eur=perf_drawdown.max_drawdown_eur,
+            start_date=perf_drawdown.start_date,
+            end_date=perf_drawdown.end_date,
         )
 
     cash_invested = (

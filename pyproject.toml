@@ -68,10 +68,10 @@ line-length = 100
 
 [tool.mypy]
 python_version = "3.12"
-# Focused on the query layer, the boundary between the database and the API:
-# that is where a change in data shape propagates silently until Pydantic fails
-# while serialising the response.
-files = ["src/finlytics/db/queries", "src/finlytics/clock.py", "src/finlytics/auth"]
+# The whole package. The API layer declares the query layer's TypedDicts as its
+# return types, so a change in data shape fails here instead of when Pydantic
+# serialises the response.
+files = ["src/finlytics"]
 ignore_missing_imports = true
 warn_unused_ignores = true
 

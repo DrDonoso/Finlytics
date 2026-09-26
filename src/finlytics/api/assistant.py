@@ -144,7 +144,7 @@ def _message_out(message: AssistantMessage) -> AssistantMessageOut:
         id=message.id,
         role=message.role,  # type: ignore[arg-type]
         content=message.content,
-        tool_calls=message.tool_calls,  # type: ignore[arg-type]
+        tool_calls=message.tool_calls,
         created_at=message.created_at,
     )
 

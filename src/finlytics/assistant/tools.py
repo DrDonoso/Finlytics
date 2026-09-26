@@ -334,7 +334,7 @@ async def _compare_periods(args: dict, ctx: ToolContext) -> dict:
     by_a = {r["category"]: float(r["amount"]) for r in rows_a}
     by_b = {r["category"]: float(r["amount"]) for r in rows_b}
 
-    changes = []
+    changes: list[dict[str, Any]] = []
     for name in sorted(set(by_a) | set(by_b)):
         amount_a = by_a.get(name, 0.0)
         amount_b = by_b.get(name, 0.0)

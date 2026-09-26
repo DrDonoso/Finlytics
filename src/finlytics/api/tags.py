@@ -11,12 +11,13 @@ from finlytics.api.deps import get_db
 from finlytics.api.schemas import TagCreate, TagOut, TagUpdate
 from finlytics.db import queries
 from finlytics.db.queries import TagNameConflictError
+from finlytics.db.queries.types import TagRow, TagWithCountRow
 
 router = APIRouter(prefix="/tags", tags=["tags"])
 
 
 @router.get("", response_model=list[TagOut])
-async def list_tags(session: AsyncSession = Depends(get_db)) -> list[TagOut]:
+async def list_tags(session: AsyncSession = Depends(get_db)) -> list[TagWithCountRow]:
     """Return all tags sorted alphabetically."""
     return await queries.get_tags(session)
 
@@ -25,7 +26,7 @@ async def list_tags(session: AsyncSession = Depends(get_db)) -> list[TagOut]:
 async def create_tag(
     body: TagCreate,
     session: AsyncSession = Depends(get_db),
-) -> TagOut:
+) -> TagRow:
     """Create a new tag.
 
     * 201 — tag created.
@@ -48,7 +49,7 @@ async def update_tag(
     tag_id: int,
     body: TagUpdate,
     session: AsyncSession = Depends(get_db),
-) -> TagOut:
+) -> TagRow:
     """Rename, recolour, and/or update the emoji of a tag.
 
     * 200 — updated.
