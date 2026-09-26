@@ -66,6 +66,7 @@ const es: Dict = {
   modalBtnConfirm: (n) => `Confirmar e importar (${n})`,
   error503: 'El extractor de IA no está configurado en el servidor. Comprueba las variables de entorno OPENAI_*.',
   error400: 'No se pudo procesar el archivo. Verifica que sea un extracto bancario válido en formato PDF.',
+  error413: 'El archivo supera el límite de 20 MB.',
   errorNetwork: 'Error de red. Comprueba que el servidor está en marcha.',
   errorUnexpected: (msg) => `Error inesperado: ${msg}`,
   toastSuccess: (ins, dup) => `${ins} transacciones nuevas · ${dup} duplicadas`,

@@ -25,6 +25,18 @@ from httpx import ASGITransport, AsyncClient
 from finlytics.api.auth import login_rate_limiter
 from finlytics.api.deps import get_current_user, get_db, get_llm_client
 from finlytics.app import app
+from finlytics.config import settings
+
+
+@pytest.fixture(autouse=True)
+def _isolated_upload_dir(tmp_path_factory, monkeypatch):
+    """Keeps imported PDFs out of the real ``/app/data/uploads``.
+
+    Any import test that reaches the real ``_persist_import_run`` writes the
+    statement to ``settings.upload_dir``; without this the suite leaves files
+    behind on the machine running it.
+    """
+    monkeypatch.setattr(settings, "upload_dir", str(tmp_path_factory.mktemp("uploads")))
 
 
 @pytest.fixture(autouse=True)

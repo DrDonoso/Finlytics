@@ -15,9 +15,12 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import contextlib
+import hashlib
 import logging
 import os
 import re
+import tempfile
 import unicodedata
 from datetime import timedelta
 
@@ -27,6 +30,12 @@ from sqlalchemy import select
 
 from finlytics.api.deps import get_db, get_llm_client
 from finlytics.api.schemas import CheckDuplicatesIn, CheckDuplicatesOut, ConfirmIn, ImportResult, PreviewOut, SuggestedTag, mask_account_number
+from finlytics.api.uploads import (
+    ensure_within_limit,
+    max_base64_chars,
+    read_upload,
+    upload_too_large,
+)
 from finlytics.config import settings
 from finlytics.contracts import ExtractedTransaction
 from finlytics.db.models import Account, ImportRun, Tag, Transaction
@@ -62,6 +71,39 @@ def _slugify(name: str) -> str:
     ascii_only = nfkd.encode("ascii", "ignore").decode("ascii")
     slug = re.sub(r"[^a-zA-Z0-9]+", "_", ascii_only).strip("_")
     return slug or "account"
+
+
+def _source_pdf_name(account_name: str | None, period: str, pdf: bytes) -> str:
+    """Name a stored original after its content as well as its account and month.
+
+    Account and month alone are not unique: a second statement for the same month
+    overwrote the first, and the earlier import then served the wrong document.
+    """
+    digest = hashlib.sha256(pdf).hexdigest()[:12]
+    return f"{_slugify(account_name or 'account')}_{period.replace('-', '')}_{digest}.pdf"
+
+
+def _store_source_pdf(directory: str, filename: str, data: bytes) -> None:
+    """Write ``data`` atomically, leaving an existing file of that name untouched.
+
+    The name is content-addressed, so an existing file already holds these bytes.
+    Writing to a temporary file and renaming it means a crash mid-write can never
+    leave a truncated PDF behind under the final name.  If the surrounding
+    transaction fails the file stays unreferenced, and a retry reuses it.
+    """
+    path = os.path.join(directory, filename)
+    if os.path.exists(path):
+        return
+    os.makedirs(directory, exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(dir=directory, prefix=".upload-", suffix=".part")
+    try:
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(data)
+        os.replace(tmp_path, path)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.remove(tmp_path)
+        raise
 
 
 # ── Shared helpers (patchable in tests) ──────────────────────────────────────
@@ -119,11 +161,11 @@ async def _persist_import_run(
 
     # Save the original PDF to disk when provided.
     if source_pdf is not None and period is not None:
-        filename = f"{_slugify(account_name or 'account')}_{period.replace('-', '')}.pdf"
+        filename = _source_pdf_name(account_name, period, source_pdf)
         try:
-            os.makedirs(settings.upload_dir, exist_ok=True)
-            with open(os.path.join(settings.upload_dir, filename), "wb") as fh:
-                fh.write(source_pdf)
+            await asyncio.to_thread(
+                _store_source_pdf, settings.upload_dir, filename, source_pdf
+            )
             import_run.source_path = filename
         except Exception as exc:
             log.warning("PDF save failed (import continues without source_path): %s", exc)
@@ -161,14 +203,22 @@ async def _parse_file(file_bytes: bytes, ext: str, error_status: int = 400) -> s
 
 
 def _decode_pdf_base64(b64: str | None) -> bytes | None:
-    """Decode a raw base64 string to bytes; return None when *b64* is None or malformed."""
+    """Decode a raw base64 string to bytes; return None when *b64* is None or malformed.
+
+    Held to the same cap as a direct upload (413): the preview already refuses a
+    larger file, so only a client bypassing the UI can send one here.
+    """
     if b64 is None:
         return None
+    if len(b64) > max_base64_chars():
+        raise upload_too_large()
     try:
-        return base64.b64decode(b64)
+        pdf = base64.b64decode(b64)
     except Exception:
         log.warning("source_pdf_base64 is malformed — PDF will not be saved")
         return None
+    ensure_within_limit(len(pdf))
+    return pdf
 
 
 # ── Preview endpoint ──────────────────────────────────────────────────────────
@@ -181,7 +231,7 @@ async def preview_import(
     llm_client: LLMClient = Depends(get_llm_client),
 ) -> PreviewOut:
     """Parse + LLM-extract a statement WITHOUT persisting. Returns transactions for user review."""
-    file_bytes = await file.read()
+    file_bytes = await read_upload(file)
     filename = file.filename or "upload"
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "pdf"
 
@@ -292,6 +342,8 @@ async def confirm_import(
     ``POST /api/accounts``.  If the account already existed the field is silently
     ignored — the UI must only send it for new accounts.
     """
+    source_pdf = _decode_pdf_base64(body.source_pdf_base64)
+
     async with session.begin():
         was_created = False
 
@@ -336,7 +388,7 @@ async def confirm_import(
             session, account.id, body.source_filename, body.transactions,
             tag_colors=body.tag_colors,
             account_name=account.name,
-            source_pdf=_decode_pdf_base64(body.source_pdf_base64),
+            source_pdf=source_pdf,
         )
 
         # Synthetic opening-balance transaction for accounts created by this import.
@@ -425,7 +477,7 @@ async def create_import(
             detail="Provide either account_id or account_name.",
         )
 
-    file_bytes = await file.read()
+    file_bytes = await read_upload(file)
     filename = file.filename or "upload"
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "pdf"
 

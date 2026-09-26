@@ -61,6 +61,7 @@ interface Props {
 function friendlyError(e: unknown, t: Dict): string {
   const msg = e instanceof Error ? e.message : String(e)
   if (msg.includes('503')) return t.error503
+  if (msg.includes('413')) return t.error413
   if (msg.includes('400')) return t.error400
   if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('network')) {
     return t.errorNetwork

@@ -3,6 +3,7 @@
 Covers:
   - confirm with source_pdf_base64 writes file to disk + sets source_path
   - confirm without source_pdf_base64 leaves source_path NULL
+  - stored names are content-addressed: no overwrite, identical PDFs share a file
   - slugify helper produces clean filenames
   - GET /api/statements/originals lists month's files (respects account_id)
   - GET /api/statements/original/{id} returns 200 + PDF bytes with attachment header
@@ -12,6 +13,7 @@ Covers:
 from __future__ import annotations
 
 import base64
+import hashlib
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from types import SimpleNamespace
@@ -64,6 +66,30 @@ def _b64(data: bytes) -> str:
     return base64.b64encode(data).decode()
 
 
+def _stored_name(slug: str, period: str, data: bytes) -> str:
+    return f"{slug}_{period}_{hashlib.sha256(data).hexdigest()[:12]}.pdf"
+
+
+def _confirm_payload(account_name: str, pdf: bytes | None) -> dict:
+    payload = {
+        "account_name": account_name,
+        "source_filename": "statement.pdf",
+        "transactions": [
+            {
+                "transaction_date": "2026-06-01",
+                "amount": "-10.00",
+                "currency": "EUR",
+                "description": "SUPERMERCADO",
+                "category": "Groceries",
+                "account_ref": account_name,
+            }
+        ],
+    }
+    if pdf is not None:
+        payload["source_pdf_base64"] = _b64(pdf)
+    return payload
+
+
 # ── confirm with PDF saves to disk ───────────────────────────────────────────
 
 async def test_confirm_with_pdf_writes_file(client, mock_session, tmp_path):
@@ -105,10 +131,11 @@ async def test_confirm_with_pdf_writes_file(client, mock_session, tmp_path):
         resp = await client.post("/api/imports/confirm", json=payload)
 
     assert resp.status_code == 200
-    expected_file = tmp_path / "Cuenta_Nomina_202606.pdf"
+    expected_name = _stored_name("Cuenta_Nomina", "202606", pdf_bytes)
+    expected_file = tmp_path / expected_name
     assert expected_file.exists()
     assert expected_file.read_bytes() == pdf_bytes
-    assert fake_run.source_path == "Cuenta_Nomina_202606.pdf"
+    assert fake_run.source_path == expected_name
 
 
 async def test_confirm_without_pdf_leaves_source_path_none(client, mock_session, tmp_path):
@@ -204,13 +231,105 @@ async def test_confirm_file_write_failure_import_still_succeeds(client, mock_ses
     fake_run.id = 13
     fake_run.source_path = None
 
-    import builtins
-    real_open = builtins.open
+    with (
+        patch("finlytics.api.imports._resolve_account", new_callable=AsyncMock,
+              return_value=fake_account),
+        patch("finlytics.api.imports.upsert_transactions", new_callable=AsyncMock,
+              return_value=(1, 0)),
+        patch("finlytics.api.imports.ImportRun", return_value=fake_run),
+        patch("finlytics.api.imports.settings.upload_dir", str(tmp_path)),
+        patch("finlytics.api.imports.os.replace", side_effect=OSError("disk full")),
+    ):
+        resp = await client.post(
+            "/api/imports/confirm", json=_confirm_payload("BBVA", pdf_bytes)
+        )
 
-    def _failing_open(path, mode="r", **kwargs):
-        if "wb" in mode:
-            raise OSError("disk full")
-        return real_open(path, mode, **kwargs)
+    assert resp.status_code == 200
+    assert fake_run.source_path is None
+    # The half-written temporary file is removed rather than left behind.
+    assert list(tmp_path.iterdir()) == []
+
+
+async def test_confirm_keeps_each_statement_of_the_same_month(client, mock_session, tmp_path):
+    """A second statement for the same account and month must not overwrite the first.
+
+    Both runs were stored under ``BBVA_202606.pdf``, so downloading the first
+    import's original returned the second document.
+    """
+    first_pdf, second_pdf = b"%PDF first half", b"%PDF second half"
+
+    fake_account = MagicMock()
+    fake_account.id = 1
+    fake_account.name = "BBVA"
+    first_run, second_run = MagicMock(source_path=None), MagicMock(source_path=None)
+    first_run.id, second_run.id = 20, 21
+
+    with (
+        patch("finlytics.api.imports._resolve_account", new_callable=AsyncMock,
+              return_value=fake_account),
+        patch("finlytics.api.imports.upsert_transactions", new_callable=AsyncMock,
+              return_value=(1, 0)),
+        patch("finlytics.api.imports.ImportRun", side_effect=[first_run, second_run]),
+        patch("finlytics.api.imports.settings.upload_dir", str(tmp_path)),
+    ):
+        for pdf in (first_pdf, second_pdf):
+            resp = await client.post("/api/imports/confirm", json=_confirm_payload("BBVA", pdf))
+            assert resp.status_code == 200
+
+    assert first_run.source_path != second_run.source_path
+    assert (tmp_path / first_run.source_path).read_bytes() == first_pdf
+    assert (tmp_path / second_run.source_path).read_bytes() == second_pdf
+
+
+async def test_confirm_reuses_the_stored_copy_of_an_identical_statement(
+    client, mock_session, tmp_path
+):
+    """Re-importing the same PDF points at the file already on disk instead of a new copy."""
+    pdf_bytes = b"%PDF same statement"
+
+    fake_account = MagicMock()
+    fake_account.id = 1
+    fake_account.name = "BBVA"
+    first_run, second_run = MagicMock(source_path=None), MagicMock(source_path=None)
+    first_run.id, second_run.id = 30, 31
+
+    with (
+        patch("finlytics.api.imports._resolve_account", new_callable=AsyncMock,
+              return_value=fake_account),
+        patch("finlytics.api.imports.upsert_transactions", new_callable=AsyncMock,
+              return_value=(0, 1)),
+        patch("finlytics.api.imports.ImportRun", side_effect=[first_run, second_run]),
+        patch("finlytics.api.imports.settings.upload_dir", str(tmp_path)),
+    ):
+        for _ in range(2):
+            resp = await client.post(
+                "/api/imports/confirm", json=_confirm_payload("BBVA", pdf_bytes)
+            )
+            assert resp.status_code == 200
+
+    assert first_run.source_path == second_run.source_path
+    assert [p.name for p in tmp_path.iterdir()] == [first_run.source_path]
+
+
+async def test_confirm_writes_the_pdf_off_the_event_loop(client, mock_session, tmp_path):
+    """The PDF write is blocking file I/O and must run in a worker thread."""
+    import threading
+
+    from finlytics.api import imports as imports_module
+
+    loop_thread = threading.get_ident()
+    writer_threads: list[int] = []
+    real_store = imports_module._store_source_pdf
+
+    def _recording_store(*args):
+        writer_threads.append(threading.get_ident())
+        real_store(*args)
+
+    fake_account = MagicMock()
+    fake_account.id = 1
+    fake_account.name = "BBVA"
+    fake_run = MagicMock(source_path=None)
+    fake_run.id = 40
 
     with (
         patch("finlytics.api.imports._resolve_account", new_callable=AsyncMock,
@@ -219,27 +338,12 @@ async def test_confirm_file_write_failure_import_still_succeeds(client, mock_ses
               return_value=(1, 0)),
         patch("finlytics.api.imports.ImportRun", return_value=fake_run),
         patch("finlytics.api.imports.settings.upload_dir", str(tmp_path)),
-        patch("builtins.open", side_effect=_failing_open),
+        patch("finlytics.api.imports._store_source_pdf", side_effect=_recording_store),
     ):
-        payload = {
-            "account_name": "BBVA",
-            "source_filename": "statement.pdf",
-            "transactions": [
-                {
-                    "transaction_date": "2026-06-01",
-                    "amount": "-10.00",
-                    "currency": "EUR",
-                    "description": "SUPERMERCADO",
-                    "category": "Groceries",
-                    "account_ref": "BBVA",
-                }
-            ],
-            "source_pdf_base64": _b64(pdf_bytes),
-        }
-        resp = await client.post("/api/imports/confirm", json=payload)
+        resp = await client.post("/api/imports/confirm", json=_confirm_payload("BBVA", b"%PDF"))
 
     assert resp.status_code == 200
-    assert fake_run.source_path is None
+    assert writer_threads and writer_threads[0] != loop_thread
 
 
 # ── GET /api/statements/originals ────────────────────────────────────────────

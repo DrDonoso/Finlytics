@@ -22,6 +22,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from finlytics.api.deps import get_current_user, get_db
+from finlytics.api.uploads import read_upload
 from finlytics.clock import today as local_today
 from finlytics.api.schemas import (
     FidelityEvolutionOut,
@@ -279,7 +280,7 @@ async def fidelity_import_preview(
     Does NOT persist anything.  Returns the list of new lots that would be
     inserted plus a duplicate count.
     """
-    file_bytes = await file.read()
+    file_bytes = await read_upload(file)
     file_hash = hashlib.sha256(file_bytes).hexdigest()
 
     try:
@@ -378,7 +379,7 @@ async def fidelity_import_confirm(
     db: AsyncSession = Depends(get_db),
 ) -> FidelityImportResult:
     """Import Fidelity ESPP lots idempotently and trigger historical price backfill."""
-    file_bytes = await file.read()
+    file_bytes = await read_upload(file)
     file_hash = hashlib.sha256(file_bytes).hexdigest()
 
     try:

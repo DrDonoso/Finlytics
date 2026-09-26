@@ -66,6 +66,7 @@ const en: Dict = {
   modalBtnConfirm: (n) => `Confirm & import (${n})`,
   error503: 'The AI extractor is not configured on the server. Check the OPENAI_* environment variables.',
   error400: 'Could not process the file. Please check that it is a valid bank statement in PDF format.',
+  error413: 'The file exceeds the 20 MB limit.',
   errorNetwork: 'Network error. Please check that the server is running.',
   errorUnexpected: (msg) => `Unexpected error: ${msg}`,
   toastSuccess: (ins, dup) => `${ins} new transactions · ${dup} duplicates`,

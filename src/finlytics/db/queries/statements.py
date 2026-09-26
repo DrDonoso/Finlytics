@@ -86,8 +86,9 @@ async def get_statement_originals(
 
     Filters by ``period == "YYYY-MM"`` and ``source_path IS NOT NULL``.
     Optionally restricts to a single account when *account_id* is provided.
-    Returns DISTINCT by source_path — when multiple runs share a filename
-    (overwrite semantics) the one with the highest id (latest) is returned.
+    Returns DISTINCT by source_path — stored names include a hash of the PDF, so
+    runs share a file only when the same statement was imported more than once,
+    and the latest of those runs is returned.
     """
     period = f"{year}-{month:02d}"
     # Use a subquery to pick the latest import_run_id per source_path.

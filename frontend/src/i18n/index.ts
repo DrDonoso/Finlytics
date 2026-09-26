@@ -79,6 +79,7 @@ export interface Dict {
   modalBtnConfirm: (count: number) => string
   error503: string
   error400: string
+  error413: string
   errorNetwork: string
   errorUnexpected: (msg: string) => string
   toastSuccess: (inserted: number, dupes: number) => string
