@@ -623,8 +623,8 @@ async def test_transactions_merchant_underscore_treated_literally(client):
 async def test_patch_merchant_only_does_not_trigger_dedup_recompute(client):
     """PATCH with only merchant forwards description=None and amount=None.
 
-    In update_transaction, dedup recomputation only fires when description is
-    not None or amount is not None.  A merchant-only PATCH must not set those
+    In update_transaction, dedup recomputation only fires when the normalized
+    description or the amount changes.  A merchant-only PATCH must not set those
     fields so no hash recompute (and no risk of a spurious 409).
     """
     updated = {**_TX, "merchant": "Amazon"}
@@ -665,13 +665,13 @@ def test_dedup_hash_ignores_merchant():
     tx_without = ExtractedTransaction(**natural_key, category="Groceries", merchant=None)
 
     hash_with = compute_dedup_hash(
-        account_ref=tx_with.account_ref,
+        account_id=1,
         transaction_date=tx_with.transaction_date,
         amount=tx_with.amount,
         description=tx_with.description,
     )
     hash_without = compute_dedup_hash(
-        account_ref=tx_without.account_ref,
+        account_id=1,
         transaction_date=tx_without.transaction_date,
         amount=tx_without.amount,
         description=tx_without.description,

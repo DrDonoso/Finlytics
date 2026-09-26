@@ -12,6 +12,7 @@ import pytest
 from fastapi import HTTPException
 
 from finlytics.contracts import ExtractedTransaction
+from finlytics.db.models import Account
 
 
 def _make_rule(**overrides) -> SimpleNamespace:
@@ -601,6 +602,16 @@ async def test_confirm_new_account_via_iban_creates_opening_balance_tx(client, m
     mock_iban_result.scalar_one_or_none.return_value = None  # account not found → new
     mock_session.execute = AsyncMock(return_value=mock_iban_result)
 
+    added: list = []
+    mock_session.add = MagicMock(side_effect=added.append)
+
+    def _assign_account_id():
+        for obj in added:
+            if isinstance(obj, Account) and obj.id is None:
+                obj.id = 31
+
+    mock_session.flush = AsyncMock(side_effect=_assign_account_id)
+
     fake_run = MagicMock()
     fake_run.id = 77
 
@@ -645,7 +656,8 @@ async def test_confirm_new_account_via_iban_creates_opening_balance_tx(client, m
     assert kwargs["opening_balance"] == 1500.0
     # opening_date = min(2024-06-10, 2024-06-15) − 1 day = 2024-06-09
     assert kwargs["opening_date"] == date(2024, 6, 9)
-    assert kwargs["account_name"] == "Mi BBVA"
+    assert kwargs["account_id"] == 31
+    assert "account_name" not in kwargs
 
 
 async def test_confirm_existing_account_ignores_opening_balance(client, mock_session):

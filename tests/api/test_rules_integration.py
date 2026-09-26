@@ -313,7 +313,7 @@ async def test_e2e_safety_net_unparseable_line_falls_through_to_llm(client_with_
 async def test_e2e_idempotency_rule_set_merchant_does_not_change_dedup_hash(client_with_llm):
     """Rule sets merchant via apply_rules (post-LLM); description stays unchanged.
 
-    compute_dedup_hash uses (account_ref, date, amount, description) — NOT
+    compute_dedup_hash uses (account_id, date, amount, description, detail) — NOT
     merchant.  Re-importing the same statement always produces the same hash
     even when a rule sets a friendly merchant name.
     """
@@ -381,13 +381,13 @@ async def test_e2e_idempotency_rule_set_merchant_does_not_change_dedup_hash(clie
 
     # Dedup hash is stable: same description → same hash with or without the rule
     hash_with_rule = compute_dedup_hash(
-        account_ref=persisted.account_ref,
+        account_id=fake_account.id,
         transaction_date=persisted.transaction_date,
         amount=persisted.amount,
         description=persisted.description,
     )
     hash_without_rule = compute_dedup_hash(
-        account_ref="BBVA",
+        account_id=1,
         transaction_date=date(2026, 5, 2),
         amount=Decimal("-800.00"),
         description=original_description,
@@ -396,7 +396,7 @@ async def test_e2e_idempotency_rule_set_merchant_does_not_change_dedup_hash(clie
 
     # Sanity: if merchant were used as description, the hash would differ
     hash_if_merchant_used = compute_dedup_hash(
-        account_ref="BBVA",
+        account_id=1,
         transaction_date=date(2026, 5, 2),
         amount=Decimal("-800.00"),
         description=rule_merchant,

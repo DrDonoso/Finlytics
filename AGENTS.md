@@ -47,9 +47,9 @@ The `IMAGE_TAG` / `BUILD_DATE` build args are injected there and surfaced by
 
 ## Migrations
 
-Alembic migrations live in `alembic/versions/`. The current head is `0023_add_revocable_sessions.py`.
+Alembic migrations live in `alembic/versions/`. The current head is `0024_rekey_dedup_hash_on_account_id.py`.
 
-- Always create a new numbered migration (`0024_...`) for schema changes.
+- Always create a new numbered migration (`0025_...`) for schema changes.
 - Verify the head before writing one — this file goes stale. `down_revision` in the
   highest-numbered file is the source of truth, not this document.
 - The entrypoint runs `alembic upgrade head` automatically on container start.
@@ -255,6 +255,33 @@ and the `ver` (`users.token_version`) it was minted under; `load_session_user` i
 > becomes an unthrottled oracle for guessing the current password.
 
 > **`/settings/security` stays out of the demo.** It writes credentials.
+
+---
+
+## Transaction dedup key
+
+`transactions.dedup_hash` is what makes re-importing a statement a no-op.
+`compute_dedup_hash()` in `db/repository.py` is its only definition: a SHA-256 over the
+`account_id`, the date, the amount quantized to cents, the description and — only when
+non-empty — the detail line.
+
+> **Key on the account id, never its name.** Renaming an account would otherwise re-import
+> a whole statement as new rows, and two accounts differing only by case would share one
+> dedup space.
+
+> **Quantize the amount before hashing.** `str(Decimal)` spells one value as `-42.1` or
+> `-42.10` depending on whether it came from a JSON body or a `Numeric(14,2)` column, so the
+> import path and the edit path would disagree about the same row.
+
+> **Changing the payload is a data migration.** Every stored hash has to be recomputed, as
+> `0024_rekey_dedup_hash_on_account_id.py` does, or the next import inserts everything
+> again. Rows that collide under a new key are duplicates the old key let through: keep
+> them under a `legacy:<id>` disambiguator and report the count, never delete them.
+
+> **`update_transaction` re-keys a row only when its natural key moves.** The edit form
+> resends every field, so it compares the hash of the old and new values rather than the
+> fields themselves; re-keying an untouched forced duplicate would collide with the row it
+> duplicates.
 
 ---
 

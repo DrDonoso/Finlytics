@@ -2,9 +2,9 @@
 
 Key design decisions
 ────────────────────
-* ``dedup_hash`` is computed from (account_ref, transaction_date, amount,
-  description) using SHA-256.  Banner does NOT send this field; we compute it
-  here at the persistence boundary to enforce idempotency.
+* ``dedup_hash`` is computed from (account_id, transaction_date, amount,
+  description, detail) using SHA-256.  Banner does NOT send this field; we
+  compute it here at the persistence boundary to enforce idempotency.
 * We use PostgreSQL's ``INSERT … ON CONFLICT DO NOTHING`` so re-importing the
   same statement in a single batch is safe even within the same call.
 * Category resolution is cached per-call to avoid redundant DB round-trips and
@@ -17,7 +17,7 @@ import hashlib
 import json
 import uuid
 from datetime import date, datetime, timezone
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 
 from sqlalchemy import case, func, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -31,8 +31,11 @@ from finlytics.extraction.translate import translate_category_name
 
 # ── Dedup hash ────────────────────────────────────────────────────────────────
 
+_CENT = Decimal("0.01")
+
+
 def compute_dedup_hash(
-    account_ref: str,
+    account_id: int,
     transaction_date: date,
     amount: Decimal,
     description: str,
@@ -45,28 +48,34 @@ def compute_dedup_hash(
     produces the same hash regardless of how many times the statement is
     re-uploaded.
 
-    When ``detail`` is non-empty the hash input gains a ``|<detail>`` suffix so
-    transactions with the same core fields but different sub-line text produce
-    distinct rows.  When ``detail`` is None or empty the result is byte-identical
-    to the pre-detail formula, preserving all existing dedup_hash values.
+    It is keyed on the account's id, never its name: a rename must not change
+    the key of every row the account holds, and two accounts must not share a
+    dedup space because their names happen to normalise alike.
 
-    When ``disambiguator`` is provided, it is included inside the hashed JSON
-    payload so an otherwise-duplicate transaction can be force-imported while
-    keeping the stored digest at the normal 64-character SHA-256 width.  With
-    ``disambiguator=None`` the payload is unchanged from the normal path.
+    ``amount`` is quantized to cents, the precision of the column, so ``12.5``
+    and ``12.50`` hash alike and a hash recomputed from a stored row matches
+    the one computed at import time.
+
+    ``detail`` takes part only when non-empty, so None, ``""`` and whitespace
+    hash identically.  ``disambiguator`` lets an otherwise-duplicate
+    transaction be force-imported while keeping the digest 64 characters wide.
+
+    Changing this payload changes every stored key: it needs a migration that
+    re-hashes all rows, as ``0024_rekey_dedup_hash_on_account_id`` does.
     """
-    payload_data = {
-        "account": account_ref.strip().lower(),
+    cents = Decimal(str(amount)).quantize(_CENT, rounding=ROUND_HALF_UP)
+    payload_data: dict[str, object] = {
+        "account_id": account_id,
         "date": str(transaction_date),
-        "amount": str(amount),
+        "amount": str(cents.copy_abs() if cents.is_zero() else cents),
         "description": description.strip().lower(),
     }
+    if detail and detail.strip():
+        payload_data["detail"] = detail.strip().lower()
     if disambiguator is not None:
         payload_data["disambiguator"] = disambiguator
 
     payload = json.dumps(payload_data, sort_keys=True)
-    if detail and detail.strip():
-        payload = payload + "|" + detail.strip().lower()
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
@@ -254,7 +263,7 @@ async def upsert_transactions(
 
     for tx in transactions:
         dedup_hash = compute_dedup_hash(
-            account_ref=tx.account_ref,
+            account_id=import_run.account_id,
             transaction_date=tx.transaction_date,
             amount=tx.amount,
             description=tx.description,
@@ -373,7 +382,6 @@ async def delete_rule(session: AsyncSession, rule_id: int) -> bool:
 async def create_opening_balance_tx(
     session: AsyncSession,
     account_id: int,
-    account_name: str,
     account_currency: str,
     opening_balance: float,
     opening_date: date,
@@ -401,7 +409,7 @@ async def create_opening_balance_tx(
     await session.flush()  # materialise import_run.id
 
     dedup_hash = compute_dedup_hash(
-        account_ref=account_name,
+        account_id=account_id,
         transaction_date=opening_date,
         amount=amount,
         description="Saldo inicial",

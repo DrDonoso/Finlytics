@@ -1,4 +1,4 @@
-"""Tests for compute_dedup_hash: backward compatibility + detail component."""
+"""Tests for compute_dedup_hash: the exact payload, normalization and components."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from decimal import Decimal
 from finlytics.db.repository import compute_dedup_hash
 
 _BASE = dict(
-    account_ref="BBVA",
+    account_id=1,
     transaction_date=date(2024, 1, 15),
     amount=Decimal("100.00"),
     description="NOMINA",
@@ -22,20 +22,62 @@ def test_no_detail_arg_equals_detail_none():
     assert compute_dedup_hash(**_BASE) == compute_dedup_hash(**_BASE, detail=None)
 
 
-def test_disambiguator_none_matches_legacy_formula():
-    """disambiguator=None preserves the exact pre-override hash payload."""
-    legacy_payload = json.dumps(
+def test_payload_is_pinned():
+    """Every stored key depends on this exact payload; changing it needs a re-hash migration."""
+    payload = json.dumps(
         {
-            "account": "bbva",
+            "account_id": 1,
             "date": "2024-01-15",
             "amount": "100.00",
             "description": "nomina",
+            "detail": "octopus energy",
         },
         sort_keys=True,
     )
-    expected = hashlib.sha256(legacy_payload.encode("utf-8")).hexdigest()
+    expected = hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
-    assert compute_dedup_hash(**_BASE, disambiguator=None) == expected
+    assert compute_dedup_hash(**_BASE, detail="  OCTOPUS ENERGY ") == expected
+
+
+def test_keyed_on_account_id_not_name():
+    """Two accounts never share a key, whatever their names are."""
+    assert compute_dedup_hash(**_BASE) != compute_dedup_hash(**{**_BASE, "account_id": 2})
+
+
+def test_amount_spelling_does_not_change_hash():
+    """-42.1, -42.10 and the float a JSON body carries hash alike."""
+    spellings = [Decimal("-42.1"), Decimal("-42.10"), -42.1]
+    hashes = {compute_dedup_hash(**{**_BASE, "amount": a}) for a in spellings}
+    assert len(hashes) == 1
+
+
+def test_whole_amount_spelling_does_not_change_hash():
+    """-800, -800.0 (Decimal(str(float))) and the stored -800.00 hash alike."""
+    spellings = [Decimal("-800"), Decimal("-800.0"), Decimal("-800.00"), -800]
+    hashes = {compute_dedup_hash(**{**_BASE, "amount": a}) for a in spellings}
+    assert len(hashes) == 1
+
+
+def test_negative_zero_equals_zero():
+    assert compute_dedup_hash(**{**_BASE, "amount": Decimal("-0")}) == compute_dedup_hash(
+        **{**_BASE, "amount": Decimal("0.00")}
+    )
+
+
+def test_amount_rounds_half_up_like_the_column():
+    """A third decimal is rounded the way Numeric(14, 2) stores it."""
+    assert compute_dedup_hash(**{**_BASE, "amount": Decimal("-10.005")}) == compute_dedup_hash(
+        **{**_BASE, "amount": Decimal("-10.01")}
+    )
+    assert compute_dedup_hash(**{**_BASE, "amount": Decimal("10.004")}) == compute_dedup_hash(
+        **{**_BASE, "amount": Decimal("10.00")}
+    )
+
+
+def test_different_amounts_produce_different_hashes():
+    assert compute_dedup_hash(**{**_BASE, "amount": Decimal("-42.10")}) != compute_dedup_hash(
+        **{**_BASE, "amount": Decimal("-42.11")}
+    )
 
 
 def test_empty_string_detail_equals_no_detail():

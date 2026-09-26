@@ -231,9 +231,9 @@ class ImportRun(Base):
 class Transaction(Base):
     """An individual financial transaction.
 
-    ``dedup_hash`` is a SHA-256 of (account_ref, transaction_date, amount,
-    description) and acts as the idempotency key — re-importing the same
-    statement never creates duplicates.
+    ``dedup_hash`` is a SHA-256 of (account_id, transaction_date, amount,
+    description, detail) and acts as the idempotency key — re-importing the
+    same statement never creates duplicates.
 
     Shared contract with Banner (extractor):
       transaction_date, amount, currency, description, raw_line,

@@ -476,7 +476,7 @@ class ConfirmIn(BaseModel):
 class CheckDuplicatesItem(BaseModel):
     """Single transaction entry for POST /api/imports/check-duplicates."""
     transaction_date: date
-    amount: Decimal  # signed; Decimal preserves exact string form for dedup_hash
+    amount: Decimal  # signed; compute_dedup_hash quantizes it to cents
     description: str
     detail: str | None = None
 

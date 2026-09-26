@@ -142,13 +142,15 @@ def compute_import_quality(
 
 
 def _intra_batch_duplicate_indexes(transactions: list[Any]) -> list[int]:
+    # A preview batch is confirmed into a single account, whatever account_ref
+    # each row carries, so a constant id reproduces the keys confirm will use.
     seen: set[str] = set()
     duplicate_indexes: list[int] = []
 
     for idx, tx in enumerate(transactions):
         try:
             tx_hash = compute_dedup_hash(
-                account_ref=str(_get(tx, "account_ref") or ""),
+                account_id=0,
                 transaction_date=_get(tx, "transaction_date"),
                 amount=_as_decimal(_get(tx, "amount")),
                 description=str(_get(tx, "description") or ""),

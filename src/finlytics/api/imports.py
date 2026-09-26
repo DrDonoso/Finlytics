@@ -331,9 +331,10 @@ async def confirm_import(
        - Not found   → create new Account(name=account_name, account_number=account_number).
     2. If ``account_number`` is None → get-or-create by ``account_name`` (legacy path).
 
-    CRITICAL: ``account_ref`` inside each ExtractedTransaction stays the account NAME
-    throughout. It must NOT be replaced with the IBAN so that ``compute_dedup_hash``
-    behaviour is unchanged and re-imports remain idempotent.
+    Every transaction is stored under the resolved account, and its
+    ``dedup_hash`` is keyed on that account's id — never on the ``account_ref``
+    the client sent — so a re-import is recognised whatever name either copy
+    of the statement carried.
 
     Opening balance (new accounts only):
     When ``opening_balance`` is provided and the account was just created by this
@@ -407,7 +408,6 @@ async def confirm_import(
             await create_opening_balance_tx(
                 session,
                 account_id=account.id,
-                account_name=account.name,
                 account_currency=account.currency,
                 opening_balance=body.opening_balance,
                 opening_date=opening_date,
@@ -429,15 +429,22 @@ async def check_duplicates(
     same normalization as ``upsert_transactions``, then queries
     ``transactions.dedup_hash`` in one round-trip.
 
+    ``account_name`` is resolved exactly as ``/confirm`` resolves it; a name
+    with no account yet is a new account, which cannot hold duplicates.
+
     Also flags intra-batch repeats (second+ occurrence of the same hash)
     so the frontend can surface all duplicates in one pass.
     """
     if not body.transactions:
         return CheckDuplicatesOut(is_duplicate=[])
 
+    account_id = (
+        await session.execute(select(Account.id).where(Account.name == body.account_name))
+    ).scalar_one_or_none()
+
     hashes = [
         compute_dedup_hash(
-            account_ref=body.account_name,
+            account_id=account_id if account_id is not None else 0,
             transaction_date=item.transaction_date,
             amount=item.amount,
             description=item.description,
@@ -446,10 +453,12 @@ async def check_duplicates(
         for item in body.transactions
     ]
 
-    result = await session.execute(
-        select(Transaction.dedup_hash).where(Transaction.dedup_hash.in_(hashes))
-    )
-    existing: set[str] = set(result.scalars().all())
+    existing: set[str] = set()
+    if account_id is not None:
+        result = await session.execute(
+            select(Transaction.dedup_hash).where(Transaction.dedup_hash.in_(hashes))
+        )
+        existing = set(result.scalars().all())
 
     is_duplicate: list[bool] = []
     seen: set[str] = set()
