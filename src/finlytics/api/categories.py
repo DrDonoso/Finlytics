@@ -21,10 +21,11 @@ async def create_category(
 ) -> CategoryOut:
     """Create-or-get a category by name (idempotent).
 
-    * Calls ``translate_category_name`` to normalise the canonical English name
-      and populate ``name_es``.  Falls back to the literal name when translation
-      is unavailable (test env / no OpenAI config).
-    * If the category already exists, returns the existing row (201 always).
+    * An existing category (English name or Spanish label) is returned as-is.
+    * A new name goes through ``translate_category_name`` to normalise the
+      canonical English name and populate ``name_es``.  Falls back to the
+      literal name when translation is unavailable (test env / no OpenAI config).
+    * 201 always, whether created or found.
     """
     async with session.begin():
         cat = await get_or_create_category(

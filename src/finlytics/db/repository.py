@@ -19,7 +19,7 @@ import uuid
 from datetime import date, datetime, timezone
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -72,6 +72,37 @@ def compute_dedup_hash(
 
 # ── Category helpers ──────────────────────────────────────────────────────────
 
+async def _find_category(session: AsyncSession, name: str) -> Category | None:
+    """Match *name* against the stored English name or the Spanish label.
+
+    An exact match on ``name`` wins, then a case-insensitive one, then the
+    Spanish label; ties resolve to the oldest row so duplicates stay stable.
+    """
+    key = name.strip()
+    if not key:
+        return None
+    lowered = key.lower()
+    stmt = (
+        select(Category)
+        .where(
+            or_(
+                func.lower(Category.name) == lowered,
+                func.lower(Category.name_es) == lowered,
+            )
+        )
+        .order_by(
+            case(
+                (Category.name == key, 0),
+                (func.lower(Category.name) == lowered, 1),
+                else_=2,
+            ),
+            Category.id,
+        )
+        .limit(1)
+    )
+    return (await session.execute(stmt)).scalar_one_or_none()
+
+
 async def get_or_create_category(
     session: AsyncSession,
     name: str,
@@ -81,33 +112,36 @@ async def get_or_create_category(
 ) -> Category:
     """Return the Category with the given name, creating it if necessary.
 
-    For NEW non-base categories, ``translate_category_name`` is called to
-    produce a canonical English name (stored as ``name``) and a Spanish
-    translation (stored as ``name_es``).  If translation is unavailable
-    (unconfigured OpenAI / test env) the literal ``name`` is stored and
-    ``name_es`` is left NULL — never raises.
+    An existing category is matched FIRST — by English name (exact, then
+    case-insensitive) or by its Spanish label — so only a genuinely new name
+    costs a ``translate_category_name`` call.  Translating before the lookup
+    spent an LLM round-trip on every distinct category of every import, and a
+    paraphrase of an existing name ("Grocery" for "Groceries") forked it.
 
-    Dedup is on the canonical English name: a manual "Ropa" and an AI
-    "Clothing" resolve to the SAME category once translation is applied.
+    For NEW non-base categories the translation produces a canonical English
+    name (stored as ``name``) and a Spanish one (stored as ``name_es``), and the
+    canonical name is looked up again, so a manual "Ropa" and an AI "Clothing"
+    still resolve to the SAME category.  If translation is unavailable
+    (unconfigured OpenAI / test env) the literal name is stored and ``name_es``
+    is left NULL — never raises.
 
-    Base categories (``is_base=True``) are never translated.
-    Existing categories are returned as-is (no re-translation).
+    Base categories (``is_base=True``) are matched by exact name and never
+    translated.
     """
-    if not is_base:
-        result = await translate_category_name(name)
-        if result:
-            canonical = result["name_en"]
-            name_es = result["name_es"]
-        else:
-            canonical = name
-            name_es = None
+    if is_base:
+        canonical, name_es = name, None
+        category = (
+            await session.execute(select(Category).where(Category.name == name))
+        ).scalar_one_or_none()
     else:
-        canonical = name
-        name_es = None
-
-    category = (
-        await session.execute(select(Category).where(Category.name == canonical))
-    ).scalar_one_or_none()
+        canonical, name_es = name.strip() or name, None
+        category = await _find_category(session, name)
+        if category is None:
+            result = await translate_category_name(name)
+            if result:
+                canonical = result["name_en"]
+                name_es = result["name_es"]
+                category = await _find_category(session, canonical)
 
     if category is None:
         kwargs: dict = {"name": canonical, "is_base": is_base}
