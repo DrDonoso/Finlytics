@@ -3,7 +3,8 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 import { useCombinedOverview } from '../api/queries'
 import { errorMessage } from '../api/errors'
 import { getPluginLogo, pluginInitial } from '../investments/registry'
-import { useT } from '../i18n'
+import { formatCurrency, useT } from '../i18n'
+import type { Lang } from '../i18n'
 import { IconLoading, IconChartBar, IconChartPie, IconChevronRight, IconAlert } from '../components/icons'
 import { Private } from '../components/Money'
 
@@ -29,16 +30,12 @@ function sliceColor(map: Record<string, string>, key: string, idx: number): stri
   return map[key] ?? FALLBACK_PALETTE[idx % FALLBACK_PALETTE.length]
 }
 
-function formatEurLocale(n: number): string {
-  return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(n)
-}
-
-function signedEur(n: number): string {
-  return `${n >= 0 ? '+' : ''}${formatEurLocale(n)}`
+function signedEur(n: number, lang: Lang): string {
+  return `${n >= 0 ? '+' : ''}${formatCurrency(n, lang)}`
 }
 
 export default function InvestmentsLandingPage() {
-  const { t } = useT()
+  const { t, lang } = useT()
   const overviewQuery = useCombinedOverview()
   const loading = overviewQuery.isPending
   // Keep the error raw: it is translated at render time so it tracks the active locale.
@@ -129,16 +126,16 @@ export default function InvestmentsLandingPage() {
       <div className="inv-kpi-strip">
         <div className="inv-kpi-card">
           <div className="inv-kpi-card__label">{t.invCombinedTotalValue}</div>
-          <div className="inv-kpi-card__value"><Private>{formatEurLocale(overview.total_value_eur)}</Private></div>
+          <div className="inv-kpi-card__value"><Private>{formatCurrency(overview.total_value_eur, lang)}</Private></div>
         </div>
         <div className="inv-kpi-card">
           <div className="inv-kpi-card__label">{t.invSummaryAportaciones}</div>
-          <div className="inv-kpi-card__value">{overview.total_invested_eur == null ? '—' : <Private>{formatEurLocale(overview.total_invested_eur)}</Private>}</div>
+          <div className="inv-kpi-card__value">{overview.total_invested_eur == null ? '—' : <Private>{formatCurrency(overview.total_invested_eur, lang)}</Private>}</div>
         </div>
         <div className="inv-kpi-card">
           <div className="inv-kpi-card__label">{t.invCombinedTotalGain}</div>
           <div className={`inv-kpi-card__value ${gainLossCls}`}>
-            {overview.total_gain_loss_eur == null ? '—' : <Private>{signedEur(overview.total_gain_loss_eur)}</Private>}
+            {overview.total_gain_loss_eur == null ? '—' : <Private>{signedEur(overview.total_gain_loss_eur, lang)}</Private>}
           </div>
           <div className={`inv-kpi-card__sub ${gainLossCls}`}>
             {overview.total_gain_loss_pct == null
@@ -177,14 +174,14 @@ export default function InvestmentsLandingPage() {
                       itemStyle={{ color: 'var(--text)' }}
                       formatter={(value, name) => {
                         const item = providerDonutData.find(d => d.name === name)
-                        return [formatEurLocale(Number(value)), item?.label ?? String(name)]
+                        return [formatCurrency(Number(value), lang), item?.label ?? String(name)]
                       }}
                     />
                   </PieChart>
                 </ResponsiveContainer>
                 <div className="cat-donut-center">
                   <span className="cat-donut-label">{t.invCombinedByProvider}</span>
-                  <span className="cat-donut-total"><Private>{formatEurLocale(overview.total_value_eur)}</Private></span>
+                  <span className="cat-donut-total"><Private>{formatCurrency(overview.total_value_eur, lang)}</Private></span>
                 </div>
               </div>
               <div className="cat-table-wrap">
@@ -205,7 +202,7 @@ export default function InvestmentsLandingPage() {
                             <span className="cat-td-label">{item.label}</span>
                           </div>
                         </td>
-                        <td className="cat-td-num"><Private>{formatEurLocale(item.value)}</Private></td>
+                        <td className="cat-td-num"><Private>{formatCurrency(item.value, lang)}</Private></td>
                         <td className="cat-td-num cat-td-weight">
                           {overview.total_value_eur > 0
                             ? `${(item.value / overview.total_value_eur * 100).toFixed(1)} %`
@@ -247,14 +244,14 @@ export default function InvestmentsLandingPage() {
                       itemStyle={{ color: 'var(--text)' }}
                       formatter={(value, name) => {
                         const item = assetDonutData.find(d => d.name === name)
-                        return [formatEurLocale(Number(value)), item?.label ?? String(name)]
+                        return [formatCurrency(Number(value), lang), item?.label ?? String(name)]
                       }}
                     />
                   </PieChart>
                 </ResponsiveContainer>
                 <div className="cat-donut-center">
                   <span className="cat-donut-label">{t.invCombinedByAssetClass}</span>
-                  <span className="cat-donut-total"><Private>{formatEurLocale(overview.total_value_eur)}</Private></span>
+                  <span className="cat-donut-total"><Private>{formatCurrency(overview.total_value_eur, lang)}</Private></span>
                 </div>
               </div>
               <div className="cat-table-wrap">
@@ -275,7 +272,7 @@ export default function InvestmentsLandingPage() {
                             <span className="cat-td-label">{item.label}</span>
                           </div>
                         </td>
-                        <td className="cat-td-num"><Private>{formatEurLocale(item.value)}</Private></td>
+                        <td className="cat-td-num"><Private>{formatCurrency(item.value, lang)}</Private></td>
                         <td className="cat-td-num cat-td-weight">
                           {overview.total_value_eur > 0
                             ? `${(item.value / overview.total_value_eur * 100).toFixed(1)} %`
@@ -313,12 +310,12 @@ export default function InvestmentsLandingPage() {
                 )}
                 <span className="inv-provider-card__name">{provider.name}</span>
               </div>
-              <div className="inv-provider-card__value">{provider.value_eur == null ? '—' : <Private>{formatEurLocale(provider.value_eur)}</Private>}</div>
+              <div className="inv-provider-card__value">{provider.value_eur == null ? '—' : <Private>{formatCurrency(provider.value_eur, lang)}</Private>}</div>
               <div className={`inv-provider-card__gain ${gainCls}`}>
                 {provider.gain_loss_eur == null || provider.gain_loss_pct == null
                   ? '—'
                   : <>
-                      <Private>{signedEur(provider.gain_loss_eur)}</Private>
+                      <Private>{signedEur(provider.gain_loss_eur, lang)}</Private>
                       {' '}
                       ({`${provider.gain_loss_pct >= 0 ? '+' : ''}${provider.gain_loss_pct.toFixed(1)} %`})
                     </>

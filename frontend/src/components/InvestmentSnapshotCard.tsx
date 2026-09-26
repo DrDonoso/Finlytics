@@ -6,18 +6,8 @@ import { useT } from '../i18n'
 import { IconAlert, IconLoading, IconChevronRight } from './icons'
 import { Private } from './Money'
 
-function fmtEur(value: number | null): string {
-  if (value === null || value === undefined) return '—'
-  return value.toLocaleString('es-ES', {
-    style: 'currency',
-    currency: 'EUR',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })
-}
-
 export default function InvestmentSnapshotCard() {
-  const { t } = useT()
+  const { t, formatCurrency } = useT()
   const overviewQuery = useCombinedOverview()
   const loading = overviewQuery.isPending
   const error = overviewQuery.error
@@ -44,7 +34,7 @@ export default function InvestmentSnapshotCard() {
         <div className="inv-snapshot-body">
           <div className="inv-snapshot-total">
             <span className="inv-snapshot-total-label">{t.invCombinedTotalValue}</span>
-            <span className="inv-snapshot-total-value">{data.total_value_eur == null ? '—' : <Private>{fmtEur(data.total_value_eur)}</Private>}</span>
+            <span className="inv-snapshot-total-value">{data.total_value_eur == null ? '—' : <Private>{formatCurrency(data.total_value_eur)}</Private>}</span>
           </div>
           <div className="inv-snapshot-providers">
             {data.providers.map(p => (
@@ -55,7 +45,7 @@ export default function InvestmentSnapshotCard() {
                   <span className="plugin-logo-fallback inv-snapshot-provider-logo" aria-label={p.name}>{pluginInitial(p.name)}</span>
                 )}
                 <span className="inv-snapshot-provider-name">{p.name}</span>
-                <span className="inv-snapshot-provider-value">{p.value_eur == null ? '—' : <Private>{fmtEur(p.value_eur)}</Private>}</span>
+                <span className="inv-snapshot-provider-value">{p.value_eur == null ? '—' : <Private>{formatCurrency(p.value_eur)}</Private>}</span>
               </Link>
             ))}
           </div>

@@ -1,12 +1,11 @@
 import { Link } from 'react-router'
 
-import { formatEur } from '../api/client'
 import { useMortgageOverview, useMortgages } from '../api/queries'
 import { useT, formatDate } from '../i18n'
 
 /** Dashboard snapshot: outstanding debt, progress and next instalment. */
 export default function MortgageSnapshotCard() {
-  const { t, lang } = useT()
+  const { t, lang, formatCurrency } = useT()
   const list = useMortgages()
   const firstId = list.data?.[0]?.id ?? null
   const overview = useMortgageOverview(firstId)
@@ -21,7 +20,7 @@ export default function MortgageSnapshotCard() {
       <div className="mortgage-snapshot__body">
         <div className="mortgage-snapshot__main">
           <span className="mortgage-snapshot__label">{t.mortgageKpiOutstanding}</span>
-          <span className="mortgage-snapshot__value private">{formatEur(data.outstanding_balance)}</span>
+          <span className="mortgage-snapshot__value private">{formatCurrency(data.outstanding_balance)}</span>
           <div
             className="mortgage-progress"
             role="progressbar"
@@ -41,7 +40,7 @@ export default function MortgageSnapshotCard() {
         <div className="mortgage-snapshot__side">
           <div>
             <span className="mortgage-snapshot__label">{t.mortgageKpiPayment}</span>
-            <span className="mortgage-snapshot__side-value private">{formatEur(data.current_payment)}</span>
+            <span className="mortgage-snapshot__side-value private">{formatCurrency(data.current_payment)}</span>
           </div>
           <div>
             <span className="mortgage-snapshot__label">{t.mortgageKpiEndDate}</span>

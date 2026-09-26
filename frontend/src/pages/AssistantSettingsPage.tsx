@@ -26,12 +26,12 @@ function toNullableInt(raw: string): number | null {
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : null
 }
 
-function formatInt(value: number, lang: string): string {
-  return new Intl.NumberFormat(lang === 'es' ? 'es-ES' : 'en-GB').format(value)
+function formatInt(value: number, locale: string): string {
+  return new Intl.NumberFormat(locale).format(value)
 }
 
 export default function AssistantSettingsPage() {
-  const { t, lang } = useT()
+  const { t, locale } = useT()
   const queryClient = useQueryClient()
 
   const settingsQuery = useAssistantSettings()
@@ -139,19 +139,19 @@ export default function AssistantSettingsPage() {
             <div className="assistant-usage-grid">
               <div className="assistant-usage-stat">
                 <span className="assistant-usage-value">
-                  {formatInt(usage.this_month.total_tokens, lang)}
+                  {formatInt(usage.this_month.total_tokens, locale)}
                 </span>
                 <span className="assistant-usage-label">{t.assistantUsageThisMonth}</span>
               </div>
               <div className="assistant-usage-stat">
                 <span className="assistant-usage-value">
-                  {formatInt(usage.this_month.messages, lang)}
+                  {formatInt(usage.this_month.messages, locale)}
                 </span>
                 <span className="assistant-usage-label">{t.assistantUsageMessages}</span>
               </div>
               <div className="assistant-usage-stat">
                 <span className="assistant-usage-value">
-                  {formatInt(usage.all_time.total_tokens, lang)}
+                  {formatInt(usage.all_time.total_tokens, locale)}
                 </span>
                 <span className="assistant-usage-label">{t.assistantUsageAllTime}</span>
               </div>
@@ -179,8 +179,8 @@ export default function AssistantSettingsPage() {
                 </div>
                 <p className="appearance-hint">
                   {t.assistantBudgetUsed(
-                    formatInt(usage.this_month.total_tokens, lang),
-                    formatInt(usage.monthly_token_budget, lang),
+                    formatInt(usage.this_month.total_tokens, locale),
+                    formatInt(usage.monthly_token_budget, locale),
                   )}
                 </p>
               </div>

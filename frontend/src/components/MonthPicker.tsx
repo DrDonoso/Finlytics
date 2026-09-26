@@ -1,26 +1,26 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import type { CSSProperties, KeyboardEvent } from 'react'
-import { useT } from '../i18n'
+import { langLocale, useT } from '../i18n'
 import type { Lang } from '../i18n'
 import { IconChevronDown } from './icons'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function shortMonthName(month: number, lang: Lang): string {
-  return new Intl.DateTimeFormat(lang === 'es' ? 'es-ES' : 'en-US', { month: 'short' }).format(
+  return new Intl.DateTimeFormat(langLocale(lang), { month: 'short' }).format(
     new Date(2024, month - 1, 1),
   )
 }
 
 function formatMonthTrigger(year: number, month: number, lang: Lang): string {
-  return new Intl.DateTimeFormat(lang === 'es' ? 'es-ES' : 'en-US', {
+  return new Intl.DateTimeFormat(langLocale(lang), {
     month: 'long',
     year: 'numeric',
   }).format(new Date(year, month - 1, 1))
 }
 
 function fullMonthLabel(year: number, month: number, lang: Lang): string {
-  return new Intl.DateTimeFormat(lang === 'es' ? 'es-ES' : 'en-US', {
+  return new Intl.DateTimeFormat(langLocale(lang), {
     month: 'long',
     year: 'numeric',
   }).format(new Date(year, month - 1, 1))

@@ -8,7 +8,7 @@ import {
   useOverview, useByCategory,
 } from '../api/queries'
 import { errorMessage } from '../api/errors'
-import { useT } from '../i18n'
+import { langLocale, useT } from '../i18n'
 import type { Lang } from '../i18n'
 import { IconAlert, IconDownload, IconFileText, TrendArrow } from '../components/icons'
 import TransactionsTable from '../components/TransactionsTable'
@@ -30,7 +30,7 @@ function pad2(n: number): string {
 }
 
 function formatMonthLabel(year: number, month: number, lang: Lang): string {
-  const locale = lang === 'es' ? 'es-ES' : 'en-GB'
+  const locale = langLocale(lang)
   return new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric' }).format(
     new Date(year, month - 1, 1),
   )

@@ -77,11 +77,11 @@ describe('MortgageScheduleTable', () => {
     expect(within(elapsed).queryByRole('img', { hidden: true })).toBeNull()
   })
 
-  it('sets the paid amount as the marker title', async () => {
+  it('sets the paid amount as the marker title, in the UI language', async () => {
     await renderTable(true)
 
     const paid = screen.getByText('01/01/2024').closest('tr')!
-    expect(within(paid).getByTitle(/843,21/)).toBeTruthy()
+    expect(within(paid).getByTitle(/€843\.21/)).toBeTruthy()
   })
 
   it('counts paid instalments per year when linked', async () => {

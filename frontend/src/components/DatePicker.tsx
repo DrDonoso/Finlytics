@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import type { CSSProperties, KeyboardEvent } from 'react'
-import { useT } from '../i18n'
+import { langLocale, useT } from '../i18n'
 import type { Lang } from '../i18n'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -18,7 +18,7 @@ function toISO(year: number, month: number, day: number): string {
 }
 
 function formatTriggerDate(year: number, month: number, day: number, lang: Lang): string {
-  return new Intl.DateTimeFormat(lang === 'es' ? 'es-ES' : 'en-GB', {
+  return new Intl.DateTimeFormat(langLocale(lang), {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
@@ -27,14 +27,14 @@ function formatTriggerDate(year: number, month: number, day: number, lang: Lang)
 
 function getWeekdayNames(lang: Lang): string[] {
   // 2024-01-01 is a Monday — use 7 consecutive days for Mon–Sun
-  const locale = lang === 'es' ? 'es-ES' : 'en-GB'
+  const locale = langLocale(lang)
   return Array.from({ length: 7 }, (_, i) =>
     new Intl.DateTimeFormat(locale, { weekday: 'short' }).format(new Date(2024, 0, 1 + i)),
   )
 }
 
 function formatPanelHeader(year: number, month: number, lang: Lang): string {
-  return new Intl.DateTimeFormat(lang === 'es' ? 'es-ES' : 'en-GB', {
+  return new Intl.DateTimeFormat(langLocale(lang), {
     month: 'long',
     year: 'numeric',
   }).format(new Date(year, month - 1, 1))
@@ -466,7 +466,7 @@ export default function DatePicker({ value, onChange, min, max, ariaLabel, place
                 isOutside              ? 'is-outside'  : '',
               ].filter(Boolean).join(' ')
 
-              const cellLabel = new Intl.DateTimeFormat(lang === 'es' ? 'es-ES' : 'en-GB', {
+              const cellLabel = new Intl.DateTimeFormat(langLocale(lang), {
                 day: 'numeric', month: 'long', year: 'numeric',
               }).format(new Date(cell.year, cell.month - 1, cell.day))
 

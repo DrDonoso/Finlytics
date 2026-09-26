@@ -53,7 +53,6 @@ vi.mock('../api/client', () => {
   }
   const empty = <T,>(v: T) => vi.fn().mockResolvedValue(v)
   return {
-    formatEur: (n: number) => `${n} €`,
     getAccounts: empty([]),
     getCategories: empty([]),
     getTags: empty([]),

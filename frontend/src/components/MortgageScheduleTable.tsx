@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import type { MortgageScheduleYear } from '../api/types'
-import { formatEur } from '../api/client'
 import { IconAlert, IconCheck, IconChevronDown, IconLoading } from './icons'
 import { Private } from './Money'
 import { usePrivacy } from '../contexts/PrivacyContext'
@@ -20,7 +19,7 @@ interface Props {
 
 /** Amortization table, collapsed to one row per year and expandable to months. */
 export default function MortgageScheduleTable({ years, linked, chargesFrom, loading, error }: Props) {
-  const { t, lang } = useT()
+  const { t, lang, formatCurrency } = useT()
   const { hidden: hideAmounts } = usePrivacy()
   const [expanded, setExpanded] = useState<Set<number>>(new Set())
 
@@ -96,11 +95,11 @@ export default function MortgageScheduleTable({ years, linked, chargesFrom, load
                     </span>
                   )}
                 </td>
-                <td className="cat-td-num private">{formatEur(year.payment)}</td>
-                <td className="cat-td-num private">{formatEur(year.interest)}</td>
-                <td className="cat-td-num private">{formatEur(year.principal)}</td>
-                <td className="cat-td-num">{year.prepayment > 0 ? <Private>{formatEur(year.prepayment)}</Private> : '—'}</td>
-                <td className="cat-td-num private">{formatEur(year.closing_balance)}</td>
+                <td className="cat-td-num private">{formatCurrency(year.payment)}</td>
+                <td className="cat-td-num private">{formatCurrency(year.interest)}</td>
+                <td className="cat-td-num private">{formatCurrency(year.principal)}</td>
+                <td className="cat-td-num">{year.prepayment > 0 ? <Private>{formatCurrency(year.prepayment)}</Private> : '—'}</td>
+                <td className="cat-td-num private">{formatCurrency(year.closing_balance)}</td>
               </tr>,
               ...(open ? year.months.map(row => (
                 <tr
@@ -114,7 +113,7 @@ export default function MortgageScheduleTable({ years, linked, chargesFrom, load
                           size={13}
                           className="mortgage-schedule__paid"
                           title={row.charged != null && !hideAmounts
-                            ? t.mortgageSchedulePaidOn(formatEur(row.charged))
+                            ? t.mortgageSchedulePaidOn(formatCurrency(row.charged))
                             : t.mortgageSchedulePaid}
                         />
                       )}
@@ -123,11 +122,11 @@ export default function MortgageScheduleTable({ years, linked, chargesFrom, load
                     {row.projected && <span className="mortgage-schedule__projected" title={t.mortgageProjectionNote}>~</span>}
                     <span className="mortgage-schedule__rate">{row.annual_rate.toFixed(3)} %</span>
                   </td>
-                  <td className="cat-td-num private">{formatEur(row.payment)}</td>
-                  <td className="cat-td-num private">{formatEur(row.interest)}</td>
-                  <td className="cat-td-num private">{formatEur(row.principal)}</td>
-                  <td className="cat-td-num">{row.prepayment > 0 ? <Private>{formatEur(row.prepayment)}</Private> : '—'}</td>
-                  <td className="cat-td-num private">{formatEur(row.closing_balance)}</td>
+                  <td className="cat-td-num private">{formatCurrency(row.payment)}</td>
+                  <td className="cat-td-num private">{formatCurrency(row.interest)}</td>
+                  <td className="cat-td-num private">{formatCurrency(row.principal)}</td>
+                  <td className="cat-td-num">{row.prepayment > 0 ? <Private>{formatCurrency(row.prepayment)}</Private> : '—'}</td>
+                  <td className="cat-td-num private">{formatCurrency(row.closing_balance)}</td>
                 </tr>
               )) : []),
             ]
@@ -136,10 +135,10 @@ export default function MortgageScheduleTable({ years, linked, chargesFrom, load
         <tfoot>
           <tr className="mortgage-schedule__total">
             <td className="cat-td-name">{t.mortgageScheduleTotal}</td>
-            <td className="cat-td-num private">{formatEur(totals.payment)}</td>
-            <td className="cat-td-num private">{formatEur(totals.interest)}</td>
-            <td className="cat-td-num private">{formatEur(totals.principal)}</td>
-            <td className="cat-td-num private">{formatEur(totals.prepayment)}</td>
+            <td className="cat-td-num private">{formatCurrency(totals.payment)}</td>
+            <td className="cat-td-num private">{formatCurrency(totals.interest)}</td>
+            <td className="cat-td-num private">{formatCurrency(totals.principal)}</td>
+            <td className="cat-td-num private">{formatCurrency(totals.prepayment)}</td>
             <td className="cat-td-num" />
           </tr>
         </tfoot>

@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import type { Account, Category, Mortgage, MortgageInput, MortgageRatePeriod, MortgageRateType, MortgageBonus } from '../api/types'
-import { createMortgage, updateMortgage, formatEur } from '../api/client'
+import { createMortgage, updateMortgage } from '../api/client'
 import { errorMessage } from '../api/errors'
 import { useEuriborSeries, useMortgagePaymentCandidates } from '../api/queries'
 import { IconAlert, IconClose } from './icons'
@@ -92,7 +92,7 @@ function initialState(mortgage?: Mortgage | null): FormState {
 }
 
 export default function MortgageFormModal({ mortgage, accounts, categories, onClose, onSaved }: Props) {
-  const { t, lang } = useT()
+  const { t, lang, formatCurrency } = useT()
   const [step, setStep] = useState(1)
   const [form, setForm] = useState<FormState>(() => initialState(mortgage))
   const [saving, setSaving] = useState(false)
@@ -418,7 +418,7 @@ export default function MortgageFormModal({ mortgage, accounts, categories, onCl
                         }}
                       >
                         <span className="mortgage-form__detected-main">
-                          <strong className="private">{formatEur(c.amount)}</strong>
+                          <strong className="private">{formatCurrency(c.amount)}</strong>
                           {' · '}{c.account_name}
                           {c.category_name ? ` · ${categoryLabel(c.category_name, lang, dynamicEs)}` : ''}
                           {' · '}{t.mortgageFormDetectedCharges(c.occurrences)}
@@ -427,8 +427,8 @@ export default function MortgageFormModal({ mortgage, accounts, categories, onCl
                           <span className="mortgage-form__detected-warn">
                             <IconAlert size={13} />
                             {renderDetectedMismatch(
-                              formatEur(preview.payment),
-                              `${c.deviation! >= 0 ? '+' : ''}${formatEur(c.deviation!)}`,
+                              formatCurrency(preview.payment),
+                              `${c.deviation! >= 0 ? '+' : ''}${formatCurrency(c.deviation!)}`,
                             )}
                           </span>
                         ) : plausible ? (
@@ -495,11 +495,11 @@ export default function MortgageFormModal({ mortgage, accounts, categories, onCl
           <div className="mortgage-form__preview-values">
             <div>
               <span className="mortgage-form__preview-key">{t.mortgageFormPreviewPayment}</span>
-              <span className="mortgage-form__preview-value private">{formatEur(preview.payment)}</span>
+              <span className="mortgage-form__preview-value private">{formatCurrency(preview.payment)}</span>
             </div>
             <div>
               <span className="mortgage-form__preview-key">{t.mortgageFormPreviewTotalInterest}</span>
-              <span className="mortgage-form__preview-value private">{formatEur(preview.totalInterest)}</span>
+              <span className="mortgage-form__preview-value private">{formatCurrency(preview.totalInterest)}</span>
             </div>
           </div>
         </div>
