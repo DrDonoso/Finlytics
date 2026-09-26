@@ -2,7 +2,8 @@ import { Suspense } from 'react'
 import { useParams, Link } from 'react-router'
 import { PLUGIN_VIEW_REGISTRY } from './registry'
 import { useT } from '../i18n'
-import { IconPlug, IconLoading, IconChevronRight } from '../components/icons'
+import PageLoading from '../components/PageLoading'
+import { IconPlug, IconChevronRight } from '../components/icons'
 import { DEMO_PLUGIN_IDS, IS_DEMO } from '../demo/config'
 
 export default function PluginViewWrapper() {
@@ -35,16 +36,7 @@ export default function PluginViewWrapper() {
   const { component: PluginComponent } = entry
 
   return (
-    <Suspense fallback={
-      <main className="dashboard">
-        <div className="card">
-          <div className="state-box">
-            <IconLoading size={18} />
-            <span>{t.loading}</span>
-          </div>
-        </div>
-      </main>
-    }>
+    <Suspense fallback={<PageLoading />}>
       <PluginComponent />
     </Suspense>
   )

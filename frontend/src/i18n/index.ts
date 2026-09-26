@@ -27,6 +27,8 @@ export interface Dict {
   kpiTopCategory: string
   kpiErrorLoading: string
   loading: string
+  pageLoadFailed: string
+  pageReload: string
   noDataPeriod: string
   chartByCategory: string
   tooltipAmount: string

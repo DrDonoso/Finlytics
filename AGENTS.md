@@ -294,7 +294,9 @@ non-empty — the detail line.
 
 ## Frontend conventions
 
-- **Routing:** `App.tsx` — nested routes under `<Route path="/" element={<Layout />}>`.
+- **Routing:** `App.tsx` — nested routes under `<Route path="/" element={<Layout />}>`. Every page is a `lazy()` import, so each screen (and recharts, which only chart pages pull in) is its own chunk; `Layout`, `SettingsLayout`, `LoginPage` and `SetupPage` stay eager because they render before or around every route.
+  - `Layout` owns the **only** `<Suspense>` and a `RouteErrorBoundary` around `<Outlet />`. React Router runs navigations in a transition, so after the first paint the previous page stays on screen while the next chunk loads — a per-route boundary would flash a spinner instead.
+  - A chunk that fails to load (typically a tab opened before a deploy, whose hashed file no longer exists) shows a reload prompt inside the shell. React caches the rejected import, so only a reload recovers — do not replace this with a silent `vite:preloadError` auto-reload, which would throw away an in-flight assistant answer or a half-filled form.
 - **i18n:** Bilingual EN/ES. `Dict` interface in `i18n/index.ts`, implementations in `es.ts` / `en.ts`. All three files must be updated for every new string.
   - **Locale and money:** a UI language becomes an `Intl` locale tag only in `i18n/index.ts`. Format amounts with `formatCurrency` (from `useT()` in a component, or the module export with a `lang` argument in a pure helper), and hand `useT().locale` / `langLocale(lang)` to any other `Intl` or `toLocale*` call. Never inline `'es-ES'` or pass the bare `lang` (`'en'` resolves to `en-US`): the English UI used to print `1.234,56 €` beside `€1,234.56`. `test/locale.test.ts` fails on an inline tag.
 - **API client:** `frontend/src/api/client.ts` — typed `apiFetch<T>()`. New endpoints follow the `getX()` / `postX()` pattern.

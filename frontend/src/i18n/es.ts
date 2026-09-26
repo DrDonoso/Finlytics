@@ -14,6 +14,8 @@ const es: Dict = {
   kpiTopCategory: 'Top categoría',
   kpiErrorLoading: 'Error al cargar: ',
   loading: 'Cargando…',
+  pageLoadFailed: 'No se ha podido cargar esta página. Si Finlytics se acaba de actualizar, al recargar se usará la nueva versión.',
+  pageReload: 'Recargar',
   noDataPeriod: 'Sin datos para el período seleccionado',
   chartByCategory: 'Gastos por categoría',
   tooltipAmount: 'Importe',
