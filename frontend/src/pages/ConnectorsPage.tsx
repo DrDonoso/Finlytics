@@ -1,7 +1,9 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router'
+import { useQueryClient } from '@tanstack/react-query'
 import type { InvestmentPlugin, InvestmentConnection, NotificationChannelOut } from '../api/types'
-import { getInvestmentPlugins, getConnections, disconnectConnection, getNotificationChannels, deleteNotificationChannel } from '../api/client'
+import { disconnectConnection, deleteNotificationChannel } from '../api/client'
+import { queryKeys, useConnections, useInvestmentPlugins, useNotificationChannels } from '../api/queries'
 import { useT } from '../i18n'
 import type { Dict } from '../i18n'
 import IndexaWizard from '../components/IndexaWizard'
@@ -15,8 +17,17 @@ const PLUGIN_DESC_KEYS: Partial<Record<string, keyof Dict>> = {
   'fidelity-espp':  'invPluginDescFidelity',
 }
 
+const NO_PLUGINS: InvestmentPlugin[] = []
+const NO_CONNECTIONS: InvestmentConnection[] = []
+const NO_CHANNELS: NotificationChannelOut[] = []
+
+function messageOf(err: unknown): string {
+  return err instanceof Error ? err.message : String(err)
+}
+
 export default function ConnectorsPage() {
   const { t } = useT()
+  const queryClient = useQueryClient()
 
   function renderPluginIcon(plugin: InvestmentPlugin) {
     const logo = getPluginLogo(plugin.id)
@@ -30,60 +41,47 @@ export default function ConnectorsPage() {
   }
 
   // ── Investment connectors state ──────────────────────────────────────────
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [plugins, setPlugins] = useState<InvestmentPlugin[]>([])
-  const [connections, setConnections] = useState<InvestmentConnection[]>([])
+  const pluginsQuery = useInvestmentPlugins()
+  const connectionsQuery = useConnections()
+  const plugins = pluginsQuery.data ?? NO_PLUGINS
+  const connections = connectionsQuery.data ?? NO_CONNECTIONS
+  const loading = pluginsQuery.isPending || connectionsQuery.isPending
+  const investmentError = pluginsQuery.error ?? connectionsQuery.error
+  const error = investmentError ? messageOf(investmentError) : null
   const [wizardOpen, setWizardOpen] = useState(false)
   const [disconnecting, setDisconnecting] = useState(false)
 
-  const fetchData = useCallback(() => {
-    setLoading(true)
-    setError(null)
-    Promise.all([getInvestmentPlugins(), getConnections()])
-      .then(([pluginData, connData]) => {
-        setPlugins(pluginData)
-        setConnections(connData)
-        setLoading(false)
-      })
-      .catch(err => {
-        setError(err instanceof Error ? err.message : String(err))
-        setLoading(false)
-      })
-  }, [])
-
-  useEffect(() => { fetchData() }, [fetchData])
+  // A connection change also invalidates every figure derived from it.
+  function refreshConnections() {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.connections })
+    void queryClient.invalidateQueries({ queryKey: ['investments'] })
+  }
 
   function handleDisconnect(conn: InvestmentConnection) {
     if (!window.confirm(`${t.connectorDisconnect}?`)) return
     setDisconnecting(true)
     disconnectConnection(conn.id)
-      .then(() => { setDisconnecting(false); fetchData() })
+      .then(() => { setDisconnecting(false); refreshConnections() })
       .catch(() => { setDisconnecting(false) })
   }
 
   // ── Notification connectors state ────────────────────────────────────────
-  const [notifLoading, setNotifLoading] = useState(true)
-  const [notifError, setNotifError] = useState<string | null>(null)
-  const [channels, setChannels] = useState<NotificationChannelOut[]>([])
+  const channelsQuery = useNotificationChannels()
+  const channels = channelsQuery.data ?? NO_CHANNELS
+  const notifLoading = channelsQuery.isPending
+  const notifError = channelsQuery.error ? messageOf(channelsQuery.error) : null
   const [telegramWizardOpen, setTelegramWizardOpen] = useState(false)
   const [deletingChannel, setDeletingChannel] = useState(false)
 
-  const fetchChannels = useCallback(() => {
-    setNotifLoading(true)
-    setNotifError(null)
-    getNotificationChannels()
-      .then(data => { setChannels(data); setNotifLoading(false) })
-      .catch(err => { setNotifError(err instanceof Error ? err.message : String(err)); setNotifLoading(false) })
-  }, [])
-
-  useEffect(() => { fetchChannels() }, [fetchChannels])
+  function refreshChannels() {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.notificationChannels })
+  }
 
   function handleDeleteChannel(ch: NotificationChannelOut) {
     if (!window.confirm(t.notifSettingsDeleteConfirm)) return
     setDeletingChannel(true)
     deleteNotificationChannel(ch.id)
-      .then(() => { setDeletingChannel(false); fetchChannels() })
+      .then(() => { setDeletingChannel(false); refreshChannels() })
       .catch(() => setDeletingChannel(false))
   }
 
@@ -276,14 +274,14 @@ export default function ConnectorsPage() {
       {wizardOpen && (
         <IndexaWizard
           onClose={() => setWizardOpen(false)}
-          onConnected={fetchData}
+          onConnected={refreshConnections}
         />
       )}
 
       {telegramWizardOpen && (
         <TelegramWizard
           onClose={() => setTelegramWizardOpen(false)}
-          onConnected={() => { setTelegramWizardOpen(false); fetchChannels() }}
+          onConnected={() => { setTelegramWizardOpen(false); refreshChannels() }}
         />
       )}
     </>

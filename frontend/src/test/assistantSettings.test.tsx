@@ -13,7 +13,7 @@
 import { QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { http, HttpResponse } from 'msw'
+import { delay, http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
@@ -71,9 +71,9 @@ afterAll(() => server.close())
 beforeEach(() => { saved = [] })
 afterEach(() => { server.resetHandlers(); localStorage.clear() })
 
-function renderPage() {
+function renderPage(client = createQueryClient()) {
   return render(
-    <QueryClientProvider client={createQueryClient()}>
+    <QueryClientProvider client={client}>
       <LanguageProvider>
         <AssistantSettingsPage />
       </LanguageProvider>
@@ -182,4 +182,33 @@ describe('the system prompt editor', () => {
       expect(box.value).toContain('ALWAYS get numbers from the tools')
     })
   }, 20000)
+})
+
+describe('before the settings are known', () => {
+  // An editor seeded with an empty prompt would report the placeholder as
+  // missing and every safety rule as dropped, about a prompt nobody wrote.
+  it('shows neither the editor nor its warnings while loading', async () => {
+    server.use(http.get('/api/assistant/settings', async () => {
+      await delay('infinite')
+      return HttpResponse.json(settingsBody())
+    }))
+    renderPage()
+
+    await new Promise(r => setTimeout(r, 50))
+    expect(document.querySelector('.assistant-prompt-textarea')).toBeNull()
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.queryByRole('status')).toBeNull()
+  })
+
+  it('reports a failed load instead of offering an empty form to save', async () => {
+    server.use(http.get('/api/assistant/settings', () =>
+      HttpResponse.json({ detail: 'boom' }, { status: 500 })))
+    const client = createQueryClient()
+    client.setDefaultOptions({ queries: { ...client.getDefaultOptions().queries, retry: false } })
+    renderPage(client)
+
+    expect(await screen.findByRole('alert')).toBeInTheDocument()
+    expect(document.querySelector('.assistant-prompt-textarea')).toBeNull()
+    expect(screen.queryByRole('button', { name: /guardar|save/i })).toBeNull()
+  })
 })

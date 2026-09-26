@@ -1,18 +1,19 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts'
+import { useQueryClient } from '@tanstack/react-query'
 import type {
-  FidelityKpis, FidelityEvolution, FidelityLot,
+  FidelityLot,
   FidelityImportPreview, FidelityImportConfirmResult,
 } from '../../api/types'
 import {
-  getFidelityKpis, getFidelityEvolution, getFidelityLots,
   fidelityImportPreview as callImportPreview,
   fidelityImportConfirm as callImportConfirm,
 } from '../../api/client'
+import { queryKeys, useFidelityEvolution, useFidelityKpis, useFidelityLots } from '../../api/queries'
 import { useT, langLocale } from '../../i18n'
 import { IS_DEMO } from '../../demo/config'
 import { useNotifications } from '../../contexts/NotificationsContext'
@@ -57,6 +58,7 @@ type WizStep = 'upload' | 'preview' | 'confirming' | 'done'
 type LotsSortCol = 'date' | 'source' | 'shares' | 'costPerShare' | 'totalCost' | 'currentValue' | 'gain' | 'gainPct'
 
 const LOTS_PAGE_SIZE = 15
+const NO_LOTS: FidelityLot[] = []
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
@@ -66,11 +68,16 @@ export default function FidelityView() {
   const { notifications } = useNotifications()
 
   // ── Data state ─────────────────────────────────────────────────────────────
-  const [loading, setLoading]     = useState(true)
-  const [error, setError]         = useState<string | null>(null)
-  const [kpis, setKpis]           = useState<FidelityKpis | null>(null)
-  const [evolution, setEvolution] = useState<FidelityEvolution | null>(null)
-  const [lots, setLots]           = useState<FidelityLot[]>([])
+  const queryClient    = useQueryClient()
+  const kpisQuery      = useFidelityKpis()
+  const evolutionQuery = useFidelityEvolution()
+  const lotsQuery      = useFidelityLots()
+  const kpis      = kpisQuery.data ?? null
+  const evolution = evolutionQuery.data ?? null
+  const lots      = lotsQuery.data?.lots ?? NO_LOTS
+  const loading   = kpisQuery.isPending || evolutionQuery.isPending || lotsQuery.isPending
+  const loadError = kpisQuery.error ?? evolutionQuery.error ?? lotsQuery.error
+  const error     = loadError ? (loadError instanceof Error ? loadError.message : String(loadError)) : null
 
   // ── Lots table: sort + pagination ─────────────────────────────────────────
   const [lotsSortCol, setLotsSortCol] = useState<LotsSortCol>('date')
@@ -92,31 +99,6 @@ export default function FidelityView() {
   const [importLoading, setImportLoading]     = useState(false)
   const [importResult, setImportResult]       = useState<FidelityImportConfirmResult | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-
-  // ── Load all data ──────────────────────────────────────────────────────────
-  function loadAll() {
-    setLoading(true)
-    setError(null)
-    Promise.all([
-      getFidelityKpis(),
-      getFidelityEvolution(),
-      getFidelityLots(),
-    ])
-      .then(([kpisData, evolutionData, lotsData]) => {
-        setKpis(kpisData)
-        setEvolution(evolutionData)
-        setLots(lotsData.lots)
-        setLoading(false)
-      })
-      .catch(err => {
-        setError(err instanceof Error ? err.message : String(err))
-        setLoading(false)
-      })
-  }
-
-  useEffect(() => {
-    loadAll()
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Dynamic year buttons from first lot to current year ───────────────────
   const evolutionYears = useMemo((): string[] => {
@@ -292,7 +274,9 @@ export default function FidelityView() {
       const result = await callImportConfirm(importFile)
       setImportResult(result)
       setWizStep('done')
-      loadAll()
+      // The combined overview and the connection list move with the lots, so refresh the whole investments tree.
+      void queryClient.invalidateQueries({ queryKey: ['investments'] })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.connections })
     } catch (err) {
       setImportError(err instanceof Error ? err.message : String(err))
       setWizStep('preview')

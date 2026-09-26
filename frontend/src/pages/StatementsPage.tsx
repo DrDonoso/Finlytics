@@ -3,6 +3,7 @@ import type { GlobalFilters, ImportResult, SummaryParams } from '../api/types'
 import { deleteStatementMonth, downloadStatementOriginal } from '../api/client'
 import { useQueryClient } from '@tanstack/react-query'
 import {
+  queryKeys,
   useAccounts, useCategories, useTags,
   useStatementMonths, useStatementOriginals,
   useOverview, useByCategory,
@@ -90,9 +91,6 @@ export default function StatementsPage() {
   const [importFiles, setImportFiles] = useState<File[] | null>(null)
   const launcherRef = useRef<ImportLauncherHandle>(null)
   const [toast,      setToast]      = useState<string | null>(null)
-
-  // refreshKey drives a re-render of TransactionsTable, which does not use react-query yet.
-  const [refreshKey, setRefreshKey] = useState(0)
 
   // Originals dropdown UI state
   const [originalsDropdownOpen, setOriginalsDropdownOpen] = useState(false)
@@ -201,11 +199,11 @@ export default function StatementsPage() {
   const hasData  = currentMonthHasData
   const count    = overview?.num_transactions ?? months.find(s => s.year === selY && s.month === selM)?.count ?? 0
 
-  // After delete or import: refresh months, summaries, originals, and the table (not yet on react-query).
+  // After delete or import: refresh months, summaries, originals and the table.
   function refreshMonthData() {
-    setRefreshKey(k => k + 1)
     queryClient.invalidateQueries({ queryKey: ['statements'] })
     queryClient.invalidateQueries({ queryKey: ['summary'] })
+    queryClient.invalidateQueries({ queryKey: queryKeys.transactionsAll })
   }
 
   // ── Delete handler ──────────────────────────────────────────────────────────
@@ -440,7 +438,6 @@ export default function StatementsPage() {
           globalFilters={globalFilters}
           categories={categories}
           allTags={allTags}
-          refreshKey={refreshKey}
           pageSize={25}
           hideInternalFilters
           onEditSuccess={() => {

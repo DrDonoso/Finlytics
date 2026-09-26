@@ -490,6 +490,20 @@ export interface RuleInput {
   skip_ai?: boolean
 }
 
+/** What decides which transactions a rule matches: all that the preview endpoint evaluates. */
+export type RuleConditions = Pick<
+  RuleInput,
+  | 'description_mode'
+  | 'description_value'
+  | 'detail_mode'
+  | 'detail_value'
+  | 'amount_sign'
+  | 'amount_min'
+  | 'amount_max'
+  | 'account_ref'
+  | 'currency'
+>
+
 export interface RulePatch {
   name?: string
   priority?: number

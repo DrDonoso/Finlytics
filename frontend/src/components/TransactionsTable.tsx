@@ -1,7 +1,9 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import type { ReactNode } from 'react'
-import type { Category, GlobalFilters, Tag, Transaction, TransactionPage } from '../api/types'
-import { getTransactions, updateTransaction } from '../api/client'
+import { useQueryClient } from '@tanstack/react-query'
+import type { Category, GlobalFilters, Tag, Transaction, TransactionPage, TransactionsParams } from '../api/types'
+import { updateTransaction } from '../api/client'
+import { queryKeys, useTransactions } from '../api/queries'
 import { useT, categoryLabel, formatDate, DEFAULT_TAG_COLOR, tagTextColor } from '../i18n'
 import CategorySelect from './CategorySelect'
 import TagEditor from './TagEditor'
@@ -14,7 +16,6 @@ interface Props {
   globalFilters: GlobalFilters
   categories: Category[]
   allTags: Tag[]
-  refreshKey?: number
   pageSize?: number
   description?: string
   amountMin?: number
@@ -36,16 +37,13 @@ interface EditData {
 
 const LIMIT = 10
 
-export default function TransactionsTable({ globalFilters, categories, allTags, refreshKey, pageSize, description, amountMin, amountMax, merchant, hideInternalFilters, onEditSuccess, headerAction }: Props) {
+export default function TransactionsTable({ globalFilters, categories, allTags, pageSize, description, amountMin, amountMax, merchant, hideInternalFilters, onEditSuccess, headerAction }: Props) {
   const { t, lang, formatCurrency } = useT()
+  const queryClient = useQueryClient()
   const limit = pageSize ?? LIMIT
   const [categoryId, setCategoryId] = useState<number | undefined>(undefined)
-  const [page, setPage] = useState(0)
   const [sortCol,   setSortCol]   = useState<string>('date')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [data, setData] = useState<TransactionPage | null>(null)
 
   const [editingId,  setEditingId]  = useState<number | null>(null)
   const [editData,   setEditData]   = useState<EditData | null>(null)
@@ -108,35 +106,44 @@ export default function TransactionsTable({ globalFilters, categories, allTags, 
     return map
   }, [categories])
 
-  useEffect(() => { setPage(0) }, [globalFilters.from, globalFilters.to, globalFilters.account_id, globalFilters.category_id, globalFilters.tags, globalFilters.flow, globalFilters.day, categoryId, description, amountMin, amountMax, merchant, sortCol, sortOrder])
+  const filters: TransactionsParams = {
+    from:        globalFilters.from,
+    to:          globalFilters.to,
+    account_id:  globalFilters.account_id,
+    category_id: categoryId ?? globalFilters.category_id,
+    tags:        globalFilters.tags.length > 0 ? globalFilters.tags : undefined,
+    flow:        globalFilters.flow,
+    description: description,
+    amount_min:  amountMin,
+    amount_max:  amountMax,
+    merchant:    merchant,
+    day:         globalFilters.day || undefined,
+    limit:       limit,
+    sort:        sortCol,
+    order:       sortOrder,
+  }
+  // New filters always start on the first page. Deriving that during render,
+  // rather than resetting the page in an effect, avoids first fetching the new
+  // filters at the old offset.
+  const filtersKey = JSON.stringify(filters)
+  const [paging, setPaging] = useState({ filtersKey, page: 0 })
+  const page = paging.filtersKey === filtersKey ? paging.page : 0
+  function goToPage(next: number) {
+    setPaging({ filtersKey, page: next })
+  }
 
-  const fetchData = useCallback(() => {
-    let cancelled = false
-    setLoading(true)
-    setError(null)
-    getTransactions({
-      from:        globalFilters.from,
-      to:          globalFilters.to,
-      account_id:  globalFilters.account_id,
-      category_id: categoryId ?? globalFilters.category_id,
-      tags:        globalFilters.tags.length > 0 ? globalFilters.tags : undefined,
-      flow:        globalFilters.flow,
-      description: description,
-      amount_min:  amountMin,
-      amount_max:  amountMax,
-      merchant:    merchant,
-      day:         globalFilters.day || undefined,
-      limit:       limit,
-      offset:      page * limit,
-      sort:        sortCol,
-      order:       sortOrder,
-    })
-      .then(d  => { if (!cancelled) { setData(d); setLoading(false) } })
-      .catch(e => { if (!cancelled) { setError(String(e)); setLoading(false) } })
-    return () => { cancelled = true }
-  }, [globalFilters.from, globalFilters.to, globalFilters.account_id, globalFilters.category_id, globalFilters.tags, globalFilters.flow, globalFilters.day, categoryId, page, refreshKey, description, amountMin, amountMax, merchant, limit, sortCol, sortOrder]) // eslint-disable-line react-hooks/exhaustive-deps
+  const params: TransactionsParams = { ...filters, offset: page * limit }
+  const { data, isPending: loading, isPlaceholderData, error: queryError } = useTransactions(params)
+  const error = queryError ? String(queryError) : null
 
-  useEffect(fetchData, [fetchData])
+  // Patches the row in place instead of refetching: an edit that moves the row
+  // out of the current filter must not make it vanish under the cursor.
+  function replaceRow(updated: Transaction) {
+    queryClient.setQueryData<TransactionPage>(queryKeys.transactions(params), current =>
+      current && { ...current, items: current.items.map(item => (item.id === updated.id ? updated : item)) },
+    )
+    void queryClient.invalidateQueries({ queryKey: queryKeys.transactionsAll, refetchType: 'none' })
+  }
 
   // ── Edit helpers
   function startEdit(tx: Transaction) {
@@ -171,7 +178,7 @@ export default function TransactionsTable({ globalFilters, categories, allTags, 
         tags:        editData.tags,
         merchant:    editData.merchant,
       })
-      setData(d => d ? { ...d, items: d.items.map(item => item.id === tx.id ? updated : item) } : null)
+      replaceRow(updated)
       setEditingId(null)
       setEditData(null)
       onEditSuccess?.()
@@ -250,7 +257,7 @@ export default function TransactionsTable({ globalFilters, categories, allTags, 
 
       {!error && !loading && data && data.items.length > 0 && (
         <>
-          <div className="table-wrapper">
+          <div className="table-wrapper" aria-busy={isPlaceholderData} style={isPlaceholderData ? { opacity: 0.6 } : undefined}>
             <table>
               <thead>
                 <tr>
@@ -452,10 +459,10 @@ export default function TransactionsTable({ globalFilters, categories, allTags, 
 
           <div className="pagination">
             <span>{data.total > 0 ? t.tablePaginationInfo(start, end, data.total) : '0'}</span>
-            <button onClick={() => setPage(p => p - 1)} disabled={page === 0}>
+            <button onClick={() => goToPage(page - 1)} disabled={page === 0}>
               <IconArrowLeft size={14} /> {t.tablePrev}
             </button>
-            <button onClick={() => setPage(p => p + 1)} disabled={page >= totalPages - 1}>
+            <button onClick={() => goToPage(page + 1)} disabled={page >= totalPages - 1}>
               {t.tableNext} <IconArrowRight size={14} />
             </button>
           </div>
@@ -491,7 +498,7 @@ export default function TransactionsTable({ globalFilters, categories, allTags, 
           dynamicEs={dynamicEs}
           onClose={() => setDetailTx(null)}
           onSaved={updated => {
-            setData(d => d ? { ...d, items: d.items.map(item => item.id === updated.id ? updated : item) } : null)
+            replaceRow(updated)
             setDetailTx(null)
             onEditSuccess?.()
           }}

@@ -2,7 +2,7 @@ import { useState, useRef, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import type { GlobalFilters, ImportResult } from '../api/types'
-import { useAccounts, useByAccount, useByCategory, useCategories, useOverview, useTags } from '../api/queries'
+import { queryKeys, useAccounts, useByAccount, useByCategory, useCategories, useOverview, useTags } from '../api/queries'
 import { errorMessage } from '../api/errors'
 import GlobalFilterBar from '../components/GlobalFilterBar'
 import KpiCards from '../components/KpiCards'
@@ -266,7 +266,10 @@ export default function FinancesOverviewPage() {
             allTags={allTags}
             merchant={filters.merchant}
             hideInternalFilters
-            onEditSuccess={() => void queryClient.invalidateQueries()}
+            onEditSuccess={() => void queryClient.invalidateQueries({
+              // The table has already patched the edited row; refetching it could drop that row from under the cursor.
+              predicate: query => query.queryKey[0] !== queryKeys.transactionsAll[0],
+            })}
           />
         </div>
       </main>
