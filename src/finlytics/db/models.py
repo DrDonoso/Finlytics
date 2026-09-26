@@ -20,6 +20,7 @@ mortgage_rate_periods       – interest-rate tranches; models all three rate ty
 mortgage_bonuses            – linked-product discounts that reduce the effective spread
 mortgage_prepayments        – lump-sum overpayments (reduce term or reduce payment)
 euribor_rates               – monthly Euribor index series (ECB Data Portal)
+revoked_tokens              – session ids ended by logout, kept until the token expires
 """
 
 from __future__ import annotations
@@ -66,12 +67,31 @@ class User(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     username: Mapped[str] = mapped_column(String(150), nullable=False, unique=True)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    # Every session token carries the version it was minted under; bumping it
+    # (password change, "sign out other devices") invalidates all of them.
+    token_version: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"<User id={self.id} username={self.username!r}>"
+
+
+class RevokedToken(Base):
+    """A session token ended by logout before its natural expiry.
+
+    A JWT stays cryptographically valid until ``exp``, so deleting the cookie
+    alone leaves a copied token usable.  Rows only need to outlive the token
+    they name, and are purged once ``expires_at`` has passed.
+    """
+
+    __tablename__ = "revoked_tokens"
+
+    jti: Mapped[str] = mapped_column(String(64), primary_key=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class Account(Base):
@@ -211,9 +231,9 @@ class ImportRun(Base):
 class Transaction(Base):
     """An individual financial transaction.
 
-    ``dedup_hash`` is a SHA-256 of (account_ref, transaction_date, amount,
-    description) and acts as the idempotency key — re-importing the same
-    statement never creates duplicates.
+    ``dedup_hash`` is a SHA-256 of (account_id, transaction_date, amount,
+    description, detail) and acts as the idempotency key — re-importing the
+    same statement never creates duplicates.
 
     Shared contract with Banner (extractor):
       transaction_date, amount, currency, description, raw_line,

@@ -429,7 +429,7 @@ async def import_backup(
             cat_id = category_id_map.get(tx.category) if tx.category else None
 
             dedup_hash = compute_dedup_hash(
-                account_ref=tx.account,
+                account_id=acc_id,
                 transaction_date=tx.transaction_date,
                 amount=Decimal(str(tx.amount)),
                 description=tx.description,

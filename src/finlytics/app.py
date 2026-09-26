@@ -7,8 +7,10 @@ Route layout:
   GET  /api/auth/status   — initialized + authenticated flags
   POST /api/auth/setup    — first-run user creation (self-disabling)
   POST /api/auth/login    — credential verification, sets session cookie
-  POST /api/auth/logout   — clears session cookie (idempotent)
+  POST /api/auth/logout   — revokes the session token, clears cookie (idempotent)
   GET  /api/auth/me       — returns username (PROTECTED)
+  POST /api/auth/logout-others — ends every other session (PROTECTED)
+  POST /api/auth/password — changes the password, ends other sessions (PROTECTED)
 
   ── Data (PROTECTED — require valid session cookie) ──────────────────────────
   /api/accounts           — list bank/broker accounts

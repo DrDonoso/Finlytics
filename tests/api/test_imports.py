@@ -12,6 +12,7 @@ import pytest
 from fastapi import HTTPException
 
 from finlytics.contracts import ExtractedTransaction
+from finlytics.db.models import Account
 
 
 def _make_rule(**overrides) -> SimpleNamespace:
@@ -227,6 +228,33 @@ async def test_preview_parse_error_returns_400(client_with_llm):
             files={"file": ("bad.pdf", io.BytesIO(b"garbage"), "application/pdf")},
         )
     assert resp.status_code == 400
+
+
+async def test_preview_parses_statement_off_the_event_loop(client_with_llm):
+    """pdfplumber is synchronous: running it on the loop thread stalls every request."""
+    import threading
+
+    client, _ = client_with_llm
+    loop_thread = threading.get_ident()
+    parse_threads: list[int] = []
+
+    def _parse(*_args, **_kwargs):
+        parse_threads.append(threading.get_ident())
+        return "text"
+
+    with (
+        patch("finlytics.api.imports.parse_statement", side_effect=_parse),
+        patch("finlytics.api.imports.extract_transactions", new_callable=AsyncMock,
+              return_value=_make_extracted()),
+        patch("finlytics.api.imports.list_rules", new_callable=AsyncMock, return_value=[]),
+    ):
+        resp = await client.post(
+            "/api/imports/preview",
+            files={"file": ("bank.pdf", io.BytesIO(b"fake"), "application/pdf")},
+        )
+
+    assert resp.status_code == 200
+    assert parse_threads and loop_thread not in parse_threads
 
 
 async def test_preview_year_detected(client_with_llm):
@@ -574,6 +602,16 @@ async def test_confirm_new_account_via_iban_creates_opening_balance_tx(client, m
     mock_iban_result.scalar_one_or_none.return_value = None  # account not found → new
     mock_session.execute = AsyncMock(return_value=mock_iban_result)
 
+    added: list = []
+    mock_session.add = MagicMock(side_effect=added.append)
+
+    def _assign_account_id():
+        for obj in added:
+            if isinstance(obj, Account) and obj.id is None:
+                obj.id = 31
+
+    mock_session.flush = AsyncMock(side_effect=_assign_account_id)
+
     fake_run = MagicMock()
     fake_run.id = 77
 
@@ -618,7 +656,8 @@ async def test_confirm_new_account_via_iban_creates_opening_balance_tx(client, m
     assert kwargs["opening_balance"] == 1500.0
     # opening_date = min(2024-06-10, 2024-06-15) − 1 day = 2024-06-09
     assert kwargs["opening_date"] == date(2024, 6, 9)
-    assert kwargs["account_name"] == "Mi BBVA"
+    assert kwargs["account_id"] == 31
+    assert "account_name" not in kwargs
 
 
 async def test_confirm_existing_account_ignores_opening_balance(client, mock_session):

@@ -47,9 +47,9 @@ The `IMAGE_TAG` / `BUILD_DATE` build args are injected there and surfaced by
 
 ## Migrations
 
-Alembic migrations live in `alembic/versions/`. The current head is `0022_add_mortgage_signature_date.py`.
+Alembic migrations live in `alembic/versions/`. The current head is `0024_rekey_dedup_hash_on_account_id.py`.
 
-- Always create a new numbered migration (`0023_...`) for schema changes.
+- Always create a new numbered migration (`0025_...`) for schema changes.
 - Verify the head before writing one — this file goes stale. `down_revision` in the
   highest-numbered file is the source of truth, not this document.
 - The entrypoint runs `alembic upgrade head` automatically on container start.
@@ -148,9 +148,9 @@ decoration — each message is one to three paid LLM calls.
 > also be SUMMED across a turn: a tool round-trip is several provider calls, and taking only
 > the last one understates the cost by roughly half.
 
-The frontend client has **no mock fallback** on any assistant endpoint. The
-`catch { return mockGetX() }` pattern documented below would answer a question about the
-user's money with invented figures.
+The frontend client has **no mock fallback** on any assistant endpoint — or anywhere else
+(see the frontend conventions below). A `catch { return mockGetX() }` would answer a
+question about the user's money with invented figures.
 
 ---
 
@@ -226,9 +226,62 @@ A `reduce_term` prepayment deliberately keeps the instalment and shortens the lo
   for a recurring charge and reports the deviation from the computed instalment. It only
   suggests — nothing is linked or modified server-side.
 - **Net worth:** only mortgages with `include_in_net_worth = true` reach
-  `GET /api/mortgages/net-worth`, which the Dashboard adds to its KPI.
+  `GET /api/mortgages/net-worth`, which the Dashboard adds to its KPI. An unused module
+  answers zeros; a *failed* read marks the KPI as partial rather than counting as zero,
+  which would overstate net worth by the whole outstanding debt.
 - **Demo:** the demo scenario has no mortgage. `demo/handlers.ts` answers the two
   Dashboard-facing endpoints with "none configured" so the catch-all never returns 501.
+
+---
+
+## Auth sessions
+
+The session is a JWT in an HttpOnly cookie, and it is revocable. Each token carries a `jti`
+and the `ver` (`users.token_version`) it was minted under; `load_session_user` in
+`api/deps.py` checks both in one query.
+
+- `POST /api/auth/logout` records the `jti` in `revoked_tokens` until the token's own
+  expiry (expired rows are purged on each logout), so a copied cookie dies with the logout.
+- `POST /api/auth/logout-others` and `POST /api/auth/password` bump `token_version`, which
+  ends every session at once, then re-issue the cookie so the calling device stays in.
+- A token without `ver`/`jti` — anything issued before migration 0023 — is refused, so
+  every user signs in once after that deploy.
+
+> **A wrong current password answers 400, not 401.** The SPA treats any 401 from a
+> protected call as "the session has ended" and signs out, so a typo would log the user
+> out. `sessionPost()` in `client.ts` routes only a real 401 to that handler.
+
+> **The password change shares the login rate limiter.** Without it, a stolen session
+> becomes an unthrottled oracle for guessing the current password.
+
+> **`/settings/security` stays out of the demo.** It writes credentials.
+
+---
+
+## Transaction dedup key
+
+`transactions.dedup_hash` is what makes re-importing a statement a no-op.
+`compute_dedup_hash()` in `db/repository.py` is its only definition: a SHA-256 over the
+`account_id`, the date, the amount quantized to cents, the description and — only when
+non-empty — the detail line.
+
+> **Key on the account id, never its name.** Renaming an account would otherwise re-import
+> a whole statement as new rows, and two accounts differing only by case would share one
+> dedup space.
+
+> **Quantize the amount before hashing.** `str(Decimal)` spells one value as `-42.1` or
+> `-42.10` depending on whether it came from a JSON body or a `Numeric(14,2)` column, so the
+> import path and the edit path would disagree about the same row.
+
+> **Changing the payload is a data migration.** Every stored hash has to be recomputed, as
+> `0024_rekey_dedup_hash_on_account_id.py` does, or the next import inserts everything
+> again. Rows that collide under a new key are duplicates the old key let through: keep
+> them under a `legacy:<id>` disambiguator and report the count, never delete them.
+
+> **`update_transaction` re-keys a row only when its natural key moves.** The edit form
+> resends every field, so it compares the hash of the old and new values rather than the
+> fields themselves; re-keying an untouched forced duplicate would collide with the row it
+> duplicates.
 
 ---
 
@@ -245,7 +298,7 @@ A `reduce_term` prepayment deliberately keeps the instalment and shortens the lo
 - **i18n:** Bilingual EN/ES. `Dict` interface in `i18n/index.ts`, implementations in `es.ts` / `en.ts`. All three files must be updated for every new string.
 - **API client:** `frontend/src/api/client.ts` — typed `apiFetch<T>()`. New endpoints follow the `getX()` / `postX()` pattern.
   - **Mock layer:** `frontend/src/api/mock.ts`, activated build-time by `VITE_USE_MOCK=1`. Coverage is **partial** — roughly 40 of 68 client functions have a mock branch. Rules, backup, statements, all Fidelity endpoints and `combined-overview` have none.
-  - ⚠️ **Gotcha:** 13 functions also fall back to the mock on *any* thrown error (`catch { return mockGetX() }`), not just when `USE_MOCK` is set. In production a 500 or a network drop therefore renders **fake data as if it were the user's**. Do not copy this pattern into new endpoints; prefer letting the error surface.
+  - ⚠️ **Never fall back to the mock on an error** (`catch { return mockGetX() }`). Thirteen reads used to, so in production a 500 or a network drop rendered **fake data as if it were the user's** — and the unconditional reference also shipped the whole mock dataset in the production bundle. The mock is reachable only behind `if (USE_MOCK)`, which the bundler drops; `api/client.test.ts` asserts that a failed read rejects. The same goes for "degrade to zeros": a figure that feeds a total (the mortgage's net-worth contribution, say) must throw, so the page can mark the total as partial instead of silently omitting a line of it.
 - **Tests:** Vitest + Testing Library + MSW. `npm test` runs them once, `npm run test:watch` in watch mode, `npm run test:coverage` with coverage. `npm run lint` is oxlint, and `npm run build` runs `tsc --noEmit` first. CI gates all three (`lint` → `test` → `build`), so all three must pass.
 - **Lockfile:** every `resolved` URL in `package-lock.json` must point at `https://registry.npmjs.org/`, and CI rejects anything else. An install behind a private mirror (check `npm config get registry`) records the mirror's URLs, and Dependabot then fails on every package they cover — security updates included — without opening a PR. Rewrite the prefix before committing; the tarballs are the same, so the integrity hashes still match.
 - **Plugin view registry:** `frontend/src/investments/registry.ts` — maps `plugin_id → { icon, name, component }`. Add an entry here for any new investment connector view.

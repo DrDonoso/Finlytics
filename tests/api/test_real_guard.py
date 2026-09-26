@@ -99,7 +99,7 @@ async def test_real_guard_patch_transaction_succeeds(request_session: MagicMock)
     The endpoint's ``async with session.begin()`` must not raise
     InvalidRequestError.  HTTP 200 + persisted merchant value expected.
     """
-    token = create_token("drdonoso")
+    token = create_token("drdonoso", version=0)
     auth_factory = _make_auth_factory("drdonoso")
 
     async def _override_get_db():
@@ -148,7 +148,7 @@ async def test_real_guard_create_tag_succeeds(request_session: MagicMock):
 
     Confirms the fix covers every auth-protected write path, not just transactions.
     """
-    token = create_token("drdonoso")
+    token = create_token("drdonoso", version=0)
     auth_factory = _make_auth_factory("drdonoso")
 
     async def _override_get_db():

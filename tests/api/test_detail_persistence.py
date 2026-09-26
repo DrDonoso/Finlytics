@@ -3,7 +3,8 @@
 These tests verify:
 - Transaction and Rule ORM models carry the expected nullable columns.
 - upsert_transactions passes detail to the INSERT values and dedup hash.
-- A detail-less ExtractedTransaction hashes identically to pre-Wave-2 behaviour.
+- A detail-less ExtractedTransaction hashes exactly as detail=None does.
+- The hash is keyed on the import run's account, not the row's account_ref.
 """
 
 from __future__ import annotations
@@ -57,7 +58,7 @@ async def test_upsert_passes_detail_to_insert_values():
         detail="GCREOCTOPUSENERGY",
     )
     expected_hash = compute_dedup_hash(
-        "BBVA", date(2024, 6, 1), Decimal("-42.50"), "ADEUDOASUCARGO",
+        1, date(2024, 6, 1), Decimal("-42.50"), "ADEUDOASUCARGO",
         detail="GCREOCTOPUSENERGY",
     )
 
@@ -90,7 +91,7 @@ async def test_upsert_passes_detail_to_insert_values():
 
 
 async def test_upsert_detail_less_tx_hash_unchanged():
-    """A detail-less ExtractedTransaction produces the same hash as before Wave 2."""
+    """A detail-less ExtractedTransaction hashes exactly as detail=None does."""
     tx = ExtractedTransaction(
         transaction_date=date(2024, 6, 1),
         amount=Decimal("-42.50"),
@@ -100,9 +101,8 @@ async def test_upsert_detail_less_tx_hash_unchanged():
         account_ref="BBVA",
         # detail intentionally absent (default None)
     )
-    # Pre-Wave-2 formula: no detail component
     legacy_hash = compute_dedup_hash(
-        "BBVA", date(2024, 6, 1), Decimal("-42.50"), "MERCADONA",
+        1, date(2024, 6, 1), Decimal("-42.50"), "MERCADONA",
     )
 
     captured: dict = {}
@@ -144,7 +144,7 @@ async def test_upsert_skips_existing_duplicate_by_default_but_forced_duplicate_i
     )
     forced_tx = tx.model_copy(update={"allow_duplicate": True})
     natural_hash = compute_dedup_hash(
-        "BBVA", date(2024, 6, 1), Decimal("-42.50"), "MERCADONA"
+        1, date(2024, 6, 1), Decimal("-42.50"), "MERCADONA"
     )
 
     fake_run = MagicMock(id=1, account_id=1)
@@ -241,3 +241,46 @@ async def test_upsert_two_identical_transactions_second_forced_both_inserted():
     assert counts == (2, 0)
     assert len(captured_hashes) == 2
     assert captured_hashes[0] != captured_hashes[1]
+
+
+async def test_upsert_hash_uses_the_run_account_not_account_ref():
+    """The client-supplied account_ref cannot move a row into another dedup space."""
+    tx = ExtractedTransaction(
+        transaction_date=date(2024, 6, 1),
+        amount=Decimal("-42.5"),
+        currency="EUR",
+        description="MERCADONA",
+        category="Groceries",
+        account_ref="Some other account",
+    )
+
+    captured: dict = {}
+    fake_run = MagicMock(id=1, account_id=3)
+    mock_result = MagicMock()
+    mock_result.scalar_one_or_none.return_value = 1
+    session = AsyncMock()
+    session.execute = AsyncMock(return_value=mock_result)
+
+    def fake_pg_insert(table):
+        stmt = MagicMock()
+
+        def capture(**kw):
+            captured.update(kw)
+            return stmt
+
+        stmt.values = MagicMock(side_effect=capture)
+        stmt.on_conflict_do_nothing = MagicMock(return_value=stmt)
+        stmt.returning = MagicMock(return_value=stmt)
+        return stmt
+
+    with patch(
+        "finlytics.db.repository.get_or_create_category",
+        new_callable=AsyncMock,
+        return_value=MagicMock(id=5),
+    ):
+        with patch("finlytics.db.repository.pg_insert", side_effect=fake_pg_insert):
+            await upsert_transactions(session, fake_run, [tx])
+
+    assert captured["dedup_hash"] == compute_dedup_hash(
+        3, date(2024, 6, 1), Decimal("-42.50"), "MERCADONA"
+    )

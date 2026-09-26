@@ -79,6 +79,7 @@ export interface Dict {
   modalBtnConfirm: (count: number) => string
   error503: string
   error400: string
+  error413: string
   errorNetwork: string
   errorUnexpected: (msg: string) => string
   toastSuccess: (inserted: number, dupes: number) => string
@@ -135,6 +136,21 @@ export interface Dict {
   authErrorTooManyAttempts: (minutes: number) => string
   authErrorUnexpected: string
   authRememberMe: string
+  // ── Security page ─────────────────────────────────────────────────────────
+  settingsSubSecurity: string
+  securityPageTitle: string
+  securityPasswordTitle: string
+  securityPasswordHint: string
+  securityCurrentPassword: string
+  securityNewPassword: string
+  securityConfirmPassword: string
+  securityPasswordBtn: string
+  securityPasswordChanged: string
+  securityErrorWrongPassword: string
+  securitySessionsTitle: string
+  securitySessionsHint: string
+  securityLogoutOthersBtn: string
+  securityLogoutOthersDone: string
   // ── Flow filter ───────────────────────────────────────────────────────────
   filterExpenseOnly: string
   filterIncomeOnly: string
@@ -476,6 +492,8 @@ export interface Dict {
   dashboardNetWorthUnavailable: string
   /** Aviso cuando el patrimonio excluye las inversiones por un fallo de lectura. */
   dashboardNetWorthPartial: string
+  /** Aviso cuando el patrimonio excluye la hipoteca por un fallo de lectura. */
+  dashboardNetWorthPartialMortgage: string
   /** Variación de la tasa de ahorro del último mes con datos frente al anterior. */
   dashboardSavingsRateVsPrevMonth: string
   /** Nº de meses sobre los que se calcula el promedio mensual. */

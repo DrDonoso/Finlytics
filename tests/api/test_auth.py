@@ -45,8 +45,10 @@ async def auth_client(mock_session: MagicMock):
 
 def _fake_user(username: str = "drdonoso", password: str = "MyStr0ngP@ss!") -> MagicMock:
     user = MagicMock(spec=User)
+    user.id = 1
     user.username = username
     user.password_hash = hash_password(password)
+    user.token_version = 0
     return user
 
 
@@ -78,7 +80,7 @@ async def test_status_initialized_not_authenticated(auth_client):
 
 async def test_status_authenticated_with_valid_cookie(auth_client):
     client, session = auth_client
-    token = create_token("drdonoso")
+    token = create_token("drdonoso", version=0)
     user = _fake_user()
     # First scalar call: count (→ 1), second: user lookup (→ user)
     session.scalar = AsyncMock(side_effect=[1, user])
@@ -239,6 +241,51 @@ async def test_login_nonexistent_user_runs_dummy_bcrypt_verify(auth_client):
     assert resp.json()["detail"] == "Invalid credentials"
     # Dummy-verify path must have executed — no early return before bcrypt.
     mock_verify.assert_called_once_with("SomeP@ssword1", _auth_mod._DUMMY_HASH)
+
+
+async def test_login_runs_bcrypt_off_the_event_loop(auth_client):
+    """bcrypt costs ~250 ms of CPU; on the loop thread it would stall every request."""
+    import threading
+
+    client, session = auth_client
+    session.scalar = AsyncMock(return_value=_fake_user())
+    loop_thread = threading.get_ident()
+    verify_threads: list[int] = []
+
+    def _verify(*_args):
+        verify_threads.append(threading.get_ident())
+        return True
+
+    with patch("finlytics.api.auth.verify_password", side_effect=_verify):
+        resp = await client.post(
+            "/api/auth/login",
+            json={"username": "drdonoso", "password": "MyStr0ngP@ss!"},
+        )
+
+    assert resp.status_code == 200
+    assert verify_threads and loop_thread not in verify_threads
+
+
+async def test_setup_hashes_password_off_the_event_loop(auth_client):
+    import threading
+
+    client, session = auth_client
+    session.scalar = AsyncMock(return_value=0)
+    loop_thread = threading.get_ident()
+    hash_threads: list[int] = []
+
+    def _hash(*_args):
+        hash_threads.append(threading.get_ident())
+        return "hashed"
+
+    with patch("finlytics.api.auth.hash_password", side_effect=_hash):
+        resp = await client.post(
+            "/api/auth/setup",
+            json={"username": "drdonoso", "password": "MyStr0ngP@ss!"},
+        )
+
+    assert resp.status_code == 201
+    assert hash_threads and loop_thread not in hash_threads
 
 
 async def test_login_401_short_wrong_password_existing_user(auth_client):
@@ -447,7 +494,7 @@ async def test_me_401_with_invalid_cookie(auth_client):
 
 async def test_me_200_with_valid_cookie(auth_client):
     client, _session = auth_client
-    token = create_token("drdonoso")
+    token = create_token("drdonoso", version=0)
 
     # After fix: get_current_user opens its own session via async_session_factory,
     # not the get_db session. Patch the factory to return a mock auth session.
@@ -483,7 +530,7 @@ async def test_data_endpoint_401_with_invalid_cookie(auth_client):
 async def test_data_endpoint_200_with_valid_cookie(auth_client):
     """A data endpoint is reachable with a valid session cookie."""
     client, _session = auth_client
-    token = create_token("drdonoso")
+    token = create_token("drdonoso", version=0)
 
     auth_session = MagicMock()
     auth_session.scalar = AsyncMock(return_value=_fake_user())

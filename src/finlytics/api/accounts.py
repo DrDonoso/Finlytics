@@ -66,7 +66,6 @@ async def create_account(
             await create_opening_balance_tx(
                 session,
                 account_id=account.id,
-                account_name=name,
                 account_currency=body.currency,
                 opening_balance=body.opening_balance,
                 opening_date=body.opening_date,  # type: ignore[arg-type]

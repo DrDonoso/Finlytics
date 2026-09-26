@@ -475,7 +475,15 @@ async def test_create_account_opening_transaction_fields(client, mock_session):
 # 9. dedup_hash is deterministic and 64-char hex
 
 async def test_create_account_opening_transaction_dedup_hash_deterministic(client, mock_session):
-    """dedup_hash is computed from (account_name, opening_date, amount, 'Saldo inicial')."""
+    """dedup_hash is computed from (account id, opening_date, amount, 'Saldo inicial')."""
+    added = _track_session_adds(mock_session)
+
+    def _assign_account_id():
+        for obj in added:
+            if isinstance(obj, Account) and obj.id is None:
+                obj.id = 42
+
+    mock_session.flush = AsyncMock(side_effect=_assign_account_id)
     no_conflict = MagicMock()
     no_conflict.scalar_one_or_none.return_value = None
     mock_session.execute = AsyncMock(side_effect=[no_conflict, _pg_insert_ok()])
@@ -494,11 +502,11 @@ async def test_create_account_opening_transaction_dedup_hash_deterministic(clien
     assert resp.status_code == 201
     assert mock_hash.called
     kwargs = mock_hash.call_args.kwargs
-    assert kwargs["account_ref"] == "BBVA"
+    assert kwargs["account_id"] == 42
     assert kwargs["description"] == "Saldo inicial"
 
     expected_hash = compute_dedup_hash(
-        account_ref="BBVA",
+        account_id=42,
         transaction_date=_date(2024, 6, 1),
         amount=Decimal("500.00"),
         description="Saldo inicial",
@@ -507,7 +515,7 @@ async def test_create_account_opening_transaction_dedup_hash_deterministic(clien
     assert all(c in "0123456789abcdef" for c in expected_hash)
     # Re-compute with same inputs → identical hash (determinism)
     assert expected_hash == compute_dedup_hash(
-        account_ref="BBVA",
+        account_id=42,
         transaction_date=_date(2024, 6, 1),
         amount=Decimal("500.00"),
         description="Saldo inicial",

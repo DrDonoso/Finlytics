@@ -225,16 +225,16 @@ export default function Dashboard() {
   const accountNetTotal = byAccount.reduce((sum, row) => sum + row.net, 0)
   const investmentsValue = investmentsQuery.data?.total_value_eur ?? 0
 
-  // Partial degradation: an investments connector failure must not hide the
-  // account net, which is still available. Previously either error would leave
-  // net worth as "—" and discard data that was actually present.
+  // Partial degradation: a failure in one source must not hide the others, and a
+  // missing source is flagged rather than counted as zero. A silent zero for the
+  // mortgage would overstate net worth by the whole outstanding debt.
   const investmentsFailed = Boolean(investmentsQuery.error)
+  const mortgageFailed = Boolean(mortgageQuery.error)
   const accountsPending = byAccountQuery.isPending || Boolean(byAccountQuery.error)
-  const netWorthPending = accountsPending || investmentsQuery.isPending
-  // Mortgages only contribute when the user left them included; the endpoint
-  // already filters, and it degrades to zeros so a failure never blanks the KPI.
+  const netWorthPending = accountsPending || investmentsQuery.isPending || mortgageQuery.isPending
+  // Mortgages only contribute when the user left them included; the endpoint already filters.
   const mortgageNetWorth = mortgageQuery.data
-  const mortgageContribution = mortgageNetWorth?.net_contribution ?? 0
+  const mortgageContribution = mortgageFailed ? 0 : mortgageNetWorth?.net_contribution ?? 0
   const hasMortgage = (mortgageNetWorth?.count ?? 0) > 0
   const totalNetWorth =
     accountNetTotal + (investmentsFailed ? 0 : investmentsValue) + mortgageContribution
@@ -266,10 +266,12 @@ export default function Dashboard() {
                   ? <span className="dashboard-kpi-breakdown__missing">{t.dashboardNetWorthUnavailable}</span>
                   : <Private>{formatEur(investmentsValue)}</Private>}
               </span>
-              {hasMortgage && (
+              {(hasMortgage || mortgageFailed) && (
                 <span>
                   <span className="dashboard-kpi-breakdown__label">{t.dashboardNetWorthMortgage}</span>
-                  <Private>{formatEur(mortgageContribution)}</Private>
+                  {mortgageFailed
+                    ? <span className="dashboard-kpi-breakdown__missing">{t.dashboardNetWorthUnavailable}</span>
+                    : <Private>{formatEur(mortgageContribution)}</Private>}
                 </span>
               )}
             </div>
@@ -278,6 +280,12 @@ export default function Dashboard() {
             <div className="dashboard-kpi-hero__notice">
               <IconAlert size={13} />
               <span>{t.dashboardNetWorthPartial}</span>
+            </div>
+          )}
+          {!netWorthPending && mortgageFailed && (
+            <div className="dashboard-kpi-hero__notice">
+              <IconAlert size={13} />
+              <span>{t.dashboardNetWorthPartialMortgage}</span>
             </div>
           )}
         </div>

@@ -2,32 +2,49 @@
 
 Router prefix : /auth  (mounted at /api in app.py → /api/auth/*)
 Public        : status, setup, login, logout
-Protected     : me  (requires valid session cookie via get_current_user)
+Protected     : me, logout-others, password  (require a valid session cookie)
+
+Sessions are signed JWTs in an httpOnly cookie, and they are revocable: each
+token names itself (``jti``) and the ``token_version`` it was minted under.
+Logout revokes that one token; a password change or "sign out other devices"
+bumps the version, which ends every session, and hands the caller a new cookie
+so the device making the request stays signed in.
 """
 
 from __future__ import annotations
 
+import asyncio
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field, field_validator
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from finlytics.api.deps import get_current_user, get_db
+from finlytics.api.deps import (
+    SESSION_COOKIE,
+    CurrentSession,
+    get_current_session,
+    get_current_user,
+    get_db,
+    load_session_user,
+)
 from finlytics.auth.ratelimit import RateLimiter, client_ip
 from finlytics.auth.security import create_token, decode_token, hash_password, verify_password
 from finlytics.config import settings
-from finlytics.db.models import User
+from finlytics.db.models import RevokedToken, User
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-_COOKIE_NAME = "finlytics_session"
 # Precomputed at import time — used to equalise bcrypt timing when the username
 # does not exist, preventing username-enumeration via response-time differences.
 _DUMMY_HASH: str = hash_password("__timing_dummy_constant__")
 
 # Throttles failed logins per client IP. Deliberately not per username: keying on
 # the username would let anyone lock out the legitimate account just by guessing
-# against it. See finlytics.auth.ratelimit for the full rationale.
+# against it. See finlytics.auth.ratelimit for the full rationale.  Password
+# changes share it: guessing the current password there is the same attack.
 login_rate_limiter = RateLimiter(
     max_attempts=settings.auth_login_max_attempts,
     window_seconds=settings.auth_login_window_seconds,
@@ -64,6 +81,12 @@ class SetupIn(_AuthBase):
     password: str = Field(..., min_length=8, max_length=128)
 
 
+class PasswordChangeIn(BaseModel):
+    """Password change — the current password is re-verified, like a login."""
+    current_password: str = Field(..., min_length=1, max_length=128)
+    new_password: str = Field(..., min_length=8, max_length=128)
+
+
 class AuthResponse(BaseModel):
     username: str
     message: str
@@ -74,11 +97,18 @@ class StatusResponse(BaseModel):
     authenticated: bool
 
 
-# ── Cookie helper ─────────────────────────────────────────────────────────────
+# ── Session helpers ───────────────────────────────────────────────────────────
 
-def _set_session_cookie(response: Response, token: str, max_age: int | None = None) -> None:
+def _start_session(response: Response, user: User, *, remember: bool) -> None:
+    """Mint a token under the user's current version and set it as the cookie.
+
+    Without remember-me the cookie has no max-age, so the browser drops it on
+    close; the token inside still expires after ``auth_token_expire_days``.
+    """
+    token = create_token(user.username, version=user.token_version, remember=remember)
+    max_age = settings.auth_remember_expire_days * 24 * 3600 if remember else None
     response.set_cookie(
-        key=_COOKIE_NAME,
+        key=SESSION_COOKIE,
         value=token,
         httponly=True,
         samesite="lax",
@@ -86,6 +116,47 @@ def _set_session_cookie(response: Response, token: str, max_age: int | None = No
         max_age=max_age,
         path="/",
     )
+
+
+def _check_login_limit(ip: str) -> None:
+    """Spend one attempt from ``ip``'s budget, or raise 429 when it is exhausted."""
+    # max_attempts <= 0 disables throttling (AUTH_LOGIN_MAX_ATTEMPTS=0).
+    if login_rate_limiter.max_attempts <= 0:
+        return
+    verdict = login_rate_limiter.check(ip)
+    if not verdict.allowed:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many login attempts. Please try again later.",
+            headers={"Retry-After": str(verdict.retry_after)},
+        )
+
+
+async def _revoke(db: AsyncSession, claims: dict) -> None:
+    """Record the token described by ``claims`` as revoked."""
+    jti = claims.get("jti")
+    exp = claims.get("exp")
+    if not isinstance(jti, str) or not isinstance(exp, (int, float)):
+        return
+    now = datetime.now(timezone.utc)
+    # Rows only matter until their token would have expired anyway; dropping the
+    # stale ones here keeps the table as small as the number of live sessions.
+    await db.execute(delete(RevokedToken).where(RevokedToken.expires_at < now))
+    if await db.get(RevokedToken, jti) is None:
+        db.add(RevokedToken(jti=jti, expires_at=datetime.fromtimestamp(exp, tz=timezone.utc)))
+    try:
+        await db.commit()
+    except IntegrityError:
+        # Two logouts of the same token raced; the other one already revoked it.
+        await db.rollback()
+
+
+async def _load_user(db: AsyncSession, session: CurrentSession) -> User:
+    """Re-read the session's user through ``db`` so changes to it can be committed."""
+    user = await db.get(User, session.user.id)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    return user
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -101,13 +172,11 @@ async def auth_status(
     initialized = (user_count or 0) > 0
 
     authenticated = False
-    token = request.cookies.get(_COOKIE_NAME)
+    token = request.cookies.get(SESSION_COOKIE)
     if token:
-        payload = decode_token(token)
-        if payload is not None:
-            username = payload.get("sub")
-            user = await db.scalar(select(User).where(User.username == username))
-            authenticated = user is not None
+        claims = decode_token(token)
+        if claims is not None:
+            authenticated = await load_session_user(db, claims) is not None
 
     return StatusResponse(initialized=initialized, authenticated=authenticated)
 
@@ -127,13 +196,14 @@ async def auth_setup(
 
     user = User(
         username=body.username,
-        password_hash=hash_password(body.password),
+        password_hash=await asyncio.to_thread(hash_password, body.password),
+        token_version=0,
     )
     db.add(user)
     await db.flush()
     await db.commit()
 
-    _set_session_cookie(response, create_token(user.username))
+    _start_session(response, user, remember=False)
     return AuthResponse(username=user.username, message="User created successfully")
 
 
@@ -148,51 +218,93 @@ async def auth_login(
     through its attempt budget.
     """
     ip = client_ip(request)
+    _check_login_limit(ip)
 
-    # max_attempts <= 0 disables throttling (AUTH_LOGIN_MAX_ATTEMPTS=0).
-    if login_rate_limiter.max_attempts > 0:
-        verdict = login_rate_limiter.check(ip)
-        if not verdict.allowed:
-            raise HTTPException(
-                status_code=429,
-                detail="Too many login attempts. Please try again later.",
-                headers={"Retry-After": str(verdict.retry_after)},
-            )
-
+    # bcrypt at cost 12 takes ~250 ms of CPU; running it inline would freeze
+    # every other request for that long, so it goes to a worker thread.
     user = await db.scalar(select(User).where(User.username == body.username))
     if user is None:
         # Always run bcrypt to equalise timing — prevents username enumeration.
-        verify_password(body.password, _DUMMY_HASH)
+        await asyncio.to_thread(verify_password, body.password, _DUMMY_HASH)
         raise HTTPException(status_code=401, detail="Invalid credentials")
-    if not verify_password(body.password, user.password_hash):
+    if not await asyncio.to_thread(verify_password, body.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     # Authenticated: clear the counter so a couple of typos followed by a correct
     # password leave no trace for the next session.
     login_rate_limiter.reset(ip)
 
-    if body.remember:
-        expire_days = settings.auth_remember_expire_days
-        max_age = expire_days * 24 * 3600
-    else:
-        expire_days = settings.auth_token_expire_days
-        max_age = None
-
-    _set_session_cookie(response, create_token(user.username, expire_days), max_age)
+    _start_session(response, user, remember=body.remember)
     return AuthResponse(username=user.username, message="Login successful")
 
 
 @router.post("/logout")
-async def auth_logout(response: Response) -> dict:
-    """Public (idempotent) — clears the session cookie regardless of its validity."""
+async def auth_logout(
+    request: Request, response: Response, db: AsyncSession = Depends(get_db)
+) -> dict:
+    """Public (idempotent) — revokes the session token and clears the cookie.
+
+    Deleting the cookie alone would leave a copied token valid until it expired,
+    so a token that still verifies is recorded in ``revoked_tokens``.  Anything
+    else — no cookie, a forged or expired one — just gets the cookie cleared.
+    """
+    token = request.cookies.get(SESSION_COOKIE)
+    claims = decode_token(token) if token else None
+    if claims is not None:
+        await _revoke(db, claims)
+
     response.delete_cookie(
-        key=_COOKIE_NAME,
+        key=SESSION_COOKIE,
         path="/",
         httponly=True,
         samesite="lax",
         secure=settings.auth_cookie_secure,
     )
     return {"message": "Logged out"}
+
+
+@router.post("/logout-others")
+async def auth_logout_others(
+    response: Response,
+    session: CurrentSession = Depends(get_current_session),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Protected — ends every session except the one making the request."""
+    user = await _load_user(db, session)
+    user.token_version += 1
+    await db.commit()
+
+    _start_session(response, user, remember=session.remember)
+    return {"message": "Other sessions signed out"}
+
+
+@router.post("/password")
+async def auth_change_password(
+    body: PasswordChangeIn,
+    request: Request,
+    response: Response,
+    session: CurrentSession = Depends(get_current_session),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Protected — replaces the password and ends every other session.
+
+    A wrong current password is a 400, not a 401: the caller IS authenticated,
+    and the frontend treats any 401 as "the session is gone" and signs out.
+    """
+    ip = client_ip(request)
+    _check_login_limit(ip)
+
+    user = await _load_user(db, session)
+    if not await asyncio.to_thread(verify_password, body.current_password, user.password_hash):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+
+    user.password_hash = await asyncio.to_thread(hash_password, body.new_password)
+    user.token_version += 1
+    await db.commit()
+    login_rate_limiter.reset(ip)
+
+    _start_session(response, user, remember=session.remember)
+    return {"message": "Password changed"}
 
 
 @router.get("/me")

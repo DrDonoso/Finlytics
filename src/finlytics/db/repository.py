@@ -2,9 +2,9 @@
 
 Key design decisions
 ────────────────────
-* ``dedup_hash`` is computed from (account_ref, transaction_date, amount,
-  description) using SHA-256.  Banner does NOT send this field; we compute it
-  here at the persistence boundary to enforce idempotency.
+* ``dedup_hash`` is computed from (account_id, transaction_date, amount,
+  description, detail) using SHA-256.  Banner does NOT send this field; we
+  compute it here at the persistence boundary to enforce idempotency.
 * We use PostgreSQL's ``INSERT … ON CONFLICT DO NOTHING`` so re-importing the
   same statement in a single batch is safe even within the same call.
 * Category resolution is cached per-call to avoid redundant DB round-trips and
@@ -17,9 +17,9 @@ import hashlib
 import json
 import uuid
 from datetime import date, datetime, timezone
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 
-from sqlalchemy import select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -31,8 +31,11 @@ from finlytics.extraction.translate import translate_category_name
 
 # ── Dedup hash ────────────────────────────────────────────────────────────────
 
+_CENT = Decimal("0.01")
+
+
 def compute_dedup_hash(
-    account_ref: str,
+    account_id: int,
     transaction_date: date,
     amount: Decimal,
     description: str,
@@ -45,32 +48,69 @@ def compute_dedup_hash(
     produces the same hash regardless of how many times the statement is
     re-uploaded.
 
-    When ``detail`` is non-empty the hash input gains a ``|<detail>`` suffix so
-    transactions with the same core fields but different sub-line text produce
-    distinct rows.  When ``detail`` is None or empty the result is byte-identical
-    to the pre-detail formula, preserving all existing dedup_hash values.
+    It is keyed on the account's id, never its name: a rename must not change
+    the key of every row the account holds, and two accounts must not share a
+    dedup space because their names happen to normalise alike.
 
-    When ``disambiguator`` is provided, it is included inside the hashed JSON
-    payload so an otherwise-duplicate transaction can be force-imported while
-    keeping the stored digest at the normal 64-character SHA-256 width.  With
-    ``disambiguator=None`` the payload is unchanged from the normal path.
+    ``amount`` is quantized to cents, the precision of the column, so ``12.5``
+    and ``12.50`` hash alike and a hash recomputed from a stored row matches
+    the one computed at import time.
+
+    ``detail`` takes part only when non-empty, so None, ``""`` and whitespace
+    hash identically.  ``disambiguator`` lets an otherwise-duplicate
+    transaction be force-imported while keeping the digest 64 characters wide.
+
+    Changing this payload changes every stored key: it needs a migration that
+    re-hashes all rows, as ``0024_rekey_dedup_hash_on_account_id`` does.
     """
-    payload_data = {
-        "account": account_ref.strip().lower(),
+    cents = Decimal(str(amount)).quantize(_CENT, rounding=ROUND_HALF_UP)
+    payload_data: dict[str, object] = {
+        "account_id": account_id,
         "date": str(transaction_date),
-        "amount": str(amount),
+        "amount": str(cents.copy_abs() if cents.is_zero() else cents),
         "description": description.strip().lower(),
     }
+    if detail and detail.strip():
+        payload_data["detail"] = detail.strip().lower()
     if disambiguator is not None:
         payload_data["disambiguator"] = disambiguator
 
     payload = json.dumps(payload_data, sort_keys=True)
-    if detail and detail.strip():
-        payload = payload + "|" + detail.strip().lower()
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 # ── Category helpers ──────────────────────────────────────────────────────────
+
+async def _find_category(session: AsyncSession, name: str) -> Category | None:
+    """Match *name* against the stored English name or the Spanish label.
+
+    An exact match on ``name`` wins, then a case-insensitive one, then the
+    Spanish label; ties resolve to the oldest row so duplicates stay stable.
+    """
+    key = name.strip()
+    if not key:
+        return None
+    lowered = key.lower()
+    stmt = (
+        select(Category)
+        .where(
+            or_(
+                func.lower(Category.name) == lowered,
+                func.lower(Category.name_es) == lowered,
+            )
+        )
+        .order_by(
+            case(
+                (Category.name == key, 0),
+                (func.lower(Category.name) == lowered, 1),
+                else_=2,
+            ),
+            Category.id,
+        )
+        .limit(1)
+    )
+    return (await session.execute(stmt)).scalar_one_or_none()
+
 
 async def get_or_create_category(
     session: AsyncSession,
@@ -81,33 +121,36 @@ async def get_or_create_category(
 ) -> Category:
     """Return the Category with the given name, creating it if necessary.
 
-    For NEW non-base categories, ``translate_category_name`` is called to
-    produce a canonical English name (stored as ``name``) and a Spanish
-    translation (stored as ``name_es``).  If translation is unavailable
-    (unconfigured OpenAI / test env) the literal ``name`` is stored and
-    ``name_es`` is left NULL — never raises.
+    An existing category is matched FIRST — by English name (exact, then
+    case-insensitive) or by its Spanish label — so only a genuinely new name
+    costs a ``translate_category_name`` call.  Translating before the lookup
+    spent an LLM round-trip on every distinct category of every import, and a
+    paraphrase of an existing name ("Grocery" for "Groceries") forked it.
 
-    Dedup is on the canonical English name: a manual "Ropa" and an AI
-    "Clothing" resolve to the SAME category once translation is applied.
+    For NEW non-base categories the translation produces a canonical English
+    name (stored as ``name``) and a Spanish one (stored as ``name_es``), and the
+    canonical name is looked up again, so a manual "Ropa" and an AI "Clothing"
+    still resolve to the SAME category.  If translation is unavailable
+    (unconfigured OpenAI / test env) the literal name is stored and ``name_es``
+    is left NULL — never raises.
 
-    Base categories (``is_base=True``) are never translated.
-    Existing categories are returned as-is (no re-translation).
+    Base categories (``is_base=True``) are matched by exact name and never
+    translated.
     """
-    if not is_base:
-        result = await translate_category_name(name)
-        if result:
-            canonical = result["name_en"]
-            name_es = result["name_es"]
-        else:
-            canonical = name
-            name_es = None
+    if is_base:
+        canonical, name_es = name, None
+        category = (
+            await session.execute(select(Category).where(Category.name == name))
+        ).scalar_one_or_none()
     else:
-        canonical = name
-        name_es = None
-
-    category = (
-        await session.execute(select(Category).where(Category.name == canonical))
-    ).scalar_one_or_none()
+        canonical, name_es = name.strip() or name, None
+        category = await _find_category(session, name)
+        if category is None:
+            result = await translate_category_name(name)
+            if result:
+                canonical = result["name_en"]
+                name_es = result["name_es"]
+                category = await _find_category(session, canonical)
 
     if category is None:
         kwargs: dict = {"name": canonical, "is_base": is_base}
@@ -220,7 +263,7 @@ async def upsert_transactions(
 
     for tx in transactions:
         dedup_hash = compute_dedup_hash(
-            account_ref=tx.account_ref,
+            account_id=import_run.account_id,
             transaction_date=tx.transaction_date,
             amount=tx.amount,
             description=tx.description,
@@ -339,7 +382,6 @@ async def delete_rule(session: AsyncSession, rule_id: int) -> bool:
 async def create_opening_balance_tx(
     session: AsyncSession,
     account_id: int,
-    account_name: str,
     account_currency: str,
     opening_balance: float,
     opening_date: date,
@@ -367,7 +409,7 @@ async def create_opening_balance_tx(
     await session.flush()  # materialise import_run.id
 
     dedup_hash = compute_dedup_hash(
-        account_ref=account_name,
+        account_id=account_id,
         transaction_date=opening_date,
         amount=amount,
         description="Saldo inicial",

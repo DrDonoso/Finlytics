@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
+from functools import partial
 from typing import Any, Literal
 
 from sqlalchemy import func, nullslast, select
@@ -185,7 +186,7 @@ async def update_transaction(
         if tx is None:
             return None
 
-        # ── 2. Load account name (needed for dedup_hash computation) ─────────
+        # ── 2. Load account name (returned in the response row) ──────────────
         acc_name: str = (
             await session.execute(
                 select(Account.name).where(Account.id == tx.account_id)
@@ -197,30 +198,32 @@ async def update_transaction(
         new_amount = Decimal(str(amount)) if amount is not None else tx.amount
 
         # ── 4. Dedup hash check (before any writes — fail fast) ───────────────
+        # Re-key only when the natural key moves: the edit form resends every
+        # field, and re-keying an untouched forced duplicate would collide with
+        # its twin.
+        natural_key = partial(
+            compute_dedup_hash,
+            account_id=tx.account_id,
+            transaction_date=tx.transaction_date,
+            detail=tx.detail,
+        )
         new_hash = tx.dedup_hash
-        if description is not None or amount is not None:
-            candidate = compute_dedup_hash(
-                account_ref=acc_name,
-                transaction_date=tx.transaction_date,
-                amount=new_amount,
-                description=new_description,
-                detail=tx.detail,
-            )
-            if candidate != tx.dedup_hash:
-                collision_id = (
-                    await session.execute(
-                        select(Transaction.id).where(
-                            Transaction.dedup_hash == candidate,
-                            Transaction.id != transaction_id,
-                        )
+        candidate = natural_key(amount=new_amount, description=new_description)
+        if candidate != natural_key(amount=tx.amount, description=tx.description):
+            collision_id = (
+                await session.execute(
+                    select(Transaction.id).where(
+                        Transaction.dedup_hash == candidate,
+                        Transaction.id != transaction_id,
                     )
-                ).scalar_one_or_none()
-                if collision_id is not None:
-                    raise DedupCollisionError(
-                        f"Transaction id={collision_id} already has the same "
-                        "account, date, amount, and description."
-                    )
-                new_hash = candidate
+                )
+            ).scalar_one_or_none()
+            if collision_id is not None:
+                raise DedupCollisionError(
+                    f"Transaction id={collision_id} already has the same "
+                    "account, date, amount, and description."
+                )
+            new_hash = candidate
 
         # ── 5. Category resolution ────────────────────────────────────────────
         category_id = tx.category_id
