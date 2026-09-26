@@ -4,13 +4,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from finlytics.api.deps import get_db
 from finlytics.api.schemas import CategoryCreate, CategoryOut, CategoryUpdate
 from finlytics.db import queries
+from finlytics.db.queries.types import CategoryRow, CategoryUpdateRow
 from finlytics.db.repository import get_or_create_category
 
 router = APIRouter(prefix="/categories", tags=["categories"])
 
 
 @router.get("", response_model=list[CategoryOut])
-async def list_categories(session: AsyncSession = Depends(get_db)) -> list[CategoryOut]:
+async def list_categories(session: AsyncSession = Depends(get_db)) -> list[CategoryRow]:
     return await queries.get_categories(session)
 
 
@@ -18,7 +19,7 @@ async def list_categories(session: AsyncSession = Depends(get_db)) -> list[Categ
 async def create_category(
     body: CategoryCreate,
     session: AsyncSession = Depends(get_db),
-) -> CategoryOut:
+) -> CategoryRow:
     """Create-or-get a category by name (idempotent).
 
     * An existing category (English name or Spanish label) is returned as-is.
@@ -49,7 +50,7 @@ async def update_category(
     category_id: int,
     body: CategoryUpdate,
     session: AsyncSession = Depends(get_db),
-) -> CategoryOut:
+) -> CategoryUpdateRow:
     """Recolour a category.
 
     * 200 — updated.

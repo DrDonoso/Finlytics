@@ -1,15 +1,13 @@
-import { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { createContext, useContext, useCallback, useMemo } from 'react'
 import type { ReactNode } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import type { NotificationOut } from '../api/types'
 import {
-  getNotifications,
-  getUnreadCount,
   markNotificationRead as apiMarkRead,
   markAllNotificationsRead as apiMarkAllRead,
   dismissNotification as apiDismiss,
 } from '../api/client'
-
-const POLL_INTERVAL_MS = 60_000
+import { queryKeys, unreadCountOf, useNotificationChangePoll, useNotificationList } from '../api/queries'
 
 interface NotificationsContextValue {
   notifications: NotificationOut[]
@@ -21,8 +19,10 @@ interface NotificationsContextValue {
   dismiss: (id: number) => Promise<void>
 }
 
+const NO_NOTIFICATIONS: NotificationOut[] = []
+
 const NotificationsContext = createContext<NotificationsContextValue>({
-  notifications: [],
+  notifications: NO_NOTIFICATIONS,
   unreadCount: 0,
   loading: false,
   refresh: () => {},
@@ -32,72 +32,38 @@ const NotificationsContext = createContext<NotificationsContextValue>({
 })
 
 export function NotificationsProvider({ children }: { children: ReactNode }) {
-  const [notifications, setNotifications] = useState<NotificationOut[]>([])
-  const [unreadCount, setUnreadCount] = useState(0)
-  const [loading, setLoading] = useState(false)
-  const prevCountRef = useRef<number>(-1)
+  const queryClient = useQueryClient()
+  const list = useNotificationList()
+  useNotificationChangePoll({ enabled: !list.isPending })
 
-  const fetchList = useCallback(() => {
-    setLoading(true)
-    getNotifications()
-      .then(list => {
-        setNotifications(list)
-        const count = list.filter(n => !n.read_at).length
-        setUnreadCount(count)
-        prevCountRef.current = count
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false))
-  }, [])
+  const notifications = list.data ?? NO_NOTIFICATIONS
+  // Derived from the list rather than taken from the poll, so the badge can never disagree with the dropdown under it.
+  const unreadCount = useMemo(() => unreadCountOf(notifications), [notifications])
 
-  // Initial fetch on mount
-  useEffect(() => {
-    fetchList()
-  }, [fetchList])
-
-  // Poll unread-count every 60s; refresh full list when it changes
-  useEffect(() => {
-    const id = setInterval(() => {
-      getUnreadCount()
-        .then(({ count }) => {
-          setUnreadCount(count)
-          if (count !== prevCountRef.current) {
-            prevCountRef.current = count
-            fetchList()
-          }
-        })
-        .catch(() => {})
-    }, POLL_INTERVAL_MS)
-    return () => clearInterval(id)
-  }, [fetchList])
+  // Invalidating cancels a list request still in flight, so a response that predates the mutation can no longer overwrite the one that follows it.
+  const refresh = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.notifications, exact: true })
+  }, [queryClient])
 
   const markRead = useCallback(async (id: number) => {
     await apiMarkRead(id)
-    fetchList()
-  }, [fetchList])
+    refresh()
+  }, [refresh])
 
   const markAllRead = useCallback(async () => {
     await apiMarkAllRead()
-    fetchList()
-  }, [fetchList])
+    refresh()
+  }, [refresh])
 
   const dismiss = useCallback(async (id: number) => {
     await apiDismiss(id)
-    fetchList()
-  }, [fetchList])
+    refresh()
+  }, [refresh])
 
-  // Without memoisation the object is new on every render, forcing every context consumer to re-render — and there is a 60 s poll here that fires renders constantly.
+  const loading = list.isFetching
   const value = useMemo(
-    () => ({
-      notifications,
-      unreadCount,
-      loading,
-      refresh: fetchList,
-      markRead,
-      markAllRead,
-      dismiss,
-    }),
-    [notifications, unreadCount, loading, fetchList, markRead, markAllRead, dismiss],
+    () => ({ notifications, unreadCount, loading, refresh, markRead, markAllRead, dismiss }),
+    [notifications, unreadCount, loading, refresh, markRead, markAllRead, dismiss],
   )
 
   return (

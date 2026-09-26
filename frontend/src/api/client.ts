@@ -438,12 +438,6 @@ export async function applyRule(payload: RuleInput): Promise<{ applied: number }
   })
 }
 
-// ─── Shared formatter ─────────────────────────────────────────────────────────
-
-export function formatEur(amount: number): string {
-  return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(amount)
-}
-
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
 export async function getAuthStatus(): Promise<AuthStatus> {

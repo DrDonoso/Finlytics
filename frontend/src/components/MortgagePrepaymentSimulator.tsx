@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import type { MortgageSimulation, PrepaymentMode } from '../api/types'
-import { simulateMortgagePrepayment, createMortgagePrepayment, formatEur } from '../api/client'
+import { simulateMortgagePrepayment, createMortgagePrepayment } from '../api/client'
 import { errorMessage } from '../api/errors'
 import { IconAlert, IconClose } from './icons'
 import DatePicker from './DatePicker'
@@ -39,7 +39,7 @@ function mergeCurves(sim: MortgageSimulation) {
 }
 
 export default function MortgagePrepaymentSimulator({ mortgageId, onClose, onApplied }: Props) {
-  const { t } = useT()
+  const { t, formatCurrency } = useT()
   const [amount, setAmount] = useState('')
   const [date, setDate] = useState(today())
   const [mode, setMode] = useState<PrepaymentMode>('reduce_term')
@@ -149,7 +149,7 @@ export default function MortgagePrepaymentSimulator({ mortgageId, onClose, onApp
               <div className="mortgage-sim__headline">
                 <div className="mortgage-sim__headline-item">
                   <span className="mortgage-sim__key">{t.mortgageSimInterestSaved}</span>
-                  <span className="mortgage-sim__value inv-kpi-card__value--pos private">{formatEur(result.interest_saved)}</span>
+                  <span className="mortgage-sim__value inv-kpi-card__value--pos private">{formatCurrency(result.interest_saved)}</span>
                 </div>
                 <div className="mortgage-sim__headline-item">
                   <span className="mortgage-sim__key">{t.mortgageSimMonthsSaved}</span>
@@ -174,8 +174,8 @@ export default function MortgagePrepaymentSimulator({ mortgageId, onClose, onApp
                 <tbody>
                   <tr className="cat-row">
                     <td className="cat-td-name">{t.mortgageKpiPayment}</td>
-                    <td className="cat-td-num private">{formatEur(result.before.monthly_payment)}</td>
-                    <td className="cat-td-num private">{formatEur(result.after.monthly_payment)}</td>
+                    <td className="cat-td-num private">{formatCurrency(result.before.monthly_payment)}</td>
+                    <td className="cat-td-num private">{formatCurrency(result.after.monthly_payment)}</td>
                   </tr>
                   <tr className="cat-row">
                     <td className="cat-td-name">{t.mortgageKpiEndDate}</td>
@@ -184,8 +184,8 @@ export default function MortgagePrepaymentSimulator({ mortgageId, onClose, onApp
                   </tr>
                   <tr className="cat-row">
                     <td className="cat-td-name">{t.mortgageKpiTotalInterest}</td>
-                    <td className="cat-td-num private">{formatEur(result.before.total_interest)}</td>
-                    <td className="cat-td-num private">{formatEur(result.after.total_interest)}</td>
+                    <td className="cat-td-num private">{formatCurrency(result.before.total_interest)}</td>
+                    <td className="cat-td-num private">{formatCurrency(result.after.total_interest)}</td>
                   </tr>
                 </tbody>
               </table>
@@ -194,7 +194,7 @@ export default function MortgagePrepaymentSimulator({ mortgageId, onClose, onApp
                 <div className={`mortgage-sim__verdict${result.worth_it ? ' positive' : ' negative'}`}>
                   <strong>{result.worth_it ? t.mortgageSimWorthIt : t.mortgageSimNotWorthIt}</strong>
                   <span>
-                    {t.mortgageSimNetSaving}: <Private>{formatEur(result.net_saving)}</Private> · {t.mortgageSimAlternative}: <Private>{formatEur(result.alternative_gain)}</Private>
+                    {t.mortgageSimNetSaving}: <Private>{formatCurrency(result.net_saving)}</Private> · {t.mortgageSimAlternative}: <Private>{formatCurrency(result.alternative_gain)}</Private>
                   </span>
                 </div>
               )}
@@ -207,7 +207,7 @@ export default function MortgagePrepaymentSimulator({ mortgageId, onClose, onApp
                     <YAxis tick={{ fontSize: 11 }} width={70} tickFormatter={v => `${Math.round(v / 1000)}k`} />
                     <Tooltip
                       contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8 }}
-                      formatter={value => formatEur(Number(value))}
+                      formatter={value => formatCurrency(Number(value))}
                     />
                     <Legend />
                     <Line type="monotone" dataKey="before" name={t.mortgageSimBefore} stroke="#94a3b8" dot={false} strokeWidth={2} />

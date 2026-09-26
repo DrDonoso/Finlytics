@@ -6,16 +6,25 @@ from finlytics.api.deps import get_db
 from finlytics.api.schemas import AccountCreate, AccountOut, AccountPatch, DeleteAccountResult, mask_account_number
 from finlytics.db import queries
 from finlytics.db.models import Account
+from finlytics.db.queries.types import AccountRow
 from finlytics.db.repository import create_opening_balance_tx
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
+
+
+class _AccountResponse(AccountRow):
+    account_number_masked: str | None
+
+
+def _with_masked_number(row: AccountRow) -> _AccountResponse:
+    return {**row, "account_number_masked": mask_account_number(row.get("account_number"))}
 
 
 @router.post("", response_model=AccountOut, status_code=201)
 async def create_account(
     body: AccountCreate,
     session: AsyncSession = Depends(get_db),
-) -> AccountOut:
+) -> _AccountResponse:
     """Create a new account, optionally with a synthetic opening-balance transaction.
 
     Returns 409 Conflict when the name or a non-null account_number already exists.
@@ -75,16 +84,13 @@ async def create_account(
     row = await queries.get_account_by_id(session, account.id)
     if row is None:
         raise HTTPException(status_code=500, detail="Account creation failed unexpectedly.")
-    return {**row, "account_number_masked": mask_account_number(row.get("account_number"))}
+    return _with_masked_number(row)
 
 
 @router.get("", response_model=list[AccountOut])
-async def list_accounts(session: AsyncSession = Depends(get_db)) -> list[AccountOut]:
+async def list_accounts(session: AsyncSession = Depends(get_db)) -> list[_AccountResponse]:
     rows = await queries.get_accounts(session)
-    return [
-        {**r, "account_number_masked": mask_account_number(r.get("account_number"))}
-        for r in rows
-    ]
+    return [_with_masked_number(r) for r in rows]
 
 
 @router.patch("/{account_id}", response_model=AccountOut)
@@ -92,7 +98,7 @@ async def patch_account(
     account_id: int,
     body: AccountPatch = Body(...),
     session: AsyncSession = Depends(get_db),
-) -> AccountOut:
+) -> _AccountResponse:
     """Update an account's name. Account number is immutable and cannot be changed here."""
     name = body.name.strip()
     if not name:
@@ -109,14 +115,14 @@ async def patch_account(
     updated = await queries.get_account_by_id(session, account_id)
     if updated is None:
         raise HTTPException(status_code=404, detail="Account not found.")
-    return {**updated, "account_number_masked": mask_account_number(updated.get("account_number"))}
+    return _with_masked_number(updated)
 
 
 @router.delete("/{account_id}", response_model=DeleteAccountResult)
 async def delete_account(
     account_id: int,
     session: AsyncSession = Depends(get_db),
-) -> DeleteAccountResult:
+) -> dict[str, int]:
     """Delete an account and all its transactions.
 
     * 200 — ``{deleted: N}`` where N = number of transactions removed.

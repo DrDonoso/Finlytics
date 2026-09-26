@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { Suspense, useState, useEffect, useMemo } from 'react'
 import { Outlet, NavLink, Link, useLocation, useNavigate } from 'react-router'
 import { useT } from '../i18n'
 import { useAuth } from '../contexts/AuthContext'
@@ -9,6 +9,8 @@ import AssistantPanel from './AssistantPanel'
 import NotificationBell from './NotificationBell'
 import LanguageSelect from './LanguageSelect'
 import PrivacyToggle from './PrivacyToggle'
+import PageLoading from './PageLoading'
+import RouteErrorBoundary from './RouteErrorBoundary'
 import { BrandMark } from './Brand'
 import { IS_DEMO } from '../demo/config'
 import {
@@ -363,7 +365,15 @@ export default function Layout() {
 
       {/* ── Main content ─────────────────────────────────────── */}
       <div className={`app-content${desktopCollapsed ? ' desktop-collapsed' : ''}`}>
-        <Outlet />
+        {/* Pages are code-split (App.tsx). This is the only Suspense boundary:
+            navigations run in a transition, so after the first page React keeps the
+            current one on screen until the next chunk arrives instead of flashing
+            the fallback. */}
+        <RouteErrorBoundary resetKey={location.pathname}>
+          <Suspense fallback={<PageLoading />}>
+            <Outlet />
+          </Suspense>
+        </RouteErrorBoundary>
       </div>
 
       {/* Mounted here rather than per-page so the assistant follows the user

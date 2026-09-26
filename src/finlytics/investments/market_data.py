@@ -29,6 +29,7 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from finlytics.clock import today as local_today
 from finlytics.db.models import PriceHistory
 
 log = logging.getLogger(__name__)
@@ -67,7 +68,7 @@ class LatestPriceRow:
 
 def _last_business_day(ref: date | None = None) -> date:
     """Return *ref* (default today) rolled back to the most recent Mon–Fri."""
-    d = ref or date.today()
+    d = ref or local_today()
     while d.weekday() >= 5:          # 5 = Sat, 6 = Sun
         d -= timedelta(days=1)
     return d
@@ -157,7 +158,7 @@ async def _fetch_yahoo_history(symbol: str, start: date | None = None) -> list[d
     params: dict = {"interval": "1d"}
     if start:
         params["period1"] = _to_unix(start)
-        params["period2"] = _to_unix(date.today() + timedelta(days=1))
+        params["period2"] = _to_unix(local_today() + timedelta(days=1))
     data = await _yahoo_get(symbol, params=params)
     if data is None:
         return []

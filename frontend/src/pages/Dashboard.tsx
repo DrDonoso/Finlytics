@@ -10,7 +10,7 @@ import { errorMessage } from '../api/errors'
 import InvestmentSnapshotCard from '../components/InvestmentSnapshotCard'
 import MortgageSnapshotCard from '../components/MortgageSnapshotCard'
 import { Private } from '../components/Money'
-import { useT } from '../i18n'
+import { formatCurrency, langLocale, useT } from '../i18n'
 import type { Lang } from '../i18n'
 import { useNotifications } from '../contexts/NotificationsContext'
 import { savingsRate } from '../utils/comparison'
@@ -18,14 +18,9 @@ import {
   IconInfo, IconAlert, IconLoading, IconArrowUpRight, IconArrowDownRight,
 } from '../components/icons'
 
-function formatEur(value: number | null | undefined): string {
+function formatEur(value: number | null | undefined, lang: Lang): string {
   if (value === null || value === undefined) return '—'
-  return value.toLocaleString('es-ES', {
-    style: 'currency',
-    currency: 'EUR',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })
+  return formatCurrency(value, lang)
 }
 
 function signedPercent(value: number | null): string {
@@ -33,9 +28,9 @@ function signedPercent(value: number | null): string {
   return `${value >= 0 ? '+' : ''}${value.toFixed(1)} %`
 }
 
-function signedCurrency(value: number | null): string {
+function signedCurrency(value: number | null, lang: Lang): string {
   if (value === null) return '—'
-  return `${value >= 0 ? '+' : ''}${formatEur(value)}`
+  return `${value >= 0 ? '+' : ''}${formatEur(value, lang)}`
 }
 
 function accountKey(name: string): string {
@@ -51,7 +46,7 @@ function monthRange(ym: string): { from: string; to: string } {
 
 function formatMonthLabel(ym: string, lang: Lang): string {
   const [year, month] = ym.split('-').map(Number)
-  const locale = lang === 'es' ? 'es-ES' : 'en-GB'
+  const locale = langLocale(lang)
   const monthLabel = new Intl.DateTimeFormat(locale, { month: 'long' }).format(
     new Date(year, month - 1, 1),
   )
@@ -252,26 +247,26 @@ export default function Dashboard() {
         <div className="inv-kpi-card dashboard-kpi-hero">
           <div className="inv-kpi-card__label">{t.dashboardKpiTotalNet}</div>
           <div className="inv-kpi-card__value">
-            {netWorthPending ? '—' : <Private>{formatEur(totalNetWorth)}</Private>}
+            {netWorthPending ? '—' : <Private>{formatEur(totalNetWorth, lang)}</Private>}
           </div>
           {!netWorthPending && (
             <div className="dashboard-kpi-breakdown">
               <span>
                 <span className="dashboard-kpi-breakdown__label">{t.dashboardNetWorthAccounts}</span>
-                <Private>{formatEur(accountNetTotal)}</Private>
+                <Private>{formatEur(accountNetTotal, lang)}</Private>
               </span>
               <span>
                 <span className="dashboard-kpi-breakdown__label">{t.dashboardNetWorthInvestments}</span>
                 {investmentsFailed
                   ? <span className="dashboard-kpi-breakdown__missing">{t.dashboardNetWorthUnavailable}</span>
-                  : <Private>{formatEur(investmentsValue)}</Private>}
+                  : <Private>{formatEur(investmentsValue, lang)}</Private>}
               </span>
               {(hasMortgage || mortgageFailed) && (
                 <span>
                   <span className="dashboard-kpi-breakdown__label">{t.dashboardNetWorthMortgage}</span>
                   {mortgageFailed
                     ? <span className="dashboard-kpi-breakdown__missing">{t.dashboardNetWorthUnavailable}</span>
-                    : <Private>{formatEur(mortgageContribution)}</Private>}
+                    : <Private>{formatEur(mortgageContribution, lang)}</Private>}
                 </span>
               )}
             </div>
@@ -309,7 +304,7 @@ export default function Dashboard() {
               ? '—'
               : averageMonthlyNet === null
                 ? '—'
-                : <><Private>{signedCurrency(averageMonthlyNet)}</Private> {t.dashboardPerMonthSuffix}</>}
+                : <><Private>{signedCurrency(averageMonthlyNet, lang)}</Private> {t.dashboardPerMonthSuffix}</>}
           </div>
           {monthsCount !== null && monthsCount > 0 && (
             <div className="dashboard-kpi-delta is-flat">
@@ -377,9 +372,9 @@ export default function Dashboard() {
                           )}
                         </div>
                       </td>
-                      <td className={`cat-td-num dashboard-account-net private ${netCls}`}>{formatEur(row.net)}</td>
+                      <td className={`cat-td-num dashboard-account-net private ${netCls}`}>{formatEur(row.net, lang)}</td>
                       <td className="cat-td-num cat-td-weight">
-                        {monthsQuery.isPending || monthsQuery.error ? '—' : <Private>{formatEur(averageMonthlyExpense)}</Private>}
+                        {monthsQuery.isPending || monthsQuery.error ? '—' : <Private>{formatEur(averageMonthlyExpense, lang)}</Private>}
                       </td>
                     </tr>
                   )

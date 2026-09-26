@@ -84,8 +84,7 @@ async def _count_matching(session: AsyncSession, rule_like: Any) -> int:
         )
     ).scalars().all()
     return sum(
-        1 for tx in txs
-        if _matches(_StoredTxView(tx), rule_like, compiled_regex, compiled_detail)
+        _matches(_StoredTxView(tx), rule_like, compiled_regex, compiled_detail) for tx in txs
     )
 
 
@@ -244,7 +243,7 @@ def _validate_rule_fields(
 @router.get("", response_model=list[RuleOut])
 async def list_rules(
     session: AsyncSession = Depends(get_db),
-) -> list[RuleOut]:
+) -> list[dict[str, Any]]:
     """Return all rules ordered by (priority, id)."""
     rules = await repository.list_rules(session)
     return [_rule_dict(r) for r in rules]
@@ -254,7 +253,7 @@ async def list_rules(
 async def create_rule(
     body: RuleIn,
     session: AsyncSession = Depends(get_db),
-) -> RuleOut:
+) -> dict[str, Any]:
     """Create a new rule.
 
     * 201 — rule created.
@@ -340,7 +339,7 @@ async def update_rule(
     rule_id: int,
     body: RuleUpdate,
     session: AsyncSession = Depends(get_db),
-) -> RuleOut:
+) -> dict[str, Any]:
     """Partially update a rule.
 
     * 200 — updated.

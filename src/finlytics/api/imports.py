@@ -29,7 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from finlytics.api.deps import get_db, get_llm_client
-from finlytics.api.schemas import CheckDuplicatesIn, CheckDuplicatesOut, ConfirmIn, ImportResult, PreviewOut, SuggestedTag, mask_account_number
+from finlytics.api.schemas import CheckDuplicatesIn, CheckDuplicatesOut, ConfirmIn, ImportQuality, ImportResult, PreviewOut, SuggestedTag, mask_account_number
 from finlytics.api.uploads import (
     ensure_within_limit,
     max_base64_chars,
@@ -303,10 +303,12 @@ async def preview_import(
         transactions=all_txs,
         statement_year=year,
         year_detected=(year is not None),
-        quality=compute_import_quality(
-            all_txs,
-            statement_year=year,
-            year_detected=(year is not None),
+        quality=ImportQuality.model_validate(
+            compute_import_quality(
+                all_txs,
+                statement_year=year,
+                year_detected=(year is not None),
+            )
         ),
         suggested_tags=suggested_tags,
         detected_account_masked=mask_account_number(detected_iban),

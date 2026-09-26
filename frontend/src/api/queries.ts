@@ -9,7 +9,7 @@
  * Centralising here also provides caching and deduplication: two components
  * requesting the same data used to fire two requests.
  */
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { UseQueryResult } from '@tanstack/react-query'
 
 import {
@@ -31,6 +31,9 @@ import {
   getCombinedOverview,
   getConnections,
   getEuriborSeries,
+  getFidelityEvolution,
+  getFidelityKpis,
+  getFidelityLots,
   getInvestmentPlugins,
   getInvestmentPortfolio,
   getMortgage,
@@ -41,6 +44,8 @@ import {
   getMortgageReconciliation,
   getMortgageSchedule,
   getMortgages,
+  getNotificationChannels,
+  getNotifications,
   getOverview,
   getOverviewMonths,
   getRules,
@@ -48,6 +53,9 @@ import {
   getStatementOriginals,
   getStatementReminder,
   getTags,
+  getTransactions,
+  getUnreadCount,
+  previewRule,
 } from './client'
 import type {
   Account,
@@ -65,6 +73,9 @@ import type {
   CombinedOverview,
   DaySummary,
   EuriborSeries,
+  FidelityEvolution,
+  FidelityKpis,
+  FidelityLots,
   InvestmentConnection,
   InvestmentPlugin,
   InvestmentPortfolio,
@@ -79,14 +90,19 @@ import type {
   MortgageReconciliation,
   MortgageSchedule,
   MortgageSummary,
+  NotificationChannelOut,
+  NotificationOut,
   Overview,
   Rule,
+  RuleConditions,
   StatementMonth,
   StatementOriginal,
   StatementReminder,
   SummaryMonths,
   SummaryParams,
   Tag,
+  TransactionPage,
+  TransactionsParams,
 } from './types'
 
 /**
@@ -125,6 +141,16 @@ export const queryKeys = {
     ['statements', 'originals', year, month, accountId ?? null] as const,
   investmentPlugins: ['investment-plugins'] as const,
   investmentPortfolio: ['investments', 'portfolio'] as const,
+  fidelityKpis: ['investments', 'fidelity', 'kpis'] as const,
+  fidelityEvolution: ['investments', 'fidelity', 'evolution'] as const,
+  fidelityLots: ['investments', 'fidelity', 'lots'] as const,
+  transactionsAll: ['transactions'] as const,
+  transactions: (params: TransactionsParams) => ['transactions', params] as const,
+  // Kept outside ['rules'] so saving a rule does not refetch an open preview.
+  rulePreview: (conditions: RuleConditions | null) => ['rule-preview', conditions] as const,
+  notifications: ['notifications', 'list'] as const,
+  notificationsUnreadCount: ['notifications', 'unread-count'] as const,
+  notificationChannels: ['notifications', 'channels'] as const,
   appVersion: ['app-version'] as const,
   assistantStatus: ['assistant', 'status'] as const,
   assistantSuggestions: ['assistant', 'suggestions'] as const,
@@ -253,6 +279,28 @@ export function useOverviewMonths(): UseQueryResult<SummaryMonths> {
   })
 }
 
+// ── Transactions ─────────────────────────────────────────────────────────────
+
+export function useTransactions(params: TransactionsParams): UseQueryResult<TransactionPage> {
+  return useQuery({
+    queryKey: queryKeys.transactions(params),
+    queryFn: () => getTransactions(params),
+    // Paging keeps the current rows on screen instead of flashing a skeleton.
+    placeholderData: keepPreviousData,
+  })
+}
+
+export function useRulePreview(conditions: RuleConditions | null): UseQueryResult<{ count: number }> {
+  return useQuery({
+    queryKey: queryKeys.rulePreview(conditions),
+    queryFn: () => previewRule({ name: '', ...(conditions as RuleConditions) }),
+    enabled: conditions !== null,
+    // A failed preview is almost always an invalid pattern, which a retry cannot
+    // fix, and each attempt scans the whole ledger.
+    retry: false,
+  })
+}
+
 // ── Investments and statements ───────────────────────────────────────────────
 
 export function useCombinedOverview(): UseQueryResult<CombinedOverview> {
@@ -302,6 +350,72 @@ export function useInvestmentPortfolio(): UseQueryResult<InvestmentPortfolio> {
   return useQuery({
     queryKey: queryKeys.investmentPortfolio,
     queryFn: getInvestmentPortfolio,
+  })
+}
+
+export function useFidelityKpis(): UseQueryResult<FidelityKpis> {
+  return useQuery({
+    queryKey: queryKeys.fidelityKpis,
+    queryFn: getFidelityKpis,
+  })
+}
+
+export function useFidelityEvolution(): UseQueryResult<FidelityEvolution> {
+  return useQuery({
+    queryKey: queryKeys.fidelityEvolution,
+    queryFn: getFidelityEvolution,
+  })
+}
+
+export function useFidelityLots(): UseQueryResult<FidelityLots> {
+  return useQuery({
+    queryKey: queryKeys.fidelityLots,
+    queryFn: getFidelityLots,
+  })
+}
+
+// ── Notifications ────────────────────────────────────────────────────────────
+//
+// Listing runs every detector server-side and persists the result, so the list
+// is neither polled nor retried. The cheap unread counter is polled instead and
+// only triggers a list refetch when the two disagree.
+
+const NOTIFICATIONS_POLL_MS = 60_000
+
+export function unreadCountOf(notifications: NotificationOut[]): number {
+  return notifications.filter(n => !n.read_at).length
+}
+
+export function useNotificationList(): UseQueryResult<NotificationOut[]> {
+  return useQuery({
+    queryKey: queryKeys.notifications,
+    queryFn: getNotifications,
+    retry: false,
+  })
+}
+
+export function useNotificationChangePoll(options?: QueryOptions): void {
+  const queryClient = useQueryClient()
+  useQuery({
+    queryKey: queryKeys.notificationsUnreadCount,
+    queryFn: async () => {
+      const { count } = await getUnreadCount()
+      const listed = queryClient.getQueryData<NotificationOut[]>(queryKeys.notifications)
+      if (listed === undefined || unreadCountOf(listed) !== count) {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.notifications, exact: true })
+      }
+      return count
+    },
+    refetchInterval: NOTIFICATIONS_POLL_MS,
+    enabled: options?.enabled,
+  })
+}
+
+export function useNotificationChannels(): UseQueryResult<NotificationChannelOut[]> {
+  return useQuery({
+    queryKey: queryKeys.notificationChannels,
+    queryFn: getNotificationChannels,
+    staleTime: CATALOG_STALE_MS,
   })
 }
 

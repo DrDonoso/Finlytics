@@ -14,6 +14,8 @@ const en: Dict = {
   kpiTopCategory: 'Top category',
   kpiErrorLoading: 'Error loading: ',
   loading: 'Loading…',
+  pageLoadFailed: 'This page could not be loaded. If Finlytics was just updated, reloading picks up the new version.',
+  pageReload: 'Reload',
   noDataPeriod: 'No data for the selected period',
   chartByCategory: 'Expenses by category',
   tooltipAmount: 'Amount',

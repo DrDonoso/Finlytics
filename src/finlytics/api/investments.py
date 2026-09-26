@@ -11,6 +11,7 @@ Security (Romanoff, mandatory):
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy import select
@@ -277,7 +278,7 @@ async def combined_overview(
     has_fidelity = "fidelity-espp" in plugin_ids
 
     # 2. Fetch Fidelity lots within the same autobegin (no extra round-trip)
-    lots: list = []
+    lots: Sequence[EsppLot] = []
     if has_fidelity:
         fidelity_conn = next(
             (c for c in active_conns if c.plugin_id == "fidelity-espp"), None

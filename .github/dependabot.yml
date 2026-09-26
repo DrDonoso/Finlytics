@@ -1,10 +1,10 @@
 # Dependabot configuration — https://docs.github.com/code-security/dependabot
 #
 # Covers every manifest in the repo:
-#   pip             -> pyproject.toml
+#   uv              -> pyproject.toml + uv.lock
 #   npm             -> frontend/package.json + package-lock.json
 #   github-actions  -> .github/workflows/*.yml
-#   docker          -> Dockerfile
+#   docker          -> Dockerfile (python, node, nginx and the uv binary stage)
 #   docker-compose  -> docker-compose.yml, docker-compose.local.yml, docker-compose.demo.yml
 #
 # GROUPING RULE
@@ -28,7 +28,10 @@
 version: 2
 updates:
   # ── Python backend ─────────────────────────────────────────────────────────
-  - package-ecosystem: "pip"
+  # The uv ecosystem updates uv.lock together with pyproject.toml. The pip
+  # ecosystem does not read uv.lock, so the locked versions would stop moving
+  # (security fixes included), or its PRs would fail `uv sync --locked`.
+  - package-ecosystem: "uv"
     directory: "/"
     schedule:
       interval: "weekly"

@@ -2,8 +2,7 @@ import { useState, useRef, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import type { GlobalFilters, ImportResult } from '../api/types'
-import { formatEur } from '../api/client'
-import { useAccounts, useByAccount, useByCategory, useCategories, useOverview, useTags } from '../api/queries'
+import { queryKeys, useAccounts, useByAccount, useByCategory, useCategories, useOverview, useTags } from '../api/queries'
 import { errorMessage } from '../api/errors'
 import GlobalFilterBar from '../components/GlobalFilterBar'
 import KpiCards from '../components/KpiCards'
@@ -24,7 +23,7 @@ function makeDefaultFilters(): GlobalFilters {
 }
 
 export default function FinancesOverviewPage() {
-  const { t, lang } = useT()
+  const { t, lang, formatCurrency } = useT()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [searchParams] = useSearchParams()
@@ -143,7 +142,7 @@ export default function FinancesOverviewPage() {
             <div className="finances-historic-net-kpi">
               <div className="finances-historic-net-kpi__label">{t.dashboardAccountsNet}</div>
               <div className={`finances-historic-net-kpi__value${historicNet !== null ? historicNet >= 0 ? ' inv-kpi-card__value--pos' : ' inv-kpi-card__value--neg' : ''}`}>
-                {historicNet === null ? '—' : <Private>{formatEur(historicNet)}</Private>}
+                {historicNet === null ? '—' : <Private>{formatCurrency(historicNet)}</Private>}
               </div>
             </div>
             <button
@@ -267,7 +266,10 @@ export default function FinancesOverviewPage() {
             allTags={allTags}
             merchant={filters.merchant}
             hideInternalFilters
-            onEditSuccess={() => void queryClient.invalidateQueries()}
+            onEditSuccess={() => void queryClient.invalidateQueries({
+              // The table has already patched the edited row; refetching it could drop that row from under the cursor.
+              predicate: query => query.queryKey[0] !== queryKeys.transactionsAll[0],
+            })}
           />
         </div>
       </main>

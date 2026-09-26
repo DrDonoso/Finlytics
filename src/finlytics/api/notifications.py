@@ -23,9 +23,10 @@ from __future__ import annotations
 import json
 import logging
 from datetime import datetime, timezone
+from typing import Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import case, select, update
+from sqlalchemy import CursorResult, case, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from finlytics.api.deps import get_current_user, get_db
@@ -142,7 +143,7 @@ async def mark_all_read(
             )
             .values(read_at=now, updated_at=now)
         )
-    return ReadAllOut(updated=result.rowcount)
+    return ReadAllOut(updated=cast("CursorResult[Any]", result).rowcount)
 
 
 @router.post("/{notification_id}/read", status_code=204)

@@ -11,8 +11,10 @@
 #   * `alembic upgrade head` and `seed.py`, which the entrypoint runs on boot
 #   * the SPA actually being built and copied into the image
 #
-# `tests` is the fast unit-level signal; `frontend` covers lint + type-check +
-# build for the SPA; `image` is the one that decides whether the thing runs.
+# `tests` is the fast unit-level signal, plus `tests/pg`: the upserts, queries,
+# backup restore and migration chain that only PostgreSQL can execute, run
+# against a service container. `frontend` covers lint + type-check + build for
+# the SPA; `image` is the one that decides whether the thing runs.
 
 name: CI
 
@@ -36,30 +38,82 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
+    # Dependabot does not bump service images: keep in lockstep with the db
+    # image in docker-compose.yml by hand.
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: finlytics
+          POSTGRES_PASSWORD: finlytics
+          POSTGRES_DB: finlytics
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U finlytics"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 20
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
 
       # Keep in lockstep with the python base image in the Dockerfile.
       - name: Set up Python
+        id: python
         uses: actions/setup-python@v7
         with:
           python-version: "3.14"
-          cache: pip
 
-      - name: Install package with test extras
-        run: pip install -e ".[test]"
+      # The image's uv stage is the single pin, so a Dependabot bump of that tag
+      # moves CI along with it.
+      - name: Read the uv version from the Dockerfile
+        id: uv-version
+        run: |
+          version=$(sed -nE 's#^FROM ghcr\.io/astral-sh/uv:([0-9][0-9.]*) AS uv.*#\1#p' Dockerfile)
+          if [ -z "$version" ]; then
+            echo "::error file=Dockerfile::no 'FROM ghcr.io/astral-sh/uv:<version> AS uv' stage found"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: ${{ steps.uv-version.outputs.version }}
+          python-version: ${{ steps.python.outputs.python-path }}
+
+      # Same failure as the npm lockfile check below: a lock resolved through a
+      # private mirror records the mirror's URLs, and Dependabot cannot
+      # authenticate against it. Re-lock against PyPI instead of committing it.
+      - name: Lockfile resolves from the public PyPI
+        run: |
+          stray=$(grep -oE '(registry|url) = "[^"]+"' uv.lock \
+            | grep -vE '^registry = "https://pypi\.org/simple"$|^url = "https://files\.pythonhosted\.org/' || true)
+          if [ -n "$stray" ]; then
+            echo "$stray" | sort -u | head -n 20
+            echo "::error file=uv.lock::$(echo "$stray" | wc -l) sources resolve outside pypi.org"
+            exit 1
+          fi
+
+      # --locked fails on a lock that is out of date with pyproject.toml, so the
+      # suite runs against exactly the versions the image installs.
+      - name: Install locked dependencies with test extras
+        run: uv sync --locked --extra test
+
+      # tests/pg skips without TEST_DATABASE_URL locally, but fails under CI, so
+      # losing the service cannot quietly turn that coverage off.
       - name: Run test suite
         env:
           AUTH_SECRET: ci-only-not-a-real-secret-value-000000
-        run: pytest -q
+          TEST_DATABASE_URL: postgresql+asyncpg://finlytics:finlytics@localhost:5432/finlytics
+        run: uv run --no-sync pytest -q
 
-      # Only the query layer and the modules with their own types: that is the
-      # boundary between the database and the API, where a change in data shape
-      # used to propagate silently until serialisation failed.
+      # The whole package. The API layer returns the query layer's TypedDicts,
+      # so a change in data shape fails here instead of at serialisation time.
       - name: Type-check (mypy)
-        run: mypy
+        run: uv run --no-sync mypy
 
   # The frontend had no linter while the backend had ruff, and that asymmetry let
   # real bugs through: CSS selectors that never matched, untranslated strings and

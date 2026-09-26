@@ -1,6 +1,8 @@
-import { useState, useEffect, useMemo } from 'react'
-import type { Rule, RuleInput, DescriptionMode, AmountSign, Category, Tag } from '../api/types'
-import { createRule, updateRule, previewRule, applyRule } from '../api/client'
+import { useState, useMemo } from 'react'
+import type { Rule, RuleConditions, RuleInput, DescriptionMode, AmountSign, Category, Tag } from '../api/types'
+import { createRule, updateRule, applyRule } from '../api/client'
+import { useRulePreview } from '../api/queries'
+import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import { useT, categoryLabel } from '../i18n'
 import CategorySelect from './CategorySelect'
 import TagTypeahead from './TagTypeahead'
@@ -42,6 +44,22 @@ const DEFAULT_FORM: FormState = {
   set_merchant: '',
   add_tags: [],
   skip_ai: false,
+}
+
+const PREVIEW_DEBOUNCE_MS = 400
+
+function conditionsOf(form: FormState): RuleConditions {
+  return {
+    description_mode:  form.description_mode,
+    description_value: form.description_value.trim(),
+    detail_mode:       form.detail_value.trim() ? form.detail_mode : null,
+    detail_value:      form.detail_value.trim() || null,
+    amount_sign:       form.amount_sign,
+    amount_min:        form.amount_min.trim() !== '' ? Number(form.amount_min) : null,
+    amount_max:        form.amount_max.trim() !== '' ? Number(form.amount_max) : null,
+    account_ref:       form.account_ref.trim() || null,
+    currency:          form.currency.trim() || null,
+  }
 }
 
 export interface RuleFormModalProps {
@@ -127,10 +145,6 @@ export default function RuleFormModal({
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
 
-  // Preview / apply state
-  const [previewCount, setPreviewCount] = useState<number | null>(null)
-  const [previewLoading, setPreviewLoading] = useState(false)
-  const [previewErr, setPreviewErr] = useState(false)
   const [applying, setApplying] = useState(false)
   const [applyOnSave, setApplyOnSave] = useState(false)
   const [applyToast, setApplyToast] = useState<string | null>(null)
@@ -165,50 +179,34 @@ export default function RuleFormModal({
 
   function buildPayload(): RuleInput {
     return {
-      name:              form.name.trim(),
-      priority:          form.priority,
-      enabled:           form.enabled,
-      description_mode:  form.description_mode,
-      description_value: form.description_value.trim(),
-      detail_mode:       form.detail_value.trim() ? form.detail_mode : null,
-      detail_value:      form.detail_value.trim() || null,
-      amount_sign:       form.amount_sign,
-      amount_min:        form.amount_min.trim() !== '' ? Number(form.amount_min) : null,
-      amount_max:        form.amount_max.trim() !== '' ? Number(form.amount_max) : null,
-      account_ref:       form.account_ref.trim()    || null,
-      currency:          form.currency.trim()        || null,
-      set_category:      form.set_category.trim()   || null,
-      set_merchant:      form.set_merchant.trim()   || null,
-      add_tags:          form.add_tags,
-      skip_ai:           form.skip_ai,
+      name:         form.name.trim(),
+      priority:     form.priority,
+      enabled:      form.enabled,
+      ...conditionsOf(form),
+      set_category: form.set_category.trim() || null,
+      set_merchant: form.set_merchant.trim() || null,
+      add_tags:     form.add_tags,
+      skip_ai:      form.skip_ai,
     }
   }
 
   const conditionsEmpty = !form.description_value.trim()
 
-  // Debounced preview: re-query when condition fields change
-  useEffect(() => {
-    if (conditionsEmpty) {
-      setPreviewCount(null)
-      setPreviewLoading(false)
-      setPreviewErr(false)
-      return
-    }
-    setPreviewLoading(true)
-    setPreviewErr(false)
-    const payload = buildPayload()
-    const timer = setTimeout(async () => {
-      try {
-        const res = await previewRule(payload)
-        setPreviewCount(res.count)
-      } catch {
-        setPreviewErr(true)
-      } finally {
-        setPreviewLoading(false)
-      }
-    }, 400)
-    return () => clearTimeout(timer)
-  }, [form.description_value, form.description_mode, form.detail_value, form.detail_mode, form.amount_sign, form.amount_min, form.amount_max, form.account_ref, form.currency]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Serialised so that editing the name or the actions, which the preview does
+  // not read, neither restarts the debounce nor refetches.
+  const conditionsKey = conditionsEmpty ? null : JSON.stringify(conditionsOf(form))
+  const debouncedKey = useDebouncedValue(conditionsKey, PREVIEW_DEBOUNCE_MS)
+  const debouncedConditions = useMemo(
+    () => (debouncedKey === null ? null : (JSON.parse(debouncedKey) as RuleConditions)),
+    [debouncedKey],
+  )
+  const preview = useRulePreview(debouncedConditions)
+  // Only ever report the count of the conditions on screen, never the one a
+  // slower request brings back for an earlier keystroke.
+  const previewCurrent = conditionsKey !== null && debouncedKey === conditionsKey
+  const previewLoading = conditionsKey !== null && (!previewCurrent || preview.isFetching)
+  const previewErr = previewCurrent && preview.isError
+  const previewCount = previewCurrent ? (preview.data?.count ?? null) : null
 
   async function handleSave() {
     const validErr = validate()

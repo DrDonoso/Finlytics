@@ -3,7 +3,7 @@ import type { CSSProperties } from 'react'
 import type { GlobalFilters } from '../api/types'
 import { useByDay } from '../api/queries'
 import { errorMessage } from '../api/errors'
-import { useT } from '../i18n'
+import { langLocale, useT } from '../i18n'
 import type { Lang } from '../i18n'
 import { usePrivacy } from '../contexts/PrivacyContext'
 import { IconAlert, IconLoading, IconCalendar } from './icons'
@@ -79,7 +79,7 @@ function colorBucket(expense: number, max: number): 0 | 1 | 2 | 3 | 4 {
 
 function fmtMonthLabel(dateStr: string, lang: Lang): string {
   const d = parseDate(dateStr)
-  return new Intl.DateTimeFormat(lang === 'es' ? 'es-ES' : 'en-GB', { month: 'short' }).format(d)
+  return new Intl.DateTimeFormat(langLocale(lang), { month: 'short' }).format(d)
 }
 
 function fmtDayTooltip(
@@ -91,7 +91,7 @@ function fmtDayTooltip(
 ): string {
   const d = parseDate(dateStr)
   const label = new Intl.DateTimeFormat(
-    lang === 'es' ? 'es-ES' : 'en-GB',
+    langLocale(lang),
     { day: 'numeric', month: 'short' },
   ).format(d)
   // Native tooltips cannot be blurred by CSS, so the figure is dropped instead.
@@ -99,7 +99,7 @@ function fmtDayTooltip(
 }
 
 function computeWeekdayLabels(lang: Lang): string[] {
-  const fmt = new Intl.DateTimeFormat(lang === 'es' ? 'es-ES' : 'en-GB', { weekday: 'narrow' })
+  const fmt = new Intl.DateTimeFormat(langLocale(lang), { weekday: 'narrow' })
   // 2024-01-01 = Monday → indices 0–6 span Mon–Sun
   return Array.from({ length: 7 }, (_, i) => fmt.format(new Date(2024, 0, 1 + i)))
 }
@@ -209,7 +209,7 @@ export default function SpendingHeatmap({ globalFilters, onSelectPeriod, onReset
 
   // ── Month column labels (Intl, i18n) ──────────────────────────────────────
   const MONTH_LABELS = useMemo(() => {
-    const locale = lang === 'es' ? 'es-ES' : 'en-GB'
+    const locale = langLocale(lang)
     const fmt = new Intl.DateTimeFormat(locale, { month: 'short' })
     return Array.from({ length: 12 }, (_, m) => fmt.format(new Date(2024, m, 1)))
   }, [lang])

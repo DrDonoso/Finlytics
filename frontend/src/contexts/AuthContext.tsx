@@ -1,5 +1,6 @@
-import { createContext, useContext, useEffect, useState, useCallback, useMemo, createElement } from 'react'
+import { createContext, useContext, useEffect, useRef, useState, useCallback, useMemo, createElement } from 'react'
 import type { ReactNode } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { getAuthStatus, getMe, logout as apiLogout, registerOn401Handler } from '../api/client'
 
 interface AuthState {
@@ -65,6 +66,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setState(s => ({ ...s, authenticated: false, username: null }))
     })
   }, [])
+
+  // Cached responses belong to the session that fetched them, whether it ended by logout or by a 401.
+  // This runs after the authenticated tree has unmounted, so no observer can re-fetch into the cleared cache.
+  const queryClient = useQueryClient()
+  const wasAuthenticated = useRef(false)
+  useEffect(() => {
+    if (wasAuthenticated.current && !state.authenticated) queryClient.clear()
+    wasAuthenticated.current = state.authenticated
+  }, [state.authenticated, queryClient])
 
   const onSetupSuccess = useCallback((username: string) => {
     setState({ loading: false, initialized: true, authenticated: true, username })

@@ -96,6 +96,25 @@ class RuleProtocol(Protocol):
     skip_ai: bool                   # Phase-2 concern; ignored by apply_rules
 
 
+class MatchableTransaction(Protocol):
+    """What ``_matches`` reads from a transaction.
+
+    Satisfied by an ``ExtractedTransaction`` at import time and by the adapter
+    ``api/rules.py`` wraps stored rows in, so both paths share one matcher.
+    """
+
+    @property
+    def description(self) -> str: ...
+    @property
+    def detail(self) -> str | None: ...
+    @property
+    def amount(self) -> Decimal: ...
+    @property
+    def account_ref(self) -> str: ...
+    @property
+    def currency(self) -> str: ...
+
+
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
@@ -237,7 +256,7 @@ def _description_matches(
 
 
 def _matches(
-    tx: ExtractedTransaction,
+    tx: MatchableTransaction,
     rule: RuleProtocol,
     compiled_regex: _BoundedPattern | None,
     compiled_detail_regex: _BoundedPattern | None = None,

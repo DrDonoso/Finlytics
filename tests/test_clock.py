@@ -13,6 +13,7 @@ the kind of thing worth pinning with tests.
 from __future__ import annotations
 
 from datetime import date, datetime, timezone
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -93,3 +94,20 @@ def test_today_matches_a_plain_date_today_when_configured_as_utc(monkeypatch):
     monkeypatch.setattr(clock.settings, "timezone", "UTC")
 
     assert clock.today() == datetime.now(timezone.utc).date()
+
+
+def test_no_module_reads_the_process_date():
+    """A stray ``date.today()`` silently reintroduces the UTC skew.
+
+    The mortgage module was written after the fix and did exactly that, so
+    the rule is enforced rather than remembered.
+    """
+    src = Path(clock.__file__).parent
+    offenders = [
+        str(path.relative_to(src))
+        for path in src.rglob("*.py")
+        if path.name != "clock.py"
+        and any(call in path.read_text(encoding="utf-8") for call in ("date.today()", "datetime.now()"))
+    ]
+
+    assert offenders == []

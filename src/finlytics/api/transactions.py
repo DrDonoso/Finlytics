@@ -10,6 +10,7 @@ from finlytics.api.deps import get_db
 from finlytics.api.schemas import TransactionOut, TransactionPage, TransactionUpdate
 from finlytics.db import queries
 from finlytics.db.queries import DedupCollisionError
+from finlytics.db.queries.types import UpdatedTransactionRow
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
 
@@ -55,7 +56,9 @@ async def list_transactions(
         sort_by=sort_by,
         sort_dir=sort_dir,
     )
-    return TransactionPage(items=items, total=total, limit=limit, offset=offset)
+    return TransactionPage.model_validate(
+        {"items": items, "total": total, "limit": limit, "offset": offset}
+    )
 
 
 @router.patch("/{transaction_id}", response_model=TransactionOut)
@@ -63,7 +66,7 @@ async def patch_transaction(
     transaction_id: int,
     body: TransactionUpdate,
     session: AsyncSession = Depends(get_db),
-) -> TransactionOut:
+) -> UpdatedTransactionRow:
     """Partially update a transaction's description, category, and/or amount.
 
     * 404 — transaction not found.

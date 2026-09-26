@@ -305,6 +305,29 @@ async def test_preview_year_not_detected(client_with_llm):
     assert body["statement_year"] is None
 
 
+async def test_preview_year_not_detected_with_rules_keeps_short_dates_for_llm(client_with_llm):
+    """A DD/MM line that a rule matches used to 500 the preview when no year was found."""
+    client, _ = client_with_llm
+    line = "02/05   RECIBO HIPOTECA BBVA              -650,00         1.404,70"
+    mock_extract = AsyncMock(return_value=_make_extracted())
+
+    with (
+        patch("finlytics.api.imports.parse_statement", return_value=line),
+        patch("finlytics.api.imports.detect_statement_year", return_value=None),
+        patch("finlytics.api.imports.list_rules", new_callable=AsyncMock,
+              return_value=[_make_rule()]),
+        patch("finlytics.api.imports.extract_transactions", mock_extract),
+    ):
+        resp = await client.post(
+            "/api/imports/preview",
+            files={"file": ("bank.pdf", io.BytesIO(b"fake"), "application/pdf")},
+            data={"account_name": "BBVA"},
+        )
+
+    assert resp.status_code == 200
+    assert line in mock_extract.call_args[0][0]
+
+
 # ── POST /api/imports/confirm ─────────────────────────────────────────────────
 
 async def test_confirm_success(client):

@@ -14,6 +14,7 @@ from __future__ import annotations
 import calendar
 import hashlib
 import logging
+from collections.abc import Sequence
 from datetime import date, timedelta
 from decimal import Decimal
 
@@ -92,7 +93,7 @@ async def _get_fidelity_connection(
 # ── Pure series helper (extracted for testability) ────────────────────────────
 
 def compute_evolution_series(
-    lots: list,
+    lots: Sequence[EsppLot],
     price_map: dict[date, tuple[float, float]],
     min_date: date,
     max_date: date,
@@ -214,7 +215,7 @@ def _get_today() -> date:
 
 
 def compute_espp_reminder(
-    lots: list,
+    lots: Sequence[EsppLot],
     today: date | None = None,
     grace_days: int = _GRACE_DAYS,
 ) -> FidelityReminderOut:
@@ -537,7 +538,7 @@ async def fidelity_evolution(
     except Exception as exc:
         log.warning("topup_recent_prices failed (non-fatal): %s", exc)
 
-    prices = (await db.execute(_price_query())).scalars().all()
+    prices: Sequence[PriceHistory] = (await db.execute(_price_query())).scalars().all()
 
     # Backfill trigger:
     # (a) Empty: first import, populate from network.

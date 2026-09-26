@@ -27,6 +27,8 @@ export interface Dict {
   kpiTopCategory: string
   kpiErrorLoading: string
   loading: string
+  pageLoadFailed: string
+  pageReload: string
   noDataPeriod: string
   chartByCategory: string
   tooltipAmount: string
@@ -1093,6 +1095,7 @@ export function formatCurrency(amount: number, lang: Lang): string {
   return new Intl.NumberFormat(LOCALES[lang], { style: 'currency', currency: 'EUR' }).format(amount)
 }
 
+/** The only place a UI language becomes an Intl locale tag — never inline 'es-ES'. */
 export function langLocale(lang: Lang): string {
   return LOCALES[lang]
 }
@@ -1211,6 +1214,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
 export interface UseTResult {
   t: Dict
   lang: Lang
+  locale: string
   setLang: (l: Lang) => void
   formatCurrency: (amount: number) => string
 }
@@ -1220,6 +1224,7 @@ export function useT(): UseTResult {
   return {
     t: lang === 'es' ? es : en,
     lang,
+    locale: LOCALES[lang],
     setLang,
     formatCurrency: (amount: number) => formatCurrency(amount, lang),
   }
