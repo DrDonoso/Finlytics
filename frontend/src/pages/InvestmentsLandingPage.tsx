@@ -5,6 +5,7 @@ import { errorMessage } from '../api/errors'
 import { getPluginLogo, pluginInitial } from '../investments/registry'
 import { useT } from '../i18n'
 import { IconLoading, IconChartBar, IconChartPie, IconChevronRight, IconAlert } from '../components/icons'
+import { Private } from '../components/Money'
 
 const PROVIDER_COLORS: Record<string, string> = {
   indexa:   '#2563eb',
@@ -128,16 +129,16 @@ export default function InvestmentsLandingPage() {
       <div className="inv-kpi-strip">
         <div className="inv-kpi-card">
           <div className="inv-kpi-card__label">{t.invCombinedTotalValue}</div>
-          <div className="inv-kpi-card__value">{formatEurLocale(overview.total_value_eur)}</div>
+          <div className="inv-kpi-card__value"><Private>{formatEurLocale(overview.total_value_eur)}</Private></div>
         </div>
         <div className="inv-kpi-card">
           <div className="inv-kpi-card__label">{t.invSummaryAportaciones}</div>
-          <div className="inv-kpi-card__value">{overview.total_invested_eur == null ? '—' : formatEurLocale(overview.total_invested_eur)}</div>
+          <div className="inv-kpi-card__value">{overview.total_invested_eur == null ? '—' : <Private>{formatEurLocale(overview.total_invested_eur)}</Private>}</div>
         </div>
         <div className="inv-kpi-card">
           <div className="inv-kpi-card__label">{t.invCombinedTotalGain}</div>
           <div className={`inv-kpi-card__value ${gainLossCls}`}>
-            {overview.total_gain_loss_eur == null ? '—' : signedEur(overview.total_gain_loss_eur)}
+            {overview.total_gain_loss_eur == null ? '—' : <Private>{signedEur(overview.total_gain_loss_eur)}</Private>}
           </div>
           <div className={`inv-kpi-card__sub ${gainLossCls}`}>
             {overview.total_gain_loss_pct == null
@@ -183,7 +184,7 @@ export default function InvestmentsLandingPage() {
                 </ResponsiveContainer>
                 <div className="cat-donut-center">
                   <span className="cat-donut-label">{t.invCombinedByProvider}</span>
-                  <span className="cat-donut-total">{formatEurLocale(overview.total_value_eur)}</span>
+                  <span className="cat-donut-total"><Private>{formatEurLocale(overview.total_value_eur)}</Private></span>
                 </div>
               </div>
               <div className="cat-table-wrap">
@@ -204,7 +205,7 @@ export default function InvestmentsLandingPage() {
                             <span className="cat-td-label">{item.label}</span>
                           </div>
                         </td>
-                        <td className="cat-td-num">{formatEurLocale(item.value)}</td>
+                        <td className="cat-td-num"><Private>{formatEurLocale(item.value)}</Private></td>
                         <td className="cat-td-num cat-td-weight">
                           {overview.total_value_eur > 0
                             ? `${(item.value / overview.total_value_eur * 100).toFixed(1)} %`
@@ -253,7 +254,7 @@ export default function InvestmentsLandingPage() {
                 </ResponsiveContainer>
                 <div className="cat-donut-center">
                   <span className="cat-donut-label">{t.invCombinedByAssetClass}</span>
-                  <span className="cat-donut-total">{formatEurLocale(overview.total_value_eur)}</span>
+                  <span className="cat-donut-total"><Private>{formatEurLocale(overview.total_value_eur)}</Private></span>
                 </div>
               </div>
               <div className="cat-table-wrap">
@@ -274,7 +275,7 @@ export default function InvestmentsLandingPage() {
                             <span className="cat-td-label">{item.label}</span>
                           </div>
                         </td>
-                        <td className="cat-td-num">{formatEurLocale(item.value)}</td>
+                        <td className="cat-td-num"><Private>{formatEurLocale(item.value)}</Private></td>
                         <td className="cat-td-num cat-td-weight">
                           {overview.total_value_eur > 0
                             ? `${(item.value / overview.total_value_eur * 100).toFixed(1)} %`
@@ -312,12 +313,12 @@ export default function InvestmentsLandingPage() {
                 )}
                 <span className="inv-provider-card__name">{provider.name}</span>
               </div>
-              <div className="inv-provider-card__value">{provider.value_eur == null ? '—' : formatEurLocale(provider.value_eur)}</div>
+              <div className="inv-provider-card__value">{provider.value_eur == null ? '—' : <Private>{formatEurLocale(provider.value_eur)}</Private>}</div>
               <div className={`inv-provider-card__gain ${gainCls}`}>
                 {provider.gain_loss_eur == null || provider.gain_loss_pct == null
                   ? '—'
                   : <>
-                      {signedEur(provider.gain_loss_eur)}
+                      <Private>{signedEur(provider.gain_loss_eur)}</Private>
                       {' '}
                       ({`${provider.gain_loss_pct >= 0 ? '+' : ''}${provider.gain_loss_pct.toFixed(1)} %`})
                     </>

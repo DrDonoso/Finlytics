@@ -1,0 +1,34 @@
+<!--
+  App icon (home screen / installed PWA), as opposed to `logo.svg`, which is the
+  browser favicon.
+
+  They are deliberately different artwork: the favicon draws the mark in the
+  brand gradient on a transparent background so it works on a light or dark tab
+  strip, but a home-screen tile is composited over the user's wallpaper and iOS
+  flattens transparency onto black — a thin navy mark would disappear. This one
+  is therefore full-bleed: gradient tile, white mark.
+
+  The PNGs beside it (apple-touch-icon / icon-192 / icon-512 /
+  icon-maskable-512) are rasterised from this file. iOS ignores SVG icons
+  entirely, which is why they exist at all.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Finlytics">
+  <title>Finlytics</title>
+  <defs>
+    <linearGradient id="finlytics-icon-bg" x1="0" y1="64" x2="64" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#123a6b"/>
+      <stop offset="0.48" stop-color="#21639f"/>
+      <stop offset="1" stop-color="#12b886"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" fill="url(#finlytics-icon-bg)"/>
+  <g fill="none" stroke="#ffffff" stroke-width="5.2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M7 30 32 9l25 21"/>
+    <path d="M13.5 34.5V54M50.5 34.5V54"/>
+  </g>
+  <g fill="#ffffff">
+    <rect x="20" y="43" width="6.6" height="11" rx="2.4"/>
+    <rect x="29.2" y="36" width="6.6" height="18" rx="2.4"/>
+    <rect x="38.4" y="29.5" width="6.6" height="24.5" rx="2.4"/>
+  </g>
+</svg>

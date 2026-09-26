@@ -109,6 +109,9 @@ export default defineConfig(({ mode }) => {
       environment: 'jsdom',
       globals: true,
       setupFiles: ['./src/test/setup.ts'],
+      // Node 25+ defines its own (undefined) `localStorage` global and vitest 4's
+      // jsdom environment does not override it. Vitest 5 does; drop this then.
+      execArgv: ['--no-experimental-webstorage'],
       include: ['src/**/*.{test,spec}.{ts,tsx}'],
       coverage: {
         provider: 'v8',

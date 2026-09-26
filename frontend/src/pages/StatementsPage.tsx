@@ -350,17 +350,17 @@ export default function StatementsPage() {
           </div>
           <div className="tx-total tx-total--income">
             <span className="tx-total-label">{t.kpiTotalIncome}</span>
-            <span className="tx-total-value">+{formatCurrency(overview.total_income)}</span>
+            <span className="tx-total-value private">+{formatCurrency(overview.total_income)}</span>
             <TxDeltaBadge delta={computeDelta(overview.total_income, prevOverview?.total_income)} />
           </div>
           <div className="tx-total tx-total--expense">
             <span className="tx-total-label">{t.kpiTotalExpense}</span>
-            <span className="tx-total-value">−{formatCurrency(overview.total_expense)}</span>
+            <span className="tx-total-value private">−{formatCurrency(overview.total_expense)}</span>
             <TxDeltaBadge delta={computeDelta(overview.total_expense, prevOverview?.total_expense)} invert />
           </div>
           <div className={`tx-total tx-total--${overview.net >= 0 ? 'income' : 'expense'}`}>
             <span className="tx-total-label">{t.kpiNet}</span>
-            <span className="tx-total-value">{formatCurrency(overview.net)}</span>
+            <span className="tx-total-value private">{formatCurrency(overview.net)}</span>
             <TxDeltaBadge delta={computeDelta(overview.net, prevOverview?.net)} />
           </div>
         </div>

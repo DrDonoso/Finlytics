@@ -2,11 +2,13 @@ import { useTheme } from '../contexts/ThemeContext'
 import type { AccentPalette, ThemeMode } from '../contexts/ThemeContext'
 import type { ReactNode } from 'react'
 import { useT } from '../i18n'
-import { IconSun, IconMoon, IconMonitor } from '../components/icons'
+import { usePrivacy } from '../contexts/PrivacyContext'
+import { IconSun, IconMoon, IconMonitor, IconEye, IconEyeOff } from '../components/icons'
 
 export default function AppearancePage() {
   const { t } = useT()
   const { mode, setMode, palette, setPalette } = useTheme()
+  const { hidden, toggle } = usePrivacy()
 
   const options: { value: ThemeMode; label: string; icon: ReactNode }[] = [
     { value: 'light', label: t.themeLight, icon: <IconSun size={16} /> },
@@ -65,6 +67,27 @@ export default function AppearancePage() {
               <span>{opt.label}</span>
             </button>
           ))}
+        </div>
+      </div>
+
+      <div className="appearance-section">
+        <div className="privacy-toggle-row">
+          <div>
+            <p className="appearance-label">
+              {t.settingsPrivacyLabel}
+              <span className="privacy-shortcut">Alt+Shift+H</span>
+            </p>
+            <p className="appearance-hint">{t.settingsPrivacyHint}</p>
+          </div>
+          <button
+            type="button"
+            className={`privacy-switch${hidden ? ' active' : ''}`}
+            onClick={toggle}
+            aria-pressed={hidden}
+          >
+            {hidden ? <IconEyeOff size={16} /> : <IconEye size={16} />}
+            <span>{hidden ? t.privacyStateHidden : t.privacyStateVisible}</span>
+          </button>
         </div>
       </div>
     </div>

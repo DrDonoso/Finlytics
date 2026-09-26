@@ -22,6 +22,10 @@ interface KpiDef {
   delta?: DeltaResult
   /** true = ↑ is bad (expense semantics); false/absent = ↑ is good */
   invertDelta?: boolean
+  /** Blur `value` under privacy mode. Counts and percentages stay readable. */
+  money?: boolean
+  /** Blur `sub` under privacy mode. */
+  subMoney?: boolean
 }
 
 /** Delta badge for compact KPI items. */
@@ -63,18 +67,21 @@ export default function KpiCards({ overview, loading, error, compact, previousOv
         cls: 'expense',
         delta: prev ? (computeDelta(o.total_expense, prev.total_expense) ?? undefined) : undefined,
         invertDelta: true,
+        money: true,
       },
       {
         label: t.kpiTotalIncome,
         value: formatCurrency(o.total_income),
         cls: 'income',
         delta: prev ? (computeDelta(o.total_income, prev.total_income) ?? undefined) : undefined,
+        money: true,
       },
       {
         label: t.kpiNet,
         value: formatCurrency(o.net),
         cls: netCls,
         delta: prev ? (computeDelta(o.net, prev.net) ?? undefined) : undefined,
+        money: true,
       },
       {
         label: t.kpiSavingsRate,
@@ -89,6 +96,7 @@ export default function KpiCards({ overview, loading, error, compact, previousOv
         label: t.kpiTopCategory,
         value: o.top_category ? categoryLabel(o.top_category.name, lang) : '—',
         sub:   o.top_category ? formatCurrency(o.top_category.amount) : undefined,
+        subMoney: o.top_category != null,
       },
     ]
   }
@@ -105,7 +113,7 @@ export default function KpiCards({ overview, loading, error, compact, previousOv
             <>
               <div className="header-kpi-item">
                 <div className="header-kpi-label">{t.kpiCurrentNet}</div>
-                <div className={`header-kpi-value ${constantOverview.net >= 0 ? 'net-pos' : 'net-neg'}`}>
+                <div className={`header-kpi-value private ${constantOverview.net >= 0 ? 'net-pos' : 'net-neg'}`}>
                   {formatCurrency(constantOverview.net)}
                 </div>
               </div>
@@ -128,7 +136,7 @@ export default function KpiCards({ overview, loading, error, compact, previousOv
           <>
             <div className="header-kpi-item">
               <div className="header-kpi-label">{t.kpiCurrentNet}</div>
-              <div className={`header-kpi-value ${constantOverview.net >= 0 ? 'net-pos' : 'net-neg'}`}>
+              <div className={`header-kpi-value private ${constantOverview.net >= 0 ? 'net-pos' : 'net-neg'}`}>
                 {formatCurrency(constantOverview.net)}
               </div>
             </div>
@@ -138,9 +146,9 @@ export default function KpiCards({ overview, loading, error, compact, previousOv
         {kpis.map(k => (
           <div key={k.label} className="header-kpi-item">
             <div className="header-kpi-label">{k.label}</div>
-            <div className={`header-kpi-value ${k.cls ?? ''}`}>{k.value}</div>
+            <div className={`header-kpi-value ${k.money ? 'private ' : ''}${k.cls ?? ''}`}>{k.value}</div>
             <DeltaBadge delta={k.delta} invert={k.invertDelta} />
-            {k.sub && <div className="header-kpi-sub">{k.sub}</div>}
+            {k.sub && <div className={`header-kpi-sub${k.subMoney ? ' private' : ''}`}>{k.sub}</div>}
           </div>
         ))}
       </div>
@@ -178,9 +186,9 @@ export default function KpiCards({ overview, loading, error, compact, previousOv
       {kpis.map(k => (
         <div key={k.label} className="kpi-card">
           <div className="kpi-label">{k.label}</div>
-          <div className={`kpi-value ${k.cls ?? ''}`}>{k.value}</div>
+          <div className={`kpi-value ${k.money ? 'private ' : ''}${k.cls ?? ''}`}>{k.value}</div>
           <DeltaBadge delta={k.delta} invert={k.invertDelta} />
-          {k.sub && <div className="kpi-sub">{k.sub}</div>}
+          {k.sub && <div className={`kpi-sub${k.subMoney ? ' private' : ''}`}>{k.sub}</div>}
         </div>
       ))}
     </div>

@@ -353,11 +353,11 @@ export default function ImportPreviewTable({
       </div>
 
       <div style={{ marginTop: 12, fontSize: 12, color: 'var(--text-muted)' }}>
-        {t.previewTotalExpenses}: <strong style={{ color: 'var(--expense)' }}>
+        {t.previewTotalExpenses}: <strong className="private" style={{ color: 'var(--expense)' }}>
           {formatCurrency(visibleRows.filter(r => r.amount < 0).reduce((s, r) => s + Math.abs(r.amount), 0))}
         </strong>
         &nbsp;·&nbsp;
-        {t.previewTotalIncome}: <strong style={{ color: 'var(--income)' }}>
+        {t.previewTotalIncome}: <strong className="private" style={{ color: 'var(--income)' }}>
           {formatCurrency(visibleRows.filter(r => r.amount > 0).reduce((s, r) => s + r.amount, 0))}
         </strong>
       </div>

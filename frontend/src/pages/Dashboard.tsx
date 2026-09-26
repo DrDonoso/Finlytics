@@ -9,6 +9,7 @@ import {
 import { errorMessage } from '../api/errors'
 import InvestmentSnapshotCard from '../components/InvestmentSnapshotCard'
 import MortgageSnapshotCard from '../components/MortgageSnapshotCard'
+import { Private } from '../components/Money'
 import { useT } from '../i18n'
 import type { Lang } from '../i18n'
 import { useNotifications } from '../contexts/NotificationsContext'
@@ -251,24 +252,24 @@ export default function Dashboard() {
         <div className="inv-kpi-card dashboard-kpi-hero">
           <div className="inv-kpi-card__label">{t.dashboardKpiTotalNet}</div>
           <div className="inv-kpi-card__value">
-            {netWorthPending ? '—' : formatEur(totalNetWorth)}
+            {netWorthPending ? '—' : <Private>{formatEur(totalNetWorth)}</Private>}
           </div>
           {!netWorthPending && (
             <div className="dashboard-kpi-breakdown">
               <span>
                 <span className="dashboard-kpi-breakdown__label">{t.dashboardNetWorthAccounts}</span>
-                {formatEur(accountNetTotal)}
+                <Private>{formatEur(accountNetTotal)}</Private>
               </span>
               <span>
                 <span className="dashboard-kpi-breakdown__label">{t.dashboardNetWorthInvestments}</span>
                 {investmentsFailed
                   ? <span className="dashboard-kpi-breakdown__missing">{t.dashboardNetWorthUnavailable}</span>
-                  : formatEur(investmentsValue)}
+                  : <Private>{formatEur(investmentsValue)}</Private>}
               </span>
               {hasMortgage && (
                 <span>
                   <span className="dashboard-kpi-breakdown__label">{t.dashboardNetWorthMortgage}</span>
-                  {formatEur(mortgageContribution)}
+                  <Private>{formatEur(mortgageContribution)}</Private>
                 </span>
               )}
             </div>
@@ -300,7 +301,7 @@ export default function Dashboard() {
               ? '—'
               : averageMonthlyNet === null
                 ? '—'
-                : `${signedCurrency(averageMonthlyNet)} ${t.dashboardPerMonthSuffix}`}
+                : <><Private>{signedCurrency(averageMonthlyNet)}</Private> {t.dashboardPerMonthSuffix}</>}
           </div>
           {monthsCount !== null && monthsCount > 0 && (
             <div className="dashboard-kpi-delta is-flat">
@@ -368,9 +369,9 @@ export default function Dashboard() {
                           )}
                         </div>
                       </td>
-                      <td className={`cat-td-num dashboard-account-net ${netCls}`}>{formatEur(row.net)}</td>
+                      <td className={`cat-td-num dashboard-account-net private ${netCls}`}>{formatEur(row.net)}</td>
                       <td className="cat-td-num cat-td-weight">
-                        {monthsQuery.isPending || monthsQuery.error ? '—' : formatEur(averageMonthlyExpense)}
+                        {monthsQuery.isPending || monthsQuery.error ? '—' : <Private>{formatEur(averageMonthlyExpense)}</Private>}
                       </td>
                     </tr>
                   )

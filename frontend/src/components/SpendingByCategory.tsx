@@ -120,7 +120,7 @@ export default function SpendingByCategory({ data, categories, loading, error, s
             {/* Center overlay */}
             <div className="cat-donut-center">
               <span className="cat-donut-label">{t.catCenterLabel}</span>
-              <span className="cat-donut-total">{formatCurrency(total)}</span>
+              <span className="cat-donut-total private">{formatCurrency(total)}</span>
             </div>
           </div>
 
@@ -155,7 +155,7 @@ export default function SpendingByCategory({ data, categories, loading, error, s
                           <span className="cat-td-label">{categoryLabel(item.category, lang, dynamicEs)}</span>
                         </div>
                       </td>
-                      <td className="cat-td-num">{formatCurrency(item.amount)}</td>
+                      <td className="cat-td-num private">{formatCurrency(item.amount)}</td>
                       <td className="cat-td-num cat-td-weight">{weight}%</td>
                     </tr>
                   )

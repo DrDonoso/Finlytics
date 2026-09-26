@@ -4,6 +4,92 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260926.04] - 2026-09-26
+
+- ci: test on the Node and Python versions the image ships (#71)
+
+
+## [20260926.03] - 2026-09-26
+
+- [Release notes](https://github.com/remix-run/react-router/releases)
+- [Changelog](https://github.com/remix-run/react-router/blob/main/packages/react-router/CHANGELOG.md)
+- [Commits](https://github.com/remix-run/react-router/commits/react-router@8.4.0/packages/react-router)
+- [Release notes](https://github.com/recharts/recharts/releases)
+- [Changelog](https://github.com/recharts/recharts/blob/main/CHANGELOG.md)
+- [Commits](https://github.com/recharts/recharts/compare/v3.10.0...v3.10.1)
+- dependency-name: react-router dependency-version: 8.4.0 dependency-type: direct:production update-type: version-update:semver-minor dependency-group: npm-minor-patch
+- dependency-name: recharts dependency-version: 3.10.1 dependency-type: direct:production update-type: version-update:semver-patch dependency-group: npm-minor-patch
+
+
+## [20260926.02] - 2026-09-26
+
+- [Release notes](https://github.com/vitejs/vite-plugin-react/releases)
+- [Changelog](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/CHANGELOG.md)
+- [Commits](https://github.com/vitejs/vite-plugin-react/commits/plugin-react@6.1.1/packages/plugin-react)
+- [Release notes](https://github.com/vitejs/vite/releases)
+- [Changelog](https://github.com/vitejs/vite/blob/main/packages/vite/CHANGELOG.md)
+- [Commits](https://github.com/vitejs/vite/commits/create-vite@8.3.0/packages/vite)
+- dependency-name: "@vitejs/plugin-react" dependency-version: 6.0.5 dependency-type: direct:development update-type: version-update:semver-patch dependency-group: vite
+- dependency-name: vite dependency-version: 8.2.0 dependency-type: direct:development update-type: version-update:semver-minor dependency-group: vite
+
+
+## [20260926] - 2026-09-26
+
+- [Release notes](https://github.com/react/react/releases)
+- [Changelog](https://github.com/react/react/blob/main/CHANGELOG.md)
+- [Commits](https://github.com/react/react/commits/v19.3.0/packages/react)
+- [Release notes](https://github.com/DefinitelyTyped/DefinitelyTyped/releases)
+- [Commits](https://github.com/DefinitelyTyped/DefinitelyTyped/commits/HEAD/types/react)
+- [Release notes](https://github.com/react/react/releases)
+- [Changelog](https://github.com/react/react/blob/main/CHANGELOG.md)
+- [Commits](https://github.com/react/react/commits/v19.3.0/packages/react-dom)
+- [Release notes](https://github.com/DefinitelyTyped/DefinitelyTyped/releases)
+- [Commits](https://github.com/DefinitelyTyped/DefinitelyTyped/commits/HEAD/types/react-dom)
+- [Release notes](https://github.com/DefinitelyTyped/DefinitelyTyped/releases)
+- [Commits](https://github.com/DefinitelyTyped/DefinitelyTyped/commits/HEAD/types/react)
+- [Release notes](https://github.com/DefinitelyTyped/DefinitelyTyped/releases)
+- [Commits](https://github.com/DefinitelyTyped/DefinitelyTyped/commits/HEAD/types/react-dom)
+- dependency-name: react dependency-version: 19.3.0 dependency-type: direct:production update-type: version-update:semver-minor dependency-group: react
+- dependency-name: "@types/react" dependency-version: 19.3.0 dependency-type: direct:development update-type: version-update:semver-minor dependency-group: react
+- dependency-name: react-dom dependency-version: 19.3.0 dependency-type: direct:production update-type: version-update:semver-minor dependency-group: react
+- dependency-name: "@types/react-dom" dependency-version: 19.3.0 dependency-type: direct:development update-type: version-update:semver-minor dependency-group: react
+- dependency-name: "@types/react" dependency-version: 19.3.0 dependency-type: direct:development update-type: version-update:semver-minor dependency-group: react
+- dependency-name: "@types/react-dom" dependency-version: 19.3.0 dependency-type: direct:development update-type: version-update:semver-minor dependency-group: react
+- [Release notes](https://github.com/actions/setup-node/releases)
+- [Commits](https://github.com/actions/setup-node/compare/v5...v7)
+- dependency-name: actions/setup-node dependency-version: '7' dependency-type: direct:production update-type: version-update:semver-major
+- [Release notes](https://github.com/github/codeql-action/releases)
+- [Changelog](https://github.com/github/codeql-action/blob/main/CHANGELOG.md)
+- [Commits](https://github.com/github/codeql-action/compare/v4.37.1...v4.37.8)
+- dependency-name: github/codeql-action dependency-version: 4.37.8 dependency-type: direct:production update-type: version-update:semver-patch dependency-group: github-actions-minor-patch
+
+
+## [20260830] - 2026-08-30
+
+- PrivacyContext persists the choice in localStorage and sets data-privacy="on" on <html>. The FOUC guard in index.html reads it on first paint, otherwise amounts render sharp for one frame on reload.
+- Money/Private funnel every rendered amount through a .private class that styles/privacy.css blurs, so coverage is one CSS rule rather than a per-component concern.
+- Native title tooltips cannot be blurred by CSS, so the heatmap and the amortization table drop the figure from the tooltip text instead.
+- Public market data (share price, FX rate), percentages, dates and counts stay readable, so the app remains usable with the toggle on.
+- privacy.test.tsx mounts the money-bearing routes against the demo dataset and fails on any euro text without a .private ancestor. A leak is invisible in a passing build without it.
+
+
+## [20260822] - 2026-08-22
+
+- Add `icon.svg`, full-bleed gradient tile with a white mark. Kept separate from `logo.svg` because iOS flattens transparency onto black, where the favicon's thin navy strokes disappear.
+- Rasterise it to `apple-touch-icon.png` (180), `icon-192`, `icon-512` and a `maskable` 512 whose mark is scaled to 0.72 for Android's safe zone.
+- Add `manifest.webmanifest` with `display: standalone`, and link it along with the Apple meta tags. Status bar style is `default` rather than `black-translucent`, which would need safe-area insets the layout lacks.
+- Drive `theme-color` from the stored theme instead of a media query, since the two disagree whenever the user overrides the OS preference.
+- Register the `.webmanifest` MIME type: Python's `mimetypes` has no entry for it, so `FileResponse` served the manifest as `text/plain`.
+
+
+## [20260819] - 2026-08-19
+
+- [Release notes](https://github.com/postcss/postcss/releases)
+- [Changelog](https://github.com/postcss/postcss/blob/main/CHANGELOG.md)
+- [Commits](https://github.com/postcss/postcss/compare/8.5.21...8.5.26)
+- dependency-name: postcss dependency-version: 8.5.26 dependency-type: indirect
+
+
 ## [20260806.07] - 2026-08-06
 
 - [Release notes](https://github.com/nodejs/undici/releases)

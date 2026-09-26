@@ -5,6 +5,7 @@ import { useByDay } from '../api/queries'
 import { errorMessage } from '../api/errors'
 import { useT } from '../i18n'
 import type { Lang } from '../i18n'
+import { usePrivacy } from '../contexts/PrivacyContext'
 import { IconAlert, IconLoading, IconCalendar } from './icons'
 
 interface Props {
@@ -86,13 +87,15 @@ function fmtDayTooltip(
   expense: number,
   lang: Lang,
   formatCurrency: (n: number) => string,
+  hideAmounts: boolean,
 ): string {
   const d = parseDate(dateStr)
   const label = new Intl.DateTimeFormat(
     lang === 'es' ? 'es-ES' : 'en-GB',
     { day: 'numeric', month: 'short' },
   ).format(d)
-  return expense > 0 ? `${label} · ${formatCurrency(expense)}` : label
+  // Native tooltips cannot be blurred by CSS, so the figure is dropped instead.
+  return expense > 0 && !hideAmounts ? `${label} · ${formatCurrency(expense)}` : label
 }
 
 function computeWeekdayLabels(lang: Lang): string[] {
@@ -110,6 +113,7 @@ function isMonthInRange(year: number, monthIdx: number, fromStr: string, toStr: 
 
 export default function SpendingHeatmap({ globalFilters, onSelectPeriod, onResetPeriod }: Props) {
   const { t, lang, formatCurrency } = useT()
+  const { hidden: hideAmounts } = usePrivacy()
 
   // byDay: pass merchant (+ existing incl. category_id). Do NOT pass day (it's the source).
   const params = useMemo(() => ({
@@ -267,7 +271,7 @@ export default function SpendingHeatmap({ globalFilters, onSelectPeriod, onReset
                     const b      = isOut ? 0 : colorBucket(exp, monthGrid.maxMonthExp)
                     const title  = isOut
                       ? undefined
-                      : exp > 0 ? `${MONTH_LABELS[m]} ${year} · ${formatCurrency(exp)}` : `${MONTH_LABELS[m]} ${year}`
+                      : exp > 0 && !hideAmounts ? `${MONTH_LABELS[m]} ${year} · ${formatCurrency(exp)}` : `${MONTH_LABELS[m]} ${year}`
                     const firstDay = `${year}-${String(m + 1).padStart(2, '0')}-01`
                     const lastDay  = toDateStr(new Date(year, m + 1, 0))
                     return (
@@ -337,7 +341,7 @@ export default function SpendingHeatmap({ globalFilters, onSelectPeriod, onReset
                   {grid.cells.map(({ date, expense, weekIdx, dayIdx }) => {
                     const isOut      = date === null
                     const b          = isOut ? 0 : colorBucket(expense, grid.maxExp)
-                    const title      = date ? fmtDayTooltip(date, expense, lang, formatCurrency) : undefined
+                    const title      = date ? fmtDayTooltip(date, expense, lang, formatCurrency, hideAmounts) : undefined
                     return (
                       <div
                         key={`${weekIdx}-${dayIdx}`}

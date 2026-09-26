@@ -8,6 +8,7 @@ import AssistantLauncher from './AssistantLauncher'
 import AssistantPanel from './AssistantPanel'
 import NotificationBell from './NotificationBell'
 import LanguageSelect from './LanguageSelect'
+import PrivacyToggle from './PrivacyToggle'
 import { BrandMark } from './Brand'
 import { IS_DEMO } from '../demo/config'
 import {
@@ -105,6 +106,7 @@ export default function Layout() {
           <span className="topbar-logo">Finlytics</span>
         </Link>
         <div className="topbar-actions">
+          <PrivacyToggle />
           <NotificationBell />
         </div>
       </header>

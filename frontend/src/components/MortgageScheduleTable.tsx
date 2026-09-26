@@ -2,6 +2,8 @@ import { useState } from 'react'
 import type { MortgageScheduleYear } from '../api/types'
 import { formatEur } from '../api/client'
 import { IconAlert, IconCheck, IconChevronDown, IconLoading } from './icons'
+import { Private } from './Money'
+import { usePrivacy } from '../contexts/PrivacyContext'
 import { useT, formatDate } from '../i18n'
 
 interface Props {
@@ -19,6 +21,7 @@ interface Props {
 /** Amortization table, collapsed to one row per year and expandable to months. */
 export default function MortgageScheduleTable({ years, linked, chargesFrom, loading, error }: Props) {
   const { t, lang } = useT()
+  const { hidden: hideAmounts } = usePrivacy()
   const [expanded, setExpanded] = useState<Set<number>>(new Set())
 
   const coverageYear = chargesFrom ? Number(chargesFrom.slice(0, 4)) : null
@@ -93,11 +96,11 @@ export default function MortgageScheduleTable({ years, linked, chargesFrom, load
                     </span>
                   )}
                 </td>
-                <td className="cat-td-num">{formatEur(year.payment)}</td>
-                <td className="cat-td-num">{formatEur(year.interest)}</td>
-                <td className="cat-td-num">{formatEur(year.principal)}</td>
-                <td className="cat-td-num">{year.prepayment > 0 ? formatEur(year.prepayment) : '—'}</td>
-                <td className="cat-td-num">{formatEur(year.closing_balance)}</td>
+                <td className="cat-td-num private">{formatEur(year.payment)}</td>
+                <td className="cat-td-num private">{formatEur(year.interest)}</td>
+                <td className="cat-td-num private">{formatEur(year.principal)}</td>
+                <td className="cat-td-num">{year.prepayment > 0 ? <Private>{formatEur(year.prepayment)}</Private> : '—'}</td>
+                <td className="cat-td-num private">{formatEur(year.closing_balance)}</td>
               </tr>,
               ...(open ? year.months.map(row => (
                 <tr
@@ -110,7 +113,7 @@ export default function MortgageScheduleTable({ years, linked, chargesFrom, load
                         <IconCheck
                           size={13}
                           className="mortgage-schedule__paid"
-                          title={row.charged != null
+                          title={row.charged != null && !hideAmounts
                             ? t.mortgageSchedulePaidOn(formatEur(row.charged))
                             : t.mortgageSchedulePaid}
                         />
@@ -120,11 +123,11 @@ export default function MortgageScheduleTable({ years, linked, chargesFrom, load
                     {row.projected && <span className="mortgage-schedule__projected" title={t.mortgageProjectionNote}>~</span>}
                     <span className="mortgage-schedule__rate">{row.annual_rate.toFixed(3)} %</span>
                   </td>
-                  <td className="cat-td-num">{formatEur(row.payment)}</td>
-                  <td className="cat-td-num">{formatEur(row.interest)}</td>
-                  <td className="cat-td-num">{formatEur(row.principal)}</td>
-                  <td className="cat-td-num">{row.prepayment > 0 ? formatEur(row.prepayment) : '—'}</td>
-                  <td className="cat-td-num">{formatEur(row.closing_balance)}</td>
+                  <td className="cat-td-num private">{formatEur(row.payment)}</td>
+                  <td className="cat-td-num private">{formatEur(row.interest)}</td>
+                  <td className="cat-td-num private">{formatEur(row.principal)}</td>
+                  <td className="cat-td-num">{row.prepayment > 0 ? <Private>{formatEur(row.prepayment)}</Private> : '—'}</td>
+                  <td className="cat-td-num private">{formatEur(row.closing_balance)}</td>
                 </tr>
               )) : []),
             ]
@@ -133,10 +136,10 @@ export default function MortgageScheduleTable({ years, linked, chargesFrom, load
         <tfoot>
           <tr className="mortgage-schedule__total">
             <td className="cat-td-name">{t.mortgageScheduleTotal}</td>
-            <td className="cat-td-num">{formatEur(totals.payment)}</td>
-            <td className="cat-td-num">{formatEur(totals.interest)}</td>
-            <td className="cat-td-num">{formatEur(totals.principal)}</td>
-            <td className="cat-td-num">{formatEur(totals.prepayment)}</td>
+            <td className="cat-td-num private">{formatEur(totals.payment)}</td>
+            <td className="cat-td-num private">{formatEur(totals.interest)}</td>
+            <td className="cat-td-num private">{formatEur(totals.principal)}</td>
+            <td className="cat-td-num private">{formatEur(totals.prepayment)}</td>
             <td className="cat-td-num" />
           </tr>
         </tfoot>

@@ -34,6 +34,12 @@ function resolveTheme(mode: ThemeMode): 'light' | 'dark' {
 
 function applyTheme(resolved: 'light' | 'dark') {
   document.documentElement.setAttribute('data-theme', resolved)
+  // Keeps the standalone-PWA status bar in step with the app instead of with
+  // the OS preference (a media-scoped theme-color could not tell them apart).
+  // Values mirror --bg in tokens.css.
+  document
+    .querySelector('meta[name="theme-color"]')
+    ?.setAttribute('content', resolved === 'dark' ? '#0c1420' : '#f4f6f9')
 }
 
 function applyPalette(palette: AccentPalette) {
