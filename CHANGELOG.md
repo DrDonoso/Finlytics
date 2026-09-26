@@ -4,6 +4,11 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260926.04] - 2026-09-26
+
+- ci: test on the Node and Python versions the image ships (#71)
+
+
 ## [20260926.03] - 2026-09-26
 
 - [Release notes](https://github.com/remix-run/react-router/releases)
