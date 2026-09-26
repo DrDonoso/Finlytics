@@ -40,10 +40,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
+      # Keep in lockstep with the python base image in the Dockerfile.
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
-          python-version: "3.12"
+          python-version: "3.14"
           cache: pip
 
       - name: Install package with test extras
@@ -76,10 +77,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
+      # Keep in lockstep with the node base image in the Dockerfile.
       - name: Set up Node
         uses: actions/setup-node@v7
         with:
-          node-version: "20"
+          node-version: "26"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
@@ -92,7 +94,7 @@ jobs:
       - name: Unit tests (vitest)
         run: npm test
 
-      # tsc --noEmit va incluido en el script build.
+      # `npm run build` runs `tsc --noEmit` first.
       - name: Type-check and build
         run: npm run build
 
