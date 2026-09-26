@@ -13,6 +13,7 @@ LLMClient, _resolve_account, _persist_import_run) are all patchable for unit tes
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import logging
 import os
@@ -145,10 +146,14 @@ async def _persist_import_run(
     )
 
 
-def _parse_file(file_bytes: bytes, ext: str, error_status: int = 400) -> str:
-    """Parse raw file bytes → statement text, raising HTTPException on failure."""
+async def _parse_file(file_bytes: bytes, ext: str, error_status: int = 400) -> str:
+    """Parse raw file bytes → statement text, raising HTTPException on failure.
+
+    pdfplumber is synchronous and CPU-bound (seconds on a long statement), so it
+    runs in a worker thread instead of stalling the event loop for everyone.
+    """
     try:
-        return parse_statement(file_bytes, file_type=ext)
+        return await asyncio.to_thread(parse_statement, file_bytes, file_type=ext)
     except Exception as exc:
         raise HTTPException(
             status_code=error_status, detail=f"File parsing failed: {exc}"
@@ -180,7 +185,7 @@ async def preview_import(
     filename = file.filename or "upload"
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "pdf"
 
-    statement_text = _parse_file(file_bytes, ext, error_status=400)
+    statement_text = await _parse_file(file_bytes, ext, error_status=400)
 
     year = detect_statement_year(statement_text)
 
@@ -424,7 +429,7 @@ async def create_import(
     filename = file.filename or "upload"
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "pdf"
 
-    statement_text = _parse_file(file_bytes, ext, error_status=422)
+    statement_text = await _parse_file(file_bytes, ext, error_status=422)
     year = detect_statement_year(statement_text)
 
     async with session.begin():

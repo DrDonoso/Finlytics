@@ -7,6 +7,8 @@ Protected     : me  (requires valid session cookie via get_current_user)
 
 from __future__ import annotations
 
+import asyncio
+
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func, select
@@ -127,7 +129,7 @@ async def auth_setup(
 
     user = User(
         username=body.username,
-        password_hash=hash_password(body.password),
+        password_hash=await asyncio.to_thread(hash_password, body.password),
     )
     db.add(user)
     await db.flush()
@@ -159,12 +161,14 @@ async def auth_login(
                 headers={"Retry-After": str(verdict.retry_after)},
             )
 
+    # bcrypt at cost 12 takes ~250 ms of CPU; running it inline would freeze
+    # every other request for that long, so it goes to a worker thread.
     user = await db.scalar(select(User).where(User.username == body.username))
     if user is None:
         # Always run bcrypt to equalise timing — prevents username enumeration.
-        verify_password(body.password, _DUMMY_HASH)
+        await asyncio.to_thread(verify_password, body.password, _DUMMY_HASH)
         raise HTTPException(status_code=401, detail="Invalid credentials")
-    if not verify_password(body.password, user.password_hash):
+    if not await asyncio.to_thread(verify_password, body.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     # Authenticated: clear the counter so a couple of typos followed by a correct

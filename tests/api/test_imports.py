@@ -229,6 +229,33 @@ async def test_preview_parse_error_returns_400(client_with_llm):
     assert resp.status_code == 400
 
 
+async def test_preview_parses_statement_off_the_event_loop(client_with_llm):
+    """pdfplumber is synchronous: running it on the loop thread stalls every request."""
+    import threading
+
+    client, _ = client_with_llm
+    loop_thread = threading.get_ident()
+    parse_threads: list[int] = []
+
+    def _parse(*_args, **_kwargs):
+        parse_threads.append(threading.get_ident())
+        return "text"
+
+    with (
+        patch("finlytics.api.imports.parse_statement", side_effect=_parse),
+        patch("finlytics.api.imports.extract_transactions", new_callable=AsyncMock,
+              return_value=_make_extracted()),
+        patch("finlytics.api.imports.list_rules", new_callable=AsyncMock, return_value=[]),
+    ):
+        resp = await client.post(
+            "/api/imports/preview",
+            files={"file": ("bank.pdf", io.BytesIO(b"fake"), "application/pdf")},
+        )
+
+    assert resp.status_code == 200
+    assert parse_threads and loop_thread not in parse_threads
+
+
 async def test_preview_year_detected(client_with_llm):
     """detect_statement_year finds a year → year_detected True, statement_year populated."""
     client, _ = client_with_llm

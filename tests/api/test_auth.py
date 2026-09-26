@@ -241,6 +241,51 @@ async def test_login_nonexistent_user_runs_dummy_bcrypt_verify(auth_client):
     mock_verify.assert_called_once_with("SomeP@ssword1", _auth_mod._DUMMY_HASH)
 
 
+async def test_login_runs_bcrypt_off_the_event_loop(auth_client):
+    """bcrypt costs ~250 ms of CPU; on the loop thread it would stall every request."""
+    import threading
+
+    client, session = auth_client
+    session.scalar = AsyncMock(return_value=_fake_user())
+    loop_thread = threading.get_ident()
+    verify_threads: list[int] = []
+
+    def _verify(*_args):
+        verify_threads.append(threading.get_ident())
+        return True
+
+    with patch("finlytics.api.auth.verify_password", side_effect=_verify):
+        resp = await client.post(
+            "/api/auth/login",
+            json={"username": "drdonoso", "password": "MyStr0ngP@ss!"},
+        )
+
+    assert resp.status_code == 200
+    assert verify_threads and loop_thread not in verify_threads
+
+
+async def test_setup_hashes_password_off_the_event_loop(auth_client):
+    import threading
+
+    client, session = auth_client
+    session.scalar = AsyncMock(return_value=0)
+    loop_thread = threading.get_ident()
+    hash_threads: list[int] = []
+
+    def _hash(*_args):
+        hash_threads.append(threading.get_ident())
+        return "hashed"
+
+    with patch("finlytics.api.auth.hash_password", side_effect=_hash):
+        resp = await client.post(
+            "/api/auth/setup",
+            json={"username": "drdonoso", "password": "MyStr0ngP@ss!"},
+        )
+
+    assert resp.status_code == 201
+    assert hash_threads and loop_thread not in hash_threads
+
+
 async def test_login_401_short_wrong_password_existing_user(auth_client):
     """A short (< 8 chars) wrong password for an existing user must return 401, NOT 422."""
     client, session = auth_client
