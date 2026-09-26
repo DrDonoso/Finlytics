@@ -162,6 +162,16 @@ def test_parse_date_wrong_segment_count_raises():
         _parse_european_date("2026/05/15/extra", 2026)
 
 
+def test_parse_date_short_without_year_raises():
+    """A DD/MM date cannot be completed when no statement year was detected."""
+    with pytest.raises(ValueError):
+        _parse_european_date("15/06", None)
+
+
+def test_parse_date_full_without_year_still_parses():
+    assert _parse_european_date("15/06/2026", None) == date(2026, 6, 15)
+
+
 # ---------------------------------------------------------------------------
 # _extract_bbva — transaction lines
 # ---------------------------------------------------------------------------
@@ -346,6 +356,23 @@ def test_safety_net_header_line_not_consumed(caplog):
 
     assert len(matched) == 0
     assert header in remaining
+
+
+def test_safety_net_short_date_with_unknown_year(caplog):
+    """Undetected year: a DD/MM line reaches the LLM instead of failing the import."""
+    short = "02/05   COMPRA EN MERCADONA C/MAYOR 1 MADRID              -45,30         1.404,70"
+    full = "03/05/2026   COMPRA EN MERCADONA C/MAYOR 1 MADRID         -12,00         1.392,70"
+    rule = _Rule(1, "Mercadona", "contains", "mercadona", set_category="Groceries")
+
+    with caplog.at_level(logging.WARNING, logger="finlytics.extraction.prematch"):
+        matched, remaining = pre_match_rules(
+            f"{short}\n{full}", [rule], statement_year=None, account_ref="BBVA"
+        )
+
+    assert [tx.transaction_date for tx in matched] == [date(2026, 5, 3)]
+    assert short in remaining
+    assert full not in remaining
+    assert any("extraction failed" in msg.lower() for msg in caplog.messages)
 
 
 # ---------------------------------------------------------------------------

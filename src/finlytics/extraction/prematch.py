@@ -106,17 +106,19 @@ def _parse_european_amount(s: str) -> Decimal:
     return Decimal(cleaned)
 
 
-def _parse_european_date(s: str, year: int) -> date:
+def _parse_european_date(s: str, year: int | None) -> date:
     """Parse a ``DD/MM/YYYY`` or ``DD/MM`` date string.
 
     When the year component is absent (``DD/MM`` only), the provided *year*
-    is used.  Raises ``ValueError`` for unrecognised formats or out-of-range
-    date values.
+    is used.  Raises ``ValueError`` for unrecognised formats, out-of-range
+    date values, and a ``DD/MM`` date when *year* is unknown.
     """
     parts = s.strip().split("/")
     if len(parts) == 3:
         day, month, yr = int(parts[0]), int(parts[1]), int(parts[2])
     elif len(parts) == 2:
+        if year is None:
+            raise ValueError(f"Cannot date {s!r}: the statement year is unknown")
         day, month, yr = int(parts[0]), int(parts[1]), year
     else:
         raise ValueError(
@@ -154,7 +156,7 @@ _EURO_STMT_LINE_RE = re.compile(
 )
 
 
-def _parse_line(line: str, statement_year: int) -> _LineData | None:
+def _parse_line(line: str, statement_year: int | None) -> _LineData | None:
     """Match *line* against the shared European statement regex and parse fields.
 
     Returns ``None`` for non-matching lines (headers, blank lines, totals rows).
@@ -179,7 +181,7 @@ def _parse_line(line: str, statement_year: int) -> _LineData | None:
 # ---------------------------------------------------------------------------
 
 
-def _extract_bbva(line: str, statement_year: int) -> _LineData | None:
+def _extract_bbva(line: str, statement_year: int | None) -> _LineData | None:
     """Extract date, amount, description, and balance from a BBVA statement line.
 
     Returns ``None`` for non-transaction lines (headers, totals, blank lines).
@@ -198,7 +200,7 @@ def _extract_bbva(line: str, statement_year: int) -> _LineData | None:
     return _parse_line(line, statement_year)
 
 
-def _extract_indexa(line: str, statement_year: int) -> _LineData | None:
+def _extract_indexa(line: str, statement_year: int | None) -> _LineData | None:
     """Extract date, amount, description, and portfolio value from an Indexa Capital line.
 
     Returns ``None`` for non-transaction lines.
@@ -217,7 +219,7 @@ def _extract_indexa(line: str, statement_year: int) -> _LineData | None:
     return _parse_line(line, statement_year)
 
 
-def _extract_generic(line: str, statement_year: int) -> _LineData | None:
+def _extract_generic(line: str, statement_year: int | None) -> _LineData | None:
     """Generic fallback extractor for unknown or future account types.
 
     Uses the same European date+amount layout as BBVA and Indexa Capital.
@@ -249,7 +251,7 @@ def pre_match_rules(
     statement_text: str,
     rules: Iterable[RuleProtocol],
     *,
-    statement_year: int,
+    statement_year: int | None,
     account_ref: str,
     currency: str = "EUR",
 ) -> tuple[list[ExtractedTransaction], str]:
@@ -267,8 +269,10 @@ def pre_match_rules(
         statement_text:  Raw text produced by ``parse_statement()``.
         rules:           Iterable of objects satisfying ``RuleProtocol``.
         statement_year:  Four-digit year used when a line's date is ``DD/MM``
-                         only.  Pass the result of ``detect_statement_year()``
-                         when available.
+                         only: the result of ``detect_statement_year()``.
+                         ``None`` when it found none — a ``DD/MM`` line then
+                         falls through to the safety net and the LLM, since
+                         guessing the year would file it in the wrong one.
         account_ref:     Source account identifier (e.g. ``"BBVA"`` or
                          ``"Indexa Capital"``).  Selects the bank-format
                          extractor and populates
