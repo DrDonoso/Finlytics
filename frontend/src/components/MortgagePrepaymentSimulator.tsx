@@ -1,22 +1,20 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import type { MortgageSimulation, PrepaymentMode } from '../api/types'
 import { simulateMortgagePrepayment, createMortgagePrepayment } from '../api/client'
 import { errorMessage } from '../api/errors'
+import { useModalDismiss } from '../hooks/useModalDismiss'
 import { IconAlert, IconClose } from './icons'
 import DatePicker from './DatePicker'
 import { IS_DEMO } from '../demo/config'
 import { useT } from '../i18n'
 import { Percent, Private } from './Money'
+import { todayIso } from '../utils/dates'
 
 interface Props {
   mortgageId: number
   onClose: () => void
   onApplied: () => void
-}
-
-function today(): string {
-  return new Date().toISOString().slice(0, 10)
 }
 
 function num(value: string): number {
@@ -41,7 +39,7 @@ function mergeCurves(sim: MortgageSimulation) {
 export default function MortgagePrepaymentSimulator({ mortgageId, onClose, onApplied }: Props) {
   const { t, formatCurrency } = useT()
   const [amount, setAmount] = useState('')
-  const [date, setDate] = useState(today())
+  const [date, setDate] = useState(todayIso)
   const [mode, setMode] = useState<PrepaymentMode>('reduce_term')
   const [fee, setFee] = useState('0')
   const [altReturn, setAltReturn] = useState('')
@@ -49,6 +47,8 @@ export default function MortgagePrepaymentSimulator({ mortgageId, onClose, onApp
   const [loading, setLoading] = useState(false)
   const [applying, setApplying] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const titleId = useId()
+  const backdrop = useModalDismiss(onClose, applying)
 
   const canRun = num(amount) > 0 && date !== ''
 
@@ -90,10 +90,10 @@ export default function MortgagePrepaymentSimulator({ mortgageId, onClose, onApp
   const curves = result ? mergeCurves(result) : []
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal modal-wide" onClick={e => e.stopPropagation()}>
+    <div className="modal-backdrop" {...backdrop}>
+      <div className="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby={titleId}>
         <div className="modal-header">
-          <span className="modal-title">{t.mortgageSimulatorTitle}</span>
+          <span className="modal-title" id={titleId}>{t.mortgageSimulatorTitle}</span>
           <button className="modal-close" onClick={onClose} type="button" aria-label={t.mortgageFormCancel}><IconClose size={15} /></button>
         </div>
 

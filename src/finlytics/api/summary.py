@@ -13,7 +13,16 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from finlytics.api.deps import get_db
-from finlytics.api.schemas import ByAccountRow, ByCategoryRow, ByDayRow, ByMerchantRow, ByMonthRow, CashflowOut, OverviewOut, TransactionMonthsOut
+from finlytics.api.schemas import (
+    ByAccountRow,
+    ByCategoryRow,
+    ByDayRow,
+    ByMerchantRow,
+    ByMonthRow,
+    CashflowOut,
+    OverviewOut,
+    TransactionMonthsOut,
+)
 from finlytics.db import queries
 from finlytics.db.queries.types import (
     AccountSummaryRow,

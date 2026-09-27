@@ -11,8 +11,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from finlytics.db.models import Account, ImportRun, Transaction
 from finlytics.db.queries.types import StatementMonthRow, StatementOriginalRow
 
-
-
 # ── Statements (monthly view) ─────────────────────────────────────────────────
 
 async def get_statement_months(

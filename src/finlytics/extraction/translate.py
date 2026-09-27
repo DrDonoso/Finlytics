@@ -88,7 +88,7 @@ async def translate_category_name(name: str) -> dict | None:
                 continue
             log.error("translate_category_name: failed after retry")
         except Exception:
-            log.error("translate_category_name: unexpected error")
+            log.exception("translate_category_name: unexpected error")
             break
 
     return None

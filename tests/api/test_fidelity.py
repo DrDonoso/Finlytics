@@ -40,12 +40,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from finlytics.api.deps import get_current_user, get_db
+from finlytics.api.deps import get_db
 from finlytics.api.fidelity import compute_evolution_series
 from finlytics.app import app
 from finlytics.investments.fidelity import _compute_dedup_hash
-from finlytics.investments.market_data import LatestPriceRow, topup_recent_prices
-
+from finlytics.investments.market_data import LatestPriceRow
 
 # ---------------------------------------------------------------------------
 # Synthetic CSV fixtures — hand-crafted, no real financial values
@@ -53,29 +52,29 @@ from finlytics.investments.market_data import LatestPriceRow, topup_recent_price
 
 # 2 SP lots (EUR currency) — 150 shares total, 6 100 EUR invested
 _MINIMAL_CSV: bytes = (
-    "Date acquired,Quantity,Cost basis,Cost basis/share,Value,Gain/loss,"
-    "Sale availability date,Transfer availability date,"
-    "Grant date,Share source,Holding period\n"
-    "Jun-30-2024,100.0000,4000.00,40.00,4500.00,500.00,"
-    "Sep-30-2024,Sep-30-2024,Apr-01-2024,SP,Long\n"
-    "Mar-31-2025,50.0000,2100.00,42.00,2400.00,300.00,"
-    "Jun-30-2025,Jun-30-2025,Jan-01-2025,SP,Short\n"
-    ",\n"
-    "The values are displayed in EUR\n"
-).encode("utf-8")
+    b"Date acquired,Quantity,Cost basis,Cost basis/share,Value,Gain/loss,"
+    b"Sale availability date,Transfer availability date,"
+    b"Grant date,Share source,Holding period\n"
+    b"Jun-30-2024,100.0000,4000.00,40.00,4500.00,500.00,"
+    b"Sep-30-2024,Sep-30-2024,Apr-01-2024,SP,Long\n"
+    b"Mar-31-2025,50.0000,2100.00,42.00,2400.00,300.00,"
+    b"Jun-30-2025,Jun-30-2025,Jan-01-2025,SP,Short\n"
+    b",\n"
+    b"The values are displayed in EUR\n"
+)
 
 # Two identical DO lots (same date/qty/price) — tests ordinal dedup
 _DO_DEDUP_CSV: bytes = (
-    "Date acquired,Quantity,Cost basis,Cost basis/share,Value,Gain/loss,"
-    "Sale availability date,Transfer availability date,"
-    "Grant date,Share source,Holding period\n"
-    "Dec-15-2024,0.5500,22.00,40.00,27.50,5.50,"
-    "Mar-15-2025,Mar-15-2025,-,DO,Long\n"
-    "Dec-15-2024,0.5500,22.00,40.00,27.50,5.50,"
-    "Mar-15-2025,Mar-15-2025,-,DO,Long\n"
-    ",\n"
-    "The values are displayed in EUR\n"
-).encode("utf-8")
+    b"Date acquired,Quantity,Cost basis,Cost basis/share,Value,Gain/loss,"
+    b"Sale availability date,Transfer availability date,"
+    b"Grant date,Share source,Holding period\n"
+    b"Dec-15-2024,0.5500,22.00,40.00,27.50,5.50,"
+    b"Mar-15-2025,Mar-15-2025,-,DO,Long\n"
+    b"Dec-15-2024,0.5500,22.00,40.00,27.50,5.50,"
+    b"Mar-15-2025,Mar-15-2025,-,DO,Long\n"
+    b",\n"
+    b"The values are displayed in EUR\n"
+)
 
 _EMPTY_CSV: bytes = b""
 _MALFORMED_CSV: bytes = b"col1,col2,col3\nfoo,bar,baz\n"

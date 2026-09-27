@@ -205,6 +205,12 @@
   margin-top: 8px;
 }
 
+/* Centred on the 40px input rather than on the label above it. */
+.mortgage-form__bonus-row > .btn-row-delete {
+  align-self: end;
+  margin-bottom: 7px;
+}
+
 .mortgage-form__checkbox {
   display: flex;
   align-items: flex-start;

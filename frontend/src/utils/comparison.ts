@@ -1,9 +1,7 @@
 // Pure helpers for period comparison — no side effects, unit-testable.
 
 import type { Overview, CategorySummary } from '../api/types'
-
-function pad(n: number): string { return String(n).padStart(2, '0') }
-function ymd(d: Date): string { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` }
+import { isoDate } from './dates'
 
 /**
  * Returns the full calendar month immediately before the month of `from`.
@@ -19,7 +17,7 @@ export function previousCalendarMonth(from: string): { from: string; to: string 
     if (!y || !m || m < 1 || m > 12) return null
     const first = new Date(y, m - 2, 1)    // 0-indexed: m-1 is current, m-2 is previous
     const last  = new Date(y, m - 1, 0)    // day 0 of month m-1 = last day of month m-2
-    return { from: ymd(first), to: ymd(last) }
+    return { from: isoDate(first), to: isoDate(last) }
   } catch {
     return null
   }

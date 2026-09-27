@@ -34,7 +34,6 @@ from finlytics.app import app
 from finlytics.auth.security import create_token
 from finlytics.db.models import User
 
-
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _make_auth_factory(username: str = "drdonoso") -> MagicMock:
@@ -108,14 +107,16 @@ async def test_real_guard_patch_transaction_succeeds(request_session: MagicMock)
     app.dependency_overrides[get_db] = _override_get_db
     try:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            with patch("finlytics.api.deps.async_session_factory", auth_factory):
-                with patch("finlytics.db.queries.update_transaction", new_callable=AsyncMock) as mock_update:
-                    mock_update.return_value = {**_TX, "merchant": "Mercadona S.A."}
-                    resp = await client.patch(
-                        "/api/transactions/1",
-                        json={"merchant": "Mercadona S.A."},
-                        cookies={"finlytics_session": token},
-                    )
+            with (
+                patch("finlytics.api.deps.async_session_factory", auth_factory),
+                patch("finlytics.db.queries.update_transaction", new_callable=AsyncMock) as mock_update,
+            ):
+                mock_update.return_value = {**_TX, "merchant": "Mercadona S.A."}
+                resp = await client.patch(
+                    "/api/transactions/1",
+                    json={"merchant": "Mercadona S.A."},
+                    cookies={"finlytics_session": token},
+                )
     finally:
         app.dependency_overrides.pop(get_db, None)
 
@@ -157,14 +158,16 @@ async def test_real_guard_create_tag_succeeds(request_session: MagicMock):
     app.dependency_overrides[get_db] = _override_get_db
     try:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            with patch("finlytics.api.deps.async_session_factory", auth_factory):
-                with patch("finlytics.db.queries.create_tag", new_callable=AsyncMock) as mock_create:
-                    mock_create.return_value = _TAG
-                    resp = await client.post(
-                        "/api/tags",
-                        json={"name": "🛒 alimentación", "color": "#10b981"},
-                        cookies={"finlytics_session": token},
-                    )
+            with (
+                patch("finlytics.api.deps.async_session_factory", auth_factory),
+                patch("finlytics.db.queries.create_tag", new_callable=AsyncMock) as mock_create,
+            ):
+                mock_create.return_value = _TAG
+                resp = await client.post(
+                    "/api/tags",
+                    json={"name": "🛒 alimentación", "color": "#10b981"},
+                    cookies={"finlytics_session": token},
+                )
     finally:
         app.dependency_overrides.pop(get_db, None)
 

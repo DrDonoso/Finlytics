@@ -33,11 +33,8 @@ from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
-
 from finlytics.contracts import ExtractedTransaction
 from finlytics.db.repository import compute_dedup_hash
-
 
 # ── Rule factory ──────────────────────────────────────────────────────────────
 

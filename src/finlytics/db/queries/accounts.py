@@ -2,14 +2,11 @@
 
 from __future__ import annotations
 
-
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from finlytics.db.models import Account, ImportRun, Transaction
 from finlytics.db.queries.types import AccountRow
-
-
 
 # ── Account queries ───────────────────────────────────────────────────────────
 

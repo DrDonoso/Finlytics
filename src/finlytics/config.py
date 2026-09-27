@@ -54,7 +54,7 @@ class Settings(BaseSettings):
     postgres_port: int = 5432
 
     @model_validator(mode="after")
-    def _build_database_url(self) -> "Settings":
+    def _build_database_url(self) -> Settings:
         """Assemble database_url from components when not supplied directly."""
         if not self.database_url:
             self.database_url = (
@@ -107,7 +107,7 @@ class Settings(BaseSettings):
     finlytics_encryption_key: str | None = None
 
     @model_validator(mode="after")
-    def _ensure_auth_secret(self) -> "Settings":
+    def _ensure_auth_secret(self) -> Settings:
         """Reject public placeholders; auto-generate when AUTH_SECRET is unset.
 
         A placeholder copied verbatim from ``.env.example`` (a public file) would

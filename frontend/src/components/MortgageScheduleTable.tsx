@@ -35,7 +35,7 @@ export default function MortgageScheduleTable({ years, linked, chargesFrom, load
   }
 
   if (loading) {
-    return <div className="state-box"><IconLoading size={26} className="icon" /><span>{t.loading}</span></div>
+    return <div className="state-box"><IconLoading size={26} /><span>{t.loading}</span></div>
   }
   if (error) {
     return <div className="state-box error"><IconAlert size={26} className="icon" /><span>{error}</span></div>
@@ -133,7 +133,7 @@ export default function MortgageScheduleTable({ years, linked, chargesFrom, load
             <td className="cat-td-num private">{formatCurrency(totals.interest)}</td>
             <td className="cat-td-num private">{formatCurrency(totals.principal)}</td>
             <td className="cat-td-num private">{formatCurrency(totals.prepayment)}</td>
-            <td className="cat-td-num" />
+            <td className="cat-td-num">—</td>
           </tr>
         </tfoot>
       </table>

@@ -28,8 +28,13 @@ frontend/dist/
 frontend/dist-demo/
 frontend/.vite/
 
-# Tests (not needed at runtime)
+# Tests (not needed at runtime). The Playwright smoke test runs against a
+# build, never inside the image.
 tests/
+frontend/e2e/
+frontend/playwright.config.ts
+frontend/playwright-report/
+frontend/test-results/
 
 # Documentation assets (README screenshots — never used at runtime)
 docs/

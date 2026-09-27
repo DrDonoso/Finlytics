@@ -29,6 +29,7 @@ from datetime import date, datetime
 from decimal import Decimal
 
 from sqlalchemy import (
+    JSON,
     BigInteger,
     Boolean,
     Column,
@@ -38,7 +39,6 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
-    JSON,
     Numeric,
     String,
     Table,
@@ -110,8 +110,8 @@ class Account(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
-    import_runs: Mapped[list["ImportRun"]] = relationship(back_populates="account")
-    transactions: Mapped[list["Transaction"]] = relationship(back_populates="account")
+    import_runs: Mapped[list[ImportRun]] = relationship(back_populates="account")
+    transactions: Mapped[list[Transaction]] = relationship(back_populates="account")
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"<Account id={self.id} name={self.name!r}>"
@@ -137,7 +137,7 @@ class Category(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
-    transactions: Mapped[list["Transaction"]] = relationship(back_populates="category")
+    transactions: Mapped[list[Transaction]] = relationship(back_populates="category")
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"<Category id={self.id} name={self.name!r} base={self.is_base}>"
@@ -218,8 +218,8 @@ class ImportRun(Base):
     # Relative filename under settings.upload_dir; None when no PDF was captured.
     source_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
-    account: Mapped["Account"] = relationship(back_populates="import_runs")
-    transactions: Mapped[list["Transaction"]] = relationship(back_populates="import_run")
+    account: Mapped[Account] = relationship(back_populates="import_runs")
+    transactions: Mapped[list[Transaction]] = relationship(back_populates="import_run")
 
     def __repr__(self) -> str:  # pragma: no cover
         return (
@@ -296,12 +296,12 @@ class Transaction(Base):
     )
 
     # ── Relationships ─────────────────────────────────────────────────────────
-    account: Mapped["Account"] = relationship(back_populates="transactions")
-    import_run: Mapped["ImportRun"] = relationship(back_populates="transactions")
-    category: Mapped["Category | None"] = relationship(back_populates="transactions")
+    account: Mapped[Account] = relationship(back_populates="transactions")
+    import_run: Mapped[ImportRun] = relationship(back_populates="transactions")
+    category: Mapped[Category | None] = relationship(back_populates="transactions")
     # Tags are loaded lazily by default; use selectinload() for bulk reads.
     # passive_deletes=True defers secondary-table cleanup to the DB-level CASCADE.
-    tags: Mapped[list["Tag"]] = relationship(
+    tags: Mapped[list[Tag]] = relationship(
         secondary=transaction_tags,
         lazy="select",
         passive_deletes=True,
@@ -767,7 +767,7 @@ class AssistantConversation(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
-    messages: Mapped[list["AssistantMessage"]] = relationship(
+    messages: Mapped[list[AssistantMessage]] = relationship(
         back_populates="conversation",
         cascade="all, delete-orphan",
         order_by="AssistantMessage.id",
@@ -802,8 +802,10 @@ class AssistantMessage(Base):
     # [{"name": "get_spending_by_category", "arguments": {...}}, …] — audit only
     tool_calls: Mapped[list | None] = mapped_column(JSON, nullable=True)
     # Token usage for the whole turn, summed across the several provider calls a
-    # tool round-trip makes. Nullable because not every provider reports usage,
-    # and a turn that failed never got any.
+    # tool round-trip makes. A turn's cost sits on exactly one row: its answer,
+    # or — when it failed or was stopped before answering — the question that
+    # opened it, because the calls that did finish were billed all the same.
+    # Nullable because not every provider reports usage.
     prompt_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
     completion_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
     total_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -885,15 +887,15 @@ class Mortgage(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
 
-    rate_periods: Mapped[list["MortgageRatePeriod"]] = relationship(
+    rate_periods: Mapped[list[MortgageRatePeriod]] = relationship(
         back_populates="mortgage",
         cascade="all, delete-orphan",
         order_by="MortgageRatePeriod.start_month",
     )
-    bonuses: Mapped[list["MortgageBonus"]] = relationship(
+    bonuses: Mapped[list[MortgageBonus]] = relationship(
         back_populates="mortgage", cascade="all, delete-orphan"
     )
-    prepayments: Mapped[list["MortgagePrepayment"]] = relationship(
+    prepayments: Mapped[list[MortgagePrepayment]] = relationship(
         back_populates="mortgage",
         cascade="all, delete-orphan",
         order_by="MortgagePrepayment.payment_date",
@@ -944,7 +946,7 @@ class MortgageRatePeriod(Base):
     floor_rate: Mapped[Decimal | None] = mapped_column(Numeric(8, 5), nullable=True)
     cap_rate: Mapped[Decimal | None] = mapped_column(Numeric(8, 5), nullable=True)
 
-    mortgage: Mapped["Mortgage"] = relationship(back_populates="rate_periods")
+    mortgage: Mapped[Mortgage] = relationship(back_populates="rate_periods")
 
     def __repr__(self) -> str:  # pragma: no cover
         return (
@@ -983,7 +985,7 @@ class MortgageBonus(Base):
     start_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
 
-    mortgage: Mapped["Mortgage"] = relationship(back_populates="bonuses")
+    mortgage: Mapped[Mortgage] = relationship(back_populates="bonuses")
 
     def __repr__(self) -> str:  # pragma: no cover
         return (
@@ -1020,7 +1022,7 @@ class MortgagePrepayment(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
-    mortgage: Mapped["Mortgage"] = relationship(back_populates="prepayments")
+    mortgage: Mapped[Mortgage] = relationship(back_populates="prepayments")
 
     def __repr__(self) -> str:  # pragma: no cover
         return (

@@ -381,6 +381,14 @@ async def _fetch_performance(
     )
 
 
+def _add_optional(a: float | None, b: float | None) -> float | None:
+    if a is None:
+        return b
+    if b is None:
+        return a
+    return a + b
+
+
 class IndexaProvider(InvestmentProvider):
     plugin_id = "indexa-capital"
 
@@ -510,27 +518,43 @@ class IndexaProvider(InvestmentProvider):
                             type="contribution" if amt_r > 0 else "withdrawal",
                         ))
                     aggregated_perf.contribution_events = merged_events
-                    # Non-aggregatable: clear for multi-account
-                    aggregated_perf.returns.twr_annual = None
-                    aggregated_perf.returns.twr_total = None
-                    aggregated_perf.returns.twr_last_week = None
-                    aggregated_perf.returns.twr_last_month = None
-                    aggregated_perf.returns.twr_last_year = None
-                    aggregated_perf.returns.volatility = None
-                    aggregated_perf.returns.xirr = None
-                    # Aggregatable: sum
-                    if perf.returns.pl is not None:
-                        aggregated_perf.returns.pl = (
-                            aggregated_perf.returns.pl or 0.0
-                        ) + perf.returns.pl
-                    if perf.returns.invested is not None:
-                        aggregated_perf.returns.invested = (
-                            aggregated_perf.returns.invested or 0.0
-                        ) + perf.returns.invested
-                    if perf.returns.money_return is not None:
-                        aggregated_perf.returns.money_return = (
-                            aggregated_perf.returns.money_return or 0.0
-                        ) + perf.returns.money_return
+                    contrib_by_date: dict[str, float] = {
+                        vp.date: vp.value for vp in aggregated_perf.contributions_series
+                    }
+                    for vp in perf.contributions_series:
+                        contrib_by_date[vp.date] = contrib_by_date.get(vp.date, 0.0) + vp.value
+                    aggregated_perf.contributions_series = [
+                        NormalizedValuePoint(date=d, value=v)
+                        for d, v in sorted(contrib_by_date.items())
+                    ]
+                    aggregated_perf.total_value += perf.total_value
+                    # Rates and per-account analytics cannot be combined by adding
+                    # them, so a merged portfolio does not report them at all.
+                    merged = aggregated_perf.returns
+                    merged.twr_annual = None
+                    merged.twr_total = None
+                    merged.twr_last_week = None
+                    merged.twr_last_month = None
+                    merged.twr_last_year = None
+                    merged.volatility = None
+                    merged.xirr = None
+                    merged.money_return = None
+                    merged.money_return_annual = None
+                    merged.rentabilidad_pct = None
+                    merged.sharpe_ratio = None
+                    aggregated_perf.monthly_returns = []
+                    aggregated_perf.drawdown = None
+                    merged.pl = _add_optional(merged.pl, perf.returns.pl)
+                    merged.invested = _add_optional(merged.invested, perf.returns.invested)
+                    merged.aportaciones = _add_optional(
+                        merged.aportaciones, perf.returns.aportaciones
+                    )
+                    merged.retenciones = _add_optional(
+                        merged.retenciones, perf.returns.retenciones
+                    )
+                    merged.rentabilidad_eur = _add_optional(
+                        merged.rentabilidad_eur, perf.returns.rentabilidad_eur
+                    )
 
         return NormalizedPortfolio(
             holdings=holdings,

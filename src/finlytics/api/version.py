@@ -12,7 +12,8 @@ built_at  : str|null  — injected via FINLYTICS_BUILD_DATE env var at deploy ti
 from __future__ import annotations
 
 import os
-from importlib.metadata import PackageNotFoundError, version as _pkg_version
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _pkg_version
 from pathlib import Path
 
 from fastapi import APIRouter

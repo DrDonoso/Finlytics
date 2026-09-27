@@ -5,9 +5,6 @@ from __future__ import annotations
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
-
-
 # ── Shared helpers ─────────────────────────────────────────────────────────────
 
 _PREVIEW_BODY = {
@@ -167,11 +164,12 @@ async def test_apply_saved_rule_forwards_rule_to_helper(client):
 # ── _RuleLike + _count_matching integration (unit-level) ──────────────────────
 
 async def test_count_matching_uses_matcher(client):
-    """_count_matching loads transactions and invokes the rule matcher."""
-    from finlytics.api.rules import _RuleLike, _count_matching
+    """_count_matching pre-filters in SQL, then confirms every row with the rule matcher."""
+    from sqlalchemy.dialects import postgresql
+
+    from finlytics.api.rules import _count_matching, _RuleLike
     from finlytics.api.schemas import RuleIn
 
-    # Build a minimal body and RuleLike
     body = RuleIn(
         name="test",
         description_mode="contains",
@@ -180,30 +178,22 @@ async def test_count_matching_uses_matcher(client):
     )
     rule_like = _RuleLike(body)
 
-    # Mock session that returns matching transactions
+    # The mock ignores the WHERE clause, so the matcher alone has to drop the second row.
     mock_session = MagicMock()
-    tx_match = MagicMock()
-    tx_match.description = "COMPRA EN MERCADONA"
-    tx_match.detail = None
-    tx_match.amount = Decimal("-45.30")
-    tx_match.currency = "EUR"
-    tx_match.account = MagicMock()
-    tx_match.account.name = "BBVA"
-
-    tx_no_match = MagicMock()
-    tx_no_match.description = "NOMINA EMPRESA"
-    tx_no_match.detail = None
-    tx_no_match.amount = Decimal("2850.00")
-    tx_no_match.currency = "EUR"
-    tx_no_match.account = MagicMock()
-    tx_no_match.account.name = "BBVA"
-
-    execute_result = MagicMock()
-    execute_result.scalars.return_value.all.return_value = [tx_match, tx_no_match]
-    mock_session.execute = AsyncMock(return_value=execute_result)
+    mock_session.execute = AsyncMock(
+        return_value=[
+            (1, "COMPRA EN MERCADONA", None, Decimal("-45.30"), "BBVA", "EUR"),
+            (2, "NOMINA EMPRESA", None, Decimal("2850.00"), "BBVA", "EUR"),
+        ]
+    )
 
     count = await _count_matching(mock_session, rule_like)
     assert count == 1
+
+    mock_session.execute.assert_awaited_once()
+    sql = str(mock_session.execute.await_args.args[0].compile(dialect=postgresql.dialect()))
+    assert "translate(transactions.description" in sql
+    assert "LIKE" in sql
 
 
 async def test_rule_like_converts_amount_bounds(client):

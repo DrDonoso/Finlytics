@@ -8,22 +8,22 @@ from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from pydantic import ValidationError
 
 from finlytics.extraction.extractor import (
     _CHUNK_LINES,
     _EXTRACTION_MAX_TOKENS,
-    _ExtractionResult,
-    _RawTransaction,
     _drop_category_tags,
     _drop_merchant_tags,
+    _ExtractionResult,
     _normalize_tags,
+    _RawTransaction,
     _split_into_chunks,
     extract_transactions,
 )
 from finlytics.extraction.llm_client import LLMClient, LLMError
 from finlytics.extraction.schema import ExtractedTransaction
 from finlytics.extraction.taxonomy import BASE_CATEGORIES, BASE_CATEGORY_ES
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -199,7 +199,7 @@ async def test_extract_all_base_categories_not_warned(caplog):
 
 
 def test_raw_transaction_invalid_date_raises():
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         _RawTransaction(
             transaction_date="not-a-date",
             amount=-10.0,
@@ -212,7 +212,7 @@ def test_raw_transaction_confidence_bounds():
     raw = _simple_raw(category_confidence=1.0)
     assert raw.category_confidence == 1.0
 
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         _simple_raw(category_confidence=1.1)
 
 

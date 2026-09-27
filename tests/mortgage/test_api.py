@@ -18,6 +18,7 @@ from sqlalchemy.pool import StaticPool
 
 from finlytics.api.deps import get_current_user, get_db
 from finlytics.app import app
+from finlytics.clock import today as local_today
 from finlytics.db.models import Account, Base, Category, EuriborRate, ImportRun, Transaction
 
 USER_ID = 1
@@ -755,7 +756,7 @@ class TestPaymentCandidates:
             s.add(run)
             await s.flush()
 
-            today = date.today()
+            today = local_today()
             for idx, amount in enumerate(amounts, start=1):
                 month = today.month - idx
                 year = today.year + (month - 1) // 12

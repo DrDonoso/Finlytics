@@ -5,7 +5,6 @@ from unittest.mock import AsyncMock, patch
 
 from finlytics.db.queries import DedupCollisionError
 
-
 _TX = {
     "id": 1,
     "transaction_date": "2024-06-01",

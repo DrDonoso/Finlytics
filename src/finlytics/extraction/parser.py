@@ -35,11 +35,10 @@ import logging
 import re
 from collections import Counter
 from pathlib import Path
-from typing import Union
 
 log = logging.getLogger(__name__)
 
-Source = Union[Path, bytes]
+Source = Path | bytes
 
 # Matches lines that start with a date (DD/MM) — used to avoid consuming
 # Courier-Oblique date/amount rows as bold-detail lines.
@@ -251,7 +250,7 @@ def _extract_page_text(page, *, bold_markup: bool = True) -> str:
     return "\n".join(text_lines)
 
 
-def _parse_xlsx(source: Source) -> str:  # noqa: ARG001
+def _parse_xlsx(source: Source) -> str:
     """STUB: Extract rows from an xlsx file using openpyxl.
 
     Not yet implemented — will be added in a future slice once real BBVA or

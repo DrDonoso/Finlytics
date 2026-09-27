@@ -5,7 +5,6 @@ from unittest.mock import AsyncMock, patch
 from finlytics.db.models import Tag
 from finlytics.db.queries import TagNameConflictError, update_tag
 
-
 _TAGS = [
     {"id": 1, "name": "agua",     "color": "#3b82f6", "emoji": None, "tx_count": 0},
     {"id": 2, "name": "gas",      "color": "#f97316", "emoji": None, "tx_count": 2},

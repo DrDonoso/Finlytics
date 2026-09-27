@@ -11,7 +11,7 @@ session, exactly like a browser.
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import jwt
 import pytest
@@ -142,7 +142,7 @@ async def test_logging_out_the_same_token_twice_is_harmless(factory):
 
 async def test_logout_purges_revocations_whose_token_has_expired(factory):
     async with factory() as s:
-        s.add(RevokedToken(jti="stale", expires_at=datetime.now(timezone.utc) - timedelta(days=1)))
+        s.add(RevokedToken(jti="stale", expires_at=datetime.now(UTC) - timedelta(days=1)))
         await s.commit()
 
     async with _device() as laptop:
@@ -279,7 +279,7 @@ async def test_guessing_the_current_password_is_rate_limited(factory, monkeypatc
 # ── Tokens from before sessions were revocable ────────────────────────────────
 
 async def test_a_token_without_session_claims_is_refused(factory):
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     legacy = jwt.encode(
         {"sub": USERNAME, "iat": now, "exp": now + timedelta(days=7)},
         settings.auth_secret,

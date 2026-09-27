@@ -1,7 +1,6 @@
-// ─── Date range helpers ───────────────────────────────────────────────────────
+import { isoDate } from './utils/dates'
 
-function pad(n: number) { return String(n).padStart(2, '0') }
-function ymd(d: Date) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` }
+// ─── Date range helpers ───────────────────────────────────────────────────────
 
 export interface DateRange { from: string; to: string }
 
@@ -12,13 +11,13 @@ export type RangePreset = typeof RANGE_PRESETS[number]
 export function presetRange(preset: RangePreset, now: Date = new Date()): DateRange {
   const y = now.getFullYear()
   const m = now.getMonth()
-  const endOfMonth = ymd(new Date(y, m + 1, 0))
+  const endOfMonth = isoDate(new Date(y, m + 1, 0))
   switch (preset) {
-    case 'thisMonth': return { from: ymd(new Date(y, m, 1)), to: endOfMonth }
-    case 'lastMonth': return { from: ymd(new Date(y, m - 1, 1)), to: ymd(new Date(y, m, 0)) }
-    case '3m':        return { from: ymd(new Date(y, m - 2, 1)), to: endOfMonth }
-    case 'ytd':       return { from: ymd(new Date(y, 0, 1)), to: endOfMonth }
-    case '12m':       return { from: ymd(new Date(y, m - 11, 1)), to: endOfMonth }
+    case 'thisMonth': return { from: isoDate(new Date(y, m, 1)), to: endOfMonth }
+    case 'lastMonth': return { from: isoDate(new Date(y, m - 1, 1)), to: isoDate(new Date(y, m, 0)) }
+    case '3m':        return { from: isoDate(new Date(y, m - 2, 1)), to: endOfMonth }
+    case 'ytd':       return { from: isoDate(new Date(y, 0, 1)), to: endOfMonth }
+    case '12m':       return { from: isoDate(new Date(y, m - 11, 1)), to: endOfMonth }
     case 'all':       return { from: '', to: '' }
   }
 }

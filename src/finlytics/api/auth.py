@@ -14,7 +14,7 @@ so the device making the request stays signed in.
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field, field_validator
@@ -138,12 +138,12 @@ async def _revoke(db: AsyncSession, claims: dict) -> None:
     exp = claims.get("exp")
     if not isinstance(jti, str) or not isinstance(exp, (int, float)):
         return
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     # Rows only matter until their token would have expired anyway; dropping the
     # stale ones here keeps the table as small as the number of live sessions.
     await db.execute(delete(RevokedToken).where(RevokedToken.expires_at < now))
     if await db.get(RevokedToken, jti) is None:
-        db.add(RevokedToken(jti=jti, expires_at=datetime.fromtimestamp(exp, tz=timezone.utc)))
+        db.add(RevokedToken(jti=jti, expires_at=datetime.fromtimestamp(exp, tz=UTC)))
     try:
         await db.commit()
     except IntegrityError:

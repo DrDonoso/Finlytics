@@ -1,6 +1,7 @@
-import { useCallback, useMemo } from 'react'
+import { useMemo } from 'react'
 import { useNavigate } from 'react-router'
 import { useInvestmentPlugins } from '../api/queries'
+import { useModalDismiss } from '../hooks/useModalDismiss'
 import { useT } from '../i18n'
 import { getPluginLogo, pluginInitial } from '../investments/registry'
 import { IconClose, IconFileText, IconChevronRight } from './icons'
@@ -25,27 +26,18 @@ export default function ImportSourcePicker({ onClose, onStatements }: ImportSour
     () => (pluginsQuery.data ?? []).filter(p => p.import_route !== null),
     [pluginsQuery.data],
   )
-
-  const handleBackdrop = useCallback((e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) onClose()
-  }, [onClose])
-
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') onClose()
-  }, [onClose])
+  const backdrop = useModalDismiss(onClose)
 
   return (
-    <div
-      className="modal-backdrop"
-      role="dialog"
-      aria-modal="true"
-      aria-label={t.importPickerTitle}
-      onClick={handleBackdrop}
-      onKeyDown={handleKeyDown}
-    >
-      <div className="modal-box import-picker-modal">
+    <div className="modal-backdrop" {...backdrop}>
+      <div
+        className="modal-box import-picker-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="import-picker-title"
+      >
         <div className="modal-header">
-          <span className="modal-title">{t.importPickerTitle}</span>
+          <span className="modal-title" id="import-picker-title">{t.importPickerTitle}</span>
           <button
             className="modal-close"
             onClick={onClose}

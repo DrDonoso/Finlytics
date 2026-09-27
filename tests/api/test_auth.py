@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -12,7 +13,6 @@ from finlytics.api.deps import get_db
 from finlytics.app import app
 from finlytics.auth.security import create_token, hash_password
 from finlytics.db.models import User
-
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -343,7 +343,7 @@ async def test_login_generic_message_no_info_leak(auth_client):
 
 async def test_login_remember_true_sets_persistent_cookie(auth_client):
     """remember=True → persistent cookie (max-age present) with long-lived JWT."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from finlytics.auth.security import decode_token
     from finlytics.config import settings
@@ -365,8 +365,8 @@ async def test_login_remember_true_sets_persistent_cookie(auth_client):
     assert token is not None
     payload = decode_token(token)
     assert payload is not None
-    exp = datetime.fromtimestamp(payload["exp"], tz=timezone.utc)
-    delta_seconds = (exp - datetime.now(timezone.utc)).total_seconds()
+    exp = datetime.fromtimestamp(payload["exp"], tz=UTC)
+    delta_seconds = (exp - datetime.now(UTC)).total_seconds()
     assert abs(delta_seconds - settings.auth_remember_expire_days * 24 * 3600) < 5
 
 
@@ -390,7 +390,7 @@ async def test_login_remember_true_max_age_matches_config(auth_client):
 
 async def test_login_remember_false_sets_session_cookie(auth_client):
     """remember=False → session cookie (no max-age), JWT exp = auth_token_expire_days."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from finlytics.auth.security import decode_token
     from finlytics.config import settings
@@ -412,8 +412,8 @@ async def test_login_remember_false_sets_session_cookie(auth_client):
     assert token is not None
     payload = decode_token(token)
     assert payload is not None
-    exp = datetime.fromtimestamp(payload["exp"], tz=timezone.utc)
-    delta_seconds = (exp - datetime.now(timezone.utc)).total_seconds()
+    exp = datetime.fromtimestamp(payload["exp"], tz=UTC)
+    delta_seconds = (exp - datetime.now(UTC)).total_seconds()
     assert abs(delta_seconds - settings.auth_token_expire_days * 24 * 3600) < 5
 
 
@@ -479,13 +479,13 @@ async def test_logout_idempotent_without_cookie(auth_client):
 # ── GET /api/auth/me ──────────────────────────────────────────────────────────
 
 async def test_me_401_without_cookie(auth_client):
-    client, session = auth_client
+    client, _session = auth_client
     resp = await client.get("/api/auth/me")
     assert resp.status_code == 401
 
 
 async def test_me_401_with_invalid_cookie(auth_client):
-    client, session = auth_client
+    client, _session = auth_client
     resp = await client.get(
         "/api/auth/me", cookies={"finlytics_session": "not-a-valid-jwt"}
     )
@@ -514,13 +514,13 @@ async def test_me_200_with_valid_cookie(auth_client):
 
 async def test_data_endpoint_401_without_cookie(auth_client):
     """Any data endpoint returns 401 when no session cookie is present."""
-    client, session = auth_client
+    client, _session = auth_client
     resp = await client.get("/api/accounts")
     assert resp.status_code == 401
 
 
 async def test_data_endpoint_401_with_invalid_cookie(auth_client):
-    client, session = auth_client
+    client, _session = auth_client
     resp = await client.get(
         "/api/accounts", cookies={"finlytics_session": "garbage"}
     )
@@ -537,12 +537,14 @@ async def test_data_endpoint_200_with_valid_cookie(auth_client):
     auth_session.__aenter__ = AsyncMock(return_value=auth_session)
     auth_session.__aexit__ = AsyncMock(return_value=False)
 
-    with patch("finlytics.api.deps.async_session_factory", MagicMock(return_value=auth_session)):
-        with patch("finlytics.db.queries.get_accounts", new_callable=AsyncMock) as mock_q:
-            mock_q.return_value = []
-            resp = await client.get(
-                "/api/accounts", cookies={"finlytics_session": token}
-            )
+    with (
+        patch("finlytics.api.deps.async_session_factory", MagicMock(return_value=auth_session)),
+        patch("finlytics.db.queries.get_accounts", new_callable=AsyncMock) as mock_q,
+    ):
+        mock_q.return_value = []
+        resp = await client.get(
+            "/api/accounts", cookies={"finlytics_session": token}
+        )
 
     assert resp.status_code == 200
 

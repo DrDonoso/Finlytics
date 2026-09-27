@@ -21,7 +21,7 @@ import csv
 import io
 import logging
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
 import httpx
@@ -76,7 +76,7 @@ def _last_business_day(ref: date | None = None) -> date:
 
 def _to_unix(d: date) -> int:
     """Convert a date to a Unix timestamp (UTC midnight)."""
-    return int(datetime(d.year, d.month, d.day, tzinfo=timezone.utc).timestamp())
+    return int(datetime(d.year, d.month, d.day, tzinfo=UTC).timestamp())
 
 
 # ── Yahoo Chart API helpers ───────────────────────────────────────────────────
@@ -96,7 +96,7 @@ def _parse_yahoo_history(data: dict) -> list[dict]:
             if close is None or close <= 0:
                 continue
             rows.append({
-                "date": datetime.fromtimestamp(ts, tz=timezone.utc).date(),
+                "date": datetime.fromtimestamp(ts, tz=UTC).date(),
                 "close": float(close),
             })
         rows.sort(key=lambda r: r["date"])
@@ -114,7 +114,7 @@ def _parse_yahoo_snapshot(data: dict) -> dict | None:
         meta = data["chart"]["result"][0]["meta"]
         return {
             "date": datetime.fromtimestamp(
-                meta["regularMarketTime"], tz=timezone.utc
+                meta["regularMarketTime"], tz=UTC
             ).date(),
             "close": float(meta["regularMarketPrice"]),
         }
@@ -142,7 +142,7 @@ async def _yahoo_get(symbol: str, params: dict | None = None) -> dict | None:
                     continue
                 resp.raise_for_status()
                 return resp.json()
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — try the next host
             log.warning("Yahoo request failed for %r on %s: %s", symbol, host, exc)
     return None
 
@@ -212,7 +212,7 @@ async def _fetch_stooq(symbol: str, start: date | None = None) -> list[dict]:
         if len(text) < 30 or "No data" in text:
             return []
         return _parse_stooq_csv(text)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — fall through to the next source
         log.warning("Stooq fetch failed for %r: %s", symbol, exc)
         return []
 
@@ -220,7 +220,7 @@ async def _fetch_stooq(symbol: str, start: date | None = None) -> list[dict]:
 def _fetch_yfinance_sync(symbol: str, start: date | None) -> list[dict]:
     """Synchronous yfinance download — called via ``run_in_executor``."""
     try:
-        import yfinance as yf  # noqa: PLC0415 — late import to keep startup fast
+        import yfinance as yf  # imported late to keep startup fast
         t = yf.Ticker(symbol)
         kw: dict = {"auto_adjust": True}
         if start:
@@ -237,11 +237,11 @@ def _fetch_yfinance_sync(symbol: str, start: date | None) -> list[dict]:
                 close = float(row["Close"])
                 if close > 0:
                     rows.append({"date": d, "close": close})
-            except Exception:
+            except (KeyError, TypeError, ValueError):
                 continue
         rows.sort(key=lambda r: r["date"])
         return rows
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — yfinance raises arbitrary types
         log.warning("yfinance fetch failed for %r: %s", symbol, exc)
         return []
 
@@ -321,7 +321,7 @@ async def topup_recent_prices(db: AsyncSession) -> None:
             _fetch_yahoo_history(_MSFT_TICKER, start=lookback_start),
             _fetch_yahoo_history("EURUSD=X", start=lookback_start),
         )
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — keep the stored series
         log.warning("topup_recent_prices: fetch failed: %s", exc)
         return
 
@@ -400,7 +400,7 @@ async def get_latest_price(db: AsyncSession) -> LatestPriceRow | None:
     # 1. Incremental top-up — settles last day to official close, fills gaps
     try:
         await topup_recent_prices(db)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — serve the cached close
         log.warning("get_latest_price: topup failed (degraded): %s", exc)
 
     # 2. Return latest close row from price_history
@@ -504,6 +504,6 @@ async def get_current_fx_rate() -> float | None:
         snap = await _fetch_yahoo_snapshot("EURUSD=X")
         if snap and snap.get("close", 0) > 0:
             return 1.0 / snap["close"]  # USD per EUR → EUR per USD
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — the caller uses the stored FX
         log.warning("get_current_fx_rate: snapshot failed: %s", exc)
     return None

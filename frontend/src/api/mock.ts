@@ -239,7 +239,7 @@ export function mockGetOverview(params?: SummaryParams): Promise<Overview> {
     .reduce((s, t) => s + t.amount, 0)
 
   const catMap = new Map<string, number>()
-  for (const t of txns.filter(t => t.amount < 0)) {
+  for (const t of txns.filter(tx => tx.amount < 0)) {
     catMap.set(t.category, (catMap.get(t.category) ?? 0) + Math.abs(t.amount))
   }
   let top_category: { name: string; amount: number } | null = null
@@ -259,7 +259,7 @@ export function mockGetOverview(params?: SummaryParams): Promise<Overview> {
 
 export function mockGetByCategory(params?: SummaryParams): Promise<CategorySummary[]> {
   const catMap = new Map<string, { amount: number; count: number }>()
-  for (const t of filterTxns(params).filter(t => !t.is_system && t.amount < 0)) {
+  for (const t of filterTxns(params).filter(tx => !tx.is_system && tx.amount < 0)) {
     const prev = catMap.get(t.category) ?? { amount: 0, count: 0 }
     catMap.set(t.category, { amount: prev.amount + Math.abs(t.amount), count: prev.count + 1 })
   }
@@ -273,7 +273,7 @@ export function mockGetByCategory(params?: SummaryParams): Promise<CategorySumma
 
 export function mockGetByMonth(params?: MonthSummaryParams): Promise<MonthSummary[]> {
   const monthMap = new Map<string, { expense: number; income: number }>()
-  for (const t of filterTxns(params).filter(t => !t.is_system)) {
+  for (const t of filterTxns(params).filter(tx => !tx.is_system)) {
     const month = t.transaction_date.slice(0, 7)
     const prev = monthMap.get(month) ?? { expense: 0, income: 0 }
     if (t.amount < 0) prev.expense += Math.abs(t.amount)
@@ -289,7 +289,7 @@ export function mockGetByMonth(params?: MonthSummaryParams): Promise<MonthSummar
 
 export function mockGetByAccount(params?: SummaryParams): Promise<AccountSummary[]> {
   const accMap = new Map<string, { expense: number; income: number }>()
-  for (const t of filterTxns(params).filter(t => !t.is_system)) {
+  for (const t of filterTxns(params).filter(tx => !tx.is_system)) {
     const prev = accMap.get(t.account) ?? { expense: 0, income: 0 }
     if (t.amount < 0) prev.expense += Math.abs(t.amount)
     else prev.income += t.amount
@@ -582,6 +582,7 @@ export function mockGetInvestmentPortfolio(): Promise<InvestmentPortfolio> {
       currency: 'EUR',
       plugins_connected: 0,
       last_updated: null,
+      accounts_unavailable: 0,
       returns: null,
       value_series: [],
       contributions_series: [],
@@ -599,6 +600,7 @@ export function mockGetInvestmentPortfolio(): Promise<InvestmentPortfolio> {
     currency: 'EUR',
     plugins_connected: 1,
     last_updated: '2026-07-14T11:12:00.123456+00:00',
+    accounts_unavailable: 0,
     returns: {
       twr_annual: 0.0851,
       xirr: 0.0912,

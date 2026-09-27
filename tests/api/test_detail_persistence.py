@@ -17,7 +17,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from finlytics.contracts import ExtractedTransaction
 from finlytics.db.repository import compute_dedup_hash, upsert_transactions
 
-
 # ── ORM model column checks ───────────────────────────────────────────────────
 
 def test_transaction_model_has_detail_column():
@@ -80,10 +79,12 @@ async def test_upsert_passes_detail_to_insert_values():
         stmt.returning = MagicMock(return_value=stmt)
         return stmt
 
-    with patch("finlytics.db.repository.get_or_create_category", new_callable=AsyncMock,
-               return_value=category_mock):
-        with patch("finlytics.db.repository.pg_insert", side_effect=fake_pg_insert):
-            n_ins, n_dup = await upsert_transactions(session, fake_run, [tx])
+    with (
+        patch("finlytics.db.repository.get_or_create_category", new_callable=AsyncMock,
+              return_value=category_mock),
+        patch("finlytics.db.repository.pg_insert", side_effect=fake_pg_insert),
+    ):
+        n_ins, _n_dup = await upsert_transactions(session, fake_run, [tx])
 
     assert n_ins == 1
     assert captured["detail"] == "GCREOCTOPUSENERGY"
@@ -123,10 +124,12 @@ async def test_upsert_detail_less_tx_hash_unchanged():
         stmt.returning = MagicMock(return_value=stmt)
         return stmt
 
-    with patch("finlytics.db.repository.get_or_create_category", new_callable=AsyncMock,
-               return_value=category_mock):
-        with patch("finlytics.db.repository.pg_insert", side_effect=fake_pg_insert):
-            await upsert_transactions(session, fake_run, [tx])
+    with (
+        patch("finlytics.db.repository.get_or_create_category", new_callable=AsyncMock,
+              return_value=category_mock),
+        patch("finlytics.db.repository.pg_insert", side_effect=fake_pg_insert),
+    ):
+        await upsert_transactions(session, fake_run, [tx])
 
     assert captured["dedup_hash"] == legacy_hash
     assert captured["detail"] is None
@@ -173,13 +176,11 @@ async def test_upsert_skips_existing_duplicate_by_default_but_forced_duplicate_i
             "finlytics.db.repository.get_or_create_category",
             new_callable=AsyncMock,
             return_value=category_mock,
+        ), patch("finlytics.db.repository.pg_insert", side_effect=fake_pg_insert), patch(
+            "finlytics.db.repository.uuid.uuid4",
+            return_value=SimpleNamespace(hex="forceduplicate1"),
         ):
-            with patch("finlytics.db.repository.pg_insert", side_effect=fake_pg_insert):
-                with patch(
-                    "finlytics.db.repository.uuid.uuid4",
-                    return_value=SimpleNamespace(hex="forceduplicate1"),
-                ):
-                    counts = await upsert_transactions(session, fake_run, [tx_to_insert])
+            counts = await upsert_transactions(session, fake_run, [tx_to_insert])
         return counts, captured
 
     default_counts, default_values = await _run_one(tx, inserted_id=None)
@@ -230,13 +231,11 @@ async def test_upsert_two_identical_transactions_second_forced_both_inserted():
         "finlytics.db.repository.get_or_create_category",
         new_callable=AsyncMock,
         return_value=category_mock,
+    ), patch("finlytics.db.repository.pg_insert", side_effect=fake_pg_insert), patch(
+        "finlytics.db.repository.uuid.uuid4",
+        return_value=SimpleNamespace(hex="forceduplicate2"),
     ):
-        with patch("finlytics.db.repository.pg_insert", side_effect=fake_pg_insert):
-            with patch(
-                "finlytics.db.repository.uuid.uuid4",
-                return_value=SimpleNamespace(hex="forceduplicate2"),
-            ):
-                counts = await upsert_transactions(session, fake_run, [tx, forced_tx])
+        counts = await upsert_transactions(session, fake_run, [tx, forced_tx])
 
     assert counts == (2, 0)
     assert len(captured_hashes) == 2
@@ -277,9 +276,8 @@ async def test_upsert_hash_uses_the_run_account_not_account_ref():
         "finlytics.db.repository.get_or_create_category",
         new_callable=AsyncMock,
         return_value=MagicMock(id=5),
-    ):
-        with patch("finlytics.db.repository.pg_insert", side_effect=fake_pg_insert):
-            await upsert_transactions(session, fake_run, [tx])
+    ), patch("finlytics.db.repository.pg_insert", side_effect=fake_pg_insert):
+        await upsert_transactions(session, fake_run, [tx])
 
     assert captured["dedup_hash"] == compute_dedup_hash(
         3, date(2024, 6, 1), Decimal("-42.50"), "MERCADONA"

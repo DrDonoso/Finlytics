@@ -122,6 +122,13 @@ export default function InvestmentsLandingPage() {
         <h1 className="investments-page-title">{t.invCombinedTitle}</h1>
       </div>
 
+      {overview.partial && (
+        <div className="inv-partial-banner" role="status">
+          <IconAlert size={16} />
+          <span>{t.invPartialTotal}</span>
+        </div>
+      )}
+
       {/* KPI strip */}
       <div className="inv-kpi-strip">
         <div className="inv-kpi-card">
@@ -162,8 +169,8 @@ export default function InvestmentsLandingPage() {
                       dataKey="value"
                       paddingAngle={2}
                     >
-                      {providerDonutData.map((entry, i) => (
-                        <Cell key={i} fill={entry.color} opacity={0.9} />
+                      {providerDonutData.map(entry => (
+                        <Cell key={entry.name} fill={entry.color} opacity={0.9} />
                       ))}
                     </Pie>
                     <Tooltip
@@ -232,8 +239,8 @@ export default function InvestmentsLandingPage() {
                       dataKey="value"
                       paddingAngle={2}
                     >
-                      {assetDonutData.map((entry, i) => (
-                        <Cell key={i} fill={entry.color} opacity={0.9} />
+                      {assetDonutData.map(entry => (
+                        <Cell key={entry.name} fill={entry.color} opacity={0.9} />
                       ))}
                     </Pie>
                     <Tooltip

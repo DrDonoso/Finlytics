@@ -55,6 +55,7 @@ export default function LoginPage() {
               value={username}
               onChange={e => setUsername(e.target.value)}
               autoComplete="username"
+              // eslint-disable-next-line jsx-a11y/no-autofocus -- the sign-in form is the whole page, so its first field is the only sensible starting point
               autoFocus
               required
             />

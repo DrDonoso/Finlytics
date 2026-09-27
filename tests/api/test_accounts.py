@@ -10,7 +10,6 @@ from finlytics.api.schemas import mask_account_number
 from finlytics.db.models import Account, ImportRun
 from finlytics.db.repository import compute_dedup_hash
 
-
 _ACCOUNT_ROW = {"id": 1, "name": "BBVA", "type": "bank", "currency": "EUR", "tx_count": 5, "account_number": None}
 _ACCOUNT_ROW2 = {"id": 2, "name": "Indexa Capital", "type": "broker", "currency": "EUR", "tx_count": 0, "account_number": None}
 _IBAN = "ES7921000813610123456789"

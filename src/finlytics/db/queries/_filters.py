@@ -18,7 +18,6 @@ from sqlalchemy import case, func, select
 
 from finlytics.db.models import Tag, Transaction, transaction_tags
 
-
 # ── Emoji helper ──────────────────────────────────────────────────────────────
 
 # The quantifiers are possessive (`++`, `*+`) on purpose: none of the three
@@ -164,5 +163,5 @@ def _apply_filters(
             term = term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
             stmt = stmt.where(Transaction.merchant.ilike(f"%{term}%", escape="\\"))
     if exclude_system:
-        stmt = stmt.where(Transaction.is_system == False)  # noqa: E712
+        stmt = stmt.where(Transaction.is_system.is_(False))
     return stmt

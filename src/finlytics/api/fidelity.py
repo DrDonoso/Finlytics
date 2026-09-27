@@ -23,8 +23,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from finlytics.api.deps import get_current_user, get_db
-from finlytics.api.uploads import read_upload
-from finlytics.clock import today as local_today
 from finlytics.api.schemas import (
     FidelityEvolutionOut,
     FidelityImportResult,
@@ -36,10 +34,18 @@ from finlytics.api.schemas import (
     FidelityReminderOut,
     ValuePoint,
 )
+from finlytics.api.uploads import read_upload
+from finlytics.clock import today as local_today
 from finlytics.db.models import EsppLot, InvestmentConnection, InvestmentImportRun, PriceHistory
 from finlytics.investments.fidelity import FidelityESPPProvider, _compute_dedup_hash
 from finlytics.investments.fidelity_csv import parse_open_lots_csv
-from finlytics.investments.market_data import LatestPriceRow, backfill_price_history, get_current_fx_rate, get_latest_price, topup_recent_prices
+from finlytics.investments.market_data import (
+    LatestPriceRow,
+    backfill_price_history,
+    get_current_fx_rate,
+    get_latest_price,
+    topup_recent_prices,
+)
 from finlytics.investments.service import _PROVIDERS
 
 log = logging.getLogger(__name__)
@@ -409,7 +415,7 @@ async def fidelity_import_confirm(
         earliest_date = min(lot.purchase_date for lot in parsed.lots)
         try:
             await backfill_price_history(earliest_date, db)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — the lots are committed; prices can follow later
             log.warning("Price backfill failed (non-fatal): %s", exc)
 
     return FidelityImportResult(inserted=inserted, duplicates=skipped)
@@ -426,7 +432,7 @@ async def fidelity_kpis(
     # Price refresh first — must precede any other SQL (owns its transaction lifecycle)
     try:
         price: LatestPriceRow | None = await get_latest_price(db)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — render without a price rather than fail
         log.warning("get_latest_price failed (degraded): %s", exc)
         price = None
 
@@ -535,7 +541,7 @@ async def fidelity_evolution(
     await db.commit()
     try:
         await topup_recent_prices(db)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — serve the stored series
         log.warning("topup_recent_prices failed (non-fatal): %s", exc)
 
     prices: Sequence[PriceHistory] = (await db.execute(_price_query())).scalars().all()
@@ -559,7 +565,7 @@ async def fidelity_evolution(
         await db.commit()
         try:
             await backfill_price_history(min_date, db)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — serve the stored series
             log.warning("Backfill failed (non-fatal): %s", exc)
         prices = (await db.execute(_price_query())).scalars().all()
 
@@ -572,7 +578,7 @@ async def fidelity_evolution(
         live_fx = await get_current_fx_rate()
         if live_fx is not None:
             latest_fx_eur_usd = live_fx
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — fall back to the stored FX
         log.warning("get_current_fx_rate failed (using stored FX): %s", exc)
 
     price_map: dict[date, tuple[float, float]] = {
@@ -598,7 +604,7 @@ async def fidelity_lots(
     # Price refresh first — must precede any other SQL
     try:
         price: LatestPriceRow | None = await get_latest_price(db)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — render without a price rather than fail
         log.warning("get_latest_price failed (degraded): %s", exc)
         price = None
 

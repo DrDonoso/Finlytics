@@ -12,12 +12,10 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from finlytics.db.models import Category, Tag, Transaction, transaction_tags
-from finlytics.db.queries.types import CategoryRow, CategoryUpdateRow, TagRow, TagWithCountRow
-
 from finlytics.db.queries._filters import (
     _split_leading_emoji,
 )
-
+from finlytics.db.queries.types import CategoryRow, CategoryUpdateRow, TagRow, TagWithCountRow
 
 # ── Category queries ──────────────────────────────────────────────────────────
 

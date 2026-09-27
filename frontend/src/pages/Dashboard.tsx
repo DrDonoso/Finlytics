@@ -225,6 +225,7 @@ export default function Dashboard() {
   // missing source is flagged rather than counted as zero. A silent zero for the
   // mortgage would overstate net worth by the whole outstanding debt.
   const investmentsFailed = Boolean(investmentsQuery.error)
+  const investmentsIncomplete = !investmentsFailed && Boolean(investmentsQuery.data?.partial)
   const mortgageFailed = Boolean(mortgageQuery.error)
   const accountsPending = byAccountQuery.isPending || Boolean(byAccountQuery.error)
   const netWorthPending = accountsPending || investmentsQuery.isPending || mortgageQuery.isPending
@@ -277,6 +278,12 @@ export default function Dashboard() {
             <div className="dashboard-kpi-hero__notice">
               <IconAlert size={13} />
               <span>{t.dashboardNetWorthPartial}</span>
+            </div>
+          )}
+          {!netWorthPending && investmentsIncomplete && (
+            <div className="dashboard-kpi-hero__notice">
+              <IconAlert size={13} />
+              <span>{t.dashboardNetWorthPartialInvestments}</span>
             </div>
           )}
           {!netWorthPending && mortgageFailed && (

@@ -53,6 +53,7 @@ export default function SetupPage() {
               value={username}
               onChange={e => setUsername(e.target.value)}
               autoComplete="username"
+              // eslint-disable-next-line jsx-a11y/no-autofocus -- the setup form is the whole page, so its first field is the only sensible starting point
               autoFocus
               required
             />

@@ -9,6 +9,11 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from finlytics.db.models import Account, Category, Transaction
+from finlytics.db.queries._filters import (
+    _apply_filters,
+    _expense_expr,
+    _income_expr,
+)
 from finlytics.db.queries.types import (
     AccountSummaryRow,
     CashflowItem,
@@ -19,13 +24,6 @@ from finlytics.db.queries.types import (
     MonthSummaryRow,
     OverviewSummary,
 )
-
-from finlytics.db.queries._filters import (
-    _apply_filters,
-    _expense_expr,
-    _income_expr,
-)
-
 
 # ── Aggregation queries ───────────────────────────────────────────────────────
 

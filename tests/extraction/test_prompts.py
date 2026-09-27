@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from finlytics.extraction.prompts import (
     _BOLD_DETAIL_BLOCK,
     _MERCHANT_BLOCK,
@@ -58,7 +56,8 @@ def test_prompt_tag_block_complement_instruction():
 def test_prompt_tag_cap_instruction():
     """Cap at 3 tags must be mentioned."""
     prompt = build_system_prompt("BBVA")
-    assert "3" in _TAG_SUGGESTION_BLOCK
+    assert "Cap at 3 tags per transaction." in _TAG_SUGGESTION_BLOCK
+    assert _TAG_SUGGESTION_BLOCK in prompt
 
 
 # ---------------------------------------------------------------------------

@@ -3,7 +3,6 @@
 from datetime import date
 from unittest.mock import AsyncMock, patch
 
-
 _OVERVIEW = {
     "total_expense": 320.75,
     "total_income": 3200.0,
@@ -105,6 +104,7 @@ async def test_by_month_passes_category_id_filter(client):
         mock.return_value = []
         resp = await client.get("/api/summary/by-month?category_id=3")
 
+    assert resp.status_code == 200
     _, kwargs = mock.call_args
     assert kwargs["category_id"] == 3
 
@@ -171,6 +171,7 @@ async def test_by_day_passes_tag_filter(client):
         mock.return_value = []
         resp = await client.get("/api/summary/by-day?tag=food&tag=travel")
 
+    assert resp.status_code == 200
     _, kwargs = mock.call_args
     assert kwargs["tags"] == ["food", "travel"]
 
@@ -180,6 +181,7 @@ async def test_by_day_passes_flow_filter(client):
         mock.return_value = []
         resp = await client.get("/api/summary/by-day?flow=expense")
 
+    assert resp.status_code == 200
     _, kwargs = mock.call_args
     assert kwargs["flow"] == "expense"
 

@@ -59,8 +59,10 @@ export default function TagEditor({ tags, availableTags, onChange, disabled, pla
     .filter(tg => !tags.includes(tg.name) && (inputValue === '' || tg.name.startsWith(inputValue.toLowerCase())))
 
   return (
+    // A pointer shortcut only: the input is keyboard-reachable on its own
     <div
       className="tag-editor"
+      role="presentation"
       onClick={() => !disabled && inputRef.current?.focus()}
     >
       {tags.map(tag => {
@@ -98,7 +100,7 @@ export default function TagEditor({ tags, availableTags, onChange, disabled, pla
             onBlur={() => { if (inputValue.trim()) addTag(inputValue) }}
           />
           <datalist id={listId}>
-            {suggestions.map(s => <option key={s.id} value={s.name} />)}
+            {suggestions.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
           </datalist>
         </>
       )}

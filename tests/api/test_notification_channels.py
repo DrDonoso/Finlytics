@@ -25,7 +25,7 @@ when the HTTP client acquires it.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -71,7 +71,7 @@ def _registry_with(detected: list[DetectedNotification]):
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _make_channel(

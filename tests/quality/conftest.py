@@ -56,10 +56,11 @@ def bbva_pdf_bytes(bbva_fixture_text: str) -> bytes:
 
     If reportlab is not installed the test using this fixture is auto-skipped.
     """
-    reportlab = pytest.importorskip("reportlab", reason="reportlab not installed — skipping PDF fixture tests")
+    pytest.importorskip("reportlab", reason="reportlab not installed — skipping PDF fixture tests")
+    import io
+
     from reportlab.lib.pagesizes import A4
     from reportlab.pdfgen import canvas
-    import io
 
     buf = io.BytesIO()
     c = canvas.Canvas(buf, pagesize=A4)

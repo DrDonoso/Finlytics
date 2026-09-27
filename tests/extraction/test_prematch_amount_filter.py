@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from decimal import Decimal
-from typing import Optional
 
 from finlytics.extraction.prematch import pre_match_rules
 from finlytics.extraction.rules import RuleProtocol
@@ -22,17 +21,17 @@ class _Rule:
     description_value: str
     priority: int = 100
     enabled: bool = True
-    amount_sign: Optional[str] = None
-    amount_min: Optional[Decimal] = None
-    amount_max: Optional[Decimal] = None
-    account_ref: Optional[str] = None
-    currency: Optional[str] = None
-    set_category: Optional[str] = None
-    set_merchant: Optional[str] = None
+    amount_sign: str | None = None
+    amount_min: Decimal | None = None
+    amount_max: Decimal | None = None
+    account_ref: str | None = None
+    currency: str | None = None
+    set_category: str | None = None
+    set_merchant: str | None = None
     add_tags: list[str] = field(default_factory=list)
     skip_ai: bool = False
-    detail_mode: Optional[str] = None
-    detail_value: Optional[str] = None
+    detail_mode: str | None = None
+    detail_value: str | None = None
 
 
 assert isinstance(_Rule(1, "t", "contains", "x"), RuleProtocol)
@@ -79,7 +78,7 @@ def test_prematch_amount_min_boundary_equal_passes():
     """Line amount abs=45.30 == amount_min=45.30 → boundary inclusive, line consumed."""
     rule = _Rule(1, "Exact", "contains", "mercadona",
                  amount_min=Decimal("45.30"), set_category="Groceries")
-    matched, remaining = pre_match_rules(
+    matched, _remaining = pre_match_rules(
         _MERCADONA_LINE, [rule], statement_year=2026, account_ref="BBVA"
     )
     assert len(matched) == 1
@@ -105,7 +104,7 @@ def test_prematch_amount_max_passes_small_amount():
     """Line amount abs=45.30 <= amount_max=100 → line IS consumed."""
     rule = _Rule(1, "Small purchase", "contains", "mercadona",
                  amount_max=Decimal("100"), set_category="Groceries")
-    matched, remaining = pre_match_rules(
+    matched, _remaining = pre_match_rules(
         _MERCADONA_LINE, [rule], statement_year=2026, account_ref="BBVA"
     )
     assert len(matched) == 1
@@ -116,7 +115,7 @@ def test_prematch_amount_max_boundary_equal_passes():
     """Line amount abs=45.30 == amount_max=45.30 → boundary inclusive, line consumed."""
     rule = _Rule(1, "Exact max", "contains", "mercadona",
                  amount_max=Decimal("45.30"), set_category="Groceries")
-    matched, remaining = pre_match_rules(
+    matched, _remaining = pre_match_rules(
         _MERCADONA_LINE, [rule], statement_year=2026, account_ref="BBVA"
     )
     assert len(matched) == 1
@@ -161,6 +160,7 @@ def test_prematch_amount_range_outside_not_consumed():
 def test_rule_orm_model_has_amount_min_max_columns():
     """Rule ORM model declares amount_min and amount_max as nullable Numeric columns."""
     from sqlalchemy import inspect as sa_inspect
+
     from finlytics.db.models import Rule
 
     mapper = sa_inspect(Rule)

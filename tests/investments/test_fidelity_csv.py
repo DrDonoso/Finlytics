@@ -11,7 +11,6 @@ from decimal import Decimal
 import pytest
 
 from finlytics.investments.fidelity_csv import (
-    NormalizedLot,
     ParsedOpenLots,
     _detect_currency,
     _parse_date,

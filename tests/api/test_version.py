@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
-
 # ── happy-path ────────────────────────────────────────────────────────────────
 
 async def test_version_basic_shape(client):

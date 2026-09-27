@@ -20,7 +20,8 @@ from datetime import date
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from finlytics.assistant import context as ctx_module
-from finlytics.assistant import prompts, tools as tools_module
+from finlytics.assistant import prompts
+from finlytics.assistant import tools as tools_module
 from finlytics.extraction.llm_client import (
     LLMClient,
     LLMError,
@@ -38,6 +39,7 @@ __all__ = [
     "Completed",
     "Failed",
     "AgentLimits",
+    "TurnUsage",
     "run_turn",
 ]
 
@@ -94,15 +96,27 @@ class AgentLimits:
 
 
 @dataclass
-class _Turn:
-    """Mutable state accumulated while a single turn runs."""
+class TurnUsage:
+    """Tokens a turn has spent so far, readable however the turn ends.
 
-    answer_parts: list[str] = field(default_factory=list)
-    audit: list[dict] = field(default_factory=list)
+    Passed in by the caller rather than only reported on ``Completed``: a turn
+    that fails, or that the client abandons, has still billed for every provider
+    call that finished, and the caller has to be able to record that.
+    """
+
     prompt_tokens: int = 0
     completion_tokens: int = 0
     total_tokens: int = 0
-    usage_reported: bool = False
+    reported: bool = False
+
+
+@dataclass
+class _Turn:
+    """Mutable state accumulated while a single turn runs."""
+
+    usage: TurnUsage
+    answer_parts: list[str] = field(default_factory=list)
+    audit: list[dict] = field(default_factory=list)
 
 
 def _truncate_arguments(raw: str, limit: int = 500) -> str:
@@ -120,7 +134,8 @@ async def run_turn(
     limits: AgentLimits | None = None,
     custom_instructions: str | None = None,
     system_prompt_template: str | None = None,
-    background_tasks=None,  # noqa: ANN001 — FastAPI type, kept out of the import graph
+    background_tasks=None,  # FastAPI's type, kept out of this module's import graph
+    usage: TurnUsage | None = None,
 ) -> AsyncIterator[AssistantEvent]:
     """Run one user turn to completion, yielding events as they happen.
 
@@ -131,6 +146,9 @@ async def run_turn(
     ``custom_instructions`` is the user's own preference text, appended to the
     prompt. ``system_prompt_template`` replaces the shipped prompt outright;
     falsy falls back to the default.
+
+    ``usage`` is updated as each provider call reports what it cost, so it stays
+    accurate when the turn ends in ``Failed`` or is never finished at all.
     """
     limits = limits or AgentLimits()
 
@@ -138,7 +156,7 @@ async def run_turn(
         financial_context = await ctx_module.build_context(
             session, user_id=user_id, today=today
         )
-    except Exception:  # noqa: BLE001
+    except Exception:
         # Logged, not returned: a database failure's text carries SQL and
         # connection details, and `Failed.message` is rendered in the browser.
         log.exception("Assistant: failed to build ledger context")
@@ -166,7 +184,7 @@ async def run_turn(
     )
     schemas = tools_module.openai_tool_schemas()
 
-    turn = _Turn()
+    turn = _Turn(usage=usage if usage is not None else TurnUsage())
 
     for iteration in range(limits.max_tool_iterations + 1):
         # The final iteration runs without tools: offering them again would let
@@ -190,10 +208,10 @@ async def run_turn(
                     # Accumulated, not overwritten: a turn with a tool
                     # round-trip bills for every pass, and reporting only the
                     # last one would understate the cost by roughly half.
-                    turn.prompt_tokens += chunk.prompt_tokens
-                    turn.completion_tokens += chunk.completion_tokens
-                    turn.total_tokens += chunk.total_tokens
-                    turn.usage_reported = True
+                    turn.usage.prompt_tokens += chunk.prompt_tokens
+                    turn.usage.completion_tokens += chunk.completion_tokens
+                    turn.usage.total_tokens += chunk.total_tokens
+                    turn.usage.reported = True
         except LLMError as exc:
             # The upstream error text can name the endpoint URL and echo request
             # details, so it stays in the log rather than going down the stream.
@@ -234,8 +252,8 @@ async def run_turn(
             try:
                 arguments = json.loads(call.arguments or "{}")
                 if not isinstance(arguments, dict):
-                    raise ValueError("arguments must be a JSON object")
-            except (json.JSONDecodeError, ValueError) as exc:
+                    raise TypeError("arguments must be a JSON object")
+            except (TypeError, ValueError) as exc:
                 result = {"error": f"Could not parse the arguments: {exc}"}
             else:
                 result = await tools_module.execute_tool(call.name, arguments, tool_ctx)
@@ -265,8 +283,8 @@ async def run_turn(
     yield Completed(
         answer=answer,
         tool_calls=turn.audit,
-        prompt_tokens=turn.prompt_tokens,
-        completion_tokens=turn.completion_tokens,
-        total_tokens=turn.total_tokens,
-        usage_reported=turn.usage_reported,
+        prompt_tokens=turn.usage.prompt_tokens,
+        completion_tokens=turn.usage.completion_tokens,
+        total_tokens=turn.usage.total_tokens,
+        usage_reported=turn.usage.reported,
     )

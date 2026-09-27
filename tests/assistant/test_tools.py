@@ -259,3 +259,61 @@ class TestProjectInvestment:
             "project_investment", {"initial_amount": -50, "years": 5}, ctx
         )
         assert "error" in result
+
+
+class TestReferenceData:
+    async def test_date_coverage_comes_from_the_query_layer(self, ctx):
+        bounds = {"first": date(2024, 3, 5), "last": date(2026, 7, 30)}
+        with (
+            patch.object(tools.queries, "get_accounts", AsyncMock(return_value=[])),
+            patch.object(tools.queries, "get_categories", AsyncMock(return_value=[])),
+            patch.object(tools.queries, "get_tags", AsyncMock(return_value=[])),
+            patch.object(
+                tools.queries, "get_transaction_date_range", AsyncMock(return_value=bounds)
+            ),
+        ):
+            result = await tools.execute_tool("list_reference_data", {}, ctx)
+
+        assert "error" not in result
+        assert "2024-03-05" in json.dumps(result)
+        assert "2026-07-30" in json.dumps(result)
+
+
+class TestInvestmentOverview:
+    @staticmethod
+    def _overview(*, partial: bool) -> MagicMock:
+        overview = MagicMock()
+        overview.partial = partial
+        overview.model_dump.return_value = {"total_value": 1000.0, "partial": partial}
+        return overview
+
+    async def test_shares_the_endpoint_builder_with_the_real_request_context(self, ctx):
+        ctx.background_tasks = MagicMock()
+        build = AsyncMock(return_value=self._overview(partial=False))
+        with patch("finlytics.investments.overview.build_combined_overview", build):
+            result = await tools.execute_tool("get_investment_overview", {}, ctx)
+
+        build.assert_awaited_once_with(
+            user_id=ctx.user_id, db=ctx.session, background_tasks=ctx.background_tasks
+        )
+        assert result["total_value"] == 1000.0
+        assert "_warning" not in result
+
+    async def test_a_partial_overview_is_flagged_to_the_model(self, ctx):
+        build = AsyncMock(return_value=self._overview(partial=True))
+        with patch("finlytics.investments.overview.build_combined_overview", build):
+            result = await tools.execute_tool("get_investment_overview", {}, ctx)
+
+        # Otherwise the model states a total that is missing a provider as if it
+        # were the whole portfolio.
+        assert "_warning" in result
+
+    async def test_missing_encryption_key_is_a_readable_tool_error(self, ctx):
+        from finlytics.investments.crypto import EncryptionNotConfiguredError
+
+        build = AsyncMock(side_effect=EncryptionNotConfiguredError("no key"))
+        with patch("finlytics.investments.overview.build_combined_overview", build):
+            result = await tools.execute_tool("get_investment_overview", {}, ctx)
+
+        assert "error" in result
+        assert "no key" not in result["error"]

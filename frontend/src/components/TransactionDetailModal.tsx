@@ -1,6 +1,7 @@
 import { useState, useEffect, useId } from 'react'
 import type { Category, Tag, Transaction } from '../api/types'
 import { updateTransaction } from '../api/client'
+import { useModalDismiss } from '../hooks/useModalDismiss'
 import { useT, categoryLabel, formatDate } from '../i18n'
 import CategoryBadge from './CategoryBadge'
 import CategorySelect from './CategorySelect'
@@ -50,6 +51,7 @@ export default function TransactionDetailModal({
   })
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const backdrop = useModalDismiss(onClose, saving)
 
   // Reset form when tx changes
   useEffect(() => {
@@ -63,13 +65,6 @@ export default function TransactionDetailModal({
     })
     setSaveError(null)
   }, [tx.id]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Close on Escape
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
 
   async function handleSave() {
     setSaving(true)
@@ -98,13 +93,12 @@ export default function TransactionDetailModal({
   const catColor = categoryColorMap[editData.category]
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop" {...backdrop}>
       <div
         className="modal modal-tx-detail"
         role="dialog"
         aria-modal="true"
         aria-labelledby={`${fieldId}-title`}
-        onClick={e => e.stopPropagation()}
       >
         <div className="modal-header">
           <h2 className="modal-title" id={`${fieldId}-title`}>{t.txDetailModalTitle}</h2>

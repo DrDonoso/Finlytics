@@ -20,9 +20,9 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from finlytics.assistant.prompts import (
@@ -165,7 +165,7 @@ def month_start(today: date) -> datetime:
     because that is what a person checking "what has this cost me" expects to
     see, and it lines up with how providers bill.
     """
-    return datetime(today.year, today.month, 1, tzinfo=timezone.utc)
+    return datetime(today.year, today.month, 1, tzinfo=UTC)
 
 
 async def tokens_used_since(
@@ -174,7 +174,8 @@ async def tokens_used_since(
     """Total tokens this user's assistant has spent since ``since``.
 
     Joins through the conversation because usage is recorded per message and
-    only conversations carry the owner.
+    only conversations carry the owner. Sums every role: a turn that never
+    answered carries its cost on the question row.
     """
     from finlytics.db.models import AssistantConversation
 
@@ -193,10 +194,27 @@ async def tokens_used_since(
     return int(total or 0)
 
 
+def _billed():
+    """Rows that carry a turn's cost: every answer, plus the questions of turns
+    that spent tokens without ever answering (see ``AssistantMessage``)."""
+    return or_(
+        AssistantMessage.role == "assistant",
+        AssistantMessage.total_tokens.is_not(None),
+    )
+
+
+def _answers():
+    return func.count(case((AssistantMessage.role == "assistant", AssistantMessage.id)))
+
+
 async def usage_totals(
     db: AsyncSession, user_id: int, since: datetime | None = None
 ) -> UsageTotals:
-    """Aggregate token usage, optionally restricted to messages after ``since``."""
+    """Aggregate token usage, optionally restricted to messages after ``since``.
+
+    ``messages`` counts answers; the token sums also include failed turns, so
+    they agree with the monthly budget.
+    """
     from finlytics.db.models import AssistantConversation
 
     stmt = (
@@ -204,17 +222,14 @@ async def usage_totals(
             func.coalesce(func.sum(AssistantMessage.prompt_tokens), 0),
             func.coalesce(func.sum(AssistantMessage.completion_tokens), 0),
             func.coalesce(func.sum(AssistantMessage.total_tokens), 0),
-            func.count(AssistantMessage.id),
+            _answers(),
         )
         .select_from(AssistantMessage)
         .join(
             AssistantConversation,
             AssistantConversation.id == AssistantMessage.conversation_id,
         )
-        .where(
-            AssistantConversation.user_id == user_id,
-            AssistantMessage.role == "assistant",
-        )
+        .where(AssistantConversation.user_id == user_id, _billed())
     )
     if since is not None:
         stmt = stmt.where(AssistantMessage.created_at >= since)
@@ -240,7 +255,7 @@ async def usage_by_day(
             select(
                 day.label("day"),
                 func.coalesce(func.sum(AssistantMessage.total_tokens), 0).label("tokens"),
-                func.count(AssistantMessage.id).label("messages"),
+                _answers().label("messages"),
             )
             .select_from(AssistantMessage)
             .join(
@@ -249,7 +264,7 @@ async def usage_by_day(
             )
             .where(
                 AssistantConversation.user_id == user_id,
-                AssistantMessage.role == "assistant",
+                _billed(),
                 AssistantMessage.created_at >= since,
             )
             .group_by(day)

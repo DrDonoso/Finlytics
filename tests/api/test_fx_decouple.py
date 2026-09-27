@@ -32,12 +32,12 @@ import pytest
 
 from finlytics.api.fidelity import compute_evolution_series
 from finlytics.api.schemas import ValuePoint
+from finlytics.clock import today as local_today
 from finlytics.investments.market_data import (
     _to_unix,
     backfill_price_history,
     topup_recent_prices,
 )
-
 
 # ── Minimal lot stub (duck-typed to EsppLot) ─────────────────────────────────
 
@@ -59,7 +59,10 @@ def _make_db_session(max_date_row=None) -> MagicMock:
     begin_cm = AsyncMock()
     session.begin = MagicMock(return_value=begin_cm)
     first_result = MagicMock()
-    first_result.scalar_one_or_none.return_value = max_date_row
+    # topup reads the latest stored (price_date, fx_eur_usd) pair.
+    first_result.first.return_value = (
+        (max_date_row, _LATEST_FX) if max_date_row is not None else None
+    )
     upsert_result = MagicMock()
     session.execute = AsyncMock(side_effect=[first_result, upsert_result])
     return session
@@ -245,19 +248,19 @@ class TestTC3CurrentDayAppears:
 
     def test_to_unix_tomorrow_exceeds_today_by_exactly_86400(self):
         """Sanity check: tomorrow is 86400 seconds after today in Unix time."""
-        today = date.today()
+        today = local_today()
         tomorrow = today + timedelta(days=1)
         diff = _to_unix(tomorrow) - _to_unix(today)
         assert diff == 86400
 
     def test_to_unix_today_plus_one_gt_to_unix_today(self):
         """_to_unix(today + 1) > _to_unix(today) → today falls within the interval."""
-        today = date.today()
+        today = local_today()
         assert _to_unix(today + timedelta(days=1)) > _to_unix(today)
 
     def test_today_in_price_map_appears_in_series(self):
         """When price_map includes today, today appears in value_series."""
-        today = date.today()
+        today = local_today()
         lot = _Lot(today - timedelta(days=3), Decimal("50"), Decimal("2000.00"))
         fx = _LATEST_FX
         price_map = {
@@ -274,16 +277,12 @@ class TestTC3CurrentDayAppears:
         )
 
     @pytest.mark.asyncio
-    async def test_topup_period2_uses_tomorrow_to_include_today(self):
-        """Model A: _fetch_yahoo_history receives period2 = tomorrow (today included).
+    async def test_topup_fetches_both_series_from_the_90_day_lookback(self):
+        """topup asks for MSFT and EURUSD=X from 90 days before the latest stored close.
 
-        Verifies that the period2 parameter sent to the Yahoo API is
-        _to_unix(today + 1), not _to_unix(today).
+        period2 (tomorrow, so today's bar is included) is set inside
+        _fetch_yahoo_history, which the next test covers.
         """
-        today = date.today()
-        tomorrow = today + timedelta(days=1)
-        expected_period2 = _to_unix(tomorrow)
-
         captured_calls: list[dict] = []
 
         async def _capture_yahoo(symbol, start=None):
@@ -298,8 +297,9 @@ class TestTC3CurrentDayAppears:
         ):
             await topup_recent_prices(db)
 
-        # Verify that _fetch_yahoo_history was called
-        assert len(captured_calls) >= 1
+        lookback_start = date(2026, 7, 21) - timedelta(days=90)
+        assert sorted(call["symbol"] for call in captured_calls) == ["EURUSD=X", "MSFT"]
+        assert all(call["start"] == lookback_start for call in captured_calls)
 
     @pytest.mark.asyncio
     async def test_fetch_yahoo_history_period2_parameter_is_tomorrow(self):
@@ -310,7 +310,7 @@ class TestTC3CurrentDayAppears:
         """
         from finlytics.investments.market_data import _fetch_yahoo_history
 
-        today = date.today()
+        today = local_today()
         tomorrow = today + timedelta(days=1)
         expected_period2 = _to_unix(tomorrow)
 
@@ -318,7 +318,6 @@ class TestTC3CurrentDayAppears:
 
         async def _mock_yahoo_get(symbol, params=None):
             captured_params.update(params or {})
-            return None  # force empty
 
         with patch(
             "finlytics.investments.market_data._yahoo_get",
@@ -765,12 +764,12 @@ class TestPeriod2BoundaryFix:
         With period2 = today-00:00-UTC, that timestamp falls OUTSIDE the window.
         With period2 = tomorrow-00:00-UTC, it falls INSIDE.
         """
-        today = date.today()
+        today = local_today()
         # Approximate NYSE close timestamp (17:00 ET = 21:00 UTC)
         import datetime as dt
         market_close_today_utc = int(
             dt.datetime(today.year, today.month, today.day, 21, 0,
-                        tzinfo=dt.timezone.utc).timestamp()
+                        tzinfo=dt.UTC).timestamp()
         )
         period2_buggy   = _to_unix(today)
         period2_correct = _to_unix(today + timedelta(days=1))

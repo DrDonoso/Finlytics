@@ -26,10 +26,7 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
-
 from finlytics.db.models import Account
-
 
 _IBAN = "ES7921000813610123456789"
 _NAME = "MiBBVA"

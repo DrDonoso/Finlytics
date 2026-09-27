@@ -130,7 +130,7 @@ class RateLimiter:
         return len(stale)
 
 
-def client_ip(request) -> str:  # noqa: ANN001 — avoids importing Starlette here
+def client_ip(request) -> str:  # untyped so this module does not import Starlette
     """Client IP as the application sees it.
 
     Read from the connection, NOT from ``X-Forwarded-For``: anyone can set that

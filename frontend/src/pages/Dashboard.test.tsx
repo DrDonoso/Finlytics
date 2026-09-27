@@ -78,6 +78,7 @@ const COMBINED: CombinedOverview = {
   providers: [],
   by_provider: [],
   by_asset_class: [],
+  partial: false,
 } as unknown as CombinedOverview
 
 function renderDashboard() {
@@ -190,6 +191,20 @@ describe('Dashboard with the investments connector down', () => {
     expect(table).not.toBeNull()
     expect(within(table as HTMLElement).getByText('BBVA')).toBeInTheDocument()
     expect(within(table as HTMLElement).getByText('Santander')).toBeInTheDocument()
+  })
+})
+
+describe('Dashboard with investments only partly read', () => {
+  beforeEach(() => {
+    getCombinedOverview.mockResolvedValue({ ...COMBINED, partial: true })
+  })
+
+  it('counts what was read and says the rest is missing', async () => {
+    renderDashboard()
+
+    await waitFor(() => expect(heroText()).toContain('71.001,10'))
+    expect(heroText()).toContain(es.dashboardNetWorthPartialInvestments)
+    expect(document.querySelector('.dashboard-kpi-breakdown__missing')).toBeNull()
   })
 })
 

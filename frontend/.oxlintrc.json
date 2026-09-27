@@ -34,17 +34,31 @@
     "no-underscore-dangle": "off",
     "no-await-in-loop": "off",
     "promise/always-return": "off",
+    // A spread inside .map() is how React state is updated immutably, on small arrays.
+    "oxc/no-map-spread": "off",
 
     "react/no-array-index-key": "warn",
     "react/no-unstable-nested-components": "warn",
 
-    "jsx-a11y/prefer-tag-over-role": "warn",
+    // Every role it flags is a deliberate custom widget: the modals manage focus
+    // themselves rather than use <dialog>'s top layer, a live region is not an
+    // <output> calculation, and the comboboxes render chips a <select> cannot.
+    "jsx-a11y/prefer-tag-over-role": "off",
     "jsx-a11y/no-redundant-roles": "warn",
     "jsx-a11y/control-has-associated-label": ["warn", { "depth": 3 }],
     "jsx-a11y/click-events-have-key-events": "warn",
     "jsx-a11y/no-static-element-interactions": "warn",
     "jsx-a11y/no-noninteractive-element-interactions": "warn",
-    "jsx-a11y/no-noninteractive-element-to-interactive-role": "warn",
+    // oxlint ships no allowlist; this is eslint-plugin-jsx-a11y's recommended one,
+    // so a <ul role="listbox"> with <li role="option"> children passes.
+    "jsx-a11y/no-noninteractive-element-to-interactive-role": ["warn", {
+      "ul": ["listbox", "menu", "menubar", "radiogroup", "tablist", "tree", "treegrid"],
+      "ol": ["listbox", "menu", "menubar", "radiogroup", "tablist", "tree", "treegrid"],
+      "li": ["menuitem", "menuitemradio", "menuitemcheckbox", "option", "row", "tab", "treeitem"],
+      "table": ["grid"],
+      "td": ["gridcell"],
+      "fieldset": ["radiogroup", "presentation"]
+    }],
     "jsx-a11y/no-noninteractive-tabindex": "warn",
     "jsx-a11y/no-autofocus": "warn",
     "jsx-a11y/label-has-associated-control": ["warn", { "depth": 3 }],

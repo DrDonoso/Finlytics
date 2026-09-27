@@ -4,8 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, patch
 
-from tests.api.test_rules import _make_rule, _VALID_BODY
-
+from tests.api.test_rules import _VALID_BODY, _make_rule
 
 # ── Create with detail_mode/detail_value ──────────────────────────────────────
 

@@ -27,6 +27,7 @@ import type {
   MortgageScheduleYear, MortgageSummary,
 } from '../api/types'
 import { buildFixedSchedule, frenchPayment } from '../mortgage/calc'
+import { addDays, isoDate } from '../utils/dates'
 import { DEMO_MONTHS, DEMO_SEED } from './config'
 
 // ─── Mortgage terms ───────────────────────────────────────────────────────────
@@ -89,12 +90,6 @@ function makeRng(seed: number): Rng {
 }
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
-
-function pad2(n: number): string { return String(n).padStart(2, '0') }
-
-function isoDate(d: Date): string {
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
-}
 
 function daysInMonth(year: number, month0: number): number {
   return new Date(year, month0 + 1, 0).getDate()
@@ -439,6 +434,7 @@ function buildPortfolio(rng: Rng, today: Date): PortfolioBundle {
     currency: 'EUR',
     plugins_connected: 1,
     last_updated: new Date(today.getTime() - 42 * 60 * 1000).toISOString(),
+    accounts_unavailable: 0,
     // UNITS inside `returns`: rates are DECIMAL FRACTIONS, amounts are EUR.
     // IndexaView renders twr_annual / xirr / volatility / money_return with
     // `* 100`, and pl / aportaciones / retenciones as currency. `money_return`
@@ -516,12 +512,10 @@ interface EsppBundle {
 function buildPriceSeries(rng: Rng, from: Date, today: Date): { date: string; usd: number }[] {
   const series: { date: string; usd: number }[] = []
   let usd = MSFT_START_USD
-  const cursor = new Date(from)
-  while (cursor <= today) {
+  for (let cursor = from; cursor <= today; cursor = addDays(cursor, 7)) {
     // Mild upward drift with weekly dispersion.
     usd = Math.max(40, usd * (1 + rng.float(-0.031, 0.037)))
     series.push({ date: isoDate(cursor), usd: Math.round(usd * 100) / 100 })
-    cursor.setDate(cursor.getDate() + 7)
   }
   // Always finish exactly on today so the KPI price is "as of" the current date.
   const last = series[series.length - 1]
@@ -758,6 +752,7 @@ function buildCombined(portfolio: InvestmentPortfolio, espp: EsppBundle): Combin
         route: '/investments/fidelity-espp',
       },
     ],
+    partial: false,
   }
 }
 
@@ -839,12 +834,11 @@ export function buildScenario(today: Date = new Date()): DemoScenario {
 
 // ─── Mortgage ─────────────────────────────────────────────────────────────────
 
-/** ISO date `monthsAgo` months before `today`, on `day`. */
+/** Local ISO date `monthsAgo` months before `today`, on `day` (clamped to the month's end). */
 function isoMonthsAgo(today: Date, monthsAgo: number, day: number): string {
-  const target = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - monthsAgo, 1))
-  const lastDay = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate()
-  const d = Math.min(day, lastDay)
-  return `${target.getUTCFullYear()}-${String(target.getUTCMonth() + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+  const target = new Date(today.getFullYear(), today.getMonth() - monthsAgo, 1)
+  const d = Math.min(day, daysInMonth(target.getFullYear(), target.getMonth()))
+  return isoDate(new Date(target.getFullYear(), target.getMonth(), d))
 }
 
 function round2(value: number): number {
@@ -897,7 +891,7 @@ function buildMortgage(
 ): DemoMortgage {
   const startDate = isoMonthsAgo(today, MORTGAGE_STARTED_MONTHS_AGO, MORTGAGE_PAYMENT_DAY)
   const prepaymentDate = isoMonthsAgo(today, MORTGAGE_PREPAID_MONTHS_AGO, MORTGAGE_PAYMENT_DAY)
-  const todayIso = today.toISOString().slice(0, 10)
+  const todayIso = isoDate(today)
 
   const account = accounts.find(a => a.name === ACCOUNT_MAIN)
   const category = categories.find(c => c.name === 'Housing')

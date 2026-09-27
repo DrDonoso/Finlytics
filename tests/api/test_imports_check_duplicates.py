@@ -6,8 +6,6 @@ from datetime import date
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
-
 from finlytics.db.repository import compute_dedup_hash
 
 _ACCOUNT_ID = 7
@@ -272,6 +270,7 @@ async def test_check_duplicates_unknown_account_only_flags_batch_repeats(client,
 async def test_check_duplicates_requires_auth(mock_session):
     """Endpoint protected — missing auth cookie → 401."""
     from httpx import ASGITransport, AsyncClient
+
     from finlytics.api.deps import get_db
     from finlytics.app import app
 

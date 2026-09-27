@@ -24,8 +24,9 @@ Coverage (per task specification):
 
 from __future__ import annotations
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -306,7 +307,6 @@ def test_tc6_multi_account_same_date_deltas_summed_via_aggregate():
     Account B: 2024-09-04 +3000, 2024-10-04 +1000
     Result: 2024-09-04 +5000 (cumul=5000), 2024-10-04 +3000 (cumul=8000)
     """
-    from unittest.mock import MagicMock
 
     from finlytics.investments.base import (
         NormalizedContributionEvent,
@@ -376,7 +376,6 @@ def test_tc6_multi_account_withdrawal_cancels_contribution():
     Account B: 2024-09-04 −500  (withdrawal)
     Result: 2024-09-04 +1500 (contribution)
     """
-    from unittest.mock import MagicMock
 
     from finlytics.investments.base import (
         NormalizedContributionEvent,
@@ -422,7 +421,6 @@ def test_tc6_multi_account_withdrawal_cancels_contribution():
 
 def test_tc6_multi_account_opposite_amounts_produce_zero_skip():
     """TC-6 edge: If the sum of deltas on a date is exactly 0, the event is skipped."""
-    from unittest.mock import MagicMock
 
     from finlytics.investments.base import (
         NormalizedContributionEvent,
@@ -631,7 +629,7 @@ def test_tc9_schema_withdrawal_event():
 
 def test_tc9_portfolio_out_schema_exposes_contribution_events():
     """TC-9: InvestmentPortfolioOut includes contribution_events=[] by default."""
-    from finlytics.api.schemas import ContributionEventOut, InvestmentPortfolioOut
+    from finlytics.api.schemas import InvestmentPortfolioOut
 
     out = InvestmentPortfolioOut(
         total_value=0.0,
@@ -949,3 +947,61 @@ async def test_tc12_provider_two_accounts_different_dates():
     assert events[1].date == "2024-10-04"
     assert events[1].amount == pytest.approx(3000.0)
     assert events[1].cumulative == pytest.approx(5000.0)
+
+async def test_tc12_provider_merge_sums_amounts_and_drops_rates():
+    """TC-12: merging two accounts sums the euro figures and the contributions
+    series, and drops every rate, which cannot be combined by adding it."""
+    from finlytics.investments.indexa import IndexaProvider
+
+    fiscal_empty = {"fiscal_results": []}
+    returns_a = {
+        "money_return": 0.08, "money_return_annual": 0.04, "time_return": 0.1,
+        "XIRR": 0.05, "pl": 800.0, "investment": 10000.0, "inflows": 10000.0,
+        "tax_outflows": -1.0,
+    }
+    returns_b = {
+        "money_return": 0.07, "money_return_annual": 0.03, "time_return": 0.09,
+        "XIRR": 0.04, "pl": 500.0, "investment": 8000.0, "inflows": 8000.0,
+        "tax_outflows": -0.5,
+    }
+    perf_acc1 = _make_perf_data(
+        net_amounts={"20240804": 10000.0}, sharpe_ratio=1.2, **{"return": returns_a}
+    )
+    perf_acc2 = _make_perf_data(
+        net_amounts={"20240804": 8000.0}, sharpe_ratio=0.9, **{"return": returns_b}
+    )
+
+    mock_cm = AsyncMock()
+    mock_cm.__aenter__ = AsyncMock(return_value=AsyncMock())
+    mock_cm.__aexit__ = AsyncMock(return_value=None)
+
+    provider = IndexaProvider()
+    with (
+        patch("finlytics.investments.indexa._make_client", return_value=mock_cm),
+        patch(
+            "finlytics.investments.indexa._get",
+            side_effect=[fiscal_empty, perf_acc1, fiscal_empty, perf_acc2],
+        ),
+    ):
+        portfolio = await provider.get_portfolio("tok", ["ACC1", "ACC2"])
+
+    perf = portfolio.performance
+    assert perf is not None
+    r = perf.returns
+    assert r.money_return is None
+    assert r.money_return_annual is None
+    assert r.rentabilidad_pct is None
+    assert r.twr_total is None
+    assert r.xirr is None
+    assert r.sharpe_ratio is None
+    assert r.pl == pytest.approx(1300.0)
+    assert r.rentabilidad_eur == pytest.approx(1300.0)
+    assert r.invested == pytest.approx(18000.0)
+    assert r.aportaciones == pytest.approx(18000.0)
+    assert r.retenciones == pytest.approx(-1.5)
+    assert perf.monthly_returns == []
+    assert perf.drawdown is None
+    assert [(p.date, p.value) for p in perf.contributions_series] == [
+        ("2024-08-04", pytest.approx(18000.0))
+    ]
+    assert perf.total_value == pytest.approx(40000.0)

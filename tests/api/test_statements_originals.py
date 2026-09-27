@@ -14,16 +14,12 @@ from __future__ import annotations
 
 import base64
 import hashlib
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from decimal import Decimal
-from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
-
-from finlytics.contracts import ExtractedTransaction
 from finlytics.api.imports import _slugify
-
+from finlytics.contracts import ExtractedTransaction
 
 # ── _slugify unit tests ───────────────────────────────────────────────────────
 
@@ -348,7 +344,7 @@ async def test_confirm_writes_the_pdf_off_the_event_loop(client, mock_session, t
 
 # ── GET /api/statements/originals ────────────────────────────────────────────
 
-_NOW = datetime(2026, 6, 15, 10, 0, 0, tzinfo=timezone.utc)
+_NOW = datetime(2026, 6, 15, 10, 0, 0, tzinfo=UTC)
 
 _ORIGINALS = [
     {

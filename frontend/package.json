@@ -9,10 +9,11 @@
     "dev:demo": "vite --mode demo",
     "build": "tsc --noEmit && vite build",
     "build:demo": "tsc --noEmit && vite build --mode demo",
-    "lint": "oxlint src",
+    "lint": "oxlint --deny-warnings src e2e",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "e2e": "playwright test",
     "preview": "vite preview",
     "preview:demo": "vite preview --mode demo"
   },
@@ -24,6 +25,7 @@
     "recharts": "^3.10.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@testing-library/jest-dom": "^7.0.0",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",

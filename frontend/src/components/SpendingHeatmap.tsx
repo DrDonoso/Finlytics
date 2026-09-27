@@ -8,6 +8,7 @@ import type { Lang } from '../i18n'
 import { usePrivacy } from '../contexts/PrivacyContext'
 import { IconAlert, IconLoading, IconCalendar } from './icons'
 import CardHeader from './CardHeader'
+import { addDays } from '../utils/dates'
 
 interface Props {
   globalFilters: GlobalFilters
@@ -48,17 +49,15 @@ function sundayOnOrAfter(d: Date): Date {
 interface Cell { date: string | null; expense: number }
 
 function buildWeeks(fromDate: Date, toDate: Date, expMap: Map<string, number>): Cell[][] {
-  const start = mondayOnOrBefore(fromDate)
   const end   = sundayOnOrAfter(toDate)
   const weeks: Cell[][] = []
-  const cur = new Date(start)
-  while (cur <= end) {
+  for (let monday = mondayOnOrBefore(fromDate); monday <= end; monday = addDays(monday, 7)) {
     const week: Cell[] = []
     for (let i = 0; i < 7; i++) {
-      const s = toDateStr(cur)
-      const inRange = cur >= fromDate && cur <= toDate
+      const day = addDays(monday, i)
+      const s = toDateStr(day)
+      const inRange = day >= fromDate && day <= toDate
       week.push({ date: inRange ? s : null, expense: inRange ? (expMap.get(s) ?? 0) : 0 })
-      cur.setDate(cur.getDate() + 1)
     }
     weeks.push(week)
   }
@@ -275,16 +274,17 @@ export default function SpendingHeatmap({ globalFilters, onSelectPeriod, onReset
                       : exp > 0 && !hideAmounts ? `${MONTH_LABELS[m]} ${year} · ${formatCurrency(exp)}` : `${MONTH_LABELS[m]} ${year}`
                     const firstDay = `${year}-${String(m + 1).padStart(2, '0')}-01`
                     const lastDay  = toDateStr(new Date(year, m + 1, 0))
+                    if (isOut) return <div key={m} className="hm-cell hm-cell--out" />
                     return (
                       <div
                         key={m}
-                        className={['hm-cell', isOut ? 'hm-cell--out' : `hm-cell--${b}`].join(' ')}
+                        className={`hm-cell hm-cell--${b}`}
                         title={title}
                         aria-label={title}
-                        tabIndex={!isOut ? 0 : undefined}
-                        role={!isOut ? 'button' : undefined}
-                        onClick={!isOut ? () => onSelectPeriod(firstDay, lastDay) : undefined}
-                        onKeyDown={!isOut ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectPeriod(firstDay, lastDay) } } : undefined}
+                        tabIndex={0}
+                        role="button"
+                        onClick={() => onSelectPeriod(firstDay, lastDay)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectPeriod(firstDay, lastDay) } }}
                       />
                     )
                   })}
@@ -318,6 +318,7 @@ export default function SpendingHeatmap({ globalFilters, onSelectPeriod, onReset
                 style={{ gridTemplateColumns: `repeat(${grid.weeks.length}, var(--hm-cell))` }}
               >
                 {grid.monthCols.map((label, i) => (
+                  // eslint-disable-next-line react/no-array-index-key -- one slot per week column; most labels are empty
                   <div key={i} className="hm-month-label">{label}</div>
                 ))}
               </div>
@@ -326,6 +327,7 @@ export default function SpendingHeatmap({ globalFilters, onSelectPeriod, onReset
               <div className="heatmap-body">
                 <div className="heatmap-weekdays">
                   {grid.wdLabels.map((label, i) => (
+                    // eslint-disable-next-line react/no-array-index-key -- fixed Mon–Sun row; narrow labels repeat (T, S)
                     <div key={i} className="hm-weekday">
                       {/* Only show Mon / Wed / Fri to avoid crowding */}
                       {i % 2 === 0 ? label : ''}
@@ -335,28 +337,24 @@ export default function SpendingHeatmap({ globalFilters, onSelectPeriod, onReset
 
                 <div
                   className="heatmap-grid"
-                  // eslint-disable-next-line jsx-a11y/prefer-tag-over-role -- a named group of buttons; fieldset/details do not fit
                   role="group"
                   aria-label={t.heatmapTitle}
                   style={{ gridTemplateColumns: `repeat(${grid.weeks.length}, var(--hm-cell))` }}
                 >
                   {grid.cells.map(({ date, expense, weekIdx, dayIdx }) => {
-                    const isOut      = date === null
-                    const b          = isOut ? 0 : colorBucket(expense, grid.maxExp)
-                    const title      = date ? fmtDayTooltip(date, expense, lang, formatCurrency, hideAmounts) : undefined
+                    const key = `${weekIdx}-${dayIdx}`
+                    if (!date) return <div key={key} className="hm-cell hm-cell--out" />
+                    const title = fmtDayTooltip(date, expense, lang, formatCurrency, hideAmounts)
                     return (
                       <div
-                        key={`${weekIdx}-${dayIdx}`}
-                        className={[
-                          'hm-cell',
-                          isOut ? 'hm-cell--out' : `hm-cell--${b}`,
-                        ].filter(Boolean).join(' ')}
+                        key={key}
+                        className={`hm-cell hm-cell--${colorBucket(expense, grid.maxExp)}`}
                         title={title}
                         aria-label={title}
-                        tabIndex={(!isOut && date) ? 0 : undefined}
-                        role={(!isOut && date) ? 'button' : undefined}
-                        onClick={(!isOut && date) ? () => onSelectPeriod(date, date) : undefined}
-                        onKeyDown={(!isOut && date) ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectPeriod(date, date) } } : undefined}
+                        tabIndex={0}
+                        role="button"
+                        onClick={() => onSelectPeriod(date, date)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectPeriod(date, date) } }}
                       />
                     )
                   })}

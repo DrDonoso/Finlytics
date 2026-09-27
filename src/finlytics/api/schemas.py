@@ -7,16 +7,14 @@ the DB stores full Numeric(14,2) precision.
 
 from __future__ import annotations
 
+import re
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
 
-import re
-
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from finlytics.contracts import ExtractedTransaction  # pydantic-only, no circular dep
-
 
 # ── Tags ──────────────────────────────────────────────────────────────────────
 
@@ -102,7 +100,7 @@ class AccountCreate(BaseModel):
     opening_date: date | None = None
 
     @model_validator(mode="after")
-    def _require_opening_date_with_balance(self) -> "AccountCreate":
+    def _require_opening_date_with_balance(self) -> AccountCreate:
         if self.opening_balance is not None and self.opening_date is None:
             raise ValueError("opening_date is required when opening_balance is provided")
         return self
@@ -299,11 +297,16 @@ class BackupTransactionIn(BaseModel):
     amount: float               # signed: negative=expense, positive=income
     currency: str
     description: str
+    detail: str | None = Field(default=None, max_length=500)
     merchant: str | None = None
     category: str | None = None   # canonical category name; null → uncategorised
     account: str                  # account name
     category_confidence: float | None = None
     balance_after: float | None = None
+    is_system: bool = False
+    # Stored key of a row whose key is not derivable from its fields (a forced
+    # duplicate); restored verbatim so re-restoring stays a no-op.
+    duplicate_key: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     tags: list[str] = []          # tag names
 
 
@@ -608,6 +611,9 @@ class InvestmentPortfolioOut(BaseModel):
     # Cache freshness metadata — additive/optional; frontend may use for a stale indicator
     cached_at: str | None = None      # ISO datetime of the oldest cache fetch across connections
     cache_stale: bool = False          # True when stale data returned + async refresh scheduled
+    # Connections whose value could not be read and is therefore missing from the
+    # totals. When no account could be read at all, last_updated is None as well.
+    accounts_unavailable: int = 0
 
 
 class ValidateTokenRequest(BaseModel):
@@ -843,6 +849,8 @@ class CombinedOverviewOut(BaseModel):
     by_provider: list[ProviderAllocationItem]
     by_asset_class: list[AssetClassAllocationItem]
     providers: list[ProviderCardOut]
+    # True when a connected provider could not be valued, so the totals leave it out.
+    partial: bool = False
 
 
 # ── Notifications ─────────────────────────────────────────────────────────────
@@ -942,7 +950,7 @@ class TelegramChannelIn(BaseModel):
         return _validate_chat_id(v)
 
     @model_validator(mode="after")
-    def validate_thread(self) -> "TelegramChannelIn":
+    def validate_thread(self) -> TelegramChannelIn:
         _validate_message_thread_id(self.message_thread_id, self.chat_id)
         return self
 
@@ -966,7 +974,7 @@ class TelegramTestIn(BaseModel):
         return v
 
     @model_validator(mode="after")
-    def validate_thread(self) -> "TelegramTestIn":
+    def validate_thread(self) -> TelegramTestIn:
         _validate_message_thread_id(self.message_thread_id, self.chat_id)
         return self
 

@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -131,7 +131,7 @@ async def mark_all_read(
     db: AsyncSession = Depends(get_db),
 ) -> ReadAllOut:
     """Mark all unread, active notifications as read for the current user."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     async with db.begin():
         result = await db.execute(
             update(Notification)
@@ -164,7 +164,7 @@ async def mark_read(
         if notif is None:
             raise HTTPException(status_code=404, detail="Notification not found")
         if notif.read_at is None:
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             notif.read_at = now
             notif.updated_at = now
 
@@ -190,7 +190,7 @@ async def dismiss(
         if notif is None:
             raise HTTPException(status_code=404, detail="Notification not found")
         if notif.dismissed_at is None:
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             notif.dismissed_at = now
             notif.updated_at = now
 
@@ -263,7 +263,7 @@ async def upsert_telegram_channel(
     chat_id_str = str(body.chat_id)
     label = f"Telegram · ••••{chat_id_str[-4:]}"
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     async with db.begin():
         result = await db.execute(
             select(NotificationChannel).where(

@@ -2,6 +2,7 @@
 
 from datetime import date
 from decimal import Decimal as D
+from typing import Any, ClassVar
 
 import pytest
 
@@ -97,7 +98,7 @@ class TestRealWorldTerms:
     bug rather than a data-entry one — these pin the difference down.
     """
 
-    SIGNED = dict(
+    SIGNED: ClassVar[dict[str, Any]] = dict(
         initial_principal=D("291200"),
         start_date=date(2024, 1, 1),
         payment_day=1,
@@ -128,7 +129,7 @@ class TestInterestOnlyOpeningCharge:
     figures below are the ones the lender's own app reports.
     """
 
-    SIGNED = dict(
+    SIGNED: ClassVar[dict[str, Any]] = dict(
         initial_principal=D("291200"),
         start_date=date(2025, 12, 31),
         signature_date=date(2025, 12, 22),

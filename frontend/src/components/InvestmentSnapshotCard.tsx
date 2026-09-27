@@ -37,6 +37,12 @@ export default function InvestmentSnapshotCard() {
             <span className="inv-snapshot-total-label">{t.invCombinedTotalValue}</span>
             <span className="inv-snapshot-total-value">{data.total_value_eur == null ? '—' : <Private>{formatCurrency(data.total_value_eur)}</Private>}</span>
           </div>
+          {data.partial && (
+            <p className="inv-snapshot-partial">
+              <IconAlert size={13} />
+              <span>{t.dashboardNetWorthPartialInvestments}</span>
+            </p>
+          )}
           <div className="inv-snapshot-providers">
             {data.providers.map(p => (
               <Link key={p.id} to={p.route} className="inv-snapshot-provider">

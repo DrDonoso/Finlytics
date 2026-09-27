@@ -3,14 +3,11 @@
 from __future__ import annotations
 
 import io
-from decimal import Decimal
 from datetime import date
+from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
-
 from finlytics.contracts import ExtractedTransaction
-
 
 _IBAN = "ES7921000813610123456789"
 

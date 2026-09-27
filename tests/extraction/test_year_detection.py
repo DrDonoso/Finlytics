@@ -15,7 +15,6 @@ from finlytics.extraction.extractor import (
 from finlytics.extraction.llm_client import LLMClient
 from finlytics.extraction.prompts import build_system_prompt
 
-
 # ---------------------------------------------------------------------------
 # Helpers (mirror test_extractor.py style)
 # ---------------------------------------------------------------------------
@@ -73,8 +72,10 @@ def _make_client(transactions: list[_RawTransaction] | None = None) -> LLMClient
         ("Fechadeemisi\u00f3n: 01/07/2026", 2026),
         # Priority 0 wins: period title (June 2026) over glued issue-date label (July 2026)
         (
-            "EXTRACTOMENSUALDE CUENTASPERSONALES\n"
-            "EXTRACTODEJUNIO2026 Fechadeemisi\ufffdn: 01/07/2026",
+            (
+                "EXTRACTOMENSUALDE CUENTASPERSONALES\n"
+                "EXTRACTODEJUNIO2026 Fechadeemisi\ufffdn: 01/07/2026"
+            ),
             2026,
         ),
         # Alternate September spelling ("setiembre")

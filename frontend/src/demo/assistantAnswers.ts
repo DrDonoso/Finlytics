@@ -20,6 +20,7 @@
 
 import { currentLang, langLocale } from '../i18n'
 import type { Lang } from '../i18n'
+import { isoDate } from '../utils/dates'
 import * as store from './store'
 
 /** Format an amount using the active language's locale. */
@@ -34,10 +35,6 @@ function money(value: number, lang: Lang): string {
 /** Pick one of two strings by language. */
 function pick(lang: Lang, es: string, en: string): string {
   return lang === 'es' ? es : en
-}
-
-function isoDate(d: Date): string {
-  return d.toISOString().slice(0, 10)
 }
 
 /** First and last day of the month N months back from today. */

@@ -35,7 +35,7 @@ from __future__ import annotations
 import calendar
 from dataclasses import dataclass, field
 from datetime import date
-from decimal import Decimal, ROUND_CEILING, ROUND_HALF_UP
+from decimal import ROUND_CEILING, ROUND_HALF_UP, Decimal
 from typing import Protocol
 
 # Money is rounded to cents; rates keep 5 decimals like the DB columns.
@@ -287,8 +287,7 @@ def _clamp(rate: Decimal, period: RatePeriodSpec) -> Decimal:
         rate = period.floor_rate
     if period.cap_rate is not None and rate > period.cap_rate:
         rate = period.cap_rate
-    if rate < _ZERO:
-        rate = _ZERO
+    rate = max(rate, _ZERO)
     return rate.quantize(_RATE_Q, rounding=ROUND_HALF_UP)
 
 

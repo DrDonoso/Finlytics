@@ -14,11 +14,13 @@ interface Props {
   ariaLabel?: string
 }
 
+const NO_EXTRA: string[] = []
+
 /** Reusable category selector: base categories + extra/custom categories + free-text option.
  *  Manages its own "custom editing" state so the free-text input stays visible
  *  while the user is typing, even if the partial value would match a known category. */
 export default function CategorySelect({
-  value, baseCategories, extraCategories = [], lang, t, onChange, className, id, ariaLabel,
+  value, baseCategories, extraCategories = NO_EXTRA, lang, t, onChange, className, id, ariaLabel,
 }: Props) {
   const options = [
     ...baseCategories.map(c => ({ value: c.name, label: categoryLabel(c.name, lang) })),

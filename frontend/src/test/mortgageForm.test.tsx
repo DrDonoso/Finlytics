@@ -210,3 +210,39 @@ describe('the linking step checks the terms against what the bank really charges
     expect(saved[0]).toMatchObject({ linked_account_id: 1, linked_category_id: 1 })
   })
 })
+
+describe('rate discounts keep what is typed', () => {
+  // Every keystroke used to go through num(), so the decimal separator was
+  // dropped ("0,25" became "25") and a field could never be left empty.
+  it('accepts decimals with a comma and saves them as numbers', async () => {
+    const user = userEvent.setup()
+    renderWizard()
+
+    await user.type(screen.getByLabelText(/name/i), 'Home')
+    await user.clear(screen.getByLabelText(/amount borrowed/i))
+    await user.type(screen.getByLabelText(/amount borrowed/i), '291200')
+    await pickStartDate(user)
+    await user.click(screen.getByRole('button', { name: /next/i }))
+    await user.type(screen.getByLabelText(/nominal rate/i), '2')
+
+    await user.click(screen.getByRole('button', { name: /add discount/i }))
+    await user.type(screen.getByLabelText(/^product$/i), 'Payroll')
+
+    const reduction = screen.getByLabelText(/reduction \(%\)/i)
+    await user.type(reduction, '0,25')
+    expect(reduction).toHaveValue('0,25')
+
+    const cost = screen.getByLabelText(/annual cost/i)
+    await user.type(cost, '99')
+    await user.clear(cost)
+    expect(cost).toHaveValue('')
+    await user.type(cost, '120,5')
+
+    await user.click(screen.getByRole('button', { name: /next/i }))
+    await user.click(screen.getByRole('button', { name: /^save$/i }))
+
+    await waitFor(() => expect(saved).toHaveLength(1))
+    const [bonus] = saved[0].bonuses as Record<string, unknown>[]
+    expect(bonus).toEqual({ name: 'Payroll', spread_reduction: 0.25, annual_cost: 120.5, active: true })
+  })
+})

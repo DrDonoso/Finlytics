@@ -2,9 +2,6 @@
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from finlytics.db.repository import get_or_create_category
-
-
 _CATEGORIES = [
     {"id": 1, "name": "Groceries",          "is_base": True,  "color": "#22c55e", "name_es": "Compras",   "tx_count": 5},
     {"id": 2, "name": "Dining",             "is_base": True,  "color": "#ef4444", "name_es": "Restaurantes", "tx_count": 3},

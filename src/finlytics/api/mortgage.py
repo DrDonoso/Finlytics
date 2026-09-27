@@ -33,7 +33,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from finlytics.api.deps import get_current_user, get_db
-from finlytics.clock import today as local_today
 from finlytics.api.schemas import (
     EuriborSeriesOut,
     MortgageChartsOut,
@@ -51,10 +50,10 @@ from finlytics.api.schemas import (
     SimulationOut,
     SimulationRequest,
 )
+from finlytics.clock import today as local_today
 from finlytics.db.models import (
     Account,
     Category,
-    EuriborRate,
     Mortgage,
     MortgageBonus,
     MortgagePrepayment,

@@ -12,7 +12,6 @@ from unittest.mock import AsyncMock, patch
 
 from finlytics.api.statements import compute_statement_reminder
 
-
 _MONTHS = [
     {"year": 2024, "month": 6, "count": 12},
     {"year": 2024, "month": 5, "count": 8},

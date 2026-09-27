@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,7 +24,6 @@ from finlytics.mortgage.schedule import (
     RatePeriodSpec,
     Schedule,
     ScheduleRow,
-    add_months,
     build_schedule,
     zero_index,
 )
@@ -233,7 +232,7 @@ def row_payload(row: ScheduleRow) -> dict:
 def annotate_status(
     rows: list[dict],
     today: date,
-    matcher: "ChargeMatcher | None" = None,
+    matcher: ChargeMatcher | None = None,
 ) -> None:
     """Tag each instalment as paid, elapsed or pending, in place.
 

@@ -97,7 +97,7 @@ def _parse_date(raw: str) -> date | None:
     if not s or s == "-":
         return None
     try:
-        return datetime.strptime(s, _DATE_FMT).date()
+        return datetime.strptime(s, _DATE_FMT).date()  # noqa: DTZ007 — a calendar date
     except ValueError as exc:
         raise ValueError(f"Cannot parse date from {raw!r}") from exc
 

@@ -3,7 +3,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from finlytics.api.deps import get_db
-from finlytics.api.schemas import AccountCreate, AccountOut, AccountPatch, DeleteAccountResult, mask_account_number
+from finlytics.api.schemas import (
+    AccountCreate,
+    AccountOut,
+    AccountPatch,
+    DeleteAccountResult,
+    mask_account_number,
+)
 from finlytics.db import queries
 from finlytics.db.models import Account
 from finlytics.db.queries.types import AccountRow

@@ -473,7 +473,9 @@
 }
 
 /* ── ESPP upload-reminder banner (Dashboard + FidelityView) ─────────────── */
-.espp-reminder-banner {
+/* .inv-partial-banner: a connected provider could not be read, so totals are partial. */
+.espp-reminder-banner,
+.inv-partial-banner {
   display: flex;
   align-items: flex-start;
   gap: 10px;
@@ -492,7 +494,8 @@
   align-items: center;
   gap: 8px;
 }
-.espp-reminder-banner__link {
+.espp-reminder-banner__link,
+.inv-partial-banner__link {
   font-weight: 600;
   text-decoration: underline;
   color: inherit;

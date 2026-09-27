@@ -39,7 +39,6 @@ export default function TagFilterSelect({ availableTags, selected, onChange, lab
 
   if (availableTags.length <= TYPEAHEAD_THRESHOLD) {
     return (
-      // eslint-disable-next-line jsx-a11y/prefer-tag-over-role -- a named group of buttons; fieldset/details do not fit
       <div className="tag-multi-select" role="group" aria-labelledby={labelledBy}>
         {availableTags.map(tag => {
           const isSelected = selected.includes(tag.name)

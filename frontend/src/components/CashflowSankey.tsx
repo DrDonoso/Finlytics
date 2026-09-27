@@ -1,5 +1,6 @@
 import { useMemo, useCallback } from 'react'
 import { Sankey, ResponsiveContainer, Tooltip } from 'recharts'
+import type { SankeyLinkProps, SankeyNodeProps, TooltipContentProps } from 'recharts'
 import type { Category, CashflowSummary } from '../api/types'
 import { useT, categoryLabel, formatCurrency } from '../i18n'
 import { IconAlert, IconLoading, IconChartBar, IconArrowUp, IconArrowDown } from './icons'
@@ -13,15 +14,18 @@ interface SankeyNodeDatum {
   category_id?: number
 }
 
+/** Recharts keeps every field of an input node on its laid-out node, but only types its own. */
+type LaidOutNode = SankeyNodeProps['payload'] & SankeyNodeDatum
+
 // Custom link renderer — creates smooth ribbon between nodes
-function SankeyLink(props: any) {
+function SankeyLink(props: SankeyLinkProps) {
   const {
     sourceX, targetX, sourceY, targetY,
     sourceControlX, targetControlX, linkWidth, payload,
   } = props
-  if (!linkWidth) return null
+  if (!linkWidth) return <path />
 
-  const isIncome = payload?.source?.type === 'income'
+  const isIncome = (payload.source as LaidOutNode).type === 'income'
   const fill   = isIncome ? 'rgba(var(--income-rgb), 0.16)'  : 'rgba(var(--expense-rgb), 0.12)'
   const stroke = isIncome ? 'rgba(var(--income-rgb), 0.32)'  : 'rgba(var(--expense-rgb), 0.22)'
   const half = linkWidth / 2
@@ -39,7 +43,7 @@ function SankeyLink(props: any) {
   )
 }
 
-function SankeyTooltip({ active, payload }: any) {
+function SankeyTooltip({ active, payload }: Partial<TooltipContentProps<number, string>>) {
   const { lang } = useT()
   if (!active || !payload?.length) return null
   const p = payload[0]
@@ -115,8 +119,9 @@ export default function CashflowSankey({ data, loading, error, categories, selec
   }, [data, lang, t.cashflowNode, categories])
 
   // Custom node renderer with clickable labels and enlarged hit areas
-  const renderSankeyNode = useCallback((props: any) => {
-    const { x, y, width, height, payload } = props
+  const renderSankeyNode = useCallback((props: SankeyNodeProps) => {
+    const { x, y, width, height } = props
+    const payload = props.payload as LaidOutNode | undefined
     if (x == null || y == null || !payload) return null
 
     const isCenter    = payload.type === 'center'
@@ -137,7 +142,7 @@ export default function CashflowSankey({ data, loading, error, categories, selec
     // Line 1 at baseY, line 2 at baseY + 14px
     const lineBaseY = y + height / 2 - 7
 
-    function handleClick() {
+    const handleClick = () => {
       if (!isClickable) return
       onCategoryClick(selectedCategoryId === payload.category_id ? undefined : payload.category_id)
     }
@@ -267,9 +272,9 @@ export default function CashflowSankey({ data, loading, error, categories, selec
             <div className="sankey-inner">
               <ResponsiveContainer width="100%" height={420}>
                 <Sankey
-                  data={sankeyData as any}
-                  node={renderSankeyNode as any}
-                  link={SankeyLink as any}
+                  data={sankeyData}
+                  node={renderSankeyNode}
+                  link={SankeyLink}
                   nodePadding={22}
                   nodeWidth={14}
                   margin={{ left: 172, right: 172, top: 32, bottom: 32 }}

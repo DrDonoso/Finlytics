@@ -66,7 +66,6 @@ from finlytics.db.queries import (
     get_transactions,
 )
 
-
 # ── Unit: _apply_filters SQL output ──────────────────────────────────────────
 
 
@@ -280,9 +279,8 @@ async def _create_test_data(session: AsyncSession) -> dict:
 
 async def test_integration_overview_excludes_opening_balance(sqlite_engine):
     factory = _sf(sqlite_engine)
-    async with factory() as s:
-        async with s.begin():
-            await _create_test_data(s)
+    async with factory() as s, s.begin():
+        await _create_test_data(s)
 
     async with factory() as s:
         result = await get_overview(s)
@@ -304,9 +302,8 @@ async def test_integration_overview_excludes_opening_balance(sqlite_engine):
 
 async def test_integration_by_category_excludes_opening_balance(sqlite_engine):
     factory = _sf(sqlite_engine)
-    async with factory() as s:
-        async with s.begin():
-            await _create_test_data(s)
+    async with factory() as s, s.begin():
+        await _create_test_data(s)
 
     async with factory() as s:
         rows = await get_by_category(s)
@@ -328,9 +325,8 @@ async def test_integration_by_category_excludes_opening_balance(sqlite_engine):
 
 async def test_integration_by_merchant_excludes_opening_balance(sqlite_engine):
     factory = _sf(sqlite_engine)
-    async with factory() as s:
-        async with s.begin():
-            await _create_test_data(s)
+    async with factory() as s, s.begin():
+        await _create_test_data(s)
 
     async with factory() as s:
         rows = await get_by_merchant(s)
@@ -348,9 +344,8 @@ async def test_integration_by_merchant_excludes_opening_balance(sqlite_engine):
 
 async def test_integration_by_month_excludes_opening_balance(sqlite_engine):
     factory = _sf(sqlite_engine)
-    async with factory() as s:
-        async with s.begin():
-            await _create_test_data(s)
+    async with factory() as s, s.begin():
+        await _create_test_data(s)
 
     async with factory() as s:
         rows = await get_by_month(s)
@@ -371,9 +366,8 @@ async def test_integration_by_month_excludes_opening_balance(sqlite_engine):
 
 async def test_integration_by_day_excludes_opening_balance(sqlite_engine):
     factory = _sf(sqlite_engine)
-    async with factory() as s:
-        async with s.begin():
-            await _create_test_data(s)
+    async with factory() as s, s.begin():
+        await _create_test_data(s)
 
     async with factory() as s:
         rows = await get_by_day(s)
@@ -395,9 +389,8 @@ async def test_integration_by_day_excludes_opening_balance(sqlite_engine):
 
 async def test_integration_by_account_excludes_opening_balance(sqlite_engine):
     factory = _sf(sqlite_engine)
-    async with factory() as s:
-        async with s.begin():
-            await _create_test_data(s)
+    async with factory() as s, s.begin():
+        await _create_test_data(s)
 
     async with factory() as s:
         rows = await get_by_account(s)
@@ -418,9 +411,8 @@ async def test_integration_by_account_excludes_opening_balance(sqlite_engine):
 
 async def test_integration_cashflow_excludes_opening_balance(sqlite_engine):
     factory = _sf(sqlite_engine)
-    async with factory() as s:
-        async with s.begin():
-            await _create_test_data(s)
+    async with factory() as s, s.begin():
+        await _create_test_data(s)
 
     async with factory() as s:
         result = await get_cashflow(s)
@@ -441,9 +433,8 @@ async def test_integration_cashflow_excludes_opening_balance(sqlite_engine):
 async def test_is_system_flag_values(sqlite_engine):
     """Opening tx has is_system=True; normal transactions have is_system=False."""
     factory = _sf(sqlite_engine)
-    async with factory() as s:
-        async with s.begin():
-            ids = await _create_test_data(s)
+    async with factory() as s, s.begin():
+        ids = await _create_test_data(s)
 
     async with factory() as s:
         opening = await s.get(Transaction, ids["opening_tx_id"])
@@ -493,9 +484,8 @@ async def test_integration_transactions_ledger_includes_opening_balance(sqlite_e
     KPIs (get_overview, etc.) continue to exclude is_system=True.
     """
     factory = _sf(sqlite_engine)
-    async with factory() as s:
-        async with s.begin():
-            await _create_test_data(s)
+    async with factory() as s, s.begin():
+        await _create_test_data(s)
 
     async with factory() as s:
         items, total = await get_transactions(s)
@@ -526,9 +516,8 @@ async def test_integration_transactions_ledger_includes_opening_balance(sqlite_e
 async def test_integration_normal_transactions_still_counted(sqlite_engine):
     """Regression: is_system=False (default) does not break the count of normal txs."""
     factory = _sf(sqlite_engine)
-    async with factory() as s:
-        async with s.begin():
-            await _create_test_data(s)
+    async with factory() as s, s.begin():
+        await _create_test_data(s)
 
     async with factory() as s:
         overview = await get_overview(s)

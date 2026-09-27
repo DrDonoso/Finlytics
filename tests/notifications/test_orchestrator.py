@@ -14,7 +14,7 @@ Coverage:
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from unittest.mock import AsyncMock
 
 import pytest
@@ -140,7 +140,7 @@ async def test_dismissed_notification_not_auto_resolved(db: AsyncSession, monkey
     # Simulate user dismissing the notification.
     # Use autobegin: set field on the object then commit (no extra db.begin()).
     rows = (await db.execute(select(Notification))).scalars().all()
-    rows[0].dismissed_at = datetime.now(timezone.utc)
+    rows[0].dismissed_at = datetime.now(UTC)
     await db.commit()  # commit the dismissed_at update via autobegin
 
     # Second run: condition gone, but row was dismissed → should NOT be resolved
@@ -196,7 +196,7 @@ async def test_user_read_state_survives_upsert(db: AsyncSession, monkeypatch):
     await evaluate_notifications(db, user_id=1, today=date(2026, 7, 17))
 
     # Simulate user reading the notification
-    read_time = datetime.now(timezone.utc)
+    read_time = datetime.now(UTC)
     async with db.begin():
         row = (await db.execute(select(Notification))).scalar_one()
         row.read_at = read_time

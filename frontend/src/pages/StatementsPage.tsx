@@ -255,11 +255,14 @@ export default function StatementsPage() {
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
+    // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- page-wide arrow-key month navigation, caught as it bubbles from any control
     <main
       className="tx-page stmts-page"
       onKeyDown={e => {
-        // Arrow-key month navigation — skip when focus is inside an input
-        if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+        // Skip keys an editable control needs, and anything typed inside a dialog
+        const target = e.target as HTMLElement
+        if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) return
+        if (target.closest('[role="dialog"]')) return
         if (e.key === 'ArrowLeft')  navPrev()
         if (e.key === 'ArrowRight') navNext()
       }}

@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef } from 'react'
+import type { FocusEvent, MouseEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router'
 import {
@@ -62,6 +63,33 @@ type LotsSortCol = 'date' | 'source' | 'shares' | 'costPerShare' | 'totalCost' |
 const LOTS_PAGE_SIZE = 15
 const NO_LOTS: FidelityLot[] = []
 
+interface Tip { text: string; x: number; y: number }
+
+function SourceBadge({ source, onTip }: { source: 'SP' | 'DO'; onTip: (tip: Tip | null) => void }) {
+  const { t } = useT()
+  const show = (e: MouseEvent<HTMLElement> | FocusEvent<HTMLElement>) => {
+    const r = e.currentTarget.getBoundingClientRect()
+    onTip({
+      text: source === 'SP' ? t.fidelitySourceSpTooltip : t.fidelitySourceDoTooltip,
+      x: r.left + r.width / 2,
+      y: r.top,
+    })
+  }
+  return (
+    <span
+      className={`fid-source-badge fid-source-badge--${source.toLowerCase()}`}
+      // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a tooltip trigger: focus is how keyboard users reveal the explanation
+      tabIndex={0}
+      onMouseEnter={show}
+      onFocus={show}
+      onMouseLeave={() => onTip(null)}
+      onBlur={() => onTip(null)}
+    >
+      {source}
+    </span>
+  )
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function FidelityView() {
@@ -87,7 +115,7 @@ export default function FidelityView() {
   const [lotsPage,    setLotsPage]    = useState(0)
 
   // ── Tooltip portal (same pattern as IndexaView) ───────────────────────────
-  const [openTip, setOpenTip] = useState<{ text: string; x: number; y: number } | null>(null)
+  const [openTip, setOpenTip] = useState<Tip | null>(null)
 
   // ── Evolution chart state ──────────────────────────────────────────────────
   const [evPeriod, setEvPeriod] = useState<EvolutionPeriod>('All')
@@ -608,18 +636,7 @@ export default function FidelityView() {
                       return (
                         <tr key={lot.id}>
                           <td>{formatDDMMYYYY(lot.purchase_date)}</td>
-                          <td>
-                            <span
-                              className={`fid-source-badge fid-source-badge--${lot.share_source.toLowerCase()}`}
-                              tabIndex={0}
-                              onMouseEnter={e => { const r = e.currentTarget.getBoundingClientRect(); setOpenTip({ text: lot.share_source === 'SP' ? t.fidelitySourceSpTooltip : t.fidelitySourceDoTooltip, x: r.left + r.width / 2, y: r.top }) }}
-                              onFocus={e => { const r = e.currentTarget.getBoundingClientRect(); setOpenTip({ text: lot.share_source === 'SP' ? t.fidelitySourceSpTooltip : t.fidelitySourceDoTooltip, x: r.left + r.width / 2, y: r.top }) }}
-                              onMouseLeave={() => setOpenTip(null)}
-                              onBlur={() => setOpenTip(null)}
-                            >
-                              {lot.share_source}
-                            </span>
-                          </td>
+                          <td><SourceBadge source={lot.share_source} onTip={setOpenTip} /></td>
                           <td className="inv-td-num">
                             <Private>{new Intl.NumberFormat(locale, {
                               minimumFractionDigits: 3,
@@ -750,20 +767,10 @@ export default function FidelityView() {
                         </thead>
                         <tbody>
                           {importPreview.new_lots.map((lot, i) => (
+                            // eslint-disable-next-line react/no-array-index-key -- one file may legitimately hold identical lots, so no field identifies a row; the preview never reorders
                             <tr key={i}>
                               <td>{formatDDMMYYYY(lot.purchase_date)}</td>
-                              <td>
-                                <span
-                                  className={`fid-source-badge fid-source-badge--${lot.share_source.toLowerCase()}`}
-                                  tabIndex={0}
-                                  onMouseEnter={e => { const r = e.currentTarget.getBoundingClientRect(); setOpenTip({ text: lot.share_source === 'SP' ? t.fidelitySourceSpTooltip : t.fidelitySourceDoTooltip, x: r.left + r.width / 2, y: r.top }) }}
-                                  onFocus={e => { const r = e.currentTarget.getBoundingClientRect(); setOpenTip({ text: lot.share_source === 'SP' ? t.fidelitySourceSpTooltip : t.fidelitySourceDoTooltip, x: r.left + r.width / 2, y: r.top }) }}
-                                  onMouseLeave={() => setOpenTip(null)}
-                                  onBlur={() => setOpenTip(null)}
-                                >
-                                  {lot.share_source}
-                                </span>
-                              </td>
+                              <td><SourceBadge source={lot.share_source} onTip={setOpenTip} /></td>
                               <td className="inv-td-num">
                                 <Private>{new Intl.NumberFormat(locale, {
                                   minimumFractionDigits: 3,

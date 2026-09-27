@@ -13,14 +13,11 @@ Tests cover:
 
 from __future__ import annotations
 
-import pytest
-
 from finlytics.extraction.parser import (
     _is_bold_font,
     _is_oblique_font,
     _merge_bold_detail,
 )
-
 
 # ---------------------------------------------------------------------------
 # Font classification helpers

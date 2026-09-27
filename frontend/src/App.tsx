@@ -9,28 +9,31 @@ import { AssistantProvider } from './contexts/AssistantContext'
 import { NotificationsProvider } from './contexts/NotificationsContext'
 import { useT } from './i18n'
 import { IS_DEMO } from './demo/config'
+import { pageChunks } from './routePrefetch'
 
 // One chunk per page, so the first load does not download every screen (and the
-// chart library) up front. The shell and the pre-login screens stay in the entry
-// chunk: they are what a visitor sees first. Layout owns the Suspense boundary.
-const Dashboard = lazy(() => import('./pages/Dashboard'))
-const TransactionsPage = lazy(() => import('./pages/TransactionsPage'))
-const StatementsPage = lazy(() => import('./pages/StatementsPage'))
-const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'))
-const SettingsPage = lazy(() => import('./pages/SettingsPage'))
-const CategoriesPage = lazy(() => import('./pages/CategoriesPage'))
-const AppearancePage = lazy(() => import('./pages/AppearancePage'))
-const BackupPage = lazy(() => import('./pages/BackupPage'))
-const SecurityPage = lazy(() => import('./pages/SecurityPage'))
-const RulesPage = lazy(() => import('./pages/RulesPage'))
-const AccountsPage = lazy(() => import('./pages/AccountsPage'))
-const InvestmentsLandingPage = lazy(() => import('./pages/InvestmentsLandingPage'))
-const MortgagePage = lazy(() => import('./pages/MortgagePage'))
-const FinancesOverviewPage = lazy(() => import('./pages/FinancesOverviewPage'))
-const PluginViewWrapper = lazy(() => import('./investments/PluginViewWrapper'))
-const ConnectorsPage = lazy(() => import('./pages/ConnectorsPage'))
-const AssistantSettingsPage = lazy(() => import('./pages/AssistantSettingsPage'))
-const AboutPage = lazy(() => import('./pages/AboutPage'))
+// chart library) up front. The loaders are shared with routePrefetch.ts, which
+// fetches a page on hover or at idle before it is opened. The shell and the
+// pre-login screens stay in the entry chunk: they are what a visitor sees first.
+// Layout owns the Suspense boundary.
+const Dashboard = lazy(pageChunks['/'])
+const TransactionsPage = lazy(pageChunks['/transactions'])
+const StatementsPage = lazy(pageChunks['/statements'])
+const AnalyticsPage = lazy(pageChunks['/analytics'])
+const SettingsPage = lazy(pageChunks['/settings/tags'])
+const CategoriesPage = lazy(pageChunks['/settings/categories'])
+const AppearancePage = lazy(pageChunks['/settings/appearance'])
+const BackupPage = lazy(pageChunks['/settings/backup'])
+const SecurityPage = lazy(pageChunks['/settings/security'])
+const RulesPage = lazy(pageChunks['/settings/rules'])
+const AccountsPage = lazy(pageChunks['/settings/accounts'])
+const InvestmentsLandingPage = lazy(pageChunks['/investments'])
+const MortgagePage = lazy(pageChunks['/mortgage'])
+const FinancesOverviewPage = lazy(pageChunks['/finances'])
+const PluginViewWrapper = lazy(pageChunks['/investments/:pluginId'])
+const ConnectorsPage = lazy(pageChunks['/settings/connectors'])
+const AssistantSettingsPage = lazy(pageChunks['/settings/assistant'])
+const AboutPage = lazy(pageChunks['/settings/about'])
 
 /** Demo builds expose a deliberately reduced surface: read-only views backed by
  *  the synthetic dataset. Everything that imports, deletes, edits configuration

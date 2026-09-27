@@ -1,4 +1,5 @@
 import { useRef, useEffect } from 'react'
+import { useModalDismiss } from '../hooks/useModalDismiss'
 import { useT } from '../i18n'
 import { IconClose, IconTrash } from './icons'
 
@@ -13,30 +14,18 @@ interface Props {
 export default function StatementsDeleteModal({ monthLabel, count, deleting, onConfirm, onCancel }: Props) {
   const { t } = useT()
   const cancelRef = useRef<HTMLButtonElement>(null)
+  const backdrop = useModalDismiss(onCancel, deleting)
 
   // Focus cancel on open (safe initial focus)
   useEffect(() => { cancelRef.current?.focus() }, [])
 
-  // ESC to cancel
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape' && !deleting) onCancel()
-    }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [deleting, onCancel])
-
   return (
-    <div
-      className="modal-backdrop"
-      onClick={() => { if (!deleting) onCancel() }}
-    >
+    <div className="modal-backdrop" {...backdrop}>
       <div
         className="modal stmt-delete-modal"
         role="dialog"
         aria-modal="true"
         aria-labelledby="stmt-delete-title"
-        onClick={e => e.stopPropagation()}
       >
         <div className="modal-header">
           <span className="modal-title" id="stmt-delete-title">

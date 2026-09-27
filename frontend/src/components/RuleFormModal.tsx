@@ -62,6 +62,16 @@ function conditionsOf(form: FormState): RuleConditions {
   }
 }
 
+/** Why a pattern fails to compile, or null when it compiles. */
+function regexError(pattern: string): string | null {
+  try {
+    RegExp(pattern)
+    return null
+  } catch (e) {
+    return String(e)
+  }
+}
+
 export interface RuleFormModalProps {
   /** If provided the modal is in edit mode and pre-fills from this rule. */
   editingRule?: Rule
@@ -162,12 +172,12 @@ export default function RuleFormModal({
     if (!form.description_value.trim()) return t.rulesValidationPattern
     if (form.skip_ai && !form.set_category.trim()) return t.rulesValidationCategory
     if (form.description_mode === 'regex') {
-      try { new RegExp(form.description_value) }
-      catch (e) { return t.rulesValidationRegex(String(e)) }
+      const err = regexError(form.description_value)
+      if (err) return t.rulesValidationRegex(err)
     }
     if (form.detail_value.trim() && form.detail_mode === 'regex') {
-      try { new RegExp(form.detail_value) }
-      catch (e) { return t.rulesValidationRegex(String(e)) }
+      const err = regexError(form.detail_value)
+      if (err) return t.rulesValidationRegex(err)
     }
     const minNum = form.amount_min.trim() !== '' ? Number(form.amount_min) : null
     const maxNum = form.amount_max.trim() !== '' ? Number(form.amount_max) : null

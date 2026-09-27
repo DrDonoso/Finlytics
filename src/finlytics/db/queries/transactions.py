@@ -12,12 +12,28 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from finlytics.db.models import Account, Category, Tag, Transaction, transaction_tags
-from finlytics.db.queries.types import TransactionRow, UpdatedTransactionRow
 from finlytics.db.queries._filters import DedupCollisionError, _apply_filters
+from finlytics.db.queries.types import DateRange, TransactionRow, UpdatedTransactionRow
 from finlytics.db.repository import compute_dedup_hash, get_or_create_category, get_or_create_tag
 
-
 # ── Transaction queries ───────────────────────────────────────────────────────
+
+async def get_transaction_date_range(session: AsyncSession) -> DateRange:
+    """First and last date the ledger covers.
+
+    Opening balances are left out, like in every KPI: they are dated to whenever
+    the user chose to start counting, which says nothing about the data held.
+    """
+    first, last = (
+        await session.execute(
+            select(
+                func.min(Transaction.transaction_date),
+                func.max(Transaction.transaction_date),
+            ).where(Transaction.is_system.is_(False))
+        )
+    ).one()
+    return {"first": first, "last": last}
+
 
 # Allowlist mapping frontend sort keys to ORM columns.
 _SORT_COLUMNS: dict[str, Any] = {

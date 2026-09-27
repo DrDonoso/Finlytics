@@ -94,7 +94,9 @@ export default function TagTypeahead({ tags, availableTags, suggestedColors, pre
       addTag(active ? active.name : inputValue)
     } else if (e.key === 'Backspace' && !inputValue && tags.length > 0) {
       removeTag(tags[tags.length - 1])
-    } else if (e.key === 'Escape') {
+    } else if (e.key === 'Escape' && expanded) {
+      // Claim the key so an enclosing modal stays open.
+      e.preventDefault()
       setOpen(false)
     }
   }
@@ -132,8 +134,10 @@ export default function TagTypeahead({ tags, availableTags, suggestedColors, pre
   const expanded = open && suggestions.length > 0
 
   return (
+    // A pointer shortcut only: the input is keyboard-reachable on its own
     <div
       className="tag-typeahead"
+      role="presentation"
       onClick={() => inputRef.current?.focus()}
     >
       {tags.map(tag => {

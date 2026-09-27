@@ -29,6 +29,7 @@ __all__ = [
     "CategoryRow",
     "CategorySummaryRow",
     "CategoryUpdateRow",
+    "DateRange",
     "DaySummaryRow",
     "MerchantSummaryRow",
     "MonthSummaryRow",
@@ -115,6 +116,13 @@ class UpdatedTransactionRow(TypedDict):
     tags: list[str]
     merchant: str | None
     detail: str | None
+
+
+class DateRange(TypedDict):
+    """Both ends are None when the ledger holds no real transaction yet."""
+
+    first: date | None
+    last: date | None
 
 
 # ── Aggregations ─────────────────────────────────────────────────────────────

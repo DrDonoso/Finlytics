@@ -52,7 +52,8 @@ export function renderMarkdown(content: string): ReactNode[] {
     blocks.push(
       <ul className="assistant-md-list" key={`ul${listKey}`}>
         {items.map((item, i) => (
-          <li key={`${listKey}-${item.slice(0, 32)}-${i}`}>
+          // eslint-disable-next-line react/no-array-index-key -- lines of a rendered document: position is their identity, and they never reorder
+          <li key={`${listKey}-${i}`}>
             {renderInline(item, `li${listKey}-${i}`)}
           </li>
         ))}
