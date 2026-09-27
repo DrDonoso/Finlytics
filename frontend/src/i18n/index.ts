@@ -99,7 +99,6 @@ export interface Dict {
   filterAllTags: string
   tagEditorPlaceholder: string
   tagChipRemove: string
-  filterClearChip: string
   previewColTags: string
   navHome: string
   navSettings: string
@@ -182,6 +181,7 @@ export interface Dict {
   catColValue: string
   catColWeight: string
   catCenterLabel: string
+  catChartRest: (count: number) => string
   // ── Transactions page ─────────────────────────────────────────────────
   navTransactions: string
   navRules: string
@@ -458,7 +458,7 @@ export interface Dict {
   topMerchantsTitle: string
   topMerchantsEmpty: string
   topMerchantsCenterLabel: string
-  merchantCoverage: (pct: number) => string
+  merchantCoverage: (pct: string) => string
   // ── Cross-filter chips ────────────────────────────────────────────────────
   filterChipMerchant: string
   filterChipDay: string
@@ -654,7 +654,7 @@ export interface Dict {
   fidelityKpiGainLoss: string
   fidelityAsOf: (date: string) => string
   fidelityPriceStale: string
-  fidelityPriceInfo: (usd: number, rate: number) => string
+  fidelityPriceInfo: (usd: string, rate: string) => string
   fidelityImportBtn: string
   fidelityImportTitle: string
   fidelityImportStep1Hint: string
@@ -1019,6 +1019,24 @@ export interface Dict {
   mortgageCardTitle: string
   mortgageCardViewDetail: string
   mortgageKpiNetWorthInfo: string
+  txDetailSignLabel: string
+  tagChipRemoveNamed: (tag: string) => string
+  navToggle: string
+  navMore: string
+  navPrimary: string
+  tableColActions: string
+  tableColYear: string
+  tableColConcept: string
+  chartCategoryRest: (n: number) => string
+  filterPresetsLabel: string
+  filterPresetThisMonth: string
+  filterPresetLastMonth: string
+  filterPreset3m: string
+  filterPresetYtd: string
+  filterPreset12m: string
+  filterPresetAll: string
+  filterPresetCustom: string
+  filtersActiveCount: (n: number) => string
 }
 
 const ES_LABELS: Record<string, string> = {
@@ -1092,7 +1110,50 @@ export function assistantToolLabel(name: string, fallback: string, t: Dict): str
 const LOCALES: Record<Lang, string> = { es: 'es-ES', en: 'en-GB' }
 
 export function formatCurrency(amount: number, lang: Lang): string {
-  return new Intl.NumberFormat(LOCALES[lang], { style: 'currency', currency: 'EUR' }).format(amount)
+  // Anything under half a cent would otherwise print as "-0,00 €".
+  const value = Math.abs(amount) < 0.005 ? 0 : amount
+  return new Intl.NumberFormat(LOCALES[lang], { style: 'currency', currency: 'EUR' }).format(value)
+}
+
+export interface PercentOptions {
+  /** Most decimal places shown. Default 1. */
+  decimals?: number
+  /** Fewest decimal places shown; defaults to `decimals`. */
+  minDecimals?: number
+  /** Prefix a `+` on positive values. */
+  signed?: boolean
+  /** `percent` when 12.5 means 12.5 % (the default); `fraction` when 0.125 does.
+   *  The API is not uniform here — see the units note in AGENTS.md. */
+  unit?: 'percent' | 'fraction'
+}
+
+/** Rounds before formatting so a tiny negative never renders as "-0,0 %". */
+function roundTo(value: number, decimals: number): number {
+  const scale = 10 ** decimals
+  const rounded = Math.round(value * scale) / scale
+  return rounded === 0 ? 0 : rounded
+}
+
+/** Locale-aware percentage: "12,5 %" in Spanish, "12.5%" in English. */
+export function formatPercent(value: number, lang: Lang, opts: PercentOptions = {}): string {
+  const { decimals = 1, minDecimals = decimals, signed = false, unit = 'percent' } = opts
+  const fraction = unit === 'fraction' ? value : value / 100
+  return new Intl.NumberFormat(LOCALES[lang], {
+    style: 'percent',
+    minimumFractionDigits: minDecimals,
+    maximumFractionDigits: decimals,
+    signDisplay: signed ? 'exceptZero' : 'auto',
+  }).format(roundTo(fraction, decimals + 2))
+}
+
+/** Locale-aware plain number, for units that are neither money nor percent. */
+export function formatNumber(value: number, lang: Lang, opts: { decimals?: number; signed?: boolean } = {}): string {
+  const { decimals = 1, signed = false } = opts
+  return new Intl.NumberFormat(LOCALES[lang], {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+    signDisplay: signed ? 'exceptZero' : 'auto',
+  }).format(roundTo(value, decimals))
 }
 
 /** The only place a UI language becomes an Intl locale tag — never inline 'es-ES'. */
@@ -1103,10 +1164,12 @@ export function langLocale(lang: Lang): string {
 /** Fallback color for tags that have no color assigned yet. */
 export const DEFAULT_TAG_COLOR = '#94a3b8'
 
-/** Deterministic palette used for name-based color derivation. */
+/** Deterministic palette used for name-based color derivation: the ten members
+ *  of the base-category palette that stay furthest apart, colour-blind vision
+ *  included. */
 export const PALETTE = [
-  '#3b82f6', '#f97316', '#8b5cf6', '#eab308', '#10b981',
-  '#ef4444', '#ec4899', '#06b6d4', '#84cc16', '#f59e0b',
+  '#b94644', '#47a4b4', '#c6c102', '#4963de', '#bd9670',
+  '#896385', '#cf7ffd', '#e65909', '#2bccb4', '#d77089',
 ]
 
 /** Map a name string to a stable palette color. */
@@ -1116,17 +1179,21 @@ export function paletteColor(name: string): string {
   return PALETTE[Math.abs(h) % PALETTE.length]
 }
 
-/** Returns 'black' or 'white' for maximum contrast on the given hex background. */
+/** WCAG relative luminance of a `#rrggbb` colour, or null when it cannot be parsed. */
+function relativeLuminance(hex: string): number | null {
+  if (!/^#[0-9a-f]{6}$/i.test(hex)) return null
+  const [r, g, b] = [1, 3, 5].map(i => {
+    const c = parseInt(hex.slice(i, i + 2), 16) / 255
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+  })
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b
+}
+
+/** Returns 'black' or 'white', whichever has the higher WCAG contrast on the given hex background. */
 export function tagTextColor(hex: string): 'black' | 'white' {
-  if (!hex || hex.length < 7) return 'white'
-  try {
-    const r = parseInt(hex.slice(1, 3), 16)
-    const g = parseInt(hex.slice(3, 5), 16)
-    const b = parseInt(hex.slice(5, 7), 16)
-    return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.55 ? 'black' : 'white'
-  } catch {
-    return 'white'
-  }
+  const lum = relativeLuminance(hex)
+  if (lum === null) return 'white'
+  return (lum + 0.05) / 0.05 >= 1.05 / (lum + 0.05) ? 'black' : 'white'
 }
 
 export function formatDate(iso: string, lang: Lang): string {
@@ -1217,6 +1284,8 @@ export interface UseTResult {
   locale: string
   setLang: (l: Lang) => void
   formatCurrency: (amount: number) => string
+  formatPercent: (value: number, opts?: PercentOptions) => string
+  formatNumber: (value: number, opts?: { decimals?: number; signed?: boolean }) => string
 }
 
 export function useT(): UseTResult {
@@ -1227,5 +1296,7 @@ export function useT(): UseTResult {
     locale: LOCALES[lang],
     setLang,
     formatCurrency: (amount: number) => formatCurrency(amount, lang),
+    formatPercent: (value: number, opts?: PercentOptions) => formatPercent(value, lang, opts),
+    formatNumber: (value: number, opts?: { decimals?: number; signed?: boolean }) => formatNumber(value, lang, opts),
   }
 }

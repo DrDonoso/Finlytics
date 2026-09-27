@@ -17,8 +17,10 @@ import { queryKeys, useFidelityEvolution, useFidelityKpis, useFidelityLots } fro
 import { useT, langLocale } from '../../i18n'
 import { IS_DEMO } from '../../demo/config'
 import { useNotifications } from '../../contexts/NotificationsContext'
-import { IconChevronUp, IconChevronDown, IconLoading, IconAlert, IconBriefcase, IconChartLine, IconReceipt, IconClose, IconFolder, IconCheck, IconArrowLeft, IconArrowRight } from '../../components/icons'
-import Money, { Private } from '../../components/Money'
+import { IconLoading, IconAlert, IconBriefcase, IconChartLine, IconReceipt, IconClose, IconFolder, IconCheck, IconArrowLeft, IconArrowRight } from '../../components/icons'
+import SortableTh from '../../components/SortableTh'
+import Money, { Percent, Private } from '../../components/Money'
+import CardHeader from '../../components/CardHeader'
 
 // ── Date helpers (mirrored from IndexaView) ────────────────────────────────────
 
@@ -63,7 +65,7 @@ const NO_LOTS: FidelityLot[] = []
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function FidelityView() {
-  const { t, lang, formatCurrency } = useT()
+  const { t, lang, formatCurrency, formatNumber } = useT()
   const locale = langLocale(lang)
   const { notifications } = useNotifications()
 
@@ -157,9 +159,16 @@ export default function FidelityView() {
     }
   }
 
-  function LotsSortArrow({ col }: { col: LotsSortCol }) {
-    if (col !== lotsSortCol) return null
-    return <span aria-hidden="true"> {lotsSortDir === 'asc' ? <IconChevronUp size={12} /> : <IconChevronDown size={12} />}</span>
+  function lotsHeader(col: LotsSortCol, label: string) {
+    return (
+      <SortableTh
+        label={label}
+        active={col === lotsSortCol}
+        direction={lotsSortDir}
+        onSort={() => handleLotsSortClick(col)}
+        className={col === 'date' || col === 'source' ? undefined : 'inv-th-num'}
+      />
+    )
   }
 
   // ── Evolution data: period-filtered with carry-forward contributions ───────
@@ -415,7 +424,10 @@ export default function FidelityView() {
               </div>
               {kpis?.msft_price_usd != null && kpis.usd_eur_rate != null && (
                 <div className="kpi-sub">
-                  {t.fidelityPriceInfo(kpis.msft_price_usd, kpis.usd_eur_rate)}
+                  {t.fidelityPriceInfo(
+                    formatNumber(kpis.msft_price_usd, { decimals: 2 }),
+                    formatNumber(kpis.usd_eur_rate, { decimals: 4 }),
+                  )}
                 </div>
               )}
             </div>
@@ -430,7 +442,7 @@ export default function FidelityView() {
               </div>
               {kpis?.gain_loss_pct != null && (
                 <div className={`kpi-sub${kpis.gain_loss_pct >= 0 ? ' kpi-sub--pos' : ' kpi-sub--neg'}`}>
-                  {kpis.gain_loss_pct >= 0 ? '+' : ''}{kpis.gain_loss_pct.toFixed(2)}%
+                  <Percent value={kpis.gain_loss_pct} signed decimals={2} />
                 </div>
               )}
             </div>
@@ -440,34 +452,40 @@ export default function FidelityView() {
           {/* ── Evolution chart ── */}
           <div className="card inv-evolution-card">
 
-            <div className="inv-evolution-header">
-              <h3 className="card-title">{t.fidelityEvolutionTitle}</h3>
-              <div className="inv-evolution-controls">
-                <div className="inv-period-selector">
-                  {FIXED_PERIODS.map(p => (
+            <CardHeader
+              className="inv-evolution-header"
+              title={t.fidelityEvolutionTitle}
+              action={
+                <div className="inv-evolution-controls">
+                  <div className="inv-period-selector">
+                    {FIXED_PERIODS.map(p => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        className={`inv-period-btn${evPeriod === p.id ? ' inv-period-btn--active' : ''}`}
+                        aria-pressed={evPeriod === p.id}
+                        onClick={() => setEvPeriod(p.id)}
+                      >{p.label}</button>
+                    ))}
+                    {evolutionYears.map(y => (
+                      <button
+                        key={y}
+                        type="button"
+                        className={`inv-period-btn${evPeriod === y ? ' inv-period-btn--active' : ''}`}
+                        aria-pressed={evPeriod === y}
+                        onClick={() => setEvPeriod(y)}
+                      >{y}</button>
+                    ))}
                     <button
-                      key={p.id}
                       type="button"
-                      className={`inv-period-btn${evPeriod === p.id ? ' inv-period-btn--active' : ''}`}
-                      onClick={() => setEvPeriod(p.id)}
-                    >{p.label}</button>
-                  ))}
-                  {evolutionYears.map(y => (
-                    <button
-                      key={y}
-                      type="button"
-                      className={`inv-period-btn${evPeriod === y ? ' inv-period-btn--active' : ''}`}
-                      onClick={() => setEvPeriod(y)}
-                    >{y}</button>
-                  ))}
-                  <button
-                    type="button"
-                    className={`inv-period-btn${evPeriod === 'All' ? ' inv-period-btn--active' : ''}`}
-                    onClick={() => setEvPeriod('All')}
-                  >{t.invPeriodAll}</button>
+                      className={`inv-period-btn${evPeriod === 'All' ? ' inv-period-btn--active' : ''}`}
+                      aria-pressed={evPeriod === 'All'}
+                      onClick={() => setEvPeriod('All')}
+                    >{t.invPeriodAll}</button>
+                  </div>
                 </div>
-              </div>
-            </div>
+              }
+            />
 
             {evolutionData.length === 0 ? (
               <div className="state-box">
@@ -557,10 +575,10 @@ export default function FidelityView() {
 
           {/* ── Lots table ── */}
           <div className="card inv-holdings-card">
-            <div className="card-title card-title--has-action">
-              <span>{t.fidelityTitle}</span>
-              <span className="kpi-sub">{t.fidelityKpiSharesSub(lots.length)}</span>
-            </div>
+            <CardHeader
+              title={t.fidelityTitle}
+              action={<span className="kpi-sub">{t.fidelityKpiSharesSub(lots.length)}</span>}
+            />
             {lots.length === 0 ? (
               <div className="state-box">
                 <IconReceipt size={18} />
@@ -571,62 +589,14 @@ export default function FidelityView() {
                 <table className="inv-holdings-table">
                   <thead>
                     <tr>
-                      <th
-                        className={`inv-th-sortable${lotsSortCol === 'date' ? ' inv-th-sort-active' : ''}`}
-                        onClick={() => handleLotsSortClick('date')}
-                        onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && handleLotsSortClick('date')}
-                        tabIndex={0} role="columnheader"
-                        aria-sort={lotsSortCol === 'date' ? (lotsSortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
-                      >{t.fidelityColDate}<LotsSortArrow col="date" /></th>
-                      <th
-                        className={`inv-th-sortable${lotsSortCol === 'source' ? ' inv-th-sort-active' : ''}`}
-                        onClick={() => handleLotsSortClick('source')}
-                        onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && handleLotsSortClick('source')}
-                        tabIndex={0} role="columnheader"
-                        aria-sort={lotsSortCol === 'source' ? (lotsSortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
-                      >{t.fidelityColSource}<LotsSortArrow col="source" /></th>
-                      <th
-                        className={`inv-th-num inv-th-sortable${lotsSortCol === 'shares' ? ' inv-th-sort-active' : ''}`}
-                        onClick={() => handleLotsSortClick('shares')}
-                        onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && handleLotsSortClick('shares')}
-                        tabIndex={0} role="columnheader"
-                        aria-sort={lotsSortCol === 'shares' ? (lotsSortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
-                      >{t.fidelityColShares}<LotsSortArrow col="shares" /></th>
-                      <th
-                        className={`inv-th-num inv-th-sortable${lotsSortCol === 'costPerShare' ? ' inv-th-sort-active' : ''}`}
-                        onClick={() => handleLotsSortClick('costPerShare')}
-                        onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && handleLotsSortClick('costPerShare')}
-                        tabIndex={0} role="columnheader"
-                        aria-sort={lotsSortCol === 'costPerShare' ? (lotsSortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
-                      >{t.fidelityColCostPerShare}<LotsSortArrow col="costPerShare" /></th>
-                      <th
-                        className={`inv-th-num inv-th-sortable${lotsSortCol === 'totalCost' ? ' inv-th-sort-active' : ''}`}
-                        onClick={() => handleLotsSortClick('totalCost')}
-                        onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && handleLotsSortClick('totalCost')}
-                        tabIndex={0} role="columnheader"
-                        aria-sort={lotsSortCol === 'totalCost' ? (lotsSortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
-                      >{t.fidelityColTotalCost}<LotsSortArrow col="totalCost" /></th>
-                      <th
-                        className={`inv-th-num inv-th-sortable${lotsSortCol === 'currentValue' ? ' inv-th-sort-active' : ''}`}
-                        onClick={() => handleLotsSortClick('currentValue')}
-                        onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && handleLotsSortClick('currentValue')}
-                        tabIndex={0} role="columnheader"
-                        aria-sort={lotsSortCol === 'currentValue' ? (lotsSortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
-                      >{t.fidelityColCurrentValue}<LotsSortArrow col="currentValue" /></th>
-                      <th
-                        className={`inv-th-num inv-th-sortable${lotsSortCol === 'gain' ? ' inv-th-sort-active' : ''}`}
-                        onClick={() => handleLotsSortClick('gain')}
-                        onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && handleLotsSortClick('gain')}
-                        tabIndex={0} role="columnheader"
-                        aria-sort={lotsSortCol === 'gain' ? (lotsSortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
-                      >{t.fidelityColGain}<LotsSortArrow col="gain" /></th>
-                      <th
-                        className={`inv-th-num inv-th-sortable${lotsSortCol === 'gainPct' ? ' inv-th-sort-active' : ''}`}
-                        onClick={() => handleLotsSortClick('gainPct')}
-                        onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && handleLotsSortClick('gainPct')}
-                        tabIndex={0} role="columnheader"
-                        aria-sort={lotsSortCol === 'gainPct' ? (lotsSortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
-                      >{t.fidelityColGainPct}<LotsSortArrow col="gainPct" /></th>
+                      {lotsHeader('date', t.fidelityColDate)}
+                      {lotsHeader('source', t.fidelityColSource)}
+                      {lotsHeader('shares', t.fidelityColShares)}
+                      {lotsHeader('costPerShare', t.fidelityColCostPerShare)}
+                      {lotsHeader('totalCost', t.fidelityColTotalCost)}
+                      {lotsHeader('currentValue', t.fidelityColCurrentValue)}
+                      {lotsHeader('gain', t.fidelityColGain)}
+                      {lotsHeader('gainPct', t.fidelityColGainPct)}
                     </tr>
                   </thead>
                   <tbody>
@@ -667,9 +637,7 @@ export default function FidelityView() {
                               : '—'}
                           </td>
                           <td className={`inv-td-num ${gainCls}`}>
-                            {lot.gain_loss_pct != null
-                              ? `${isPos ? '+' : ''}${lot.gain_loss_pct.toFixed(2)}%`
-                              : '—'}
+                            <Percent value={lot.gain_loss_pct} signed decimals={2} />
                           </td>
                         </tr>
                       )
@@ -727,9 +695,7 @@ export default function FidelityView() {
                   <h2 className="inv-wizard__title">{t.fidelityImportTitle}</h2>
                   <p className="inv-wizard__desc">{t.fidelityImportStep1Hint}</p>
                   <div className="inv-wizard__token-field">
-                    <label className="inv-wizard__token-label">
-                      CSV
-                    </label>
+                    <span className="inv-wizard__token-label">CSV</span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
                       <label className="backup-file-label">
                         <span className="btn-primary">{t.fidelityImportCta}</span>

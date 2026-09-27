@@ -122,3 +122,34 @@ def test_0024_rekeys_every_row_without_dropping_any(empty_database):
 
     run_alembic(url, "upgrade", "head")
     assert {r.id: r.dedup_hash for r in transactions(url)} == upgraded
+
+
+def category_colors(url: URL) -> dict[str, str]:
+    return {r["name"]: r["color"] for r in query(url, "SELECT name, color FROM categories")}
+
+
+def test_0025_recolours_only_categories_still_on_the_seeded_palette(empty_database):
+    url = empty_database
+    run_alembic(url, "upgrade", "0024")
+    query(
+        url,
+        "INSERT INTO categories (name, is_base, color) VALUES "
+        "('Groceries', true, '#22c55e'), ('Transport', true, '#3B82F6'), "
+        "('Dining', true, '#123456'), ('Holidays', false, '#22c55e')",
+    )
+
+    run_alembic(url, "upgrade", "0025")
+    assert category_colors(url) == {
+        "Groceries": "#70912f",
+        "Transport": "#4f86c6",
+        "Dining": "#123456",
+        "Holidays": "#22c55e",
+    }
+
+    run_alembic(url, "downgrade", "0024")
+    assert category_colors(url) == {
+        "Groceries": "#22c55e",
+        "Transport": "#3b82f6",
+        "Dining": "#123456",
+        "Holidays": "#22c55e",
+    }

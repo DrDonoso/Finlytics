@@ -38,6 +38,60 @@
 .filter-group input:focus,
 .filter-group select:focus { border-color: var(--primary); }
 
+/* ── Collapsible body — a plain pass-through on desktop, a disclosure on phones ── */
+.filter-bar-body { display: contents; }
+.filter-bar-toggle { display: none; }
+
+@media (max-width: 767px) {
+  .filter-bar-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    min-height: 44px;
+    padding: 0 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+    text-align: left;
+  }
+  .filter-bar-toggle__label { font-weight: 600; flex-shrink: 0; }
+  .filter-bar-toggle__summary {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-muted);
+  }
+  .filter-bar-toggle__count {
+    flex-shrink: 0;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: rgba(var(--primary-rgb), 0.12);
+    color: var(--primary);
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .filter-bar-toggle__chevron { flex-shrink: 0; color: var(--text-muted); transition: transform 0.15s; }
+  .filter-bar[data-open="true"] .filter-bar-toggle__chevron { transform: rotate(180deg); }
+
+  .filter-bar-body { display: none; }
+  .filter-bar[data-open="true"] .filter-bar-body {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    width: 100%;
+  }
+  .filter-bar-body .date-range-wrap .filter-group { flex: 1; min-width: 0; }
+  .filter-bar-body .date-range-wrap .date-picker-trigger { min-width: 0; }
+}
+
 /* ── Native date input — styled trigger (calendar popup stays native) ─────
    sure pattern: px-3 py-1.5 border border-primary rounded-lg text-sm
    bg-container-inset text-primary → translated to Finlytics tokens          */

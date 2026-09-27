@@ -7,6 +7,7 @@ import { langLocale, useT } from '../i18n'
 import type { Lang } from '../i18n'
 import { usePrivacy } from '../contexts/PrivacyContext'
 import { IconAlert, IconLoading, IconCalendar } from './icons'
+import CardHeader from './CardHeader'
 
 interface Props {
   globalFilters: GlobalFilters
@@ -219,14 +220,14 @@ export default function SpendingHeatmap({ globalFilters, onSelectPeriod, onReset
 
   return (
     <div className="card heatmap-card">
-      <div className={`card-title${onResetPeriod ? ' card-title--has-action' : ''}`}>
-        <span>{t.heatmapTitle}</span>
-        {onResetPeriod && (
-          <button className="hm-reset-btn" onClick={onResetPeriod}>
+      <CardHeader
+        title={t.heatmapTitle}
+        action={onResetPeriod && (
+          <button type="button" className="hm-reset-btn" onClick={onResetPeriod}>
             {t.heatmapZoomOut}
           </button>
         )}
-      </div>
+      />
 
       {error && (
         <div className="state-box error">
@@ -334,7 +335,8 @@ export default function SpendingHeatmap({ globalFilters, onSelectPeriod, onReset
 
                 <div
                   className="heatmap-grid"
-                  role="grid"
+                  // eslint-disable-next-line jsx-a11y/prefer-tag-over-role -- a named group of buttons; fieldset/details do not fit
+                  role="group"
                   aria-label={t.heatmapTitle}
                   style={{ gridTemplateColumns: `repeat(${grid.weeks.length}, var(--hm-cell))` }}
                 >

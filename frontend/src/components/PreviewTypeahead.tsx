@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, KeyboardEvent } from 'react'
 
 export interface PreviewTypeaheadOption {
@@ -14,6 +14,7 @@ interface Props {
   className?: string
   freeText?: boolean
   ariaLabel?: string
+  id?: string
   getLabel?: (value: string) => string
   normalizeInput?: (input: string, options: PreviewTypeaheadOption[]) => string
 }
@@ -26,6 +27,7 @@ export default function PreviewTypeahead({
   className,
   freeText = true,
   ariaLabel,
+  id,
   getLabel,
   normalizeInput,
 }: Props) {
@@ -35,6 +37,7 @@ export default function PreviewTypeahead({
   const [dropdownStyle, setDropdownStyle] = useState<CSSProperties>({})
   const wrapRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const listId = useId()
 
   const dedupedOptions = useMemo(() => {
     const seen = new Set<string>()
@@ -116,18 +119,23 @@ export default function PreviewTypeahead({
     }
   }
 
+  const expanded = open && suggestions.length > 0
+
   return (
     <div className={`preview-typeahead${className ? ' ' + className : ''}`} ref={wrapRef}>
       <input
         ref={inputRef}
+        id={id}
         type="text"
         className="preview-typeahead-input"
         value={inputValue}
         placeholder={placeholder}
         aria-label={ariaLabel}
         role="combobox"
-        aria-expanded={open}
+        aria-expanded={expanded}
+        aria-controls={listId}
         aria-autocomplete="list"
+        aria-activedescendant={expanded && suggestions[activeIndex] ? `${listId}-${activeIndex}` : undefined}
         onFocus={() => {
           openSuggestions()
           requestAnimationFrame(() => inputRef.current?.select())
@@ -164,11 +172,18 @@ export default function PreviewTypeahead({
           }
         }}
       />
-      {open && suggestions.length > 0 && (
-        <ul className="tag-typeahead-suggestions preview-typeahead-suggestions" role="listbox" style={dropdownStyle}>
+      {expanded && (
+        <ul
+          id={listId}
+          className="tag-typeahead-suggestions preview-typeahead-suggestions"
+          role="listbox"
+          aria-label={ariaLabel}
+          style={dropdownStyle}
+        >
           {suggestions.map((suggestion, idx) => (
             <li
               key={suggestion.value}
+              id={`${listId}-${idx}`}
               role="option"
               aria-selected={idx === activeIndex}
               className={idx === activeIndex ? 'is-active' : undefined}

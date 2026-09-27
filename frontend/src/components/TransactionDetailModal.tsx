@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useId } from 'react'
 import type { Category, Tag, Transaction } from '../api/types'
 import { updateTransaction } from '../api/client'
 import { useT, categoryLabel, formatDate } from '../i18n'
+import CategoryBadge from './CategoryBadge'
 import CategorySelect from './CategorySelect'
 import TagEditor from './TagEditor'
 import { IconClose } from './icons'
@@ -37,6 +38,7 @@ export default function TransactionDetailModal({
   onSaved,
 }: Props) {
   const { t, lang } = useT()
+  const fieldId = useId()
 
   const [editData, setEditData] = useState<EditData>({
     description: tx.description,
@@ -101,10 +103,11 @@ export default function TransactionDetailModal({
         className="modal modal-tx-detail"
         role="dialog"
         aria-modal="true"
+        aria-labelledby={`${fieldId}-title`}
         onClick={e => e.stopPropagation()}
       >
         <div className="modal-header">
-          <h2 className="modal-title">{t.txDetailModalTitle}</h2>
+          <h2 className="modal-title" id={`${fieldId}-title`}>{t.txDetailModalTitle}</h2>
           <button
             className="modal-close"
             onClick={onClose}
@@ -126,8 +129,9 @@ export default function TransactionDetailModal({
 
           {/* ── Editable: description ────────────────────────────── */}
           <div className="tx-detail-field tx-detail-field--editable">
-            <label className="tx-detail-label">{t.tableColDesc}</label>
+            <label className="tx-detail-label" htmlFor={`${fieldId}-desc`}>{t.tableColDesc}</label>
             <input
+              id={`${fieldId}-desc`}
               type="text"
               className="td-edit-input"
               value={editData.description}
@@ -141,8 +145,9 @@ export default function TransactionDetailModal({
 
           {/* ── Editable: merchant ───────────────────────────────── */}
           <div className="tx-detail-field tx-detail-field--editable">
-            <label className="tx-detail-label">{t.colMerchant}</label>
+            <label className="tx-detail-label" htmlFor={`${fieldId}-merchant`}>{t.colMerchant}</label>
             <input
+              id={`${fieldId}-merchant`}
               type="text"
               className="td-edit-input"
               value={editData.merchant}
@@ -154,21 +159,13 @@ export default function TransactionDetailModal({
 
           {/* ── Editable: category ───────────────────────────────── */}
           <div className="tx-detail-field tx-detail-field--editable">
-            <label className="tx-detail-label">{t.tableColCategory}</label>
+            <label className="tx-detail-label" htmlFor={`${fieldId}-category`}>{t.tableColCategory}</label>
             <div className="tx-detail-cat-row">
               {catColor && (
-                <span
-                  className="badge"
-                  style={{
-                    background: catColor + '22',
-                    color: catColor,
-                    borderColor: catColor + '66',
-                  }}
-                >
-                  {categoryLabel(editData.category, lang, dynamicEs)}
-                </span>
+                <CategoryBadge label={categoryLabel(editData.category, lang, dynamicEs)} color={catColor} />
               )}
               <CategorySelect
+                id={`${fieldId}-category`}
                 value={editData.category}
                 baseCategories={sortedBaseCategories}
                 extraCategories={dbExtraCategories}
@@ -181,10 +178,11 @@ export default function TransactionDetailModal({
 
           {/* ── Editable: amount ─────────────────────────────────── */}
           <div className="tx-detail-field tx-detail-field--editable">
-            <label className="tx-detail-label">{t.tableColAmount}</label>
+            <label className="tx-detail-label" htmlFor={`${fieldId}-amount`}>{t.tableColAmount}</label>
             <div className="amount-cell">
               <select
                 className="cell-sign"
+                aria-label={t.txDetailSignLabel}
                 value={editData.sign}
                 disabled={saving}
                 onChange={e =>
@@ -195,6 +193,7 @@ export default function TransactionDetailModal({
                 <option value="+">{t.previewSignIncome}</option>
               </select>
               <input
+                id={`${fieldId}-amount`}
                 type="number"
                 className="td-edit-input"
                 style={{ color: amountColor, flex: 1 }}
@@ -211,13 +210,14 @@ export default function TransactionDetailModal({
 
           {/* ── Editable: tags ───────────────────────────────────── */}
           <div className="tx-detail-field tx-detail-field--editable">
-            <label className="tx-detail-label">{t.tableColTags}</label>
+            <span className="tx-detail-label" id={`${fieldId}-tags`}>{t.tableColTags}</span>
             <TagEditor
               tags={editData.tags}
               availableTags={allTags}
               disabled={saving}
               onChange={tags => setEditData(d => ({ ...d, tags }))}
               placeholder={t.tagEditorPlaceholder}
+              labelledBy={`${fieldId}-tags`}
             />
           </div>
 

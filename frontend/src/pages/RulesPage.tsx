@@ -105,10 +105,7 @@ export default function RulesPage() {
 
   return (
     <>
-      <main className="settings-page">
-        <div className="settings-container">
-          <h1 className="settings-heading">{t.navRules}</h1>
-          <div className="card settings-card rules-card">
+      <div className="card settings-card rules-card">
         <h2 className="settings-section-title">{t.rulesTitle}</h2>
 
         {shownError && <div className="import-error" style={{ marginBottom: 16 }}>{shownError}</div>}
@@ -160,12 +157,16 @@ export default function RulesPage() {
                             style={{ color: 'var(--expense)', borderColor: 'transparent' }}
                             onClick={() => handleDelete(rule.id)}
                             disabled={deleting}
+                            title={t.rulesBtnDelete}
+                            aria-label={t.rulesBtnDelete}
                           ><IconCheck size={15} /></button>
                           <button
                             type="button"
                             className="btn-row-icon btn-row-edit"
                             onClick={() => setConfirmDeleteId(null)}
                             disabled={deleting}
+                            title={t.rulesBtnCancel}
+                            aria-label={t.rulesBtnCancel}
                           ><IconClose size={15} /></button>
                         </div>
                       </td>
@@ -182,6 +183,7 @@ export default function RulesPage() {
                         checked={rule.enabled}
                         onChange={() => handleToggleEnabled(rule)}
                         title={t.rulesFieldEnabled}
+                        aria-label={`${t.rulesFieldEnabled}: ${rule.name}`}
                       />
                     </td>
                     <td className="rules-td-name">{rule.name}</td>
@@ -233,9 +235,7 @@ export default function RulesPage() {
           </table>
         </div>
       )}
-        </div>
-        </div>
-      </main>
+      </div>
 
       {ruleModalOpen && (
         <RuleFormModal

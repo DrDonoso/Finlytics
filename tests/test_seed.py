@@ -9,12 +9,35 @@ Verifies:
 
 from __future__ import annotations
 
+import importlib.util
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from finlytics.extraction.taxonomy import BASE_CATEGORIES
 from seed import BASE_CATEGORY_COLORS, seed
 
 _DEFAULT_GREY = "#64748b"
+
+_spec = importlib.util.spec_from_file_location(
+    "m0025",
+    Path(__file__).resolve().parents[1]
+    / "alembic"
+    / "versions"
+    / "0025_recolor_base_category_palette.py",
+)
+assert _spec and _spec.loader
+m0025 = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(m0025)
+
+
+def test_every_base_category_has_a_palette_color() -> None:
+    assert set(BASE_CATEGORY_COLORS) == set(BASE_CATEGORIES)
+    assert len(set(BASE_CATEGORY_COLORS.values())) == len(BASE_CATEGORY_COLORS)
+
+
+def test_the_seed_palette_is_the_one_migration_0025_installs() -> None:
+    """A fresh install and an upgraded one must end up with the same colours."""
+    assert {name: new for name, (_, new) in m0025.PALETTE.items()} == BASE_CATEGORY_COLORS
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

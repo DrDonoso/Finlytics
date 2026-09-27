@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useId } from 'react'
 import type { ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Category, GlobalFilters, Tag, Transaction, TransactionPage, TransactionsParams } from '../api/types'
@@ -9,8 +9,11 @@ import CategorySelect from './CategorySelect'
 import TagEditor from './TagEditor'
 import RuleFormModal from './RuleFormModal'
 import TransactionDetailModal from './TransactionDetailModal'
+import CardHeader from './CardHeader'
+import CategoryBadge from './CategoryBadge'
 import { useIsMobile } from '../hooks/useIsMobile'
-import { IconAlert, IconReceipt, IconCheck, IconClose, IconSettings, IconPencil, IconChevronUp, IconChevronDown, IconArrowLeft, IconArrowRight } from './icons'
+import { IconAlert, IconReceipt, IconCheck, IconClose, IconSettings, IconPencil, IconArrowLeft, IconArrowRight } from './icons'
+import SortableTh from './SortableTh'
 
 interface Props {
   globalFilters: GlobalFilters
@@ -54,6 +57,7 @@ export default function TransactionsTable({ globalFilters, categories, allTags, 
   const [ruleToast,     setRuleToast]     = useState<string | null>(null)
   const [detailTx,      setDetailTx]      = useState<Transaction | null>(null)
   const isMobile = useIsMobile()
+  const categoryFilterId = useId()
 
   useEffect(() => {
     if (!ruleToast) return
@@ -203,24 +207,29 @@ export default function TransactionsTable({ globalFilters, categories, allTags, 
     }
   }
 
-  function sortIndicator(col: string) {
-    if (col !== sortCol) return null
-    return <span className="th-sort-arrow">{sortOrder === 'asc' ? <IconChevronUp size={12} /> : <IconChevronDown size={12} />}</span>
+  function sortableHeader(col: string, label: string, className?: string) {
+    return (
+      <SortableTh
+        label={label}
+        active={col === sortCol}
+        direction={sortOrder}
+        onSort={() => handleSort(col)}
+        className={className}
+      />
+    )
   }
 
   return (
     <>
       <div className="card">
-      <div className={headerAction ? 'card-title card-title--has-action' : 'card-title'}>
-        {t.tableTitle}
-        {headerAction}
-      </div>
+      <CardHeader title={t.tableTitle} action={headerAction} />
 
       {!hideInternalFilters && (
         <div className="table-filters">
           <div className="filter-group">
-            <label>{t.tableFilterCategory}</label>
+            <label htmlFor={categoryFilterId}>{t.tableFilterCategory}</label>
             <select
+              id={categoryFilterId}
               value={categoryId ?? ''}
               onChange={e => setCategoryId(e.target.value ? Number(e.target.value) : undefined)}
             >
@@ -258,36 +267,17 @@ export default function TransactionsTable({ globalFilters, categories, allTags, 
       {!error && !loading && data && data.items.length > 0 && (
         <>
           <div className="table-wrapper" aria-busy={isPlaceholderData} style={isPlaceholderData ? { opacity: 0.6 } : undefined}>
-            <table>
+            <table className="tx-table">
               <thead>
                 <tr>
-                  <th
-                    className={`th-sortable${sortCol === 'date' ? ' th-sort-active' : ''}`}
-                    onClick={() => handleSort('date')}
-                  >{t.tableColDate}{sortIndicator('date')}</th>
-                  <th
-                    className={`th-sortable${sortCol === 'account' ? ' th-sort-active' : ''}`}
-                    onClick={() => handleSort('account')}
-                  >{t.tableColAccount}{sortIndicator('account')}</th>
-                  <th
-                    className={`th-sortable${sortCol === 'description' ? ' th-sort-active' : ''}`}
-                    onClick={() => handleSort('description')}
-                  >{t.tableColDesc}{sortIndicator('description')}</th>
-                  <th
-                    className={`th-merchant th-sortable${sortCol === 'merchant' ? ' th-sort-active' : ''}`}
-                    onClick={() => handleSort('merchant')}
-                  >{t.colMerchant}{sortIndicator('merchant')}</th>
-                  <th
-                    className={`th-sortable${sortCol === 'category' ? ' th-sort-active' : ''}`}
-                    onClick={() => handleSort('category')}
-                  >{t.tableColCategory}{sortIndicator('category')}</th>
+                  {sortableHeader('date', t.tableColDate)}
+                  {sortableHeader('account', t.tableColAccount)}
+                  {sortableHeader('description', t.tableColDesc)}
+                  {sortableHeader('merchant', t.colMerchant, 'th-merchant')}
+                  {sortableHeader('category', t.tableColCategory)}
                   <th>{t.tableColTags}</th>
-                  <th
-                    className={`th-sortable${sortCol === 'amount' ? ' th-sort-active' : ''}`}
-                    style={{ textAlign: 'right' }}
-                    onClick={() => handleSort('amount')}
-                  >{t.tableColAmount}{sortIndicator('amount')}</th>
-                  <th></th>
+                  {sortableHeader('amount', t.tableColAmount, 'th-amount')}
+                  <th><span className="sr-only">{t.tableColActions}</span></th>
                 </tr>
               </thead>
               <tbody>
@@ -301,11 +291,12 @@ export default function TransactionsTable({ globalFilters, categories, allTags, 
                     return (
                       <tr key={tx.id} className="row-editing">
                         <td className="td-date">{formatDate(tx.transaction_date, lang)}</td>
-                        <td style={{ color: 'var(--text-muted)', fontSize: 13 }}>{tx.account}</td>
+                        <td className="td-account">{tx.account}</td>
                         <td>
                           <input
                             type="text"
                             className="td-edit-input"
+                            aria-label={t.tableColDesc}
                             value={editData.description}
                             disabled={saving}
                             onChange={e => setEditData(d => d ? { ...d, description: e.target.value } : d)}
@@ -316,6 +307,7 @@ export default function TransactionsTable({ globalFilters, categories, allTags, 
                           <input
                             type="text"
                             className="td-edit-input"
+                            aria-label={t.colMerchant}
                             value={editData.merchant}
                             disabled={saving}
                             placeholder={t.colMerchant}
@@ -325,6 +317,7 @@ export default function TransactionsTable({ globalFilters, categories, allTags, 
                         </td>
                         <td>
                           <CategorySelect
+                            ariaLabel={t.tableColCategory}
                             value={editData.category}
                             baseCategories={sortedBaseCategories}
                             extraCategories={dbExtraCategories}
@@ -346,6 +339,7 @@ export default function TransactionsTable({ globalFilters, categories, allTags, 
                           <div className="amount-cell" style={{ justifyContent: 'flex-end' }}>
                             <select
                               className="cell-sign"
+                              aria-label={t.txDetailSignLabel}
                               value={editData.sign}
                               disabled={saving}
                               onChange={e => setEditData(d => d ? { ...d, sign: e.target.value as '-' | '+' } : d)}
@@ -356,6 +350,7 @@ export default function TransactionsTable({ globalFilters, categories, allTags, 
                             <input
                               type="number"
                               className="td-edit-input"
+                              aria-label={t.tableColAmount}
                               style={{ color: amountColor, textAlign: 'right', width: 90 }}
                               value={editData.absAmount}
                               min="0"
@@ -396,8 +391,8 @@ export default function TransactionsTable({ globalFilters, categories, allTags, 
                       onClick={() => { if (isMobile) setDetailTx(tx) }}
                     >
                       <td className="td-date">{formatDate(tx.transaction_date, lang)}</td>
-                      <td style={{ color: 'var(--text-muted)', fontSize: 13 }}>{tx.account}</td>
-                      <td title={tx.description}>
+                      <td className="td-account">{tx.account}</td>
+                      <td className="td-description" title={tx.description}>
                         <div className="td-desc">{tx.description}</div>
                         {tx.is_system && (
                           <span className="tx-system-badge" title={t.systemTxBadgeTooltip}>
@@ -409,14 +404,9 @@ export default function TransactionsTable({ globalFilters, categories, allTags, 
                         )}
                       </td>
                       <td className="td-merchant">{tx.merchant ?? ''}</td>
-                      <td><span
-                        className="badge"
-                        style={categoryColorMap[tx.category] ? {
-                          background: categoryColorMap[tx.category] + '22',
-                          color: categoryColorMap[tx.category],
-                          borderColor: categoryColorMap[tx.category] + '66',
-                        } : undefined}
-                      >{categoryLabel(tx.category, lang, dynamicEs)}</span></td>
+                      <td className="td-category">
+                        <CategoryBadge label={categoryLabel(tx.category, lang, dynamicEs)} color={categoryColorMap[tx.category]} />
+                      </td>
                       <td className="td-tags">
                         {tx.tags.length > 0 && (
                           <div className="tag-chips-readonly">
@@ -436,17 +426,24 @@ export default function TransactionsTable({ globalFilters, categories, allTags, 
                       <td className={`td-amount private ${tx.amount < 0 ? 'neg' : 'pos'}`}>
                         {formatCurrency(tx.amount)}
                       </td>
-                      <td>
+                      <td className="td-row-actions">
                         <div className="td-actions">
                           <button
                             className="btn-row-icon btn-create-rule"
                             onClick={e => { e.stopPropagation(); setCreateRuleFor(tx) }}
                             title={t.createRuleBtn}
+                            aria-label={t.createRuleBtn}
                           ><IconSettings size={15} /></button>
                           <button
                             className="btn-row-icon btn-row-edit"
-                            onClick={e => { e.stopPropagation(); startEdit(tx) }}
+                            onClick={e => {
+                              e.stopPropagation()
+                              // A card has no room for the inline editor; the detail sheet edits the same fields.
+                              if (isMobile) setDetailTx(tx)
+                              else startEdit(tx)
+                            }}
                             title={t.tableEditRow}
+                            aria-label={t.tableEditRow}
                           ><IconPencil size={15} /></button>
                         </div>
                       </td>

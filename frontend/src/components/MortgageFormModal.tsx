@@ -92,7 +92,7 @@ function initialState(mortgage?: Mortgage | null): FormState {
 }
 
 export default function MortgageFormModal({ mortgage, accounts, categories, onClose, onSaved }: Props) {
-  const { t, lang, formatCurrency } = useT()
+  const { t, lang, formatCurrency, formatPercent } = useT()
   const [step, setStep] = useState(1)
   const [form, setForm] = useState<FormState>(() => initialState(mortgage))
   const [saving, setSaving] = useState(false)
@@ -325,7 +325,7 @@ export default function MortgageFormModal({ mortgage, accounts, categories, onCl
                     <div className="form-group">
                       <label htmlFor="mf-index">{t.mortgageFormIndex}</label>
                       <input id="mf-index" className="form-input" value="Euríbor 12m" disabled />
-                      {latestIndex > 0 && <span className="form-hint">{latestIndex.toFixed(3)} %</span>}
+                      {latestIndex > 0 && <span className="form-hint">{formatPercent(latestIndex, { decimals: 3 })}</span>}
                     </div>
                     <div className="form-group">
                       <label htmlFor="mf-spread">{t.mortgageFormSpread}</label>

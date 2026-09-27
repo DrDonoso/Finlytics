@@ -14,7 +14,7 @@ interface Props {
 }
 
 function DeltaCell({ row }: { row: MoverRow }) {
-  const { t, formatCurrency } = useT()
+  const { t, formatCurrency, formatPercent } = useT()
   if (!row.delta) return <span className="movers-delta movers-delta-dash">—</span>
 
   if (row.delta.isNew) {
@@ -29,7 +29,7 @@ function DeltaCell({ row }: { row: MoverRow }) {
 
   return (
     <span className={`movers-delta ${cls}`}>
-      <TrendArrow value={row.delta.abs} /> <span className="private">{sign}{formatCurrency(row.delta.abs)}</span> ({sign}{row.delta.pct.toFixed(1)}%)
+      <TrendArrow value={row.delta.abs} /> <span className="private">{sign}{formatCurrency(row.delta.abs)}</span> ({formatPercent(row.delta.pct, { signed: true })})
     </span>
   )
 }
@@ -50,7 +50,7 @@ export default function CategoryMovers({
 
   return (
     <div className="card movers-card">
-      <div className="card-title">{t.moversTitle}</div>
+      <h2 className="card-title">{t.moversTitle}</h2>
 
       {error && (
         <div className="state-box error">

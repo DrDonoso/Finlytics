@@ -47,9 +47,9 @@ The `IMAGE_TAG` / `BUILD_DATE` build args are injected there and surfaced by
 
 ## Migrations
 
-Alembic migrations live in `alembic/versions/`. The current head is `0024_rekey_dedup_hash_on_account_id.py`.
+Alembic migrations live in `alembic/versions/`. The current head is `0025_recolor_base_category_palette.py`.
 
-- Always create a new numbered migration (`0025_...`) for schema changes.
+- Always create a new numbered migration (`0026_...`) for schema changes.
 - Verify the head before writing one — this file goes stale. `down_revision` in the
   highest-numbered file is the source of truth, not this document.
 - The entrypoint runs `alembic upgrade head` automatically on container start.
@@ -229,8 +229,9 @@ A `reduce_term` prepayment deliberately keeps the instalment and shortens the lo
   `GET /api/mortgages/net-worth`, which the Dashboard adds to its KPI. An unused module
   answers zeros; a *failed* read marks the KPI as partial rather than counting as zero,
   which would overstate net worth by the whole outstanding debt.
-- **Demo:** the demo scenario has no mortgage. `demo/handlers.ts` answers the two
-  Dashboard-facing endpoints with "none configured" so the catch-all never returns 501.
+- **Demo:** the demo scenario includes a fixed-rate mortgage, and `demo/handlers.ts`
+  serves the same read payloads the API would (the prepayment simulation included).
+  Writes stay unhandled: the demo is read-only.
 
 ---
 
@@ -303,6 +304,7 @@ non-empty — the detail line.
   - A chunk that fails to load (typically a tab opened before a deploy, whose hashed file no longer exists) shows a reload prompt inside the shell. React caches the rejected import, so only a reload recovers — do not replace this with a silent `vite:preloadError` auto-reload, which would throw away an in-flight assistant answer or a half-filled form.
 - **i18n:** Bilingual EN/ES. `Dict` interface in `i18n/index.ts`, implementations in `es.ts` / `en.ts`. All three files must be updated for every new string.
   - **Locale and money:** a UI language becomes an `Intl` locale tag only in `i18n/index.ts`. Format amounts with `formatCurrency` (from `useT()` in a component, or the module export with a `lang` argument in a pure helper), and hand `useT().locale` / `langLocale(lang)` to any other `Intl` or `toLocale*` call. Never inline `'es-ES'` or pass the bare `lang` (`'en'` resolves to `en-US`): the English UI used to print `1.234,56 €` beside `€1,234.56`. `test/locale.test.ts` fails on an inline tag.
+  - **Percentages and plain numbers:** `formatPercent` / `formatNumber`, or `<Percent>` in JSX — never `toFixed()` plus `'%'`, which printed `12.5%` in the Spanish UI and `-0.0 %` for a value that rounds to zero. Pass `unit: 'fraction'` for the API values that are fractions (see the units note under *Public demo*). `formatCurrency` never prints `-0,00 €` either: anything under half a cent is zero. `test/format.test.ts` pins these cases.
 - **API client:** `frontend/src/api/client.ts` — typed `apiFetch<T>()`. New endpoints follow the `getX()` / `postX()` pattern.
   - **Mock layer:** `frontend/src/api/mock.ts`, activated build-time by `VITE_USE_MOCK=1`. Coverage is **partial** — roughly 40 of 68 client functions have a mock branch. Rules, backup, statements, all Fidelity endpoints and `combined-overview` have none.
   - ⚠️ **Never fall back to the mock on an error** (`catch { return mockGetX() }`). Thirteen reads used to, so in production a 500 or a network drop rendered **fake data as if it were the user's** — and the unconditional reference also shipped the whole mock dataset in the production bundle. The mock is reachable only behind `if (USE_MOCK)`, which the bundler drops; `api/client.test.ts` asserts that a failed read rejects. The same goes for "degrade to zeros": a figure that feeds a total (the mortgage's net-worth contribution, say) must throw, so the page can mark the total as partial instead of silently omitting a line of it.
@@ -311,10 +313,27 @@ non-empty — the detail line.
   - **The cache belongs to a session.** `AuthContext` clears it when `authenticated` goes from true to false, which covers logout and a 401 alike; otherwise the next user to sign in on the same tab would briefly see the previous one's figures.
   - **Never poll `GET /api/notifications`:** it runs every detector and writes. `useNotificationChangePoll` polls `/unread-count` and invalidates the list only when the two disagree, and the badge is derived from the list, so it cannot contradict the dropdown under it.
   - **A form seeded from a query mounts only once the data exists** (see `AssistantSettingsPage`). Rendering it with empty defaults first flashes validation errors about values nobody typed, and `useState` initialisers do not re-run when the data arrives.
+- **Filters live in the URL.** Transactions, Finances and Analytics read theirs through `useUrlFilters` (`hooks/useUrlFilters.ts`), so a reload, the back button or a shared link restores the view. Keys: `from`, `to`, `account_id`, `category_id`, `tag` (repeatable), `flow`, `merchant`, `q`, `min`, `max`, `day`. A missing `from`/`to` means the page default and an empty one an open end; a customised range always writes both ends, so a shared link keeps its period as the default moves. Malformed values are dropped, unknown params are preserved, and navigation uses `replace` so typing does not flood the history.
+  - Updates compose on the **last written** value, not the rendered URL: navigations commit in a transition, so two updates in one tick would both start from the same URL and the second would silently drop the first.
+  - A free-text box binds through `useDebouncedFilter` (300 ms), which also writes a change made elsewhere — a chip, *Clear*, the back button — back into the box. A plain `useState` leaves stale text above a filter that is no longer applied.
+- **Shared building blocks** — use them rather than re-deriving the markup:
+  - `CardHeader` is the one card heading. It renders an `h2`, because every page has exactly one `h1` (visible, or `sr-only` on the Dashboard, Finances and Statements); an optional `action` wraps under the title on narrow cards. Settings pages render neither `<main>` nor an `h1`: `SettingsLayout` owns both.
+  - `CategoryBadge`: the category colour marks a dot and the label keeps the body text colour — user-picked hues cannot all clear 4.5:1 as text.
+  - `SortableTh`: a button inside the `th` takes the pointer and the keyboard, and the `th` carries `aria-sort`. Trailing controls (an info tip) sit beside the button, never inside it.
+  - `splitTopSlices` (`utils/categorySlices.ts`): a donut draws the six largest slices and folds the rest into one neutral slice. A tail of one is never folded.
+  - `computeDelta` (`utils/comparison.ts`) divides by the **absolute** baseline, so a negative figure that improves reads as a rise rather than a fall.
+- **Category palette:** the base-category colours in `seed.py` are chosen to stay distinguishable under protanopia and deuteranopia. Changing them takes a migration that recolours only rows still on the old seeded value (see `0025_recolor_base_category_palette.py`), and `tests/test_seed.py` asserts that the seed equals the palette that migration installs — a new palette moves that test to the new migration. `demo/scenario.ts` and `api/mock.ts` mirror the same hexes.
+- **Accessibility:** axe reports no violations on any route; keep it that way.
+  - One focus ring for the whole app — `:focus-visible` in `tokens.css`. Text fields get a halo instead, because they match `:focus-visible` on a mouse click too. Never remove an outline without a replacement.
+  - A header cell with no visible text (an actions column) needs `sr-only` text, and every `<label>` needs `htmlFor` pointing at its control's `id`.
+  - A clickable row gets a real `<button>` inside a cell. Never put `onClick` or `role="button"` on a `tr`: that breaks the table semantics and is unreachable by keyboard.
+  - A region that scrolls horizontally is `<section tabIndex={0} aria-label={…}>` behind a `jsx-a11y/no-noninteractive-tabindex` disable directive that states the reason — keyboard users have to focus it to scroll it. oxlint rejects both `section role="region"` (redundant) and `div role="region"` (prefer the tag).
+  - The typeaheads (`TagTypeahead`, `PreviewTypeahead`, `TagFilterSelect`) follow the ARIA combobox pattern: `role="combobox"` on the input, `aria-activedescendant` on the highlighted `role="option"`, `role="listbox"` for the popup. A chip's remove button is labelled `tagChipRemoveNamed(name)`, never a bare "×".
+- **Responsive layout:** below 768px (`COMPACT_NAV_QUERY` in `hooks/useMediaQuery.ts`, which must match the CSS breakpoint) the sidebar becomes a drawer and a bottom nav appears; fixed elements along the bottom edge clear it through `--chrome-bottom`. At 600px and below a transaction row reads as a card instead of a scrolled table. The Indexa view is intrinsic — auto-fit grids plus `flex-wrap`, no viewport breakpoints — because its width depends on the sidebar, not the viewport.
 - **Tests:** Vitest + Testing Library + MSW. `npm test` runs them once, `npm run test:watch` in watch mode, `npm run test:coverage` with coverage. `npm run lint` is oxlint, and `npm run build` runs `tsc --noEmit` first. CI gates all three (`lint` → `test` → `build`), so all three must pass.
 - **Lockfile:** every `resolved` URL in `package-lock.json` must point at `https://registry.npmjs.org/`, and CI rejects anything else. An install behind a private mirror (check `npm config get registry`) records the mirror's URLs, and Dependabot then fails on every package they cover — security updates included — without opening a PR. Rewrite the prefix before committing; the tarballs are the same, so the integrity hashes still match.
 - **Plugin view registry:** `frontend/src/investments/registry.ts` — maps `plugin_id → { icon, name, component }`. Add an entry here for any new investment connector view.
-- **Design tokens:** Single `index.css` with CSS custom properties (`--bg`, `--surface`, `--border`, `--primary`, `--radius`, `--shadow`). Light/dark via `[data-theme="dark"]`.
+- **Design tokens:** CSS custom properties in `styles/tokens.css`, imported first by `index.css` (`--bg`, `--surface`, `--border`, `--primary`, `--radius`, `--shadow`, plus the `--text-*` type scale and `--space-*` 4px grid that new rules use instead of raw pixels). Light/dark via `[data-theme="dark"]`. `--income` / `--expense` colour text and must clear 4.5:1; chart marks use `--income-fill` / `--expense-fill`, which only need 3:1.
 
 ### Privacy mode
 
@@ -408,7 +427,7 @@ bundle, where FastAPI serves the SPA and it would be dead weight.
 | File | Role |
 |------|------|
 | `config.ts` | `IS_DEMO` flag, the `demo`/`demo` credentials, and the connector allowlist |
-| `scenario.ts` | Seeded generator — accounts, transactions, Indexa portfolio and Fidelity ESPP lots. **Dates are relative to today** because `defaultRange()` opens on the previous calendar month; hardcoded dates would go stale. ESPP purchases land on the last weekday of Mar/Jun/Sep/Dec, mirroring `api/fidelity.py`. |
+| `scenario.ts` | Seeded generator — accounts, transactions, Indexa portfolio, Fidelity ESPP lots and a fixed-rate mortgage. **Dates are relative to today** because `defaultRange()` opens on the previous calendar month; hardcoded dates would go stale. ESPP purchases land on the last weekday of Mar/Jun/Sep/Dec, mirroring `api/fidelity.py`. |
 | `store.ts` | Single source of truth: the ledger AND every aggregate derive from one transaction list, so an edit is reflected in the KPIs. Filter semantics mirror `db/queries.py::_apply_filters`. |
 | `handlers.ts` | MSW routes, plus a catch-all that answers 501 and logs `[demo] Unhandled API request:` |
 | `assistantAnswers.ts` | Scripted chat answers. There is no model in the demo, so replies are keyword-matched against the suggested prompts — but every figure is read from `store.ts` at answer time, so the assistant never contradicts the charts beside it. The fallback says plainly that the public demo has no live model. |

@@ -12,7 +12,7 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 0 16px;
+  padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left));
   box-shadow: var(--shadow);
 }
 /* The wordmark uses the brand gradient so it follows the theme and accent
@@ -172,10 +172,10 @@
   min-height: 40px;
 }
 .sidebar-group-label {
-  font-size: 10px; font-weight: 600;
+  font-size: var(--text-2xs); font-weight: 600;
   letter-spacing: 0.08em; text-transform: uppercase;
   color: var(--text-muted); padding: 10px 12px 2px;
-  opacity: 0.6; user-select: none;
+  user-select: none;
 }
 .sidebar-subnav > .sidebar-group-label:first-child { padding-top: 4px; }
 .sidebar-group-toggle {
@@ -185,11 +185,11 @@
   padding-top: 10px; padding-bottom: 2px;
   transition: opacity 0.15s;
 }
-.sidebar-group-toggle:hover { opacity: 1; }
+.sidebar-group-toggle:hover { color: var(--text); }
 .sidebar-plugin-hint {
   font-size: 11px; color: var(--text-muted);
   font-style: italic; padding: 2px 12px 6px;
-  opacity: 0.7; display: block;
+  display: block;
 }
 
 /* ── Sidebar footer ── */
@@ -254,6 +254,12 @@
   transition: margin-left 0.25s ease;
 }
 
+/* viewport-fit=cover (index.html) hands the notch and home-indicator areas to
+   the page, so the chrome keeps itself clear of them. All insets are 0 on
+   devices without them. */
+.sidebar { padding-left: env(safe-area-inset-left); }
+.app-content { padding-right: env(safe-area-inset-right); }
+
 /* ── Desktop: sidebar collapsed ── */
 @media (min-width: 768px) {
   .sidebar.desktop-collapsed { transform: translateX(calc(-1 * var(--sidebar-width))); }
@@ -268,7 +274,60 @@
     box-shadow: 4px 0 24px rgba(0, 0, 0, 0.25);
   }
   .app-content { margin-left: 0 !important; }
+
+  /* The bottom nav's "More" opens the drawer, so the hamburger would be a
+     second control for the same thing. */
+  .hamburger-btn { display: none; }
+  .app-content { padding-left: env(safe-area-inset-left); }
+  :root:has(.bottom-nav) {
+    --chrome-bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom));
+  }
+  .sidebar { height: calc(100dvh - var(--topbar-height) - var(--chrome-bottom)); }
+  .sidebar-overlay { bottom: var(--chrome-bottom); }
+  .app-content { padding-bottom: var(--chrome-bottom); }
 }
+
+/* ── Bottom navigation (compact layouts only; rendered by Layout) ── */
+.bottom-nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 350;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  height: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom));
+  padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.06);
+}
+.bottom-nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-width: 0;
+  padding: 0 2px;
+  background: none;
+  border: none;
+  font-family: inherit;
+  font-size: var(--text-2xs);
+  font-weight: 500;
+  color: var(--text-muted);
+  text-decoration: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.bottom-nav-item > span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bottom-nav-item.active { color: var(--primary); font-weight: 600; }
+.bottom-nav-item:focus-visible { outline-offset: -4px; border-radius: 10px; }
 
 .dashboard {
   padding: 24px 40px;

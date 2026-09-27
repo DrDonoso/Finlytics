@@ -85,6 +85,7 @@ interface DatePickerProps {
   onChange: (v: string) => void
   min?: string             // YYYY-MM-DD
   max?: string             // YYYY-MM-DD
+  id?: string
   ariaLabel?: string
   placeholder?: string
   disabled?: boolean
@@ -92,7 +93,7 @@ interface DatePickerProps {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function DatePicker({ value, onChange, min, max, ariaLabel, placeholder, disabled }: DatePickerProps) {
+export default function DatePicker({ value, onChange, min, max, id, ariaLabel, placeholder, disabled }: DatePickerProps) {
   const { t, lang } = useT()
 
   const today  = new Date()
@@ -364,6 +365,7 @@ export default function DatePicker({ value, onChange, min, max, ariaLabel, place
     <>
       <button
         ref={triggerRef}
+        id={id}
         type="button"
         className={`date-picker-trigger${open ? ' is-open' : ''}`}
         aria-haspopup="dialog"

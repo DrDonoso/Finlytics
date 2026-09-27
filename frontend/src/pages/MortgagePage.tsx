@@ -31,7 +31,7 @@ function InfoTip({ text }: { text: string }) {
 }
 
 export default function MortgagePage() {
-  const { t, lang, formatCurrency } = useT()
+  const { t, lang, formatCurrency, formatPercent } = useT()
   const queryClient = useQueryClient()
 
   const [selectedId, setSelectedId] = useState<number | null>(null)
@@ -125,7 +125,7 @@ export default function MortgagePage() {
             <span className="mortgage-header__meta">
               {data.lender ? `${data.lender} · ` : ''}
               {t[RATE_LABEL[data.rate_type]] as string}
-              {data.current_rate > 0 && ` · ${data.current_rate.toFixed(3)} %`}
+              {data.current_rate > 0 && ` · ${formatPercent(data.current_rate, { decimals: 3 })}`}
             </span>
           )}
         </div>
@@ -186,7 +186,9 @@ export default function MortgagePage() {
               <div
                 className="mortgage-progress"
                 role="progressbar"
+                aria-label={t.mortgageKpiAmortized}
                 aria-valuenow={data.progress_pct}
+                aria-valuetext={formatPercent(data.progress_pct)}
                 aria-valuemin={0}
                 aria-valuemax={100}
               >
@@ -195,7 +197,7 @@ export default function MortgagePage() {
                   style={{ width: `${Math.min(data.progress_pct, 100)}%` }}
                 />
               </div>
-              <div className="inv-kpi-card__sub">{data.progress_pct.toFixed(1)} %</div>
+              <div className="inv-kpi-card__sub">{formatPercent(data.progress_pct)}</div>
             </div>
 
             <div className="inv-kpi-card">
@@ -233,7 +235,7 @@ export default function MortgagePage() {
                 <div className="inv-kpi-card__label">
                   {t.mortgageKpiLtv} <InfoTip text={t.mortgageKpiLtvInfo} />
                 </div>
-                <div className="inv-kpi-card__value">{data.ltv_pct.toFixed(1)} %</div>
+                <div className="inv-kpi-card__value">{formatPercent(data.ltv_pct)}</div>
                 <div className="inv-kpi-card__sub private">{formatCurrency(data.property_value ?? 0)}</div>
               </div>
             )}
@@ -248,65 +250,68 @@ export default function MortgagePage() {
           {/* ── Charts ────────────────────────────────────────────────── */}
           <div className="inv-donuts-row">
             <div className="card">
-              <h3 className="card-title">
+              <h2 className="card-title">
                 {t.mortgageChartBalance} <InfoTip text={t.mortgageChartBalanceInfo} />
-              </h3>
+              </h2>
               <MortgageBalanceChart points={charts.data?.balance ?? []} />
             </div>
             <div className="card">
-              <h3 className="card-title">
+              <h2 className="card-title">
                 {t.mortgageChartComposition} <InfoTip text={t.mortgageChartCompositionInfo} />
-              </h3>
+              </h2>
               <MortgageCompositionChart years={charts.data?.composition ?? []} />
             </div>
           </div>
 
           {/* ── Prepayments ───────────────────────────────────────────── */}
           <div className="card">
-            <h3 className="card-title">{t.mortgagePrepaymentsTitle}</h3>
+            <h2 className="card-title">{t.mortgagePrepaymentsTitle}</h2>
             {mortgage.data && mortgage.data.prepayments.length > 0 ? (
-              <div className="cat-table-wrap">
-                <table className="cat-table">
-                  <thead>
-                    <tr>
-                      <th className="cat-th-name">{t.mortgageColDate}</th>
-                      <th className="cat-th-num">{t.mortgageColPrepayment}</th>
-                      <th className="cat-th-name">{t.mortgageColMode}</th>
-                      <th className="cat-th-num">{t.mortgageColFee}</th>
-                      <th className="cat-th-num" />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {mortgage.data.prepayments.map(p => (
-                      <tr key={p.id} className="cat-row">
-                        <td className="cat-td-name">{formatDate(p.payment_date, lang)}</td>
-                        <td className="cat-td-num private">{formatCurrency(p.amount)}</td>
-                        <td className="cat-td-name">
-                          {p.mode === 'reduce_term' ? t.mortgageModeReduceTerm : t.mortgageModeReducePayment}
-                        </td>
-                        <td className="cat-td-num">{p.fee > 0 ? <Private>{formatCurrency(p.fee)}</Private> : '—'}</td>
-                        <td className="cat-td-num">
-                          {!IS_DEMO && (
-                            <button
-                              type="button"
-                              className="btn-row-delete"
-                              onClick={() => handleDeletePrepayment(p.id)}
-                              aria-label={t.mortgagePrepaymentDelete}
-                            >
-                              <IconTrash size={14} />
-                            </button>
-                          )}
-                        </td>
+              <>
+                {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- it scrolls, so keyboard users must be able to focus it */}
+                <section className="cat-table-wrap" tabIndex={0} aria-label={t.mortgagePrepaymentsTitle}>
+                  <table className="cat-table">
+                    <thead>
+                      <tr>
+                        <th className="cat-th-name">{t.mortgageColDate}</th>
+                        <th className="cat-th-num">{t.mortgageColPrepayment}</th>
+                        <th className="cat-th-name">{t.mortgageColMode}</th>
+                        <th className="cat-th-num">{t.mortgageColFee}</th>
+                        {!IS_DEMO && <th className="cat-th-num"><span className="sr-only">{t.tableColActions}</span></th>}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {mortgage.data.prepayments.map(p => (
+                        <tr key={p.id} className="cat-row">
+                          <td className="cat-td-name">{formatDate(p.payment_date, lang)}</td>
+                          <td className="cat-td-num private">{formatCurrency(p.amount)}</td>
+                          <td className="cat-td-name">
+                            {p.mode === 'reduce_term' ? t.mortgageModeReduceTerm : t.mortgageModeReducePayment}
+                          </td>
+                          <td className="cat-td-num">{p.fee > 0 ? <Private>{formatCurrency(p.fee)}</Private> : '—'}</td>
+                          {!IS_DEMO && (
+                            <td className="cat-td-num">
+                              <button
+                                type="button"
+                                className="btn-row-delete"
+                                onClick={() => handleDeletePrepayment(p.id)}
+                                aria-label={t.mortgagePrepaymentDelete}
+                              >
+                                <IconTrash size={14} />
+                              </button>
+                            </td>
+                          )}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </section>
                 {data.interest_saved > 0 && (
                   <p className="mortgage-saving-note inv-kpi-card__value--pos">
                     {t.mortgageKpiSavedByPrepayments}: <Private>{formatCurrency(data.interest_saved)}</Private>
                   </p>
                 )}
-              </div>
+              </>
             ) : (
               <div className="state-box"><span>{t.mortgagePrepaymentsEmpty}</span></div>
             )}
@@ -314,7 +319,7 @@ export default function MortgagePage() {
 
           {/* ── Schedule ──────────────────────────────────────────────── */}
           <div className="card">
-            <h3 className="card-title">{t.mortgageScheduleTitle}</h3>
+            <h2 className="card-title">{t.mortgageScheduleTitle}</h2>
             <MortgageScheduleTable
               years={schedule.data?.years ?? []}
               linked={schedule.data?.linked ?? false}
@@ -326,7 +331,7 @@ export default function MortgagePage() {
 
           {/* ── Reconciliation (only when linked) ─────────────────────── */}
           <div className="card">
-            <h3 className="card-title">{t.mortgageReconTitle}</h3>
+            <h2 className="card-title">{t.mortgageReconTitle}</h2>
             {!reconciliation.data?.linked ? (
               <div className="state-box"><span>{t.mortgageReconNotLinked}</span></div>
             ) : reconciliation.data.rows.length === 0 ? (
@@ -334,7 +339,8 @@ export default function MortgagePage() {
             ) : (
               <>
                 <p className="form-hint">{t.mortgageReconIntro}</p>
-                <div className="cat-table-wrap">
+                {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- it scrolls, so keyboard users must be able to focus it */}
+                <section className="cat-table-wrap" tabIndex={0} aria-label={t.mortgageReconTitle}>
                   <table className="cat-table">
                     <thead>
                       <tr>
@@ -365,7 +371,7 @@ export default function MortgagePage() {
                       })}
                     </tbody>
                   </table>
-                </div>
+                </section>
               </>
             )}
           </div>

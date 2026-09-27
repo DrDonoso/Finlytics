@@ -232,7 +232,8 @@
   align-items: center;
   transition: background 0.1s;
 }
-.tag-typeahead-suggestions li:hover  { background: var(--bg); }
+.tag-typeahead-suggestions li:hover,
+.tag-typeahead-suggestions li.is-active { background: var(--bg); }
 .tag-typeahead-suggestions li:active { background: var(--border); }
 
 /* Boost shadow opacity in dark mode for visibility on dark surfaces */

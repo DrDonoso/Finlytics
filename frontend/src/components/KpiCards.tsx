@@ -30,7 +30,7 @@ interface KpiDef {
 
 /** Delta badge for compact KPI items. */
 function DeltaBadge({ delta, invert }: { delta?: DeltaResult; invert?: boolean }) {
-  const { t } = useT()
+  const { t, formatPercent } = useT()
   if (!delta) return null
 
   if (delta.isNew) {
@@ -43,17 +43,16 @@ function DeltaBadge({ delta, invert }: { delta?: DeltaResult; invert?: boolean }
   const cls = delta.abs === 0
     ? 'header-kpi-delta-neutral'
     : isGood ? 'header-kpi-delta-good' : 'header-kpi-delta-bad'
-  const sign = isUp ? '+' : ''
 
   return (
     <div className={`header-kpi-delta ${cls}`}>
-      <TrendArrow value={delta.abs} /> {sign}{delta.pct.toFixed(1)}%
+      <TrendArrow value={delta.abs} /> {formatPercent(delta.pct, { signed: true })}
     </div>
   )
 }
 
 export default function KpiCards({ overview, loading, error, compact, previousOverview, constantOverview }: Props) {
-  const { t, lang, formatCurrency } = useT()
+  const { t, lang, formatCurrency, formatPercent } = useT()
 
   function buildKpis(o: Overview, prev: Overview | null | undefined): KpiDef[] {
     const netCls = o.net >= 0 ? 'net-pos' : 'net-neg'
@@ -85,7 +84,7 @@ export default function KpiCards({ overview, loading, error, compact, previousOv
       },
       {
         label: t.kpiSavingsRate,
-        value: rate !== null ? `${rate.toFixed(1)}%` : '—',
+        value: rate !== null ? formatPercent(rate) : '—',
         // Only compute savings-rate delta when both periods have valid rates
         delta: (rate !== null && prevRate !== null)
           ? (computeDelta(rate, prevRate) ?? undefined)

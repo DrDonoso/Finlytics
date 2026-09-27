@@ -1,5 +1,5 @@
 import { useState, useRef, useMemo } from 'react'
-import { useNavigate, useSearchParams } from 'react-router'
+import { useNavigate } from 'react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import type { GlobalFilters, ImportResult } from '../api/types'
 import { queryKeys, useAccounts, useByAccount, useByCategory, useCategories, useOverview, useTags } from '../api/queries'
@@ -15,24 +15,22 @@ import TransactionsTable from '../components/TransactionsTable'
 import { Private } from '../components/Money'
 import { useT, categoryLabel, formatDate } from '../i18n'
 import { defaultRange } from '../utils'
+import { serializeFilters, useUrlFilters } from '../hooks/useUrlFilters'
 import { IconClose, IconChevronRight } from '../components/icons'
 import { IS_DEMO } from '../demo/config'
-
-function makeDefaultFilters(): GlobalFilters {
-  return { ...defaultRange(), tags: [] }
-}
 
 export default function FinancesOverviewPage() {
   const { t, lang, formatCurrency } = useT()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const [searchParams] = useSearchParams()
-  const [filters, setFilters] = useState<GlobalFilters>(() => {
-    const next = makeDefaultFilters()
-    const accountId = Number(searchParams.get('account_id'))
-    if (Number.isFinite(accountId) && accountId > 0) next.account_id = accountId
-    return next
-  })
+  const { filters, setFilters, defaults } = useUrlFilters(defaultRange)
+
+  function openTransactions() {
+    // A single heatmap day becomes a one-day range, so the date pickers there show it.
+    const target = filters.day ? { ...filters, from: filters.day, to: filters.day, day: undefined } : filters
+    const search = serializeFilters(target, { from: '', to: '' }).toString()
+    navigate(search ? `/transactions?${search}` : '/transactions')
+  }
 
   const accountsQuery = useAccounts()
   const categoriesQuery = useCategories()
@@ -123,14 +121,16 @@ export default function FinancesOverviewPage() {
   return (
     <>
       <main className="dashboard">
+        <h1 className="sr-only">{t.navFinances}</h1>
         <div className="dashboard-header">
           <GlobalFilterBar
             filters={filters}
+            defaults={defaults}
             accounts={accounts}
             categories={categories}
             tags={allTags}
             onChange={f => { setFilters(f); setPreZoomFilters(null) }}
-            onClear={() => { setFilters(makeDefaultFilters()); setPreZoomFilters(null) }}
+            onClear={() => { setFilters({ ...defaults, tags: [] }); setPreZoomFilters(null) }}
           />
           <KpiCards
             overview={overviewQuery.data ?? null}
@@ -147,7 +147,7 @@ export default function FinancesOverviewPage() {
             </div>
             <button
               className="btn-secondary"
-              onClick={() => navigate('/transactions')}
+              onClick={openTransactions}
             >
               {t.btnViewTransactions} <IconChevronRight size={14} />
             </button>
@@ -198,14 +198,15 @@ export default function FinancesOverviewPage() {
 
               {filters.category_id !== undefined && (() => {
                 const cat = categories.find(c => c.id === filters.category_id)
+                const label = `${t.tableColCategory}: ${cat ? categoryLabel(cat.name, lang, dynamicEs) : filters.category_id}`
                 return (
                   <span className="filter-chip">
-                    {t.tableColCategory}: {cat ? categoryLabel(cat.name, lang, dynamicEs) : filters.category_id}
+                    {label}
                     <button
                       type="button"
                       className="filter-chip-remove"
                       onClick={() => setFilters(f => ({ ...f, category_id: undefined }))}
-                      aria-label={t.filterClearChip}
+                      aria-label={t.tagChipRemoveNamed(label)}
                     ><IconClose size={13} /></button>
                   </span>
                 )
@@ -218,24 +219,27 @@ export default function FinancesOverviewPage() {
                     type="button"
                     className="filter-chip-remove"
                     onClick={() => setFilters(f => ({ ...f, merchant: undefined }))}
-                    aria-label={t.filterClearChip}
+                    aria-label={t.tagChipRemoveNamed(`${t.colMerchant}: ${filters.merchant}`)}
                   ><IconClose size={13} /></button>
                 </span>
               )}
 
-              {preZoomFilters && (
-                <span className="filter-chip">
-                  {filters.from === filters.to
-                    ? `${t.filterChipDay}: ${formatDate(filters.from || '', lang)}`
-                    : `${formatDate(filters.from || '', lang)} – ${formatDate(filters.to || '', lang)}`}
-                  <button
-                    type="button"
-                    className="filter-chip-remove"
-                    onClick={handleResetPeriod}
-                    aria-label={t.filterClearChip}
-                  ><IconClose size={13} /></button>
-                </span>
-              )}
+              {preZoomFilters && (() => {
+                const label = filters.from === filters.to
+                  ? `${t.filterChipDay}: ${formatDate(filters.from || '', lang)}`
+                  : `${formatDate(filters.from || '', lang)} – ${formatDate(filters.to || '', lang)}`
+                return (
+                  <span className="filter-chip">
+                    {label}
+                    <button
+                      type="button"
+                      className="filter-chip-remove"
+                      onClick={handleResetPeriod}
+                      aria-label={t.tagChipRemoveNamed(label)}
+                    ><IconClose size={13} /></button>
+                  </span>
+                )
+              })()}
 
               {filters.day && !preZoomFilters && (
                 <span className="filter-chip">
@@ -244,7 +248,7 @@ export default function FinancesOverviewPage() {
                     type="button"
                     className="filter-chip-remove"
                     onClick={() => setFilters(f => ({ ...f, day: undefined }))}
-                    aria-label={t.filterClearChip}
+                    aria-label={t.tagChipRemoveNamed(`${t.filterChipDay}: ${formatDate(filters.day, lang)}`)}
                   ><IconClose size={13} /></button>
                 </span>
               )}

@@ -48,7 +48,7 @@ export function computeDelta(
   if (previous === 0) {
     return { abs, pct: null, isNew: current !== 0 }
   }
-  return { abs, pct: (abs / previous) * 100, isNew: false }
+  return { abs, pct: (abs / Math.abs(previous)) * 100, isNew: false }
 }
 
 /**

@@ -65,20 +65,25 @@
   --surface: #ffffff;
   --border: #e3e8ef;
   --text: #16202e;
-  --text-muted: #5f6b7d;
+  --text-muted: #5a6577;
   --primary: #1a4d8f;
   --primary-rgb: 26, 77, 143;
   --primary-hover: #123a6b;
   --primary-bright: #4a8fd4;
   --primary-contrast: #fff;
-  --expense: #c2453a;
+  /* --income / --expense colour TEXT, so they must clear 4.5:1 on the white
+     surface and on their own 10–15% tints (the returns matrix). Chart marks
+     only need 3:1 and keep the brighter brand hue through the -fill tokens. */
+  --expense: #b43c32;
   --expense-rgb: 194, 69, 58;
   --expense-bright: #dd7a70;
-  --income: #0e9d76;
+  --expense-fill: #c2453a;
+  --income: #08735a;
   --income-rgb: 14, 157, 118;
   --income-bright: #2ec49a;
+  --income-fill: #0e9d76;
   --net-pos: #1a4d8f;
-  --net-neg: #c2453a;
+  --net-neg: #b43c32;
   --radius: 12px;
   --shadow: 0 1px 2px rgba(18, 58, 107, 0.05), 0 1px 3px rgba(18, 58, 107, 0.04);
   --shadow-hero: 0 6px 20px -6px rgba(18, 58, 107, 0.32);
@@ -87,6 +92,27 @@
   --font-num: 'Geist Mono', ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, monospace;
   --sidebar-width: 240px;
   --topbar-height: 52px;
+  --bottom-nav-height: 56px;
+  /* Height of fixed chrome along the bottom edge (the compact bottom nav),
+     so toasts and the drawer can clear it. Zero wherever there is none. */
+  --chrome-bottom: 0px;
+  /* ── Type scale ── new and touched rules use these instead of raw pixels */
+  --text-2xs: 11px;
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-base: 14px;
+  --text-md: 15px;
+  --text-lg: 18px;
+  --text-xl: 22px;
+  /* ── Spacing (4px grid) ── */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --focus-ring: 2px solid var(--primary);
   /* ── Warning family ── */
   --warning: #b7791f;
   --warning-rgb: 183, 121, 31;
@@ -252,6 +278,14 @@
   --cat-alt-rgb: 167, 139, 250;
 }
 
+/* Only the classic light theme needs a separate chart hue; every other
+   theme's --income / --expense already reads as both text and fill. */
+[data-theme="dark"],
+[data-palette]:not([data-palette="classic"]) {
+  --income-fill: var(--income);
+  --expense-fill: var(--expense);
+}
+
 /* ─── Design tokens — Dark (system preference, only when explicit not set) ─ */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -271,6 +305,8 @@
     --expense: #f4806f;
     --expense-rgb: 244, 128, 111;
     --expense-bright: #f8a99d;
+    --income-fill: #2ed3a7;
+    --expense-fill: #f4806f;
     --net-pos: #5aa5ec;
     --net-neg: #f4806f;
     --brand-gradient: linear-gradient(135deg, #0e2a4f 0%, #155181 48%, #0d8a67 100%);
@@ -301,6 +337,39 @@ body {
 button { font-family: inherit; cursor: pointer; }
 input, select { font-family: inherit; font-size: inherit; }
 a { color: var(--primary); text-decoration: none; }
+
+/* ─── Focus ──────────────────────────────────────────────────────── */
+/* One ring for every keyboard-reachable control. Text fields get a halo
+   instead, because they match :focus-visible on a mouse click too and a
+   ring there reads as an error state. */
+:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+:where(input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"]), select, textarea):focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.22);
+}
+
+/* ─── Utilities ──────────────────────────────────────────────────── */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Rendered by <Money> and <Percent>, so a figure is monospaced wherever it
+   lands instead of only where its container happens to be allowlisted below. */
+.num {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+}
 
 /* ─── Icons (custom set, see components/icons.tsx) ─────────────────── */
 /* Inherit colour and size from context — unlike emoji, which don't. */
@@ -339,7 +408,10 @@ a { color: var(--primary); text-decoration: none; }
   .movers-td-num, .movers-delta,
   .inv-td-num, .inv-td-weight, .inv-td-isin,
   .returns-value, .inv-summary-value, .inv-metric-value,
-  .inv-donut-legend-pct
+  .inv-donut-legend-pct,
+  .mortgage-snapshot__value, .mortgage-snapshot__side-value,
+  .inv-provider-card__value, .inv-provider-card__gain,
+  .inv-snapshot-total-value, .inv-snapshot-provider-value
 ) {
   font-family: var(--font-num);
   font-variant-numeric: tabular-nums;

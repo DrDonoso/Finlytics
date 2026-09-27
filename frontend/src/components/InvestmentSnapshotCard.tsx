@@ -5,6 +5,7 @@ import { getPluginLogo, pluginInitial } from '../investments/registry'
 import { useT } from '../i18n'
 import { IconAlert, IconLoading, IconChevronRight } from './icons'
 import { Private } from './Money'
+import CardHeader from './CardHeader'
 
 export default function InvestmentSnapshotCard() {
   const { t, formatCurrency } = useT()
@@ -15,10 +16,10 @@ export default function InvestmentSnapshotCard() {
 
   return (
     <div className="card inv-snapshot-card">
-      <div className="inv-snapshot-header">
-        <h3 className="inv-snapshot-title">{t.invSnapshotTitle}</h3>
-        <Link to="/investments" className="inv-snapshot-link">{t.invSnapshotGoTo} <IconChevronRight size={14} /></Link>
-      </div>
+      <CardHeader
+        title={t.invSnapshotTitle}
+        action={<Link to="/investments" className="card-link">{t.invSnapshotGoTo} <IconChevronRight size={14} /></Link>}
+      />
 
       {loading ? (
         <div className="state-box">
@@ -40,9 +41,9 @@ export default function InvestmentSnapshotCard() {
             {data.providers.map(p => (
               <Link key={p.id} to={p.route} className="inv-snapshot-provider">
                 {getPluginLogo(p.id) ? (
-                  <img src={getPluginLogo(p.id) ?? ''} alt={p.name} className="plugin-logo inv-snapshot-provider-logo" />
+                  <img src={getPluginLogo(p.id) ?? ''} alt="" className="plugin-logo inv-snapshot-provider-logo" />
                 ) : (
-                  <span className="plugin-logo-fallback inv-snapshot-provider-logo" aria-label={p.name}>{pluginInitial(p.name)}</span>
+                  <span className="plugin-logo-fallback inv-snapshot-provider-logo" aria-hidden="true">{pluginInitial(p.name)}</span>
                 )}
                 <span className="inv-snapshot-provider-name">{p.name}</span>
                 <span className="inv-snapshot-provider-value">{p.value_eur == null ? '—' : <Private>{formatCurrency(p.value_eur)}</Private>}</span>

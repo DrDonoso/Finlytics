@@ -87,12 +87,24 @@
   overflow-y: auto;
 }
 
-.mortgage-schedule__year {
-  cursor: pointer;
-  font-weight: 600;
-}
+.mortgage-schedule__year { font-weight: 600; }
 
 .mortgage-schedule__year:hover { background: var(--bg); }
+
+.mortgage-schedule__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 24px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
 
 .mortgage-schedule__month {
   font-size: 12px;

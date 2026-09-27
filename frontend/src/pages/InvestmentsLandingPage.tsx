@@ -6,7 +6,7 @@ import { getPluginLogo, pluginInitial } from '../investments/registry'
 import { formatCurrency, useT } from '../i18n'
 import type { Lang } from '../i18n'
 import { IconLoading, IconChartBar, IconChartPie, IconChevronRight, IconAlert } from '../components/icons'
-import { Private } from '../components/Money'
+import { Percent, Private } from '../components/Money'
 
 const PROVIDER_COLORS: Record<string, string> = {
   indexa:   '#2563eb',
@@ -138,9 +138,7 @@ export default function InvestmentsLandingPage() {
             {overview.total_gain_loss_eur == null ? '—' : <Private>{signedEur(overview.total_gain_loss_eur, lang)}</Private>}
           </div>
           <div className={`inv-kpi-card__sub ${gainLossCls}`}>
-            {overview.total_gain_loss_pct == null
-              ? '—'
-              : `${overview.total_gain_loss_pct >= 0 ? '+' : ''}${overview.total_gain_loss_pct.toFixed(1)} %`}
+            <Percent value={overview.total_gain_loss_pct} signed />
           </div>
         </div>
       </div>
@@ -149,7 +147,7 @@ export default function InvestmentsLandingPage() {
       <div className="inv-donuts-row">
         {/* Donut 1 — By provider */}
         <div className="card">
-          <h3 className="card-title">{t.invCombinedByProvider}</h3>
+          <h2 className="card-title">{t.invCombinedByProvider}</h2>
           {providerDonutData.length === 0 ? (
             <div className="state-box"><IconChartPie size={18} /><span>{t.noDataPeriod}</span></div>
           ) : (
@@ -205,7 +203,7 @@ export default function InvestmentsLandingPage() {
                         <td className="cat-td-num"><Private>{formatCurrency(item.value, lang)}</Private></td>
                         <td className="cat-td-num cat-td-weight">
                           {overview.total_value_eur > 0
-                            ? `${(item.value / overview.total_value_eur * 100).toFixed(1)} %`
+                            ? <Percent value={item.value / overview.total_value_eur} unit="fraction" />
                             : '—'}
                         </td>
                       </tr>
@@ -219,7 +217,7 @@ export default function InvestmentsLandingPage() {
 
         {/* Donut 2 — By asset class */}
         <div className="card">
-          <h3 className="card-title">{t.invCombinedByAssetClass}</h3>
+          <h2 className="card-title">{t.invCombinedByAssetClass}</h2>
           {assetDonutData.length === 0 ? (
             <div className="state-box"><IconChartPie size={18} /><span>{t.noDataPeriod}</span></div>
           ) : (
@@ -275,7 +273,7 @@ export default function InvestmentsLandingPage() {
                         <td className="cat-td-num"><Private>{formatCurrency(item.value, lang)}</Private></td>
                         <td className="cat-td-num cat-td-weight">
                           {overview.total_value_eur > 0
-                            ? `${(item.value / overview.total_value_eur * 100).toFixed(1)} %`
+                            ? <Percent value={item.value / overview.total_value_eur} unit="fraction" />
                             : '—'}
                         </td>
                       </tr>
@@ -304,9 +302,9 @@ export default function InvestmentsLandingPage() {
             >
               <div className="inv-provider-card__header">
                 {getPluginLogo(provider.id) ? (
-                  <img src={getPluginLogo(provider.id) ?? ''} alt={provider.name} className="plugin-logo inv-provider-card__icon" />
+                  <img src={getPluginLogo(provider.id) ?? ''} alt="" className="plugin-logo inv-provider-card__icon" />
                 ) : (
-                  <span className="plugin-logo-fallback inv-provider-card__icon" aria-label={provider.name}>{pluginInitial(provider.name)}</span>
+                  <span className="plugin-logo-fallback inv-provider-card__icon" aria-hidden="true">{pluginInitial(provider.name)}</span>
                 )}
                 <span className="inv-provider-card__name">{provider.name}</span>
               </div>
@@ -317,7 +315,7 @@ export default function InvestmentsLandingPage() {
                   : <>
                       <Private>{signedEur(provider.gain_loss_eur, lang)}</Private>
                       {' '}
-                      ({`${provider.gain_loss_pct >= 0 ? '+' : ''}${provider.gain_loss_pct.toFixed(1)} %`})
+                      (<Percent value={provider.gain_loss_pct} signed />)
                     </>
                 }
               </div>
