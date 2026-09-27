@@ -4,6 +4,20 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260927] - 2026-09-27
+
+- D1: no horizontal overflow at 390 px (minmax chart grids, focusable table scroll regions, intrinsic Indexa layout).
+- D2: light-theme income/expense/muted text reaches 4.5:1; chart marks use dedicated fill tokens.
+- D3: the Dashboard net-worth line for the mortgage is labelled as home equity.
+- D4: every percentage and figure goes through the locale-aware formatters with its real unit.
+- D5: heading hierarchy, labelled controls, visible focus ring, aria-activedescendant on typeaheads, named progress bars, focusable scroll regions and larger hit targets.
+- I1: transactions and Dashboard accounts render as cards at 600 px and below.
+- I2: bottom tab bar at 767 px and below.
+- I3: filters live in the URL and are shared by Finances, Analytics and Transactions, with range presets that keep the user's pick when two presets coincide.
+- I4: colour-blind-safe category palette; migration 0025 recolours only untouched seeded rows.
+- I5: type/spacing tokens and shared CardHeader, CategoryBadge and SortableTh components.
+
+
 ## [20260926.09] - 2026-09-26
 
 - api/mortgage.py and investments/market_data.py called date.today(), which returns the UTC date inside the container. They now use clock.today(), like every other module; the payment-candidates window also stops calling it twice.
