@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { useT } from '../i18n'
+import type { PercentOptions } from '../i18n'
 
 interface MoneyProps {
   value: number | null | undefined
@@ -8,6 +9,10 @@ interface MoneyProps {
   /** Rendered when there is no value. Never blurred — it leaks nothing. */
   fallback?: string
   className?: string
+}
+
+function classes(base: string, extra?: string): string {
+  return extra ? `${base} ${extra}` : base
 }
 
 /**
@@ -23,7 +28,7 @@ export default function Money({ value, signed, fallback = '—', className }: Mo
 
   const sign = signed && value >= 0 ? '+' : ''
   return (
-    <span className={className ? `private ${className}` : 'private'}>
+    <span className={classes('private num', className)}>
       {sign}{formatCurrency(value)}
     </span>
   )
@@ -34,5 +39,20 @@ export default function Money({ value, signed, fallback = '—', className }: Mo
  * composed strings, or figures that are not plain euros.
  */
 export function Private({ children, className }: { children: ReactNode; className?: string }) {
-  return <span className={className ? `private ${className}` : 'private'}>{children}</span>
+  return <span className={classes('private num', className)}>{children}</span>
+}
+
+interface PercentProps extends PercentOptions {
+  value: number | null | undefined
+  fallback?: string
+  className?: string
+}
+
+/** Percentages say nothing about the size of someone's savings, so they are never blurred. */
+export function Percent({ value, fallback = '—', className, ...opts }: PercentProps) {
+  const { formatPercent } = useT()
+  if (value == null || !Number.isFinite(value)) {
+    return <span className={className}>{fallback}</span>
+  }
+  return <span className={classes('num', className)}>{formatPercent(value, opts)}</span>
 }

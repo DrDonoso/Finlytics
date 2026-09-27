@@ -34,7 +34,7 @@ export default function ImportPreviewTable({
   onUpdateRow, onDeleteRow, onAddBlankRow, onCreateRule,
   showYearWarning = false, liveQuality,
 }: Props) {
-  const { t, lang, formatCurrency } = useT()
+  const { t, lang, formatCurrency, formatPercent } = useT()
   const [flaggedOnly, setFlaggedOnly] = useState(false)
   const [focusedRowKey, setFocusedRowKey] = useState<number | null>(null)
 
@@ -171,7 +171,7 @@ export default function ImportPreviewTable({
               <th>{t.previewColAccount}</th>
               <th>{t.previewColTags}</th>
               <th>{t.previewColConf}</th>
-              <th></th>
+              <th><span className="sr-only">{t.tableColActions}</span></th>
             </tr>
           </thead>
           <tbody>
@@ -203,6 +203,7 @@ export default function ImportPreviewTable({
                   <td>
                     <DateInput
                       className="cell-input cell-date"
+                      ariaLabel={t.previewColDate}
                       value={row.transaction_date}
                       lang={lang}
                       onChange={iso => onUpdateRow(row._key, { transaction_date: iso })}
@@ -213,6 +214,7 @@ export default function ImportPreviewTable({
                     <input
                       type="text"
                       className="cell-input cell-desc"
+                      aria-label={t.previewColDesc}
                       value={row.description}
                       onChange={e => onUpdateRow(row._key, { description: e.target.value })}
                     />
@@ -248,6 +250,7 @@ export default function ImportPreviewTable({
                       options={merchantOptions}
                       placeholder={t.importMerchantPlaceholder}
                       className="cell-merchant import-merchant-input"
+                      ariaLabel={t.colMerchant}
                       onChange={value => onUpdateRow(row._key, { merchant: value || null })}
                     />
                     {flagBadges(row, 'merchant')}
@@ -256,6 +259,7 @@ export default function ImportPreviewTable({
                     <div className="amount-cell">
                       <select
                         className="cell-sign"
+                        aria-label={t.txDetailSignLabel}
                         value={row.amount <= 0 ? '-' : '+'}
                         onChange={e => {
                           const neg = e.target.value === '-'
@@ -269,6 +273,7 @@ export default function ImportPreviewTable({
                       <input
                         type="number"
                         className="cell-input cell-amount"
+                        aria-label={t.previewColAmount}
                         value={Math.abs(row.amount)}
                         min="0"
                         step="0.01"
@@ -289,6 +294,7 @@ export default function ImportPreviewTable({
                         onChange={val => onUpdateRow(row._key, { category: val })}
                         placeholder={t.previewCategoryCustomPlaceholder || t.previewCategoryCustom}
                         className="cell-category"
+                        ariaLabel={t.previewColCategory}
                         getLabel={getPreviewCategoryLabel}
                         normalizeInput={normalizeCategoryInput}
                       />
@@ -308,6 +314,7 @@ export default function ImportPreviewTable({
                       value={row.account_ref}
                       options={accountOptions}
                       className="cell-account"
+                      ariaLabel={t.previewColAccount}
                       onChange={value => onUpdateRow(row._key, { account_ref: value })}
                     />
                     {flagBadges(row, 'account_ref')}
@@ -320,12 +327,13 @@ export default function ImportPreviewTable({
                       previewTagNames={distinctPreviewTagNames}
                       onChange={tags => onUpdateRow(row._key, { tags })}
                       placeholder={t.tagTypeaheadPlaceholder}
+                      ariaLabel={t.previewColTags}
                     />
                   </td>
                   <td>
                     {row.category_confidence !== null ? (
                       <span className={`conf-badge ${lowConf ? 'conf-low' : 'conf-ok'}`}>
-                        {Math.round(row.category_confidence * 100)}%
+                        {formatPercent(row.category_confidence, { unit: 'fraction', decimals: 0 })}
                       </span>
                     ) : (
                       <span className="conf-badge conf-na">—</span>

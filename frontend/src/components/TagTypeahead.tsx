@@ -1,7 +1,7 @@
 import { useState, useRef, useId, useMemo } from 'react'
 import type { CSSProperties, KeyboardEvent } from 'react'
 import type { Tag } from '../api/types'
-import { tagTextColor, paletteColor } from '../i18n'
+import { tagTextColor, paletteColor, useT } from '../i18n'
 import { IconClose } from './icons'
 
 interface Props {
@@ -13,6 +13,8 @@ interface Props {
   previewTagNames?: string[]
   onChange: (tags: string[]) => void
   placeholder?: string
+  ariaLabel?: string
+  inputId?: string
 }
 
 /**
@@ -21,9 +23,11 @@ interface Props {
  * - Free-type creates new tags.
  * - Chips use: DB color → AI-suggested color → deterministic palette.
  */
-export default function TagTypeahead({ tags, availableTags, suggestedColors, previewTagNames, onChange, placeholder }: Props) {
+export default function TagTypeahead({ tags, availableTags, suggestedColors, previewTagNames, onChange, placeholder, ariaLabel, inputId }: Props) {
+  const { t } = useT()
   const [inputValue, setInputValue] = useState('')
   const [open, setOpen] = useState(false)
+  const [activeIndex, setActiveIndex] = useState(-1)
   const inputRef = useRef<HTMLInputElement>(null)
   const wrapRef  = useRef<HTMLDivElement>(null)
   const uid = useId()
@@ -37,24 +41,25 @@ export default function TagTypeahead({ tags, availableTags, suggestedColors, pre
       const r = wrapRef.current.getBoundingClientRect()
       setDropdownStyle({ top: r.bottom + 2, left: r.left, minWidth: Math.max(r.width, 160) })
     }
+    setActiveIndex(-1)
     setOpen(true)
   }
 
   const dbColorMap = useMemo(() => {
     const m: Record<string, string> = {}
-    for (const t of availableTags) m[t.name] = t.color
+    for (const tag of availableTags) m[tag.name] = tag.color
     return m
   }, [availableTags])
 
   const emojiMap = useMemo(() => {
     const m: Record<string, string | null> = {}
-    for (const t of availableTags) m[t.name] = t.emoji
+    for (const tag of availableTags) m[tag.name] = tag.emoji
     return m
   }, [availableTags])
 
   const txCountMap = useMemo(() => {
     const m: Record<string, number> = {}
-    for (const t of availableTags) m[t.name] = t.tx_count
+    for (const tag of availableTags) m[tag.name] = tag.tx_count
     return m
   }, [availableTags])
 
@@ -64,6 +69,7 @@ export default function TagTypeahead({ tags, availableTags, suggestedColors, pre
 
   function addTag(name: string) {
     const norm = name.trim().toLowerCase()
+    setActiveIndex(-1)
     if (!norm || tags.includes(norm)) { setInputValue(''); setOpen(false); return }
     onChange([...tags, norm])
     setInputValue('')
@@ -71,13 +77,21 @@ export default function TagTypeahead({ tags, availableTags, suggestedColors, pre
   }
 
   function removeTag(name: string) {
-    onChange(tags.filter(t => t !== name))
+    onChange(tags.filter(tag => tag !== name))
   }
 
   function handleKeyDown(e: KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'Enter' || e.key === ',') {
+    if (e.key === 'ArrowDown') {
       e.preventDefault()
-      addTag(inputValue)
+      if (!open) openSuggestions()
+      else setActiveIndex(i => Math.min(i + 1, suggestions.length - 1))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setActiveIndex(i => Math.max(i - 1, -1))
+    } else if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault()
+      const active = open ? suggestions[activeIndex] : undefined
+      addTag(active ? active.name : inputValue)
     } else if (e.key === 'Backspace' && !inputValue && tags.length > 0) {
       removeTag(tags[tags.length - 1])
     } else if (e.key === 'Escape') {
@@ -91,9 +105,9 @@ export default function TagTypeahead({ tags, availableTags, suggestedColors, pre
   const candidates = useMemo(() => {
     const seen = new Set<string>()
     const result: Array<{ name: string; emoji: string | null }> = []
-    for (const t of availableTags) {
-      const norm = t.name.toLowerCase()
-      if (!seen.has(norm)) { seen.add(norm); result.push({ name: t.name, emoji: t.emoji }) }
+    for (const tag of availableTags) {
+      const norm = tag.name.toLowerCase()
+      if (!seen.has(norm)) { seen.add(norm); result.push({ name: tag.name, emoji: tag.emoji }) }
     }
     for (const name of previewTagNames ?? []) {
       const norm = name.toLowerCase()
@@ -115,11 +129,12 @@ export default function TagTypeahead({ tags, availableTags, suggestedColors, pre
     return notAdded.filter(c => c.name.toLowerCase().includes(query))
   }, [candidates, tags, query, txCountMap])
 
+  const expanded = open && suggestions.length > 0
+
   return (
     <div
       className="tag-typeahead"
       onClick={() => inputRef.current?.focus()}
-      data-listid={listId}
     >
       {tags.map(tag => {
         const color = resolveColor(tag)
@@ -135,7 +150,7 @@ export default function TagTypeahead({ tags, availableTags, suggestedColors, pre
               type="button"
               className="tag-chip-remove"
               onClick={e => { e.stopPropagation(); removeTag(tag) }}
-              aria-label={`Remove ${tag}`}
+              aria-label={t.tagChipRemoveNamed(tag)}
               style={{ color: textC }}
             ><IconClose size={12} /></button>
           </span>
@@ -145,11 +160,18 @@ export default function TagTypeahead({ tags, availableTags, suggestedColors, pre
       <div className="tag-typeahead-input-wrap" ref={wrapRef}>
         <input
           ref={inputRef}
+          id={inputId}
           type="text"
           className="tag-editor-input"
           value={inputValue}
           placeholder={tags.length === 0 ? placeholder : ''}
-          onChange={e => { setInputValue(e.target.value); setOpen(true) }}
+          role="combobox"
+          aria-label={ariaLabel ?? (inputId ? undefined : placeholder)}
+          aria-expanded={expanded}
+          aria-controls={listId}
+          aria-autocomplete="list"
+          aria-activedescendant={expanded && suggestions[activeIndex] ? `${listId}-${activeIndex}` : undefined}
+          onChange={e => { setInputValue(e.target.value); setActiveIndex(-1); setOpen(true) }}
           onKeyDown={handleKeyDown}
           onFocus={openSuggestions}
           onBlur={() => {
@@ -158,16 +180,24 @@ export default function TagTypeahead({ tags, availableTags, suggestedColors, pre
             if (inputValue.trim()) addTag(inputValue)
           }}
         />
-        {open && suggestions.length > 0 && (
-          <ul className="tag-typeahead-suggestions" role="listbox" style={dropdownStyle}>
-            {suggestions.map(s => {
+        {expanded && (
+          <ul
+            id={listId}
+            className="tag-typeahead-suggestions"
+            role="listbox"
+            aria-label={ariaLabel ?? placeholder}
+            style={dropdownStyle}
+          >
+            {suggestions.map((s, idx) => {
               const color = resolveColor(s.name)
               const textC = tagTextColor(color)
               return (
                 <li
                   key={s.name}
+                  id={`${listId}-${idx}`}
                   role="option"
-                  aria-selected={false}
+                  aria-selected={idx === activeIndex}
+                  className={idx === activeIndex ? 'is-active' : undefined}
                   onMouseDown={e => { e.preventDefault(); addTag(s.name) }}
                 >
                   <span

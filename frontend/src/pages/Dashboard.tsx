@@ -10,7 +10,7 @@ import { errorMessage } from '../api/errors'
 import InvestmentSnapshotCard from '../components/InvestmentSnapshotCard'
 import MortgageSnapshotCard from '../components/MortgageSnapshotCard'
 import { Private } from '../components/Money'
-import { formatCurrency, langLocale, useT } from '../i18n'
+import { formatCurrency, formatNumber, formatPercent, langLocale, useT } from '../i18n'
 import type { Lang } from '../i18n'
 import { useNotifications } from '../contexts/NotificationsContext'
 import { savingsRate } from '../utils/comparison'
@@ -23,9 +23,9 @@ function formatEur(value: number | null | undefined, lang: Lang): string {
   return formatCurrency(value, lang)
 }
 
-function signedPercent(value: number | null): string {
+function signedPercent(value: number | null, lang: Lang): string {
   if (value === null) return '—'
-  return `${value >= 0 ? '+' : ''}${value.toFixed(1)} %`
+  return formatPercent(value, lang, { signed: true })
 }
 
 function signedCurrency(value: number | null, lang: Lang): string {
@@ -149,6 +149,7 @@ function StatementWarning({ label, text }: { label: string; text: string }) {
  * two percentages is easily misread (going from 10% to 12% is +2 pp, not "+20%").
  */
 function DeltaPill({ points, label }: { points: number | null; label: string }) {
+  const { lang } = useT()
   if (points === null) return null
   const rounded = Number(points.toFixed(1))
   const tone = rounded > 0 ? 'is-good' : rounded < 0 ? 'is-bad' : 'is-flat'
@@ -156,7 +157,7 @@ function DeltaPill({ points, label }: { points: number | null; label: string }) 
   return (
     <div className={`dashboard-kpi-delta ${tone}`}>
       {Arrow && <Arrow size={12} />}
-      <span>{rounded > 0 ? '+' : ''}{rounded.toFixed(1)} pp</span>
+      <span className="num">{formatNumber(rounded, lang, { signed: true })} pp</span>
       <span className="dashboard-kpi-delta__label">{label}</span>
     </div>
   )
@@ -242,6 +243,7 @@ export default function Dashboard() {
 
   return (
     <main className="dashboard">
+      <h1 className="sr-only">{t.navHome}</h1>
       <div className="inv-kpi-strip dashboard-kpi-strip">
         {/* Net worth gets the brand gradient — it is the headline figure for the whole app. */}
         <div className="inv-kpi-card dashboard-kpi-hero">
@@ -290,7 +292,7 @@ export default function Dashboard() {
             <InfoTooltip text={t.dashboardKpiSavingsRateInfo} />
           </div>
           <div className="inv-kpi-card__value">
-            {overviewQuery.isPending ? '—' : overviewQuery.error ? '—' : signedPercent(allTimeSavingsRate)}
+            {overviewQuery.isPending ? '—' : overviewQuery.error ? '—' : signedPercent(allTimeSavingsRate, lang)}
           </div>
           <DeltaPill points={savingsRateShift} label={t.dashboardSavingsRateVsPrevMonth} />
         </div>
@@ -315,7 +317,7 @@ export default function Dashboard() {
       </div>
 
       <div className="card dashboard-accounts-card">
-        <h3 className="card-title">{t.dashboardAccountsTitle}</h3>
+        <h2 className="card-title">{t.dashboardAccountsTitle}</h2>
         {accountsQuery.isPending || byAccountQuery.isPending ? (
           <div className="state-box">
             <IconLoading size={18} />
@@ -342,24 +344,27 @@ export default function Dashboard() {
                   const rowKey = account?.id ?? row.account
                   const netCls = row.net >= 0 ? 'inv-kpi-card__value--pos' : 'inv-kpi-card__value--neg'
                   const averageMonthlyExpense = monthsCount && monthsCount > 0 ? row.expense / monthsCount : null
+                  const href = account ? `/finances?account_id=${account.id}` : null
                   return (
                     <tr
                       key={rowKey}
-                      className={`cat-row dashboard-account-row${account ? '' : ' dashboard-account-row--disabled'}`}
-                      onClick={() => account && navigate(`/finances?account_id=${account.id}`)}
-                      onKeyDown={event => {
-                        if (account && (event.key === 'Enter' || event.key === ' ')) {
-                          event.preventDefault()
-                          navigate(`/finances?account_id=${account.id}`)
-                        }
-                      }}
-                      role={account ? 'button' : undefined}
-                      tabIndex={account ? 0 : undefined}
+                      className={`cat-row dashboard-account-row${href ? '' : ' dashboard-account-row--disabled'}`}
+                      onClick={() => href && navigate(href)}
                     >
-                      <td className="cat-td-name">
+                      <td className="cat-td-name dashboard-account-cell-name">
                         <div className="dashboard-account-name-cell">
                           <div className="dashboard-account-name-line">
-                            <span className="dashboard-account-name">{account?.name ?? row.account}</span>
+                            {href ? (
+                              <Link
+                                to={href}
+                                className="dashboard-account-name dashboard-account-link"
+                                onClick={event => event.stopPropagation()}
+                              >
+                                {account?.name}
+                              </Link>
+                            ) : (
+                              <span className="dashboard-account-name">{row.account}</span>
+                            )}
                             {account && statementReminderMonthLabel && missingStatementAccountIds.has(account.id) && (
                               <StatementWarning
                                 label={t.dashboardStatementMissingLabel}
@@ -373,7 +378,8 @@ export default function Dashboard() {
                         </div>
                       </td>
                       <td className={`cat-td-num dashboard-account-net private ${netCls}`}>{formatEur(row.net, lang)}</td>
-                      <td className="cat-td-num cat-td-weight">
+                      <td className="cat-td-num cat-td-weight dashboard-account-avg">
+                        <span className="dashboard-account-cell-label" aria-hidden="true">{t.dashboardAccountsAvgMonthlyExpense}</span>
                         {monthsQuery.isPending || monthsQuery.error ? '—' : <Private>{formatEur(averageMonthlyExpense, lang)}</Private>}
                       </td>
                     </tr>

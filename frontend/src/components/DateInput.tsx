@@ -6,6 +6,7 @@ interface Props {
   lang: Lang
   onChange: (iso: string) => void
   className?: string
+  ariaLabel?: string
 }
 
 function tryParse(s: string): string | null {
@@ -23,7 +24,7 @@ function tryParse(s: string): string | null {
  * but commits only valid dates as ISO "YYYY-MM-DD" via onChange.
  * Invalid input is reset to the last valid value on blur.
  */
-export default function DateInput({ value, lang, onChange, className }: Props) {
+export default function DateInput({ value, lang, onChange, className, ariaLabel }: Props) {
   const [text, setText] = useState(() => formatDate(value, lang))
   const placeholder = lang === 'es' ? 'dd/mm/aaaa' : 'dd/mm/yyyy'
 
@@ -37,6 +38,7 @@ export default function DateInput({ value, lang, onChange, className }: Props) {
       className={className}
       value={text}
       placeholder={placeholder}
+      aria-label={ariaLabel}
       onChange={e => setText(e.target.value)}
       onBlur={() => {
         const iso = tryParse(text)

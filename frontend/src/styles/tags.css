@@ -93,8 +93,9 @@
   padding: 1px 6px;
 }
 .tag-chip-remove {
-  width: 13px;
-  height: 13px;
+  position: relative;
+  width: 14px;
+  height: 14px;
   padding: 0;
   background: none;
   border: none;
@@ -105,11 +106,18 @@
   justify-content: center;
   font-size: 9px;
   border-radius: 999px;
-  opacity: 0.65;
+  opacity: 0.8;
   font-family: inherit;
   line-height: 1;
 }
+/* The visible glyph stays small; the hit area grows to 24px (WCAG 2.5.8). */
+.tag-chip-remove::after {
+  content: '';
+  position: absolute;
+  inset: -5px;
+}
 .tag-chip-remove:hover { opacity: 1; background: rgba(128, 128, 128, 0.25); }
+.tag-chip-remove:focus-visible { opacity: 1; outline-offset: 1px; }
 
 .tag-chips-readonly {
   display: flex;
@@ -122,7 +130,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   min-height: 28px;
   padding: 2px 6px;
   border: 1px solid transparent;
@@ -132,7 +140,11 @@
   transition: border-color 0.12s, background 0.12s;
 }
 .tag-editor:hover { border-color: var(--border); background: var(--surface); }
-.tag-editor:focus-within { border-color: var(--primary); background: var(--surface); }
+.tag-editor:focus-within {
+  border-color: var(--primary);
+  background: var(--surface);
+  box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.22);
+}
 
 .tag-editor-input {
   border: none;
@@ -146,6 +158,7 @@
   padding: 0;
   height: 20px;
 }
+.tag-editor-input:focus-visible { box-shadow: none; }
 .tag-editor-input::placeholder { color: var(--text-muted); }
 
 /* ─── Active filter chips (GlobalFilterBar) ──────────────────────────── */
@@ -272,15 +285,17 @@
   padding: 0 12px;
   border: 1.5px solid;
   border-radius: 999px;
-  font-size: 11px;
+  font-size: var(--text-xs);
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
-  transition: opacity 0.15s;
+  transition: opacity 0.15s, background 0.15s;
   font-family: inherit;
   background: transparent;
+  color: var(--text);
 }
-.tag-toggle-btn:hover { opacity: 0.75; }
+.tag-toggle-btn:hover { opacity: 0.85; }
+.tag-toggle-btn[aria-pressed="false"]:hover { background: var(--bg); opacity: 1; }
 
 /* ─── Tag filter typeahead (filter bars) ───────────────────────────── */
 /* Input wrapper in the filter group — stretches naturally inside .filter-group */
@@ -306,12 +321,11 @@
 /* Section heading in the suggestions list. */
 .tag-filter-suggestions-header {
   padding: 4px 10px 2px;
-  font-size: 10px;
+  font-size: var(--text-2xs);
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-muted, var(--text));
-  opacity: 0.55;
   cursor: default;
   user-select: none;
 }
@@ -407,8 +421,8 @@
 .cat-table tbody tr {
   border-bottom: 1px solid var(--border);
   transition: background 0.1s, opacity 0.15s;
-  cursor: pointer;
 }
+.cat-table tbody tr:has(.cat-row-btn) { cursor: pointer; }
 .cat-table tbody tr:last-child { border-bottom: none; }
 .cat-table tbody tr:hover { background: var(--bg); }
 .cat-table tbody td { padding: 5px 8px; vertical-align: middle; }
@@ -420,6 +434,18 @@
   display: flex;
   align-items: center;
   gap: 7px;
+}
+
+.cat-row-btn {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 
 .cat-swatch {

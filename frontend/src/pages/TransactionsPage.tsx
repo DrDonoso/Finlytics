@@ -1,48 +1,25 @@
-import { useState, useEffect, useMemo } from 'react'
-import { useSearchParams } from 'react-router'
+import { useId, useMemo, useState, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import type { TransactionsViewFilters, SummaryParams } from '../api/types'
+import type { SummaryParams } from '../api/types'
 import { useAccounts, useCategories, useTags, useOverview, queryKeys } from '../api/queries'
 import { errorMessage } from '../api/errors'
 import { useT, categoryLabel, formatDate, DEFAULT_TAG_COLOR, tagTextColor } from '../i18n'
 import TransactionsTable from '../components/TransactionsTable'
 import TagFilterSelect from '../components/TagFilterSelect'
 import DatePicker from '../components/DatePicker'
-import { IconClose, IconTag } from '../components/icons'
+import { IconArrowDown, IconArrowUp, IconClose, IconTag } from '../components/icons'
+import { useDebouncedFilter, useUrlFilters } from '../hooks/useUrlFilters'
+import type { DateRange } from '../utils'
 
-const DEFAULT_FILTERS: TransactionsViewFilters = {
-  from: '',
-  to:   '',
-  tags: [],
-}
-
-/** Parse URLSearchParams (from Dashboard navigation) into TransactionsViewFilters.
- *  Returns null when no relevant params are present so the caller can fall back to defaults.
- *  Robust: ignores malformed values, never throws. */
-function filtersFromParams(params: URLSearchParams): TransactionsViewFilters | null {
-  const from       = params.get('from') ?? ''
-  const to         = params.get('to')   ?? ''
-  const rawAcct    = params.get('account_id')
-  const rawCat     = params.get('category_id')
-  const rawFlow    = params.get('flow')
-  const rawMerch   = params.get('merchant') ?? ''
-  const tags       = params.getAll('tag')
-
-  const hasParams = from || to || rawAcct || rawCat || rawFlow || rawMerch || tags.length > 0
-  if (!hasParams) return null
-
-  const account_id  = rawAcct  ? (isNaN(Number(rawAcct))  ? undefined : Number(rawAcct))  : undefined
-  const category_id = rawCat   ? (isNaN(Number(rawCat))   ? undefined : Number(rawCat))   : undefined
-  const flow        = (rawFlow === 'expense' || rawFlow === 'income') ? rawFlow : undefined
-  const merchant    = rawMerch.trim() || undefined
-
-  return { from, to, tags, account_id, category_id, flow, merchant }
+// The full ledger opens unfiltered; the period is whatever the link or the user sets.
+function openRange(): DateRange {
+  return { from: '', to: '' }
 }
 
 export default function TransactionsPage() {
   const { t, lang, formatCurrency } = useT()
-  const [searchParams] = useSearchParams()
   const queryClient = useQueryClient()
+  const { filters, setFilters } = useUrlFilters(openRange)
 
   const EMPTY: never[] = useMemo(() => [], [])
   const accounts   = useAccounts().data   ?? EMPTY
@@ -50,53 +27,24 @@ export default function TransactionsPage() {
   const allTags    = useTags().data       ?? EMPTY
 
   const [panelOpen, setPanelOpen] = useState(false)
+  const uid = useId()
+  const ids = {
+    panel:     `${uid}-panel`,
+    from:      `${uid}-from`,
+    to:        `${uid}-to`,
+    account:   `${uid}-account`,
+    category:  `${uid}-category`,
+    tags:      `${uid}-tags`,
+    amountMin: `${uid}-amount-min`,
+    amountMax: `${uid}-amount-max`,
+    merchant:  `${uid}-merchant`,
+  }
 
-  // Committed filter state — seeded from URL on first mount, then local-only
-  const [filters, setFilters] = useState<TransactionsViewFilters>(
-    () => filtersFromParams(searchParams) ?? DEFAULT_FILTERS,
-  )
-
-  // Raw input values for debounced controls — merchant seeded from URL if present
-  const [descRaw,      setDescRaw]      = useState('')
-  const [amountMinRaw, setAmountMinRaw] = useState('')
-  const [amountMaxRaw, setAmountMaxRaw] = useState('')
-  const [merchantRaw,  setMerchantRaw]  = useState(
-    () => filtersFromParams(searchParams)?.merchant ?? '',
-  )
-
-  // Debounce description → 300 ms
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setFilters(f => ({ ...f, description: descRaw.trim() || undefined }))
-    }, 300)
-    return () => clearTimeout(timer)
-  }, [descRaw])
-
-  // Debounce amount_min → 300 ms
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      const v = parseFloat(amountMinRaw)
-      setFilters(f => ({ ...f, amount_min: amountMinRaw !== '' && v >= 0 ? v : undefined }))
-    }, 300)
-    return () => clearTimeout(timer)
-  }, [amountMinRaw])
-
-  // Debounce amount_max → 300 ms
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      const v = parseFloat(amountMaxRaw)
-      setFilters(f => ({ ...f, amount_max: amountMaxRaw !== '' && v >= 0 ? v : undefined }))
-    }, 300)
-    return () => clearTimeout(timer)
-  }, [amountMaxRaw])
-
-  // Debounce merchant → 300 ms
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setFilters(f => ({ ...f, merchant: merchantRaw.trim() || undefined }))
-    }, 300)
-    return () => clearTimeout(timer)
-  }, [merchantRaw])
+  // Text boxes answer every keystroke; the URL follows 300 ms after the last one.
+  const [descRaw,      setDescRaw]      = useDebouncedFilter(filters, setFilters, 'description')
+  const [merchantRaw,  setMerchantRaw]  = useDebouncedFilter(filters, setFilters, 'merchant')
+  const [amountMinRaw, setAmountMinRaw] = useDebouncedFilter(filters, setFilters, 'amount_min')
+  const [amountMaxRaw, setAmountMaxRaw] = useDebouncedFilter(filters, setFilters, 'amount_max')
 
   // Overview / totals — the query key includes the filters, which prevents out-of-order responses
   const overviewParams: SummaryParams = useMemo(() => ({
@@ -110,6 +58,7 @@ export default function TransactionsPage() {
     amount_min:  filters.amount_min,
     amount_max:  filters.amount_max,
     merchant:    filters.merchant,
+    day:         filters.day,
   }), [filters])
   const overviewQuery = useOverview(overviewParams)
   const overview = overviewQuery.data ?? null
@@ -118,10 +67,6 @@ export default function TransactionsPage() {
 
   function clearFilters() {
     setFilters({ from: '', to: '', tags: [] })
-    setDescRaw('')
-    setAmountMinRaw('')
-    setAmountMaxRaw('')
-    setMerchantRaw('')
   }
 
   const dynamicEs = useMemo(
@@ -136,19 +81,17 @@ export default function TransactionsPage() {
     [categories, lang, dynamicEs],
   )
 
-  // Count of active non-search panel filters (differs from default or is explicitly set)
-  const activeFilterCount = useMemo(() => {
-    let count = 0
-    if (filters.from !== DEFAULT_FILTERS.from) count++
-    if (filters.to !== DEFAULT_FILTERS.to) count++
-    if (filters.account_id !== undefined) count++
-    if (filters.category_id !== undefined) count++
-    count += filters.tags.length
-    if (filters.amount_min !== undefined) count++
-    if (filters.amount_max !== undefined) count++
-    if (filters.merchant !== undefined) count++
-    return count
-  }, [filters])
+  // Active filters other than the search box, which is always visible anyway
+  const activeFilterCount = (filters.from ? 1 : 0)
+    + (filters.to ? 1 : 0)
+    + (filters.account_id !== undefined ? 1 : 0)
+    + (filters.category_id !== undefined ? 1 : 0)
+    + filters.tags.length
+    + (filters.amount_min !== undefined ? 1 : 0)
+    + (filters.amount_max !== undefined ? 1 : 0)
+    + (filters.merchant !== undefined ? 1 : 0)
+    + (filters.flow !== undefined ? 1 : 0)
+    + (filters.day !== undefined ? 1 : 0)
 
   const activeAccountName  = accounts.find(a => a.id === filters.account_id)?.name
   const activeCategoryName = categories.find(c => c.id === filters.category_id)?.name
@@ -169,6 +112,7 @@ export default function TransactionsPage() {
             type="text"
             value={descRaw}
             placeholder={t.searchPlaceholder}
+            aria-label={t.filterDescription}
             onChange={e => setDescRaw(e.target.value)}
           />
         </div>
@@ -177,6 +121,7 @@ export default function TransactionsPage() {
           className="tx-filters-btn"
           onClick={() => setPanelOpen(o => !o)}
           aria-expanded={panelOpen}
+          aria-controls={ids.panel}
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
@@ -190,11 +135,12 @@ export default function TransactionsPage() {
 
       {/* ── Filter panel (collapsible) ────────────────────────── */}
       {panelOpen && (
-        <div className="tx-filter-panel">
+        <div className="tx-filter-panel" id={ids.panel}>
           <div className="date-range-wrap">
             <div className="filter-group">
-              <label>{t.filterFrom}</label>
+              <label htmlFor={ids.from}>{t.filterFrom}</label>
               <DatePicker
+                id={ids.from}
                 value={filters.from}
                 onChange={v => setFilters(f => ({ ...f, from: v }))}
                 ariaLabel={t.filterFrom}
@@ -202,8 +148,9 @@ export default function TransactionsPage() {
             </div>
             <span className="date-range-sep" aria-hidden="true">—</span>
             <div className="filter-group">
-              <label>{t.filterTo}</label>
+              <label htmlFor={ids.to}>{t.filterTo}</label>
               <DatePicker
+                id={ids.to}
                 value={filters.to}
                 onChange={v => setFilters(f => ({ ...f, to: v }))}
                 ariaLabel={t.filterTo}
@@ -212,8 +159,9 @@ export default function TransactionsPage() {
           </div>
 
           <div className="filter-group">
-            <label>{t.filterAccount}</label>
+            <label htmlFor={ids.account}>{t.filterAccount}</label>
             <select
+              id={ids.account}
               value={filters.account_id ?? ''}
               onChange={e => setFilters(f => ({
                 ...f,
@@ -226,8 +174,9 @@ export default function TransactionsPage() {
           </div>
 
           <div className="filter-group">
-            <label>{t.filterCategory}</label>
+            <label htmlFor={ids.category}>{t.filterCategory}</label>
             <select
+              id={ids.category}
               value={filters.category_id ?? ''}
               onChange={e => setFilters(f => ({
                 ...f,
@@ -243,18 +192,20 @@ export default function TransactionsPage() {
 
           {allTags.length > 0 && (
             <div className="filter-group">
-              <label>{t.filterTag}</label>
+              <label id={ids.tags}>{t.filterTag}</label>
               <TagFilterSelect
                 availableTags={allTags}
                 selected={filters.tags}
                 onChange={next => setFilters(f => ({ ...f, tags: next }))}
+                labelledBy={ids.tags}
               />
             </div>
           )}
 
           <div className="filter-group">
-            <label>{t.filterAmountMin}</label>
+            <label htmlFor={ids.amountMin}>{t.filterAmountMin}</label>
             <input
+              id={ids.amountMin}
               type="number"
               min="0"
               step="0.01"
@@ -265,8 +216,9 @@ export default function TransactionsPage() {
           </div>
 
           <div className="filter-group">
-            <label>{t.filterAmountMax}</label>
+            <label htmlFor={ids.amountMax}>{t.filterAmountMax}</label>
             <input
+              id={ids.amountMax}
               type="number"
               min="0"
               step="0.01"
@@ -277,8 +229,9 @@ export default function TransactionsPage() {
           </div>
 
           <div className="filter-group">
-            <label>{t.filterMerchant}</label>
+            <label htmlFor={ids.merchant}>{t.filterMerchant}</label>
             <input
+              id={ids.merchant}
               type="text"
               value={merchantRaw}
               placeholder={t.filterMerchant}
@@ -291,49 +244,43 @@ export default function TransactionsPage() {
       {/* ── Active filter chips ───────────────────────────────── */}
       {activeFilterCount > 0 && (
         <div className="tx-chips">
-          {filters.from !== DEFAULT_FILTERS.from && (
-            <span className="filter-chip">
-              {t.filterFrom}: {formatDate(filters.from, lang)}
-              <button
-                type="button"
-                className="filter-chip-remove"
-                onClick={() => setFilters(f => ({ ...f, from: DEFAULT_FILTERS.from }))}
-                aria-label={t.filterClearChip}
-              ><IconClose size={13} /></button>
-            </span>
+          {filters.from !== '' && (
+            <FilterChip
+              label={`${t.filterFrom}: ${formatDate(filters.from, lang)}`}
+              onRemove={() => setFilters(f => ({ ...f, from: '' }))}
+            />
           )}
-          {filters.to !== DEFAULT_FILTERS.to && (
-            <span className="filter-chip">
-              {t.filterTo}: {formatDate(filters.to, lang)}
-              <button
-                type="button"
-                className="filter-chip-remove"
-                onClick={() => setFilters(f => ({ ...f, to: DEFAULT_FILTERS.to }))}
-                aria-label={t.filterClearChip}
-              ><IconClose size={13} /></button>
-            </span>
+          {filters.to !== '' && (
+            <FilterChip
+              label={`${t.filterTo}: ${formatDate(filters.to, lang)}`}
+              onRemove={() => setFilters(f => ({ ...f, to: '' }))}
+            />
+          )}
+          {filters.day !== undefined && (
+            <FilterChip
+              label={`${t.filterChipDay}: ${formatDate(filters.day, lang)}`}
+              onRemove={() => setFilters(f => ({ ...f, day: undefined }))}
+            />
+          )}
+          {filters.flow !== undefined && (
+            <FilterChip
+              className="filter-chip-flow"
+              icon={filters.flow === 'expense' ? <IconArrowDown size={13} /> : <IconArrowUp size={13} />}
+              label={filters.flow === 'expense' ? t.filterExpenseOnly : t.filterIncomeOnly}
+              onRemove={() => setFilters(f => ({ ...f, flow: undefined }))}
+            />
           )}
           {activeAccountName !== undefined && (
-            <span className="filter-chip">
-              {activeAccountName}
-              <button
-                type="button"
-                className="filter-chip-remove"
-                onClick={() => setFilters(f => ({ ...f, account_id: undefined }))}
-                aria-label={t.filterClearChip}
-              ><IconClose size={13} /></button>
-            </span>
+            <FilterChip
+              label={activeAccountName}
+              onRemove={() => setFilters(f => ({ ...f, account_id: undefined }))}
+            />
           )}
           {activeCategoryName !== undefined && (
-            <span className="filter-chip">
-              {categoryLabel(activeCategoryName, lang, dynamicEs)}
-              <button
-                type="button"
-                className="filter-chip-remove"
-                onClick={() => setFilters(f => ({ ...f, category_id: undefined }))}
-                aria-label={t.filterClearChip}
-              ><IconClose size={13} /></button>
-            </span>
+            <FilterChip
+              label={categoryLabel(activeCategoryName, lang, dynamicEs)}
+              onRemove={() => setFilters(f => ({ ...f, category_id: undefined }))}
+            />
           )}
           {filters.tags.map(tagName => {
             const tag = allTags.find(tg => tg.name === tagName)
@@ -350,44 +297,29 @@ export default function TransactionsPage() {
                   type="button"
                   className="filter-chip-remove"
                   onClick={() => setFilters(f => ({ ...f, tags: f.tags.filter(n => n !== tagName) }))}
-                  aria-label={t.filterClearChip}
+                  aria-label={t.tagChipRemoveNamed(tagName)}
                   style={{ color: textC }}
                 ><IconClose size={13} /></button>
               </span>
             )
           })}
           {filters.amount_min !== undefined && (
-            <span className="filter-chip">
-              {t.filterAmountMin}: {filters.amount_min}
-              <button
-                type="button"
-                className="filter-chip-remove"
-                onClick={() => { setAmountMinRaw(''); setFilters(f => ({ ...f, amount_min: undefined })) }}
-                aria-label={t.filterClearChip}
-              ><IconClose size={13} /></button>
-            </span>
+            <FilterChip
+              label={`${t.filterAmountMin}: ${filters.amount_min}`}
+              onRemove={() => setFilters(f => ({ ...f, amount_min: undefined }))}
+            />
           )}
           {filters.amount_max !== undefined && (
-            <span className="filter-chip">
-              {t.filterAmountMax}: {filters.amount_max}
-              <button
-                type="button"
-                className="filter-chip-remove"
-                onClick={() => { setAmountMaxRaw(''); setFilters(f => ({ ...f, amount_max: undefined })) }}
-                aria-label={t.filterClearChip}
-              ><IconClose size={13} /></button>
-            </span>
+            <FilterChip
+              label={`${t.filterAmountMax}: ${filters.amount_max}`}
+              onRemove={() => setFilters(f => ({ ...f, amount_max: undefined }))}
+            />
           )}
           {filters.merchant !== undefined && (
-            <span className="filter-chip">
-              {t.filterMerchant}: {filters.merchant}
-              <button
-                type="button"
-                className="filter-chip-remove"
-                onClick={() => { setMerchantRaw(''); setFilters(f => ({ ...f, merchant: undefined })) }}
-                aria-label={t.filterClearChip}
-              ><IconClose size={13} /></button>
-            </span>
+            <FilterChip
+              label={`${t.filterMerchant}: ${filters.merchant}`}
+              onRemove={() => setFilters(f => ({ ...f, merchant: undefined }))}
+            />
           )}
           <button type="button" className="btn-secondary" onClick={clearFilters}>
             {t.filterClear}
@@ -436,5 +368,25 @@ export default function TransactionsPage() {
         onEditSuccess={() => queryClient.invalidateQueries({ queryKey: queryKeys.overview(overviewParams) })}
       />
     </main>
+  )
+}
+
+function FilterChip({ label, onRemove, icon, className }: {
+  label: string
+  onRemove: () => void
+  icon?: ReactNode
+  className?: string
+}) {
+  const { t } = useT()
+  return (
+    <span className={className ? `filter-chip ${className}` : 'filter-chip'}>
+      {icon}{label}
+      <button
+        type="button"
+        className="filter-chip-remove"
+        onClick={onRemove}
+        aria-label={t.tagChipRemoveNamed(label)}
+      ><IconClose size={13} /></button>
+    </span>
   )
 }

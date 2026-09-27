@@ -145,28 +145,6 @@
   margin-top: 4px;
 }
 /* ── InvestmentSnapshotCard ─────────────────────────────────────────────────── */
-.inv-snapshot-card {
-  margin-top: 16px;
-}
-.inv-snapshot-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-}
-.inv-snapshot-title {
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--text);
-  margin: 0;
-}
-.inv-snapshot-link {
-  font-size: 13px;
-  color: var(--primary);
-  text-decoration: none;
-}
-.inv-snapshot-link:hover { text-decoration: underline; }
-
 .inv-snapshot-body { display: flex; flex-direction: column; gap: 12px; }
 
 .inv-snapshot-total {
@@ -264,12 +242,19 @@
 .dashboard-account-row:hover {
   background: var(--bg);
 }
-.dashboard-account-row:focus-visible {
-  outline: 2px solid rgba(var(--primary-rgb), 0.35);
-  outline-offset: -2px;
-}
 .dashboard-account-row--disabled {
   cursor: default;
+}
+.dashboard-account-link {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-decoration: none;
+}
+.dashboard-account-link:hover {
+  text-decoration: underline;
+}
+.dashboard-account-cell-label {
+  display: none;
 }
 .dashboard-account-name-cell {
   display: flex;
@@ -319,6 +304,37 @@
 }
 .dashboard-account-net {
   font-weight: 700;
+}
+
+/* ≤600px: each account reads as a two-line card. The header row stays in the
+   DOM for assistive tech and the inline label is aria-hidden to match. */
+@media (max-width: 600px) {
+  .dashboard-accounts-table-wrap { margin: 0; }
+  .dashboard-accounts-table { min-width: 0; }
+  .dashboard-accounts-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .dashboard-accounts-table tbody tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "name net"
+      "name avg";
+    align-items: center;
+    column-gap: var(--space-3);
+    row-gap: 2px;
+    padding: var(--space-3) 0;
+  }
+  .dashboard-accounts-table tbody td { padding: 0; min-width: 0; max-width: none; }
+  .dashboard-account-cell-name { grid-area: name; }
+  .dashboard-account-net { grid-area: net; font-size: var(--text-md); }
+  .dashboard-account-avg { grid-area: avg; }
+  .dashboard-account-cell-label { display: inline; margin-right: var(--space-1); }
 }
 
 /* ── ImportSourcePicker modal ───────────────────────────────────────────────── */

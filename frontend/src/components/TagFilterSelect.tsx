@@ -11,7 +11,8 @@ interface Props {
   /** Currently selected tag names. */
   selected: string[]
   onChange: (next: string[]) => void
-  label?: string
+  /** Id of the visible label that names the control. */
+  labelledBy?: string
   placeholder?: string
 }
 
@@ -31,14 +32,15 @@ interface Props {
  * Selected chips are rendered by the CALLER's chip row — this component only handles
  * adding. Removing is done by the caller via the chip ✕ buttons.
  */
-export default function TagFilterSelect({ availableTags, selected, onChange, placeholder }: Props) {
+export default function TagFilterSelect({ availableTags, selected, onChange, labelledBy, placeholder }: Props) {
   const { t } = useT()
 
   if (availableTags.length === 0) return null
 
   if (availableTags.length <= TYPEAHEAD_THRESHOLD) {
     return (
-      <div className="tag-multi-select">
+      // eslint-disable-next-line jsx-a11y/prefer-tag-over-role -- a named group of buttons; fieldset/details do not fit
+      <div className="tag-multi-select" role="group" aria-labelledby={labelledBy}>
         {availableTags.map(tag => {
           const isSelected = selected.includes(tag.name)
           const color = tag.color || DEFAULT_TAG_COLOR
@@ -47,10 +49,11 @@ export default function TagFilterSelect({ availableTags, selected, onChange, pla
               key={tag.id}
               type="button"
               className="tag-toggle-btn"
+              aria-pressed={isSelected}
               style={
                 isSelected
                   ? { background: color, borderColor: color, color: tagTextColor(color) }
-                  : { background: 'transparent', borderColor: color, color: color }
+                  : { borderColor: color }
               }
               onClick={() => {
                 const next = isSelected
@@ -71,6 +74,7 @@ export default function TagFilterSelect({ availableTags, selected, onChange, pla
     availableTags={availableTags}
     selected={selected}
     onChange={onChange}
+    labelledBy={labelledBy}
     placeholder={placeholder ?? t.filterTagSearchPlaceholder}
     mostUsedLabel={t.filterTagMostUsed}
   />
@@ -82,11 +86,12 @@ interface TypeaheadProps {
   availableTags: Tag[]
   selected: string[]
   onChange: (next: string[]) => void
+  labelledBy?: string
   placeholder: string
   mostUsedLabel: string
 }
 
-function TagFilterTypeahead({ availableTags, selected, onChange, placeholder, mostUsedLabel }: TypeaheadProps) {
+function TagFilterTypeahead({ availableTags, selected, onChange, labelledBy, placeholder, mostUsedLabel }: TypeaheadProps) {
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
   const [activeIdx, setActiveIdx] = useState(0)
@@ -185,6 +190,8 @@ function TagFilterTypeahead({ availableTags, selected, onChange, placeholder, mo
         aria-expanded={open && suggestions.length > 0}
         aria-controls={`${listId}-lb`}
         aria-autocomplete="list"
+        aria-activedescendant={open && suggestions[activeIdx] ? `${listId}-opt-${activeIdx}` : undefined}
+        aria-labelledby={labelledBy}
         onChange={e => { setQuery(e.target.value); setActiveIdx(0); if (!open) openDropdown() }}
         onFocus={openDropdown}
         onBlur={() => setTimeout(() => setOpen(false), 160)}
@@ -209,6 +216,7 @@ function TagFilterTypeahead({ availableTags, selected, onChange, placeholder, mo
             return (
               <li
                 key={tag.name}
+                id={`${listId}-opt-${idx}`}
                 role="option"
                 aria-selected={idx === activeIdx}
                 className={idx === activeIdx ? 'tag-filter-option-active' : undefined}

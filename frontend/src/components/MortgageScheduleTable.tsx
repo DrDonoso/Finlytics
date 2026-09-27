@@ -19,7 +19,7 @@ interface Props {
 
 /** Amortization table, collapsed to one row per year and expandable to months. */
 export default function MortgageScheduleTable({ years, linked, chargesFrom, loading, error }: Props) {
-  const { t, lang, formatCurrency } = useT()
+  const { t, lang, formatCurrency, formatPercent } = useT()
   const { hidden: hideAmounts } = usePrivacy()
   const [expanded, setExpanded] = useState<Set<number>>(new Set())
 
@@ -71,29 +71,23 @@ export default function MortgageScheduleTable({ years, linked, chargesFrom, load
           {years.map(year => {
             const open = expanded.has(year.year)
             return [
-              <tr
-                key={year.year}
-                className="cat-row mortgage-schedule__year"
-                onClick={() => toggle(year.year)}
-                role="button"
-                tabIndex={0}
-                aria-expanded={open}
-                onKeyDown={e => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault()
-                    toggle(year.year)
-                  }
-                }}
-              >
+              <tr key={year.year} className="cat-row mortgage-schedule__year">
                 <td className="cat-td-name">
-                  <IconChevronDown size={14} className={`sidebar-arrow${open ? ' open' : ''}`} /> {year.year}
-                  {year.months_elapsed > 0 && (!linked || coverageYear == null || year.year >= coverageYear) && (
-                    <span className="mortgage-schedule__year-progress">
-                      {linked
-                        ? t.mortgageSchedulePaidCount(year.months_paid, year.months_total)
-                        : t.mortgageScheduleElapsedCount(year.months_elapsed, year.months_total)}
-                    </span>
-                  )}
+                  <button
+                    type="button"
+                    className="mortgage-schedule__toggle"
+                    aria-expanded={open}
+                    onClick={() => toggle(year.year)}
+                  >
+                    <IconChevronDown size={14} className={`sidebar-arrow${open ? ' open' : ''}`} /> {year.year}
+                    {year.months_elapsed > 0 && (!linked || coverageYear == null || year.year >= coverageYear) && (
+                      <span className="mortgage-schedule__year-progress">
+                        {linked
+                          ? t.mortgageSchedulePaidCount(year.months_paid, year.months_total)
+                          : t.mortgageScheduleElapsedCount(year.months_elapsed, year.months_total)}
+                      </span>
+                    )}
+                  </button>
                 </td>
                 <td className="cat-td-num private">{formatCurrency(year.payment)}</td>
                 <td className="cat-td-num private">{formatCurrency(year.interest)}</td>
@@ -120,7 +114,7 @@ export default function MortgageScheduleTable({ years, linked, chargesFrom, load
                     </span>
                     {formatDate(row.date, lang)}
                     {row.projected && <span className="mortgage-schedule__projected" title={t.mortgageProjectionNote}>~</span>}
-                    <span className="mortgage-schedule__rate">{row.annual_rate.toFixed(3)} %</span>
+                    <span className="mortgage-schedule__rate">{formatPercent(row.annual_rate, { decimals: 3 })}</span>
                   </td>
                   <td className="cat-td-num private">{formatCurrency(row.payment)}</td>
                   <td className="cat-td-num private">{formatCurrency(row.interest)}</td>

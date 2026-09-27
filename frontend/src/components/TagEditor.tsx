@@ -1,6 +1,6 @@
 import { useState, useRef, useId, useMemo } from 'react'
 import type { Tag } from '../api/types'
-import { DEFAULT_TAG_COLOR, tagTextColor } from '../i18n'
+import { DEFAULT_TAG_COLOR, tagTextColor, useT } from '../i18n'
 import { IconClose } from './icons'
 
 interface Props {
@@ -9,12 +9,14 @@ interface Props {
   onChange: (tags: string[]) => void
   disabled?: boolean
   placeholder?: string
+  labelledBy?: string
 }
 
 /** Tag chip editor: shows existing tags as chips with remove, plus an input
  *  with autocomplete from availableTags. Free-form tags are allowed.
  *  All tag names are normalised to lowercase before being stored. */
-export default function TagEditor({ tags, availableTags, onChange, disabled, placeholder }: Props) {
+export default function TagEditor({ tags, availableTags, onChange, disabled, placeholder, labelledBy }: Props) {
+  const { t } = useT()
   const [inputValue, setInputValue] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
   const uid = useId()
@@ -40,7 +42,7 @@ export default function TagEditor({ tags, availableTags, onChange, disabled, pla
   }
 
   function removeTag(name: string) {
-    onChange(tags.filter(t => t !== name))
+    onChange(tags.filter(tag => tag !== name))
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -54,7 +56,7 @@ export default function TagEditor({ tags, availableTags, onChange, disabled, pla
 
   // Only suggest tags that are not already added and that start with the current input
   const suggestions = availableTags
-    .filter(t => !tags.includes(t.name) && (inputValue === '' || t.name.startsWith(inputValue.toLowerCase())))
+    .filter(tg => !tags.includes(tg.name) && (inputValue === '' || tg.name.startsWith(inputValue.toLowerCase())))
 
   return (
     <div
@@ -72,7 +74,7 @@ export default function TagEditor({ tags, availableTags, onChange, disabled, pla
                 type="button"
                 className="tag-chip-remove"
                 onClick={e => { e.stopPropagation(); removeTag(tag) }}
-                aria-label={`Remove ${tag}`}
+                aria-label={t.tagChipRemoveNamed(tag)}
                 style={{ color: textC }}
               ><IconClose size={12} /></button>
             )}
@@ -87,6 +89,8 @@ export default function TagEditor({ tags, availableTags, onChange, disabled, pla
             type="text"
             list={listId}
             className="tag-editor-input"
+            aria-labelledby={labelledBy}
+            aria-label={labelledBy ? undefined : placeholder}
             value={inputValue}
             placeholder={tags.length === 0 ? placeholder : ''}
             onChange={e => setInputValue(e.target.value)}

@@ -25,7 +25,9 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
 .td-amount { font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
 .td-amount.neg { color: var(--expense); }
 .td-amount.pos { color: var(--income); }
+.th-amount { text-align: right; }
 .td-date { color: var(--text-muted); white-space: nowrap; }
+.td-account { color: var(--text-muted); font-size: 13px; }
 .td-desc { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tx-detail-subline { display: block; font-size: 11px; color: var(--text-muted); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 260px; }
 /* In import preview the description is an <input> with padding: 0 8px — indent sub-line to match the text start */
@@ -66,6 +68,19 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
 }
 .th-sortable:hover { color: var(--text); }
 .th-sort-active { color: var(--text); }
+.th-sort-btn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+}
 .th-sort-arrow {
   display: inline-block;
   margin-left: 4px;
@@ -78,11 +93,72 @@ tbody td { padding: 10px 12px; vertical-align: middle; }
   display: inline-block;
   padding: 2px 8px;
   border-radius: 999px;
-  font-size: 11px;
+  font-size: var(--text-2xs);
   font-weight: 600;
   background: var(--bg);
   color: var(--text-muted);
   border: 1px solid var(--border);
+}
+.badge-category {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  color: var(--text);
+  white-space: nowrap;
+}
+.badge-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.12);
+}
+.badge-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+/* ≤600px: a transaction reads as a card rather than a 660px table scrolled
+   sideways. Only the boxes change — it is still a table for assistive tech,
+   and the header row is kept for it, just visually hidden. */
+@media (max-width: 600px) {
+  .table-wrapper .tx-table { min-width: 0; }
+  .tx-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .tx-table tbody tr:not(.row-editing) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+    grid-template-areas:
+      "desc     desc    amount"
+      "date     account actions"
+      "category tags    actions";
+    align-items: center;
+    gap: var(--space-1) var(--space-3);
+    padding: var(--space-3) 0;
+  }
+  .tx-table tbody tr:not(.row-editing) > td { padding: 0; min-width: 0; max-width: none; }
+  .tx-table .td-description { grid-area: desc; }
+  .tx-table .td-description .td-desc,
+  .tx-table .td-description .tx-detail-subline { max-width: none; }
+  .tx-table .td-desc { font-weight: 500; }
+  .tx-table .td-amount { grid-area: amount; font-size: var(--text-md); }
+  .tx-table .td-date { grid-area: date; font-size: var(--text-xs); }
+  .tx-table .td-account {
+    grid-area: account;
+    font-size: var(--text-xs);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .tx-table .td-category { grid-area: category; }
+  .tx-table .td-tags { grid-area: tags; }
+  .tx-table .td-merchant { display: none; }
+  .tx-table .td-row-actions { grid-area: actions; }
+  .tx-table .btn-row-icon { width: 32px; height: 32px; }
 }
 
 /* ─── Pagination ─────────────────────────────────────────────────── */

@@ -5,11 +5,22 @@ import { useMemo } from 'react'
 import type { CategorySummary, Category } from '../api/types'
 import { useT, categoryLabel } from '../i18n'
 import { IconAlert, IconLoading, IconChartPie } from './icons'
+import { splitTopSlices } from '../utils/categorySlices'
 
 const FALLBACK_COLORS = [
   '#2563eb', '#ef4444', '#22c55e', '#f59e0b', '#8b5cf6',
   '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#64748b',
 ]
+
+const REST_COLOR = '#94a3b8'
+
+interface Slice {
+  key: string
+  label: string
+  value: number
+  categoryId: number | null
+  color: string
+}
 
 interface Props {
   data: CategorySummary[]
@@ -21,7 +32,7 @@ interface Props {
 }
 
 export default function SpendingByCategory({ data, categories, loading, error, selectedCategoryId, onCategoryClick }: Props) {
-  const { t, lang, formatCurrency } = useT()
+  const { t, lang, formatCurrency, formatPercent } = useT()
 
   const dynamicEs = useMemo(
     () => Object.fromEntries(categories.filter(c => c.name_es).map(c => [c.name, c.name_es!])),
@@ -39,16 +50,28 @@ export default function SpendingByCategory({ data, categories, loading, error, s
     return catColorMap[categoryId] || FALLBACK_COLORS[index % FALLBACK_COLORS.length]
   }
 
-  const chartData = sorted.map((d, i) => ({
-    name: d.category,
+  const { head, rest } = splitTopSlices(sorted)
+  const selectionInRest = rest.some(d => d.category_id === selectedCategoryId)
+  const chartData: Slice[] = head.map((d, i) => ({
+    key: String(d.category_id),
+    label: categoryLabel(d.category, lang, dynamicEs),
     value: d.amount,
-    category_id: d.category_id,
+    categoryId: d.category_id,
     color: getColor(d.category_id, i),
   }))
+  if (rest.length > 0) {
+    chartData.push({
+      key: 'rest',
+      label: t.catChartRest(rest.length),
+      value: rest.reduce((sum, d) => sum + d.amount, 0),
+      categoryId: null,
+      color: REST_COLOR,
+    })
+  }
 
   return (
     <div className="card cat-card">
-      <div className="card-title">{t.chartByCategory}</div>
+      <h2 className="card-title">{t.chartByCategory}</h2>
 
       {error && (
         <div className="state-box error">
@@ -85,23 +108,26 @@ export default function SpendingByCategory({ data, categories, loading, error, s
                   innerRadius={84}
                   outerRadius={116}
                   dataKey="value"
+                  nameKey="label"
                   paddingAngle={2}
-                  cursor="pointer"
                   onClick={(entry) => {
-                    const clickedId = (entry as any).category_id as number
+                    const clickedId = (entry as Partial<Slice>).categoryId
+                    if (clickedId == null) return
                     onCategoryClick(selectedCategoryId === clickedId ? undefined : clickedId)
                   }}
                 >
-                  {chartData.map((entry, i) => {
-                    const isSelected = selectedCategoryId === entry.category_id
+                  {chartData.map(entry => {
+                    const isRest = entry.categoryId === null
+                    const isSelected = isRest ? selectionInRest : selectedCategoryId === entry.categoryId
                     const dimmed = hasSelection && !isSelected
                     return (
                       <Cell
-                        key={i}
+                        key={entry.key}
                         fill={entry.color}
                         opacity={dimmed ? 0.28 : 0.92}
                         stroke={isSelected ? entry.color : 'transparent'}
                         strokeWidth={isSelected ? 3 : 0}
+                        cursor={isRest ? 'default' : 'pointer'}
                       />
                     )
                   })}
@@ -110,10 +136,7 @@ export default function SpendingByCategory({ data, categories, loading, error, s
                   contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8 }}
                   labelStyle={{ color: 'var(--text)' }}
                   itemStyle={{ color: 'var(--text)' }}
-                  formatter={(value, name) => [
-                    formatCurrency(Number(value)),
-                    categoryLabel(String(name), lang, dynamicEs),
-                  ]}
+                  formatter={(value, name) => [formatCurrency(Number(value)), String(name)]}
                 />
               </PieChart>
             </ResponsiveContainer>
@@ -139,24 +162,30 @@ export default function SpendingByCategory({ data, categories, loading, error, s
               <tbody>
                 {sorted.map((item, i) => {
                   const color = getColor(item.category_id, i)
-                  const weight = total > 0 ? (item.amount / total * 100).toFixed(1) : '0.0'
+                  const weight = formatPercent(total > 0 ? item.amount / total : 0, { unit: 'fraction' })
                   const isSelected = selectedCategoryId === item.category_id
                   const isDimmed = hasSelection && !isSelected
+                  const toggle = () => onCategoryClick(isSelected ? undefined : item.category_id)
                   return (
                     <tr
                       key={item.category_id}
                       className={`cat-row${isSelected ? ' cat-row-selected' : ''}`}
                       style={{ opacity: isDimmed ? 0.38 : 1 }}
-                      onClick={() => onCategoryClick(isSelected ? undefined : item.category_id)}
+                      onClick={toggle}
                     >
                       <td className="cat-td-name">
-                        <div className="cat-td-name-inner">
+                        <button
+                          type="button"
+                          className="cat-td-name-inner cat-row-btn"
+                          aria-pressed={isSelected}
+                          onClick={event => { event.stopPropagation(); toggle() }}
+                        >
                           <span className="cat-swatch" style={{ background: color }} />
                           <span className="cat-td-label">{categoryLabel(item.category, lang, dynamicEs)}</span>
-                        </div>
+                        </button>
                       </td>
                       <td className="cat-td-num private">{formatCurrency(item.amount)}</td>
-                      <td className="cat-td-num cat-td-weight">{weight}%</td>
+                      <td className="cat-td-num cat-td-weight">{weight}</td>
                     </tr>
                   )
                 })}

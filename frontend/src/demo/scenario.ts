@@ -119,13 +119,13 @@ function lastWeekdayOfMonth(year: number, month0: number): Date {
  *  `Transaction.category` always carries the canonical English name; the UI
  *  translates it via `categoryLabel()`. */
 const CATEGORY_COLORS: ReadonlyArray<readonly [string, string]> = [
-  ['Groceries', '#22c55e'], ['Dining', '#ef4444'], ['Transport', '#3b82f6'],
-  ['Fuel', '#f97316'], ['Housing', '#92400e'], ['Utilities', '#0d9488'],
-  ['Health', '#ec4899'], ['Insurance', '#8b5cf6'], ['Shopping', '#f43f5e'],
-  ['Entertainment', '#eab308'], ['Subscriptions', '#6366f1'], ['Travel', '#0ea5e9'],
-  ['Education', '#1d4ed8'], ['Income', '#10b981'], ['Transfers', '#94a3b8'],
-  ['Investments', '#d97706'], ['Bank Fees', '#dc2626'], ['Taxes', '#475569'],
-  ['Cash/ATM', '#84cc16'], ['Other', '#a78bfa'],
+  ['Groceries', '#70912f'], ['Dining', '#b94644'], ['Transport', '#4f86c6'],
+  ['Fuel', '#e65909'], ['Housing', '#bd9670'], ['Utilities', '#2bccb4'],
+  ['Health', '#e3a8b4'], ['Insurance', '#6f69a3'], ['Shopping', '#d77089'],
+  ['Entertainment', '#cf7ffd'], ['Subscriptions', '#4963de'], ['Travel', '#47a4b4'],
+  ['Education', '#c6c102'], ['Income', '#26795f'], ['Transfers', '#97bd95'],
+  ['Investments', '#049886'], ['Bank Fees', '#9f696f'], ['Taxes', '#896385'],
+  ['Cash/ATM', '#d1b876'], ['Other', '#bdb0ef'],
 ]
 
 const ACCOUNT_MAIN = 'Cuenta Nómina'

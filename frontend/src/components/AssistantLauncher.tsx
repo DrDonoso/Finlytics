@@ -10,23 +10,27 @@ import { useAssistant } from '../contexts/AssistantContext'
 import { useT } from '../i18n'
 import { IconSparkles } from './icons'
 
-export default function AssistantLauncher() {
+export default function AssistantLauncher({ variant = 'fab' }: { variant?: 'fab' | 'toolbar' }) {
   const { t } = useT()
   const { open, togglePanel } = useAssistant()
   const statusQuery = useAssistantStatus()
 
   if (statusQuery.data?.enabled !== true) return null
 
+  const classes = ['assistant-launcher']
+  if (variant === 'toolbar') classes.push('assistant-launcher--toolbar')
+  if (open) classes.push('active')
+
   return (
     <button
       type="button"
-      className={`assistant-launcher${open ? ' active' : ''}`}
+      className={classes.join(' ')}
       onClick={togglePanel}
       aria-label={open ? t.assistantClose : t.assistantOpen}
       aria-expanded={open}
       title={open ? t.assistantClose : t.assistantOpen}
     >
-      <IconSparkles size={20} />
+      <IconSparkles size={variant === 'toolbar' ? 18 : 20} />
     </button>
   )
 }

@@ -9,8 +9,10 @@ import { useInvestmentPortfolio, useConnections } from '../../api/queries'
 import { errorMessage } from '../../api/errors'
 import { useT, langLocale } from '../../i18n'
 import type { Dict } from '../../i18n'
-import { IconLoading, IconAlert, IconChartPie, IconChartLine, IconReceipt, IconBanknote, IconLink, IconChevronUp, IconChevronDown, IconChevronRight } from '../../components/icons'
-import Money, { Private } from '../../components/Money'
+import { IconLoading, IconAlert, IconChartPie, IconChartLine, IconReceipt, IconBanknote, IconLink, IconChevronRight } from '../../components/icons'
+import SortableTh from '../../components/SortableTh'
+import Money, { Percent, Private } from '../../components/Money'
+import CardHeader from '../../components/CardHeader'
 
 const ASSET_CLASS_COLORS: Record<string, string> = {
   equity:       '#2563eb',
@@ -83,7 +85,7 @@ type EvolutionMode   = 'eur' | 'pct'
 type MatrixMode      = 'pct' | 'eur'
 
 export default function IndexaView() {
-  const { t, lang, formatCurrency } = useT()
+  const { t, lang, formatCurrency, formatPercent } = useT()
   const locale = langLocale(lang)
 
   const portfolioQuery = useInvestmentPortfolio()
@@ -220,10 +222,38 @@ export default function IndexaView() {
     }
   }
 
-  function SortArrow({ col }: { col: HoldingsSortCol }) {
-    if (col !== sortCol) return null
-    const Arrow = sortDir === 'asc' ? IconChevronUp : IconChevronDown
-    return <Arrow size={13} className="inv-sort-arrow" />
+  function holdingsHeader(col: HoldingsSortCol, label: string, info?: string) {
+    const showTip = (el: HTMLElement) => {
+      if (!info) return
+      const r = el.getBoundingClientRect()
+      setOpenTip({ text: info, x: r.left + r.width / 2, y: r.top })
+    }
+    return (
+      <SortableTh
+        label={label}
+        active={col === sortCol}
+        direction={sortDir}
+        onSort={() => handleSortClick(col)}
+        className={col === 'name' || col === 'isin' || col === 'class' ? undefined : 'inv-th-num'}
+      >
+        {info && (
+          <>
+            {' '}
+            <button
+              className="inv-info-tip"
+              type="button"
+              aria-label={info}
+              onMouseEnter={e => showTip(e.currentTarget)}
+              onFocus={e => showTip(e.currentTarget)}
+              onMouseLeave={() => setOpenTip(null)}
+              onBlur={() => setOpenTip(null)}
+            >
+              ?
+            </button>
+          </>
+        )}
+      </SortableTh>
+    )
   }
 
   const activeConnection = connections.find(
@@ -280,10 +310,7 @@ export default function IndexaView() {
     ]
     const fmtCell = (v: number | null, mode: MatrixMode): string => {
       if (v == null) return ''
-      if (mode === 'pct') {
-        const s = (v * 100).toFixed(2)
-        return v >= 0 ? `+${s}%` : `${s}%`
-      }
+      if (mode === 'pct') return formatPercent(v, { unit: 'fraction', decimals: 2, signed: true })
       return v >= 0 ? `+${formatCurrency(v)}` : formatCurrency(v)
     }
     const cellCls = (v: number | null, extra = ''): string => {
@@ -296,24 +323,32 @@ export default function IndexaView() {
     const sortedRows = [...portfolio.monthly_returns].sort((a, b) => a.year - b.year)
     return (
       <div className="card returns-matrix-card">
-        <div className="returns-matrix-header">
-          <h3 className="card-title">{t.invMatrixTitle}</h3>
-          <div className="inv-toggle">
-            <button
-              className={`inv-toggle-btn${matrixMode === 'pct' ? ' inv-toggle-btn--active' : ''}`}
-              onClick={() => setMatrixMode('pct')}
-            >{t.invTogglePct}</button>
-            <button
-              className={`inv-toggle-btn${matrixMode === 'eur' ? ' inv-toggle-btn--active' : ''}`}
-              onClick={() => setMatrixMode('eur')}
-            >{t.invToggleEur}</button>
-          </div>
-        </div>
-        <div className="returns-matrix-wrap">
+        <CardHeader
+          className="returns-matrix-header"
+          title={t.invMatrixTitle}
+          action={
+            <div className="inv-toggle">
+              <button
+                type="button"
+                className={`inv-toggle-btn${matrixMode === 'pct' ? ' inv-toggle-btn--active' : ''}`}
+                aria-pressed={matrixMode === 'pct'}
+                onClick={() => setMatrixMode('pct')}
+              >{t.invTogglePct}</button>
+              <button
+                type="button"
+                className={`inv-toggle-btn${matrixMode === 'eur' ? ' inv-toggle-btn--active' : ''}`}
+                aria-pressed={matrixMode === 'eur'}
+                onClick={() => setMatrixMode('eur')}
+              >{t.invToggleEur}</button>
+            </div>
+          }
+        />
+        {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- it scrolls, so keyboard users must be able to focus it */}
+        <section className="returns-matrix-wrap" tabIndex={0} aria-label={t.invMatrixTitle}>
           <table className="returns-matrix">
             <thead>
               <tr>
-                <th></th>
+                <th><span className="sr-only">{t.tableColYear}</span></th>
                 {MONTHS.map((m, i) => <th key={i}>{m}</th>)}
                 <th className="returns-matrix-cell--total">{t.invMatrixTotal}</th>
                 <th className="returns-matrix-cell--bench">{t.invMatrixBenchmark}</th>
@@ -344,13 +379,13 @@ export default function IndexaView() {
               })}
             </tbody>
           </table>
-        </div>
+        </section>
         {portfolio.drawdown && (
           <p className="inv-drawdown-note">
             {(() => {
               const eur = formatCurrency(Math.abs(portfolio.drawdown.max_drawdown_eur))
               const note = t.invDrawdownNote(
-                `${(Math.abs(portfolio.drawdown.max_drawdown) * 100).toFixed(1)}%`,
+                formatPercent(Math.abs(portfolio.drawdown.max_drawdown), { unit: 'fraction' }),
                 eur,
                 new Date(portfolio.drawdown.start_date).toLocaleDateString(locale, { day: '2-digit', month: '2-digit', year: 'numeric' }),
                 new Date(portfolio.drawdown.end_date).toLocaleDateString(locale, { day: '2-digit', month: '2-digit', year: 'numeric' }),
@@ -384,7 +419,7 @@ export default function IndexaView() {
 
         /* ── Empty state ── */
         <div className="card investments-holdings-card">
-          <div className="card-title">{t.investmentsHoldingsTitle}</div>
+          <h2 className="card-title">{t.investmentsHoldingsTitle}</h2>
           <div className="investments-empty">
             <IconChartPie size={30} className="investments-empty__icon" />
             <p className="investments-empty__text">{t.investmentsEmptyHoldings}</p>
@@ -436,7 +471,7 @@ export default function IndexaView() {
                     ? <>
                         <Money value={portfolio!.returns.pl} signed />
                         {portfolio!.returns.money_return != null
-                          ? ` (${portfolio!.returns.money_return >= 0 ? '+' : ''}${new Intl.NumberFormat(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(portfolio!.returns.money_return * 100)} %)`
+                          ? ` (${formatPercent(portfolio!.returns.money_return, { unit: 'fraction', signed: true })})`
                           : ''}
                       </>
                     : '—'}
@@ -454,7 +489,7 @@ export default function IndexaView() {
 
               <div className="inv-summary-row">
                 <span className="inv-summary-label">{t.invSummaryRetenciones}</span>
-                <span className="inv-summary-value inv-summary-value--neg">
+                <span className={`inv-summary-value${portfolio!.returns?.retenciones ? ' inv-summary-value--neg' : ''}`}>
                   {portfolio!.returns?.retenciones != null
                     ? <Private>{formatCurrency(-Math.abs(portfolio!.returns.retenciones))}</Private>
                     : '—'}
@@ -477,7 +512,7 @@ export default function IndexaView() {
                       : 'inv-metric-value--neg'
                   }`}>
                     {portfolio!.returns?.twr_annual != null
-                      ? `${portfolio!.returns.twr_annual >= 0 ? '+' : ''}${new Intl.NumberFormat(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(portfolio!.returns.twr_annual * 100)} %`
+                      ? formatPercent(portfolio!.returns.twr_annual, { unit: 'fraction', signed: true })
                       : '—'}
                   </span>
                 </div>
@@ -495,7 +530,7 @@ export default function IndexaView() {
                       : 'inv-metric-value--neg'
                   }`}>
                     {portfolio!.returns?.xirr != null
-                      ? `${portfolio!.returns.xirr >= 0 ? '+' : ''}${new Intl.NumberFormat(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(portfolio!.returns.xirr * 100)} %`
+                      ? formatPercent(portfolio!.returns.xirr, { unit: 'fraction', signed: true })
                       : '—'}
                   </span>
                 </div>
@@ -509,7 +544,7 @@ export default function IndexaView() {
                   <span className="inv-metric-sublabel">{t.invMetricSubAnnual}</span>
                   <span className="inv-metric-value inv-metric-value--neutral">
                     {portfolio!.returns?.volatility != null
-                      ? `${new Intl.NumberFormat(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(portfolio!.returns.volatility * 100)} %`
+                      ? formatPercent(portfolio!.returns.volatility, { unit: 'fraction' })
                       : '—'}
                   </span>
                 </div>
@@ -526,7 +561,7 @@ export default function IndexaView() {
 
               {/* Donut 1 — Allocation by asset class */}
               <div className="card">
-                <h3 className="card-title">{t.invDonutAssetTitle}</h3>
+                <h2 className="card-title">{t.invDonutAssetTitle}</h2>
                 {allocationData.length === 0 ? (
                   <div className="state-box">
                     <IconChartPie size={18} />
@@ -541,8 +576,8 @@ export default function IndexaView() {
                             data={allocationData}
                             cx="50%"
                             cy="50%"
-                            innerRadius={72}
-                            outerRadius={100}
+                            innerRadius="58%"
+                            outerRadius="80%"
                             dataKey="value"
                             paddingAngle={2}
                           >
@@ -583,9 +618,7 @@ export default function IndexaView() {
                               </td>
                               <td className="cat-td-num"><Money value={item.value} /></td>
                               <td className="cat-td-num cat-td-weight">
-                                {portfolio!.total_value > 0
-                                  ? (item.value / portfolio!.total_value * 100).toFixed(1)
-                                  : '0.0'}%
+                                {formatPercent(portfolio!.total_value > 0 ? item.value / portfolio!.total_value : 0, { unit: 'fraction' })}
                               </td>
                             </tr>
                           ))}
@@ -598,7 +631,7 @@ export default function IndexaView() {
 
               {/* Donut 2 — Allocation by instrument */}
               <div className="card">
-                <h3 className="card-title">{t.invDonutInstrumentTitle}</h3>
+                <h2 className="card-title">{t.invDonutInstrumentTitle}</h2>
                 {instrumentSlices.length === 0 ? (
                   <div className="state-box">
                     <IconChartPie size={18} />
@@ -640,7 +673,7 @@ export default function IndexaView() {
                           <span className="inv-donut-legend-name" title={item.name}>{item.name}</span>
                           <span className="inv-donut-legend-pct">
                             {portfolio!.total_value > 0
-                              ? `${new Intl.NumberFormat(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(item.value / portfolio!.total_value * 100)} %`
+                              ? formatPercent(item.value / portfolio!.total_value, { unit: 'fraction' })
                               : '—'}
                           </span>
                         </div>
@@ -657,46 +690,55 @@ export default function IndexaView() {
           {/* 4. Block 2 — account evolution chart ("Evolución de la cuenta" in Indexa's own UI) */}
           <div className="card inv-evolution-card">
 
-            <div className="inv-evolution-header">
-              <h3 className="card-title">{t.invEvolutionTitle}</h3>
-              <div className="inv-evolution-controls">
-
-                {/* Period selector */}
-                <div className="inv-period-selector">
-                  {FIXED_PERIODS.map(p => (
+            <CardHeader
+              className="inv-evolution-header"
+              title={t.invEvolutionTitle}
+              action={
+                <div className="inv-evolution-controls">
+                  <div className="inv-period-selector">
+                    {FIXED_PERIODS.map(p => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        className={`inv-period-btn${evPeriod === p.id ? ' inv-period-btn--active' : ''}`}
+                        aria-pressed={evPeriod === p.id}
+                        onClick={() => setEvPeriod(p.id)}
+                      >{p.label}</button>
+                    ))}
+                    {evolutionYears.map(y => (
+                      <button
+                        key={y}
+                        type="button"
+                        className={`inv-period-btn${evPeriod === y ? ' inv-period-btn--active' : ''}`}
+                        aria-pressed={evPeriod === y}
+                        onClick={() => setEvPeriod(y)}
+                      >{y}</button>
+                    ))}
                     <button
-                      key={p.id}
-                      className={`inv-period-btn${evPeriod === p.id ? ' inv-period-btn--active' : ''}`}
-                      onClick={() => setEvPeriod(p.id)}
-                    >{p.label}</button>
-                  ))}
-                  {evolutionYears.map(y => (
+                      type="button"
+                      className={`inv-period-btn${evPeriod === 'All' ? ' inv-period-btn--active' : ''}`}
+                      aria-pressed={evPeriod === 'All'}
+                      onClick={() => setEvPeriod('All')}
+                    >{t.invPeriodAll}</button>
+                  </div>
+
+                  <div className="inv-toggle">
                     <button
-                      key={y}
-                      className={`inv-period-btn${evPeriod === y ? ' inv-period-btn--active' : ''}`}
-                      onClick={() => setEvPeriod(y)}
-                    >{y}</button>
-                  ))}
-                  <button
-                    className={`inv-period-btn${evPeriod === 'All' ? ' inv-period-btn--active' : ''}`}
-                    onClick={() => setEvPeriod('All')}
-                  >{t.invPeriodAll}</button>
+                      type="button"
+                      className={`inv-toggle-btn${evMode === 'eur' ? ' inv-toggle-btn--active' : ''}`}
+                      aria-pressed={evMode === 'eur'}
+                      onClick={() => setEvMode('eur')}
+                    >{t.invToggleEur}</button>
+                    <button
+                      type="button"
+                      className={`inv-toggle-btn${evMode === 'pct' ? ' inv-toggle-btn--active' : ''}`}
+                      aria-pressed={evMode === 'pct'}
+                      onClick={() => setEvMode('pct')}
+                    >{t.invTogglePct}</button>
+                  </div>
                 </div>
-
-                {/* €/% toggle */}
-                <div className="inv-toggle">
-                  <button
-                    className={`inv-toggle-btn${evMode === 'eur' ? ' inv-toggle-btn--active' : ''}`}
-                    onClick={() => setEvMode('eur')}
-                  >{t.invToggleEur}</button>
-                  <button
-                    className={`inv-toggle-btn${evMode === 'pct' ? ' inv-toggle-btn--active' : ''}`}
-                    onClick={() => setEvMode('pct')}
-                  >{t.invTogglePct}</button>
-                </div>
-
-              </div>
-            </div>
+              }
+            />
 
             {evolutionData.length === 0 ? (
               <div className="state-box">
@@ -723,7 +765,7 @@ export default function IndexaView() {
                         domain={evolutionDomain}
                         tickFormatter={evMode === 'eur'
                           ? (v: number) => `${(v / 1000).toFixed(0)}k€`
-                          : (v: number) => `${v.toFixed(1)}%`}
+                          : (v: number) => formatPercent(v)}
                         tick={{ fontSize: 11, fill: 'var(--text-muted)' }}
                         axisLine={false}
                         tickLine={false}
@@ -735,7 +777,7 @@ export default function IndexaView() {
                         itemStyle={{ color: 'var(--text)' }}
                         labelFormatter={(label) => formatDDMMYYYY(String(label))}
                         formatter={(value, name) => [
-                          evMode === 'eur' ? formatCurrency(Number(value)) : `${Number(value).toFixed(2)}%`,
+                          evMode === 'eur' ? formatCurrency(Number(value)) : formatPercent(Number(value), { decimals: 2 }),
                           name === 'value' ? t.invLegendPortfolio : t.invLegendContributions,
                         ]}
                       />
@@ -783,10 +825,10 @@ export default function IndexaView() {
 
           {/* 6. Holdings table */}
           <div className="card inv-holdings-card">
-            <div className="card-title card-title--has-action">
-              <span>{t.investmentsHoldingsTitle}</span>
-              <span className="kpi-sub">{portfolio!.holdings.length} {t.invHoldingsCount}</span>
-            </div>
+            <CardHeader
+              title={t.investmentsHoldingsTitle}
+              action={<span className="kpi-sub">{portfolio!.holdings.length} {t.invHoldingsCount}</span>}
+            />
             {portfolio!.holdings.length === 0 ? (
               <div className="state-box">
                 <IconReceipt size={18} />
@@ -797,129 +839,23 @@ export default function IndexaView() {
                 <table className="inv-holdings-table">
                   <thead>
                     <tr>
-                      <th
-                        className={`inv-th-sortable${sortCol === 'name' ? ' inv-th-sort-active' : ''}`}
-                        onClick={() => handleSortClick('name')}
-                        onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && handleSortClick('name')}
-                        tabIndex={0}
-                        role="columnheader"
-                        aria-sort={sortCol === 'name' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
-                      >
-                        {t.invColName}<SortArrow col="name" />
-                      </th>
-                      <th
-                        className={`inv-th-sortable${sortCol === 'isin' ? ' inv-th-sort-active' : ''}`}
-                        onClick={() => handleSortClick('isin')}
-                        onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && handleSortClick('isin')}
-                        tabIndex={0}
-                        role="columnheader"
-                        aria-sort={sortCol === 'isin' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
-                      >
-                        {t.invColISIN}<SortArrow col="isin" />
-                      </th>
-                      <th
-                        className={`inv-th-sortable${sortCol === 'class' ? ' inv-th-sort-active' : ''}`}
-                        onClick={() => handleSortClick('class')}
-                        onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && handleSortClick('class')}
-                        tabIndex={0}
-                        role="columnheader"
-                        aria-sort={sortCol === 'class' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
-                      >
-                        {t.invColClass}<SortArrow col="class" />
-                      </th>
-                      <th
-                        className={`inv-th-num inv-th-sortable${sortCol === 'units' ? ' inv-th-sort-active' : ''}`}
-                        onClick={() => handleSortClick('units')}
-                        onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && handleSortClick('units')}
-                        tabIndex={0}
-                        role="columnheader"
-                        aria-sort={sortCol === 'units' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
-                      >
-                        {t.invColUnits}<SortArrow col="units" />
-                      </th>
-                      <th
-                        className={`inv-th-num inv-th-sortable${sortCol === 'value' ? ' inv-th-sort-active' : ''}`}
-                        onClick={() => handleSortClick('value')}
-                        onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && handleSortClick('value')}
-                        tabIndex={0}
-                        role="columnheader"
-                        aria-sort={sortCol === 'value' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
-                      >
-                        {t.invColValue}<SortArrow col="value" />
-                      </th>
-                      <th
-                        className={`inv-th-num inv-th-sortable${sortCol === 'weight' ? ' inv-th-sort-active' : ''}`}
-                        onClick={() => handleSortClick('weight')}
-                        onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && handleSortClick('weight')}
-                        tabIndex={0}
-                        role="columnheader"
-                        aria-sort={sortCol === 'weight' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
-                      >
-                        {t.invColWeight}<SortArrow col="weight" />
-                      </th>
-                      <th
-                        className={`inv-th-num inv-th-sortable${sortCol === 'cost' ? ' inv-th-sort-active' : ''}`}
-                        onClick={() => handleSortClick('cost')}
-                        onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && handleSortClick('cost')}
-                        tabIndex={0}
-                        role="columnheader"
-                        aria-sort={sortCol === 'cost' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
-                      >
-                        {t.invColCost}<SortArrow col="cost" />
-                      </th>
-                      <th
-                        className={`inv-th-num inv-th-sortable${sortCol === 'pnl' ? ' inv-th-sort-active' : ''}`}
-                        onClick={() => handleSortClick('pnl')}
-                        onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && handleSortClick('pnl')}
-                        tabIndex={0}
-                        role="columnheader"
-                        aria-sort={sortCol === 'pnl' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
-                      >
-                        {t.invColPnL}<SortArrow col="pnl" />
-                        {' '}
-                        <button
-                          className="inv-info-tip"
-                          type="button"
-                          aria-label={t.invColPnLInfo}
-                          onClick={e => e.stopPropagation()}
-                          onMouseEnter={e => { const r = e.currentTarget.getBoundingClientRect(); setOpenTip({ text: t.invColPnLInfo, x: r.left + r.width / 2, y: r.top }) }}
-                          onFocus={e => { const r = e.currentTarget.getBoundingClientRect(); setOpenTip({ text: t.invColPnLInfo, x: r.left + r.width / 2, y: r.top }) }}
-                          onMouseLeave={() => setOpenTip(null)}
-                          onBlur={() => setOpenTip(null)}
-                        >
-                          ?
-                        </button>
-                      </th>
-                      <th
-                        className={`inv-th-num inv-th-sortable${sortCol === 'pnlpct' ? ' inv-th-sort-active' : ''}`}
-                        onClick={() => handleSortClick('pnlpct')}
-                        onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && handleSortClick('pnlpct')}
-                        tabIndex={0}
-                        role="columnheader"
-                        aria-sort={sortCol === 'pnlpct' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
-                      >
-                        {t.invColPnLPct}<SortArrow col="pnlpct" />
-                        {' '}
-                        <button
-                          className="inv-info-tip"
-                          type="button"
-                          aria-label={t.invColPnLPctInfo}
-                          onClick={e => e.stopPropagation()}
-                          onMouseEnter={e => { const r = e.currentTarget.getBoundingClientRect(); setOpenTip({ text: t.invColPnLPctInfo, x: r.left + r.width / 2, y: r.top }) }}
-                          onFocus={e => { const r = e.currentTarget.getBoundingClientRect(); setOpenTip({ text: t.invColPnLPctInfo, x: r.left + r.width / 2, y: r.top }) }}
-                          onMouseLeave={() => setOpenTip(null)}
-                          onBlur={() => setOpenTip(null)}
-                        >
-                          ?
-                        </button>
-                      </th>
+                      {holdingsHeader('name', t.invColName)}
+                      {holdingsHeader('isin', t.invColISIN)}
+                      {holdingsHeader('class', t.invColClass)}
+                      {holdingsHeader('units', t.invColUnits)}
+                      {holdingsHeader('value', t.invColValue)}
+                      {holdingsHeader('weight', t.invColWeight)}
+                      {holdingsHeader('cost', t.invColCost)}
+                      {holdingsHeader('pnl', t.invColPnL, t.invColPnLInfo)}
+                      {holdingsHeader('pnlpct', t.invColPnLPct, t.invColPnLPctInfo)}
                     </tr>
                   </thead>
                   <tbody>
                     {sortedHoldings.map(h => {
-                      const weight = portfolio!.total_value > 0
-                        ? (h.current_value / portfolio!.total_value * 100).toFixed(1)
-                        : '0.0'
+                      const weight = formatPercent(
+                        portfolio!.total_value > 0 ? h.current_value / portfolio!.total_value : 0,
+                        { unit: 'fraction' },
+                      )
                       const isPos = h.gain_loss >= 0
                       const fmtUnits = new Intl.NumberFormat(locale, {
                         minimumFractionDigits: 2,
@@ -936,13 +872,13 @@ export default function IndexaView() {
                           </td>
                           <td className="inv-td-num"><Private>{fmtUnits}</Private></td>
                           <td className="inv-td-num"><Money value={h.current_value} /></td>
-                          <td className="inv-td-weight">{weight}%</td>
+                          <td className="inv-td-weight">{weight}</td>
                           <td className="inv-td-num"><Money value={h.cost_basis} /></td>
                           <td className={`inv-td-num ${isPos ? 'inv-pnl--pos' : 'inv-pnl--neg'}`}>
                             <Money value={h.gain_loss} signed />
                           </td>
                           <td className={`inv-td-num ${isPos ? 'inv-pnl--pos' : 'inv-pnl--neg'}`}>
-                            {isPos ? '+' : ''}{(h.gain_loss_pct * 100).toFixed(2)}%
+                            <Percent value={h.gain_loss_pct} unit="fraction" signed decimals={2} />
                           </td>
                         </tr>
                       )
@@ -957,14 +893,15 @@ export default function IndexaView() {
             const events = [...(portfolio?.contribution_events ?? [])].reverse()
             return (
               <div className="card inv-holdings-card">
-                <div className="card-title">{t.invContribTableTitle}</div>
+                <h2 className="card-title">{t.invContribTableTitle}</h2>
                 {events.length === 0 ? (
                   <div className="state-box">
                     <IconBanknote size={18} />
                     <span>{t.invContribEmpty}</span>
                   </div>
                 ) : (
-                  <div className="inv-holdings-table-wrap">
+                  // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- it scrolls, so keyboard users must be able to focus it
+                  <section className="inv-holdings-table-wrap" tabIndex={0} aria-label={t.invContribTableTitle}>
                     <table className="inv-holdings-table">
                       <thead>
                         <tr>
@@ -994,7 +931,7 @@ export default function IndexaView() {
                         })}
                       </tbody>
                     </table>
-                  </div>
+                  </section>
                 )}
               </div>
             )

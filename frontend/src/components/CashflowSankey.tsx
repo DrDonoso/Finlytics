@@ -126,7 +126,7 @@ export default function CashflowSankey({ data, loading, error, categories, selec
     const isDimmed    = selectedCategoryId !== undefined && isClickable && !isSelected
 
     // Node fill using CSS vars (interpreted by the browser during paint)
-    const nodeColor = isIncome ? 'var(--income)' : isCenter ? 'var(--primary)' : 'var(--expense)'
+    const nodeColor = isIncome ? 'var(--income-fill)' : isCenter ? 'var(--primary)' : 'var(--expense-fill)'
 
     // Label positioning
     const onRight     = payload.type === 'expense'
@@ -230,7 +230,7 @@ export default function CashflowSankey({ data, loading, error, categories, selec
 
   return (
     <div className="card cashflow-card">
-      <div className="card-title">{t.chartCashflow}</div>
+      <h2 className="card-title">{t.chartCashflow}</h2>
 
       {error && (
         <div className="state-box error">

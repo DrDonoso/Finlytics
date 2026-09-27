@@ -311,7 +311,7 @@
   .toast {
     left: 12px;
     right: 12px;
-    bottom: 16px;
+    bottom: calc(16px + var(--chrome-bottom));
     max-width: none;
   }
 }
@@ -436,11 +436,9 @@
   white-space: nowrap;
 }
 
-.tx-filters-btn:hover,
-.tx-filters-btn:focus-visible {
+.tx-filters-btn:hover {
   border-color: var(--primary);
   color: var(--primary);
-  outline: none;
 }
 
 .tx-filters-btn[aria-expanded="true"] {
@@ -1091,7 +1089,7 @@
 /* ── Rule created toast ──────────────────────────────────────────────── */
 .rule-toast {
   position: fixed;
-  bottom: 28px;
+  bottom: calc(28px + var(--chrome-bottom));
   left: 50%;
   transform: translateX(-50%);
   z-index: 1200;
@@ -1118,7 +1116,7 @@
   .rule-toast {
     left: 12px;
     right: 12px;
-    bottom: 16px;
+    bottom: calc(16px + var(--chrome-bottom));
     transform: none;
     max-width: none;
     text-align: left;

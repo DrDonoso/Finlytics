@@ -23,7 +23,7 @@ export default function SpendingByAccount({ data, loading, error, selectedFlow, 
 
   return (
     <div className="card byaccount-card">
-      <div className="card-title">{t.chartByAccount}</div>
+      <h2 className="card-title">{t.chartByAccount}</h2>
 
       {error && (
         <div className="state-box error">
@@ -87,7 +87,7 @@ export default function SpendingByAccount({ data, loading, error, selectedFlow, 
             />
             <Bar
               dataKey="expense"
-              fill="var(--expense)"
+              fill="var(--expense-fill)"
               radius={[0, 4, 4, 0]}
               maxBarSize={32}
               cursor="pointer"
@@ -96,7 +96,7 @@ export default function SpendingByAccount({ data, loading, error, selectedFlow, 
             />
             <Bar
               dataKey="income"
-              fill="var(--income)"
+              fill="var(--income-fill)"
               radius={[0, 4, 4, 0]}
               maxBarSize={32}
               cursor="pointer"

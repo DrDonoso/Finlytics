@@ -45,7 +45,7 @@ function todayYM(): { y: number; m: number } {
 // ─── KPI delta badge for month-over-month comparison ─────────────────────────
 
 function TxDeltaBadge({ delta, invert, neutral }: { delta: DeltaResult | null; invert?: boolean; neutral?: boolean }) {
-  const { t } = useT()
+  const { t, formatPercent } = useT()
   if (!delta) return null
   if (delta.isNew) return <span className="header-kpi-delta header-kpi-delta-neutral">{t.stmtsDeltaNew}</span>
   if (delta.pct === null) return null
@@ -53,8 +53,7 @@ function TxDeltaBadge({ delta, invert, neutral }: { delta: DeltaResult | null; i
   const cls = neutral || delta.abs === 0
     ? 'header-kpi-delta-neutral'
     : (invert ? !isUp : isUp) ? 'header-kpi-delta-good' : 'header-kpi-delta-bad'
-  const sign  = isUp ? '+' : ''
-  return <span className={`header-kpi-delta ${cls}`}><TrendArrow value={delta.abs} /> {sign}{delta.pct.toFixed(1)}%</span>
+  return <span className={`header-kpi-delta ${cls}`}><TrendArrow value={delta.abs} /> {formatPercent(delta.pct, { signed: true })}</span>
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -266,6 +265,7 @@ export default function StatementsPage() {
       }}
     >
       {/* ── Account selector + Import button ──────────────────── */}
+      <h1 className="sr-only">{t.navStatements}</h1>
       <div className="stmts-account-bar">
         {accounts.length > 1 && (
           <>

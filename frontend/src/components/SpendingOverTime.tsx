@@ -31,7 +31,7 @@ export default function SpendingOverTime({ data, loading, error, selectedFlow, o
 
   return (
     <div className="card overtime-card">
-      <div className="card-title">{t.chartOverTime}</div>
+      <h2 className="card-title">{t.chartOverTime}</h2>
 
       {error && (
         <div className="state-box error">
@@ -86,7 +86,7 @@ export default function SpendingOverTime({ data, loading, error, selectedFlow, o
             />
             <Bar
               dataKey="expense"
-              fill="var(--expense)"
+              fill="var(--expense-fill)"
               radius={[4, 4, 0, 0]}
               maxBarSize={60}
               cursor="pointer"
@@ -95,7 +95,7 @@ export default function SpendingOverTime({ data, loading, error, selectedFlow, o
             />
             <Bar
               dataKey="income"
-              fill="var(--income)"
+              fill="var(--income-fill)"
               radius={[4, 4, 0, 0]}
               maxBarSize={60}
               cursor="pointer"

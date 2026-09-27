@@ -288,8 +288,9 @@ export default function RuleFormModal({
               </div>
               <div className="rules-form-grid">
                 <div className="rules-field-group rules-span-2">
-                  <label className="rules-label">{t.rulesFieldName} *</label>
+                  <label htmlFor="rfm-name" className="rules-label">{t.rulesFieldName} *</label>
                   <input
+                    id="rfm-name"
                     type="text"
                     className="form-input"
                     value={form.name}
@@ -300,8 +301,9 @@ export default function RuleFormModal({
                   />
                 </div>
                 <div className="rules-field-group">
-                  <label className="rules-label">{t.rulesFieldPriority}</label>
+                  <label htmlFor="rfm-priority" className="rules-label">{t.rulesFieldPriority}</label>
                   <input
+                    id="rfm-priority"
                     type="number"
                     className="form-input"
                     value={form.priority}
@@ -331,13 +333,15 @@ export default function RuleFormModal({
 
               {/* Sub-block: Title / description (required) */}
               <div className="rules-condition-block">
-                <div className="rules-condition-label">
+                <div id="rfm-title-heading" className="rules-condition-label">
                   {t.rulesConditionTitle} <span className="rules-required">*</span>
                 </div>
                 <div className="rules-form-grid">
                   <div className="rules-field-group">
-                    <label className="rules-label">{t.rulesFieldDescMode}</label>
+                    <label htmlFor="rfm-desc-mode" className="rules-label">{t.rulesFieldDescMode}</label>
                     <select
+                      id="rfm-desc-mode"
+                      aria-describedby="rfm-title-heading"
                       className="form-input"
                       value={form.description_mode}
                       onChange={e => patchForm('description_mode', e.target.value as DescriptionMode)}
@@ -350,8 +354,10 @@ export default function RuleFormModal({
                     </select>
                   </div>
                   <div className="rules-field-group">
-                    <label className="rules-label">{t.rulesFieldDescValue} *</label>
+                    <label htmlFor="rfm-desc-value" className="rules-label">{t.rulesFieldDescValue} *</label>
                     <input
+                      id="rfm-desc-value"
+                      aria-describedby="rfm-title-heading"
                       type="text"
                       className="form-input"
                       value={form.description_value}
@@ -365,11 +371,13 @@ export default function RuleFormModal({
 
               {/* Sub-block: Detail (optional inset card) */}
               <div className="rules-optional-block">
-                <div className="rules-condition-label">{t.rulesFieldDetailLabel}</div>
+                <div id="rfm-detail-heading" className="rules-condition-label">{t.rulesFieldDetailLabel}</div>
                 <div className="rules-form-grid">
                   <div className="rules-field-group">
-                    <label className="rules-label">{t.rulesFieldDescMode}</label>
+                    <label htmlFor="rfm-detail-mode" className="rules-label">{t.rulesFieldDescMode}</label>
                     <select
+                      id="rfm-detail-mode"
+                      aria-describedby="rfm-detail-heading"
                       className="form-input"
                       value={form.detail_mode}
                       onChange={e => patchForm('detail_mode', e.target.value as DescriptionMode)}
@@ -382,8 +390,10 @@ export default function RuleFormModal({
                     </select>
                   </div>
                   <div className="rules-field-group">
-                    <label className="rules-label">{t.rulesFieldDescValue}</label>
+                    <label htmlFor="rfm-detail-value" className="rules-label">{t.rulesFieldDescValue}</label>
                     <input
+                      id="rfm-detail-value"
+                      aria-describedby="rfm-detail-heading"
                       type="text"
                       className="form-input"
                       value={form.detail_value}
@@ -401,8 +411,9 @@ export default function RuleFormModal({
                 <div className="rules-condition-label">{t.rulesConditionFilters}</div>
                 <div className="rules-form-grid">
                   <div className="rules-field-group">
-                    <label className="rules-label">{t.rulesFieldAmountSign}</label>
+                    <label htmlFor="rfm-amount-sign" className="rules-label">{t.rulesFieldAmountSign}</label>
                     <select
+                      id="rfm-amount-sign"
                       className="form-input"
                       value={form.amount_sign ?? ''}
                       onChange={e => patchForm('amount_sign', (e.target.value || null) as AmountSign | null)}
@@ -414,8 +425,9 @@ export default function RuleFormModal({
                     </select>
                   </div>
                   <div className="rules-field-group">
-                    <label className="rules-label">{t.rulesFieldAmountMin}</label>
+                    <label htmlFor="rfm-amount-min" className="rules-label">{t.rulesFieldAmountMin}</label>
                     <input
+                      id="rfm-amount-min"
                       type="number"
                       className="form-input"
                       value={form.amount_min}
@@ -427,8 +439,9 @@ export default function RuleFormModal({
                     />
                   </div>
                   <div className="rules-field-group">
-                    <label className="rules-label">{t.rulesFieldAmountMax}</label>
+                    <label htmlFor="rfm-amount-max" className="rules-label">{t.rulesFieldAmountMax}</label>
                     <input
+                      id="rfm-amount-max"
                       type="number"
                       className="form-input"
                       value={form.amount_max}
@@ -441,8 +454,9 @@ export default function RuleFormModal({
                     <span className="rules-field-hint">{t.rulesFieldAmountHint}</span>
                   </div>
                   <div className="rules-field-group">
-                    <label className="rules-label">{t.rulesFieldAccount}</label>
+                    <label htmlFor="rfm-account" className="rules-label">{t.rulesFieldAccount}</label>
                     <input
+                      id="rfm-account"
                       type="text"
                       className="form-input"
                       value={form.account_ref}
@@ -452,8 +466,9 @@ export default function RuleFormModal({
                     />
                   </div>
                   <div className="rules-field-group">
-                    <label className="rules-label">{t.rulesFieldCurrency}</label>
+                    <label htmlFor="rfm-currency" className="rules-label">{t.rulesFieldCurrency}</label>
                     <input
+                      id="rfm-currency"
                       type="text"
                       className="form-input"
                       value={form.currency}
@@ -483,11 +498,12 @@ export default function RuleFormModal({
             <div className="rules-section" style={open.actions ? undefined : { display: 'none' }}>
               <div className="rules-form-grid">
                 <div className="rules-field-group rules-span-2">
-                  <label className="rules-label">
+                  <label htmlFor="rfm-category" className="rules-label">
                     {t.rulesFieldCategory}
                     {form.skip_ai && <span className="rules-required"> *</span>}
                   </label>
                   <CategorySelect
+                    id="rfm-category"
                     value={form.set_category}
                     baseCategories={baseCategories}
                     extraCategories={extraCategories}
@@ -497,8 +513,9 @@ export default function RuleFormModal({
                   />
                 </div>
                 <div className="rules-field-group">
-                  <label className="rules-label">{t.rulesFieldMerchant}</label>
+                  <label htmlFor="rfm-merchant" className="rules-label">{t.rulesFieldMerchant}</label>
                   <input
+                    id="rfm-merchant"
                     type="text"
                     className="form-input"
                     value={form.set_merchant}
@@ -508,7 +525,7 @@ export default function RuleFormModal({
                   />
                 </div>
                 <div className="rules-field-group">
-                  <label className="rules-label">{t.rulesFieldSkipAi}</label>
+                  <label htmlFor="rfm-skip-ai" className="rules-label">{t.rulesFieldSkipAi}</label>
                   <div className="rules-toggle-row">
                     <input
                       type="checkbox"
@@ -519,14 +536,15 @@ export default function RuleFormModal({
                       disabled={saving}
                     />
                     <label htmlFor="rfm-skip-ai" className="rules-toggle-label">
-                      {form.skip_ai ? <IconCheck size={14} /> : '—'}
+                      <span aria-hidden="true">{form.skip_ai ? <IconCheck size={14} /> : '—'}</span>
                     </label>
                   </div>
                   <span className="rules-field-hint">{t.rulesFieldSkipAiHint}</span>
                 </div>
                 <div className="rules-field-group rules-span-2">
-                  <label className="rules-label">{t.rulesFieldTags}</label>
+                  <label htmlFor="rfm-tags" className="rules-label">{t.rulesFieldTags}</label>
                   <TagTypeahead
+                    inputId="rfm-tags"
                     tags={form.add_tags}
                     availableTags={availableTags}
                     suggestedColors={{}}

@@ -7,7 +7,7 @@ import { IconAlert, IconClose } from './icons'
 import DatePicker from './DatePicker'
 import { IS_DEMO } from '../demo/config'
 import { useT } from '../i18n'
-import { Private } from './Money'
+import { Percent, Private } from './Money'
 
 interface Props {
   mortgageId: number
@@ -158,7 +158,7 @@ export default function MortgagePrepaymentSimulator({ mortgageId, onClose, onApp
                 <div className="mortgage-sim__headline-item">
                   <span className="mortgage-sim__key">{t.mortgageSimImpliedReturn}</span>
                   <span className="mortgage-sim__value">
-                    {result.implied_annual_return == null ? '—' : `${result.implied_annual_return.toFixed(2)} %`}
+                    <Percent value={result.implied_annual_return} decimals={2} />
                   </span>
                 </div>
               </div>
@@ -166,7 +166,7 @@ export default function MortgagePrepaymentSimulator({ mortgageId, onClose, onApp
               <table className="cat-table mortgage-sim__table">
                 <thead>
                   <tr>
-                    <th className="cat-th-name" />
+                    <th className="cat-th-name"><span className="sr-only">{t.tableColConcept}</span></th>
                     <th className="cat-th-num">{t.mortgageSimBefore}</th>
                     <th className="cat-th-num">{t.mortgageSimAfter}</th>
                   </tr>

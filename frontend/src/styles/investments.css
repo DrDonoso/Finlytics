@@ -564,13 +564,13 @@
 /* Charts row — value chart (wider) + allocation donut (narrower) */
 .inv-charts-row {
   display: grid;
-  grid-template-columns: 3fr 2fr;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
   gap: 20px;
   align-items: stretch;
   min-width: 0;
 }
 @media (max-width: 900px) {
-  .inv-charts-row { grid-template-columns: 1fr; }
+  .inv-charts-row { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* Chart card — extends .card; flex-column for title + content */
@@ -619,13 +619,8 @@
   background: var(--bg);
 }
 .inv-holdings-table thead th.inv-th-num { text-align: right; }
-.inv-holdings-table thead th.inv-th-sortable {
-  cursor: pointer;
-  user-select: none;
-  transition: color 0.15s;
-}
-.inv-holdings-table thead th.inv-th-sortable:hover { color: var(--text); }
-.inv-holdings-table thead th.inv-th-sort-active { color: var(--text); }
+.inv-holdings-table thead th.th-sortable:hover,
+.inv-holdings-table thead th.th-sort-active { color: var(--text); }
 .inv-holdings-table tbody tr {
   border-bottom: 1px solid var(--border);
   transition: background 0.1s;
@@ -866,16 +861,16 @@
    Author: Wanda · 2026-07-14 · Vision contract: wanda-investments-redesign.md
    ═══════════════════════════════════════════════════════════════════════ */
 
-/* ── Top row: Block 1 (summary card) + allocation donut — equal halves ── */
+/* ── Top row: Block 1 (summary card) + allocation donuts ──────────────── */
+/* Sized by the content box, not the viewport: with the 240px sidebar a    */
+/* viewport breakpoint left each donut card a quarter of the page and      */
+/* clipped its table. Below 2 × 520px the donuts move under the summary.   */
 .inv-top-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 520px), 1fr));
   gap: 20px;
   align-items: start;      /* cards sit at natural height — no empty-space stretching */
   min-width: 0;
-}
-@media (max-width: 900px) {
-  .inv-top-row { grid-template-columns: 1fr; }
 }
 
 /* ── Block 1 — Summary card ───────────────────────────────────────────── */
@@ -970,9 +965,8 @@
 
 /* Optional second line — "anualizada", "TIR", etc. */
 .inv-metric-sublabel {
-  font-size: 9px;
+  font-size: var(--text-2xs);
   color: var(--text-muted);
-  opacity: 0.65;
   line-height: 1.1;
   white-space: nowrap;
 }
@@ -1052,14 +1046,9 @@
 
 /* Header row: title left, controls (period selector + toggle) right */
 .inv-evolution-header {
-  display: flex;
   align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-bottom: 12px;
+  margin-bottom: var(--space-3);
 }
-.inv-evolution-header .card-title { margin-bottom: 0; }
 
 /* Period + toggle grouped together */
 .inv-evolution-controls {
@@ -1111,15 +1100,7 @@
 .returns-matrix-card .state-box { min-height: 200px; }
 
 /* Card header: title + €/% toggle */
-.returns-matrix-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-bottom: 12px;
-}
-.returns-matrix-header .card-title { margin-bottom: 0; }
+.returns-matrix-header { margin-bottom: var(--space-3); }
 
 /* Horizontal scroll on narrow screens (≤720px content) */
 .returns-matrix-wrap {
@@ -1248,22 +1229,42 @@
 }
 
 /* ── Two-donut row: left = asset-class donut, right = instrument donut ── */
-/* Replaces the single .inv-chart-card--allocation in the right cell of   */
-/* .inv-top-row — Vision wraps BOTH cards in this grid container.         */
+/* Shared with the landing and mortgage pages, which keep the fixed pair. */
 .inv-donuts-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 12px;
   min-width: 0;
 }
 /* On tablet/mobile each donut becomes full-width */
 @media (max-width: 900px) {
-  .inv-donuts-row { grid-template-columns: 1fr; }
+  .inv-donuts-row { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* Donut cards inside the row — ensure they don't stretch beyond their content */
 .inv-donuts-row > .card {
   min-width: 0;
+}
+
+/* Indexa: a donut card never gets narrower than its table needs, and puts
+   the table beside the ring whenever both fit — wrapping, not clipping. */
+.inv-top-row > .inv-donuts-row {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+}
+.inv-top-row .inv-donuts-row .cat-chart-layout {
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.inv-top-row .inv-donuts-row .cat-table-wrap {
+  flex: 1 1 auto;
+  width: max-content;
+  align-self: center;
+}
+.inv-top-row .inv-donuts-row .inv-donut-compact-legend {
+  flex: 1 1 260px;
+  align-self: center;
+  margin-top: 0;
 }
 
 /* ── Compact legend for instrument donut (~10 items) ─────────────────── */
@@ -1331,9 +1332,9 @@
 /* as the FIRST child of .inv-top-row (replacing the bare summary card).*/
 /* The matrix fills the empty gap below the summary card on wide         */
 /* screens. .returns-matrix-wrap already has overflow-x: auto so the    */
-/* 15-col table scrolls horizontally in the ~half-viewport column.      */
-/* On mobile (≤900px) .inv-top-row stacks to 1fr and .inv-left-col       */
-/* becomes full-width — no extra rules needed.                           */
+/* 15-col table scrolls horizontally in the ~half-width column.         */
+/* When .inv-top-row drops to one column, .inv-left-col becomes          */
+/* full-width — no extra rules needed.                                   */
 .inv-left-col {
   display: flex;
   flex-direction: column;
@@ -1402,6 +1403,12 @@
 .inv-info-tip:focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: 2px;
+}
+/* The glyph stays small; the hit area grows to 24px (WCAG 2.5.8). */
+.inv-info-tip::after {
+  content: '';
+  position: absolute;
+  inset: -5px;
 }
 
 /* Tooltip bubble — hidden by default */

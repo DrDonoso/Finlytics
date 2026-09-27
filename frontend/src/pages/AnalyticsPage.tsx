@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react'
-import type { GlobalFilters, SummaryParams } from '../api/types'
+import { useMemo } from 'react'
+import type { SummaryParams } from '../api/types'
 import {
   useAccounts, useCategories, useTags,
   useByMonth, useByAccount, useCashflow,
@@ -11,14 +11,11 @@ import SpendingByAccount from '../components/SpendingByAccount'
 import CashflowSankey from '../components/CashflowSankey'
 import { useT } from '../i18n'
 import { defaultRange } from '../utils'
-
-function makeDefaultFilters(): GlobalFilters {
-  return { ...defaultRange(), tags: [] }
-}
+import { useUrlFilters } from '../hooks/useUrlFilters'
 
 export default function AnalyticsPage() {
   const { t } = useT()
-  const [filters, setFilters] = useState<GlobalFilters>(makeDefaultFilters)
+  const { filters, setFilters, defaults } = useUrlFilters(defaultRange)
 
   const EMPTY: never[] = useMemo(() => [], [])
   const accounts   = useAccounts().data   ?? EMPTY
@@ -58,11 +55,12 @@ export default function AnalyticsPage() {
       </div>
       <GlobalFilterBar
         filters={filters}
+        defaults={defaults}
         accounts={accounts}
         categories={categories}
         tags={allTags}
         onChange={setFilters}
-        onClear={() => setFilters(makeDefaultFilters())}
+        onClear={() => setFilters({ ...defaults, tags: [] })}
       />
 
       <div className="charts-row">

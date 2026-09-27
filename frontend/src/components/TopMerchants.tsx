@@ -21,7 +21,7 @@ interface Props {
 }
 
 export default function TopMerchants({ globalFilters, selectedMerchant, onMerchantClick, periodTotalExpense }: Props) {
-  const { t, formatCurrency } = useT()
+  const { t, formatCurrency, formatPercent } = useT()
 
   // byMerchant: pass category_id + day (+ from/to/account_id/tags/flow). Do NOT pass merchant.
   const params = useMemo(() => ({
@@ -51,7 +51,7 @@ export default function TopMerchants({ globalFilters, selectedMerchant, onMercha
 
   return (
     <div className="card merchants-card">
-      <div className="card-title">{t.topMerchantsTitle}</div>
+      <h2 className="card-title">{t.topMerchantsTitle}</h2>
 
       {error && (
         <div className="state-box error">
@@ -122,7 +122,7 @@ export default function TopMerchants({ globalFilters, selectedMerchant, onMercha
               <span className="cat-donut-total private">{formatCurrency(total)}</span>
               {!selectedMerchant && periodTotalExpense != null && periodTotalExpense > 0 && (
                 <span className="cat-donut-coverage">
-                  {t.merchantCoverage(Math.max(0, Math.min(100, Math.round(total / periodTotalExpense * 100))))}
+                  {t.merchantCoverage(formatPercent(Math.max(0, Math.min(1, total / periodTotalExpense)), { unit: 'fraction', decimals: 0 }))}
                 </span>
               )}
             </div>
@@ -143,24 +143,30 @@ export default function TopMerchants({ globalFilters, selectedMerchant, onMercha
               <tbody>
                 {sorted.map((item, i) => {
                   const color = FALLBACK_COLORS[i % FALLBACK_COLORS.length]
-                  const weight = total > 0 ? (item.amount / total * 100).toFixed(1) : '0.0'
+                  const weight = formatPercent(total > 0 ? item.amount / total : 0, { unit: 'fraction' })
                   const isSelected = selectedMerchant === item.merchant
                   const isDimmed = hasSelection && !isSelected
+                  const toggle = () => onMerchantClick(isSelected ? undefined : item.merchant)
                   return (
                     <tr
                       key={item.merchant}
                       className={`cat-row${isSelected ? ' cat-row-selected' : ''}`}
                       style={{ opacity: isDimmed ? 0.38 : 1 }}
-                      onClick={() => onMerchantClick(isSelected ? undefined : item.merchant)}
+                      onClick={toggle}
                     >
                       <td className="cat-td-name">
-                        <div className="cat-td-name-inner">
+                        <button
+                          type="button"
+                          className="cat-td-name-inner cat-row-btn"
+                          aria-pressed={isSelected}
+                          onClick={event => { event.stopPropagation(); toggle() }}
+                        >
                           <span className="cat-swatch" style={{ background: color }} />
                           <span className="cat-td-label">{item.merchant}</span>
-                        </div>
+                        </button>
                       </td>
                       <td className="cat-td-num private">{formatCurrency(item.amount)}</td>
-                      <td className="cat-td-num cat-td-weight">{weight}%</td>
+                      <td className="cat-td-num cat-td-weight">{weight}</td>
                     </tr>
                   )
                 })}

@@ -98,11 +98,12 @@ describe('computeDelta', () => {
     expect(computeDelta(100, undefined)).toBeNull()
   })
 
-  it('handles a negative baseline correctly', () => {
-    // Going from -100 to -50 means spending less, so the absolute delta is positive.
+  it('keeps the percentage sign in step with the absolute delta on a negative baseline', () => {
+    // Going from -100 to -50 is an improvement: dividing by the signed baseline printed "+50 € (-50 %)".
     const delta = computeDelta(-50, -100)
     expect(delta?.abs).toBe(50)
-    expect(delta?.pct).toBe(-50)
+    expect(delta?.pct).toBe(50)
+    expect(computeDelta(-150, -100)?.pct).toBe(-50)
   })
 })
 

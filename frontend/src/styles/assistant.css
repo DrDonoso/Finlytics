@@ -29,6 +29,19 @@
 .assistant-launcher:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
 .assistant-launcher.active { transform: scale(0.94); }
 
+/* Compact layouts: the bottom nav owns the lower edge, so the launcher moves
+   into the top bar instead of floating over content. */
+.assistant-launcher--toolbar {
+  position: static;
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  border-radius: 8px;
+  box-shadow: none;
+}
+.assistant-launcher--toolbar:hover { transform: none; filter: brightness(1.08); }
+.assistant-launcher--toolbar:focus-visible { outline-offset: 2px; }
+
 @media (prefers-reduced-motion: reduce) {
   .assistant-launcher { transition: none; }
   .assistant-launcher:hover { transform: none; }

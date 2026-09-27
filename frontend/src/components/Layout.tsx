@@ -13,6 +13,7 @@ import PageLoading from './PageLoading'
 import RouteErrorBoundary from './RouteErrorBoundary'
 import { BrandMark } from './Brand'
 import { IS_DEMO } from '../demo/config'
+import { useIsCompactNav } from '../hooks/useMediaQuery'
 import {
   IconMenu, IconHome, IconWallet, IconReceipt, IconChartLine, IconFileText,
   IconTrendingUp, IconSettings, IconChevronDown, IconUser, IconLogout,
@@ -20,6 +21,7 @@ import {
 } from './icons'
 
 const LS_COLLAPSED = 'finlytics_sidebar_collapsed'
+const SIDEBAR_ID = 'app-sidebar'
 
 function storedCollapsed(): boolean {
   try { return localStorage.getItem(LS_COLLAPSED) === '1' } catch { return false }
@@ -30,6 +32,7 @@ export default function Layout() {
   const { username, onLogout } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
+  const compactNav = useIsCompactNav()
 
   const [mobileOpen, setMobileOpen] = useState(false)
   const [desktopCollapsed, setDesktopCollapsed] = useState(storedCollapsed)
@@ -73,6 +76,13 @@ export default function Layout() {
   // Close mobile sidebar when route changes
   useEffect(() => { setMobileOpen(false) }, [location.pathname])
 
+  useEffect(() => {
+    if (!mobileOpen) return
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') setMobileOpen(false) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [mobileOpen])
+
   function toggleDesktop() {
     setDesktopCollapsed(prev => {
       const next = !prev
@@ -85,6 +95,10 @@ export default function Layout() {
     return `sidebar-nav-link${isActive ? ' active' : ''}`
   }
 
+  function bottomNavClass(active: boolean) {
+    return `bottom-nav-item${active ? ' active' : ''}`
+  }
+
   return (
     <div className="app-shell">
       {/* ── Sticky top bar (always visible) ─────────────────── */}
@@ -92,13 +106,15 @@ export default function Layout() {
         <button
           className="hamburger-btn"
           onClick={() => {
-            if (window.innerWidth < 768) {
+            if (compactNav) {
               setMobileOpen(v => !v)
             } else {
               toggleDesktop()
             }
           }}
-          aria-label="Toggle navigation"
+          aria-label={t.navToggle}
+          aria-controls={SIDEBAR_ID}
+          aria-expanded={compactNav ? mobileOpen : !desktopCollapsed}
           type="button"
         >
           <span className="hamburger-icon"><IconMenu size={18} /></span>
@@ -108,6 +124,7 @@ export default function Layout() {
           <span className="topbar-logo">Finlytics</span>
         </Link>
         <div className="topbar-actions">
+          {compactNav && <AssistantLauncher variant="toolbar" />}
           <PrivacyToggle />
           <NotificationBell />
         </div>
@@ -124,6 +141,7 @@ export default function Layout() {
 
       {/* ── Sidebar ─────────────────────────────────────────── */}
       <aside
+        id={SIDEBAR_ID}
         className={[
           'sidebar',
           mobileOpen ? 'mobile-open' : '',
@@ -213,9 +231,9 @@ export default function Layout() {
                       className={navLinkClass}
                     >
                       {getPluginLogo(conn.plugin_id) ? (
-                        <img src={getPluginLogo(conn.plugin_id) ?? ''} alt={entry.name} className="nav-icon plugin-logo nav-plugin-logo" />
+                        <img src={getPluginLogo(conn.plugin_id) ?? ''} alt="" className="nav-icon plugin-logo nav-plugin-logo" />
                       ) : (
-                        <span className="nav-icon plugin-logo-fallback nav-plugin-logo" aria-label={entry.name}>{pluginInitial(entry.name)}</span>
+                        <span className="nav-icon plugin-logo-fallback nav-plugin-logo" aria-hidden="true">{pluginInitial(entry.name)}</span>
                       )}
                       <span className="nav-label">{entry.name}</span>
                     </NavLink>
@@ -376,9 +394,40 @@ export default function Layout() {
         </RouteErrorBoundary>
       </div>
 
+      {compactNav && (
+        <nav className="bottom-nav" aria-label={t.navPrimary}>
+          <NavLink to="/" end className={({ isActive }) => bottomNavClass(isActive)}>
+            <IconHome size={20} />
+            <span>{t.navHome}</span>
+          </NavLink>
+          <NavLink to="/finances" className={() => bottomNavClass(isOnFinances)}>
+            <IconWallet size={20} />
+            <span>{t.navFinances}</span>
+          </NavLink>
+          <NavLink to="/investments" className={() => bottomNavClass(isOnInvestments)}>
+            <IconTrendingUp size={20} />
+            <span>{t.navInvestments}</span>
+          </NavLink>
+          <NavLink to="/mortgage" className={({ isActive }) => bottomNavClass(isActive)}>
+            <IconBuilding size={20} />
+            <span>{t.navMortgage}</span>
+          </NavLink>
+          <button
+            type="button"
+            className={bottomNavClass(mobileOpen || isOnSettings)}
+            onClick={() => setMobileOpen(v => !v)}
+            aria-controls={SIDEBAR_ID}
+            aria-expanded={mobileOpen}
+          >
+            <IconMenu size={20} />
+            <span>{t.navMore}</span>
+          </button>
+        </nav>
+      )}
+
       {/* Mounted here rather than per-page so the assistant follows the user
           across routes without losing the thread it is in the middle of. */}
-      <AssistantLauncher />
+      {!compactNav && <AssistantLauncher />}
       <AssistantPanel />
     </div>
   )

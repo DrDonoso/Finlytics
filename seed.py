@@ -17,29 +17,31 @@ from finlytics.db.models import Category
 from finlytics.db.session import async_session_factory
 from finlytics.extraction.taxonomy import BASE_CATEGORIES
 
-# Distinct palette colors for the 20 base categories.
+# Distinct palette colors for the 20 base categories, chosen to stay apart under
+# normal vision and the common colour-vision deficiencies. Changing one needs a
+# migration too (see 0025), since existing installs keep what was first seeded.
 # Idempotent: only applied when the category's color is still the default grey.
 BASE_CATEGORY_COLORS: dict[str, str] = {
-    "Groceries":     "#22c55e",   # green-500
-    "Dining":        "#ef4444",   # red-500
-    "Transport":     "#3b82f6",   # blue-500
-    "Fuel":          "#f97316",   # orange-500
-    "Housing":       "#92400e",   # amber-800 (earth)
-    "Utilities":     "#0d9488",   # teal-600
-    "Health":        "#ec4899",   # pink-500
-    "Insurance":     "#8b5cf6",   # violet-500
-    "Shopping":      "#f43f5e",   # rose-500
-    "Entertainment": "#eab308",   # yellow-500
-    "Subscriptions": "#6366f1",   # indigo-500
-    "Travel":        "#0ea5e9",   # sky-500
-    "Education":     "#1d4ed8",   # blue-700
-    "Income":        "#10b981",   # emerald-500
-    "Transfers":     "#94a3b8",   # slate-400
-    "Investments":   "#d97706",   # amber-600
-    "Bank Fees":     "#dc2626",   # red-600
-    "Taxes":         "#475569",   # slate-600
-    "Cash/ATM":      "#84cc16",   # lime-400
-    "Other":         "#a78bfa",   # violet-400
+    "Groceries":     "#70912f",
+    "Dining":        "#b94644",
+    "Transport":     "#4f86c6",
+    "Fuel":          "#e65909",
+    "Housing":       "#bd9670",
+    "Utilities":     "#2bccb4",
+    "Health":        "#e3a8b4",
+    "Insurance":     "#6f69a3",
+    "Shopping":      "#d77089",
+    "Entertainment": "#cf7ffd",
+    "Subscriptions": "#4963de",
+    "Travel":        "#47a4b4",
+    "Education":     "#c6c102",
+    "Income":        "#26795f",
+    "Transfers":     "#97bd95",
+    "Investments":   "#049886",
+    "Bank Fees":     "#9f696f",
+    "Taxes":         "#896385",
+    "Cash/ATM":      "#d1b876",
+    "Other":         "#bdb0ef",
 }
 
 _DEFAULT_COLOR = "#64748b"
