@@ -421,6 +421,7 @@ export interface Dict {
   batchConfirmingTitle:   string
   batchConfirmFileProgress: (i: number, n: number) => string
   batchSummaryTitle:      string
+  batchSummaryFailedTitle: string
   batchSummaryStmts:      (n: number) => string
   batchSummaryNewTx:      (n: number) => string
   batchSummaryDupes:      (n: number) => string
@@ -496,6 +497,8 @@ export interface Dict {
   dashboardNetWorthPartial: string
   /** Aviso cuando el patrimonio excluye la hipoteca por un fallo de lectura. */
   dashboardNetWorthPartialMortgage: string
+  /** Aviso cuando solo se han podido leer algunas de las inversiones. */
+  dashboardNetWorthPartialInvestments: string
   /** Variación de la tasa de ahorro del último mes con datos frente al anterior. */
   dashboardSavingsRateVsPrevMonth: string
   /** Nº de meses sobre los que se calcula el promedio mensual. */
@@ -565,6 +568,12 @@ export interface Dict {
   invAssetCash: string
   invAssetOther: string
   invErrorLoading: string
+  /** Total combinado al que le falta algún proveedor que no se ha podido valorar. */
+  invPartialTotal: string
+  /** Cuentas conectadas que no se han podido leer y no entran en las cifras. */
+  invAccountsUnavailable: (count: number) => string
+  /** Ninguna cuenta conectada se ha podido leer. */
+  invAccountsUnreadable: string
   // ── Returns table ─────────────────────────────────────────────────────────
   invReturnsTitle: string
   invReturnsWeek: string

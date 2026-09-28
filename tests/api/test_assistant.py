@@ -7,19 +7,26 @@ no longer available.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import anyio
+import anyio.lowlevel
 import pytest
 from httpx import ASGITransport, AsyncClient
 
 from finlytics.api import assistant as assistant_api
 from finlytics.api.deps import get_current_user, get_db
 from finlytics.app import app
-from finlytics.assistant.service import AnswerDelta, Completed, Failed, ToolStarted
+from finlytics.assistant.service import (
+    AnswerDelta,
+    Completed,
+    Failed,
+    ToolStarted,
+    TurnUsage,
+)
 
-
-NOW = datetime(2026, 7, 31, 10, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 7, 31, 10, 0, tzinfo=UTC)
 
 
 def make_conversation(conv_id: int = 1, title: str = "Spending") -> MagicMock:
@@ -414,6 +421,148 @@ class TestSendMessageStream:
         # A model that dies halfway must not leave the user with an empty thread.
         stored = [c.args[0] for c in mock_session.add.call_args_list]
         assert any(getattr(m, "role", None) == "user" for m in stored)
+
+    @staticmethod
+    def _assign_question_id(mock_session, question_id: int = 41) -> None:
+        def _add(obj):
+            if getattr(obj, "role", None) == "user":
+                obj.id = question_id
+
+        mock_session.add = MagicMock(side_effect=_add)
+
+    async def test_a_failed_turn_bills_its_question(self, ready, mock_session):
+        # Every provider call that finished was paid for. Recording usage only
+        # on Completed made the most expensive failures free for the budget.
+        self._assign_question_id(mock_session)
+
+        async def fake_turn(**kwargs):
+            usage = kwargs["usage"]
+            usage.prompt_tokens, usage.completion_tokens, usage.total_tokens = 900, 60, 960
+            usage.reported = True
+            yield Failed("ran out of iterations")
+
+        billing = MagicMock()
+        billing.execute = AsyncMock()
+        billing.commit = AsyncMock()
+        factory = MagicMock(side_effect=[_session_cm(mock_session), _session_cm(billing)])
+        with patch.object(assistant_api, "run_turn", fake_turn), patch.object(
+            assistant_api, "async_session_factory", factory
+        ):
+            resp = await ready.post(
+                "/api/assistant/conversations/1/messages", json={"content": "How much?"}
+            )
+
+        assert "event: error" in resp.text
+        billing.execute.assert_awaited_once()
+        billing.commit.assert_awaited_once()
+        params = billing.execute.await_args.args[0].compile().params
+        assert params["prompt_tokens"] == 900
+        assert params["completion_tokens"] == 60
+        assert params["total_tokens"] == 960
+        assert 41 in params.values()
+
+    async def test_a_crashed_turn_still_bills_what_it_spent(self, ready, mock_session):
+        self._assign_question_id(mock_session)
+
+        async def fake_turn(**kwargs):
+            kwargs["usage"].total_tokens = 300
+            kwargs["usage"].reported = True
+            raise RuntimeError("tool blew up")
+            yield  # pragma: no cover — makes this an async generator
+
+        billing = MagicMock()
+        billing.execute = AsyncMock()
+        billing.commit = AsyncMock()
+        factory = MagicMock(side_effect=[_session_cm(mock_session), _session_cm(billing)])
+        with patch.object(assistant_api, "run_turn", fake_turn), patch.object(
+            assistant_api, "async_session_factory", factory
+        ):
+            await ready.post(
+                "/api/assistant/conversations/1/messages", json={"content": "How much?"}
+            )
+
+        assert billing.execute.await_args.args[0].compile().params["total_tokens"] == 300
+
+    async def test_an_answered_turn_is_billed_on_the_answer_only(self, ready, mock_session):
+        # Billing the question too would count the same turn twice.
+        self._assign_question_id(mock_session)
+        mock_session.refresh = AsyncMock()
+
+        async def fake_turn(**kwargs):
+            kwargs["usage"].total_tokens = 500
+            kwargs["usage"].reported = True
+            yield Completed(answer="ok", tool_calls=[], total_tokens=500, usage_reported=True)
+
+        factory = MagicMock(return_value=_session_cm(mock_session))
+        with patch.object(assistant_api, "run_turn", fake_turn), patch.object(
+            assistant_api, "async_session_factory", factory
+        ):
+            resp = await ready.post(
+                "/api/assistant/conversations/1/messages", json={"content": "How much?"}
+            )
+
+        assert "event: done" in resp.text
+        assert factory.call_count == 1
+        answer = next(
+            c.args[0] for c in mock_session.add.call_args_list
+            if getattr(c.args[0], "role", None) == "assistant"
+        )
+        assert answer.total_tokens == 500
+
+    async def test_a_turn_that_spent_nothing_writes_nothing(self, ready, mock_session):
+        self._assign_question_id(mock_session)
+
+        async def fake_turn(**kwargs):
+            yield Failed("the provider was unreachable")
+
+        factory = MagicMock(return_value=_session_cm(mock_session))
+        with patch.object(assistant_api, "run_turn", fake_turn), patch.object(
+            assistant_api, "async_session_factory", factory
+        ):
+            await ready.post(
+                "/api/assistant/conversations/1/messages", json={"content": "How much?"}
+            )
+
+        assert factory.call_count == 1
+
+
+class TestUnansweredUsage:
+    async def test_the_write_survives_the_cancellation_of_its_own_task(self):
+        # The Stop button reaches the server as a cancellation of the task that
+        # runs the stream. Unshielded, the very write that bills the turn would
+        # be cancelled with it and a stopped turn would cost nothing.
+        billing = MagicMock()
+
+        async def _execute(*_args, **_kwargs):
+            await anyio.lowlevel.checkpoint()
+
+        billing.execute = AsyncMock(side_effect=_execute)
+        billing.commit = AsyncMock(side_effect=_execute)
+
+        with patch.object(
+            assistant_api, "async_session_factory", MagicMock(return_value=_session_cm(billing))
+        ):
+            with anyio.CancelScope() as scope:
+                scope.cancel()
+                await assistant_api._record_unanswered_usage(
+                    41, TurnUsage(total_tokens=5, reported=True)
+                )
+
+        billing.commit.assert_awaited_once()
+
+    async def test_a_database_error_is_logged_not_raised(self, caplog):
+        # This runs in a finally block: raising would replace whatever ended
+        # the stream with a less useful error.
+        billing = MagicMock()
+        billing.execute = AsyncMock(side_effect=RuntimeError("db is gone"))
+        with patch.object(
+            assistant_api, "async_session_factory", MagicMock(return_value=_session_cm(billing))
+        ):
+            await assistant_api._record_unanswered_usage(
+                41, TurnUsage(total_tokens=5, reported=True)
+            )
+
+        assert "db is gone" in caplog.text
 
 
 class TestSystemPromptEditing:

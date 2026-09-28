@@ -400,6 +400,7 @@ const es: Dict = {
   batchConfirmingTitle:   'Importando…',
   batchConfirmFileProgress: (i, n) => `Importando extracto ${i} de ${n}`,
   batchSummaryTitle:      'Importación completada',
+  batchSummaryFailedTitle: 'No se ha importado ningún extracto',
   batchSummaryStmts:      (n) => `${n} extracto${n !== 1 ? 's' : ''} importado${n !== 1 ? 's' : ''}`,
   batchSummaryNewTx:      (n) => `${n} ${n !== 1 ? 'transacciones nuevas' : 'transacción nueva'}`,
   batchSummaryDupes:      (n) => `${n} duplicada${n !== 1 ? 's' : ''}`,
@@ -488,6 +489,7 @@ const es: Dict = {
   dashboardNetWorthUnavailable: 'no disponible',
   dashboardNetWorthPartial: 'Sin las inversiones: no se han podido consultar.',
   dashboardNetWorthPartialMortgage: 'Sin la hipoteca: no se ha podido consultar.',
+  dashboardNetWorthPartialInvestments: 'Faltan inversiones: no se han podido leer todas.',
   dashboardSavingsRateVsPrevMonth: 'vs mes anterior',
   dashboardMonthsTracked: (months: number) => `${months} ${months === 1 ? 'mes' : 'meses'} con datos`,
   // ── Investments page ──────────────────────────────────────────────────────
@@ -555,6 +557,11 @@ const es: Dict = {
   invAssetCash: 'Efectivo',
   invAssetOther: 'Otros',
   invErrorLoading: 'Error al cargar la cartera',
+  invPartialTotal: 'Parte de tus inversiones no se ha podido leer, así que este total no la incluye.',
+  invAccountsUnavailable: (count: number) => count === 1
+    ? 'Una cuenta no se ha podido leer y no está incluida en estas cifras.'
+    : `${count} cuentas no se han podido leer y no están incluidas en estas cifras.`,
+  invAccountsUnreadable: 'No se ha podido leer ninguna cuenta de Indexa. Revisa la conexión en Conectores.',
   // ── Returns table ─────────────────────────────────────────────────────────
   invReturnsTitle: 'Rentabilidades',
   invReturnsWeek: 'Última semana',

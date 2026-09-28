@@ -400,6 +400,7 @@ const en: Dict = {
   batchConfirmingTitle:   'Importing…',
   batchConfirmFileProgress: (i, n) => `Importing statement ${i} of ${n}`,
   batchSummaryTitle:      'Import completed',
+  batchSummaryFailedTitle: 'No statement was imported',
   batchSummaryStmts:      (n) => `${n} statement${n !== 1 ? 's' : ''} imported`,
   batchSummaryNewTx:      (n) => `${n} new transaction${n !== 1 ? 's' : ''}`,
   batchSummaryDupes:      (n) => `${n} duplicate${n !== 1 ? 's' : ''}`,
@@ -488,6 +489,7 @@ const en: Dict = {
   dashboardNetWorthUnavailable: 'unavailable',
   dashboardNetWorthPartial: 'Excludes investments: they could not be read.',
   dashboardNetWorthPartialMortgage: 'Excludes the mortgage: it could not be read.',
+  dashboardNetWorthPartialInvestments: 'Missing investments: not all of them could be read.',
   dashboardSavingsRateVsPrevMonth: 'vs previous month',
   dashboardMonthsTracked: (months: number) => `${months} ${months === 1 ? 'month' : 'months'} of data`,
   // ── Investments page ──────────────────────────────────────────────────────
@@ -555,6 +557,11 @@ const en: Dict = {
   invAssetCash: 'Cash',
   invAssetOther: 'Other',
   invErrorLoading: 'Error loading portfolio',
+  invPartialTotal: 'Some of your investments could not be read, so this total leaves them out.',
+  invAccountsUnavailable: (count: number) => count === 1
+    ? 'One account could not be read and is not included in these figures.'
+    : `${count} accounts could not be read and are not included in these figures.`,
+  invAccountsUnreadable: 'None of your Indexa accounts could be read. Check the connection in Connectors.',
   // ── Returns table ─────────────────────────────────────────────────────────
   invReturnsTitle: 'Returns',
   invReturnsWeek: 'Last week',

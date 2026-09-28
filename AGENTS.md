@@ -78,7 +78,14 @@ pipeline is unaffected.
 > **Every tool goes through `finlytics.db.queries`.** That is the whole design: the chat
 > reads the same aggregation code as the dashboards, so an answer cannot disagree with the
 > chart next to it. Do not add a tool that runs its own SQL — add the query to the query
-> layer first and wrap it.
+> layer first and wrap it. The same holds for `context.py`, which reads
+> `get_transaction_date_range` and `has_investment_connections` from there.
+
+> **A figure an endpoint also serves comes from a shared service, never from calling the
+> endpoint.** The investments tool and `GET /api/investments/combined-overview` both call
+> `investments/overview.py::build_combined_overview`. Invoking a FastAPI handler from a tool
+> needs a fake user and fake `BackgroundTasks`, and breaks the moment the handler grows a
+> dependency.
 
 > **There are no write tools, and adding one is not a small change.** A write needs a
 > confirmation step in the UI before it executes; a model that deletes a transaction
@@ -116,6 +123,13 @@ decoration — each message is one to three paid LLM calls.
 > allowance. The monthly token budget is counted from `assistant_messages` in the database,
 > which is the only reason it works. If you move the limiter to Redis some day, that does not
 > change — the budget still belongs in the database.
+
+> **A turn without an answer is billed too.** Every provider call that finished was paid for,
+> so when a turn fails, hits the iteration cap or is stopped by the user,
+> `_record_unanswered_usage` in `api/assistant.py` writes its summed usage onto the
+> question's row. Otherwise the most expensive turns would be free, and pressing Stop would
+> bypass the monthly cap. The write is shielded from cancellation, because a client
+> disconnect arrives as a cancellation of the very task running it.
 
 > **The system prompt is editable from Settings → Assistant**, pre-filled with the shipped
 > default and restorable in one click. Stored per user; null means "use the default", so
@@ -163,7 +177,20 @@ Two connector types coexist under the same plugin model:
 | **Live-API** | Indexa Capital | Token encrypted with Fernet → `investment_connections`. Portfolio fetched on demand and cached 24h in `investment_portfolio_cache`. |
 | **Statement-Import** | Fidelity ESPP | Lots stored in `espp_lots`. Daily MSFT close stored in `price_history` (via Yahoo Chart API). No token required. |
 
-Both produce data consumed by `GET /api/investments/combined-overview`.
+Both produce data consumed by `GET /api/investments/combined-overview`, which
+`investments/overview.py::build_combined_overview` builds for the API and the assistant alike.
+
+> **An unreadable provider is "unavailable", never 0 €.** A connection in
+> `HOLDING_STATUSES` (`active` or `error`, in `db/queries/investments.py`) still holds money.
+> An `error` connection, or an account whose fetch fails, is counted in the portfolio's
+> `accounts_unavailable`, and the combined overview sets `partial`. The Dashboard, the
+> investments page, the snapshot card and the assistant then say the total is incomplete.
+> Valuing it at zero silently takes the whole portfolio out of net worth.
+
+> **Rates are never summed across accounts.** Euro amounts add up, and `_add_optional` keeps
+> an unknown one unknown rather than zero. A percentage does not add up: with more than one
+> Indexa account, `money_return` and `money_return_annual` are `null` and `monthly_returns` is
+> `[]`, and the UI hides them. A legitimate `0` stays `0`, so never coalesce it with `or None`.
 
 ### Token encryption
 
@@ -284,6 +311,13 @@ non-empty — the detail line.
 > fields themselves; re-keying an untouched forced duplicate would collide with the row it
 > duplicates.
 
+> **A backup round-trips everything the key depends on.** `api/backup.py` exports `detail`
+> and `is_system`, and, when the stored hash cannot be re-derived from the row's fields,
+> `duplicate_key`. That covers a forced duplicate and a `legacy:<id>` collision. The restore
+> uses that key or re-hashes against the *target's* account ids. Drop any of those fields
+> and a restored opening balance counts as income, rows that differ only in their detail
+> merge into one, and re-importing the original PDF duplicates rows.
+
 ---
 
 ## Backend conventions
@@ -295,6 +329,8 @@ non-empty — the detail line.
 - **Dependencies:** `uv.lock` is the source of truth. The image and CI install with `uv sync --locked`, which fails when the lock is out of date with `pyproject.toml` — after editing dependencies, run `uv lock` and commit both files. Local setup: `uv sync --extra test`, then `uv run pytest` and `uv run mypy`. Dependabot's `uv` ecosystem moves the lock; the uv binary itself is pinned once, in the Dockerfile's `uv` stage, and CI reads it from there.
 - **Lockfile:** every `registry` in `uv.lock` must be `https://pypi.org/simple` and every artefact `url` must be on `https://files.pythonhosted.org/`; CI rejects anything else, for the same reason as `package-lock.json` below. A lock resolved through a private mirror (`UV_DEFAULT_INDEX`, `UV_INDEX_URL` or a user-level `uv.toml`) records the mirror's URLs — re-lock against PyPI instead of committing it.
 - **Types:** mypy covers the whole package and CI gates it. Handlers declare the query layer's TypedDicts (`db/queries/types.py`) as their return type and let `response_model` validate them. Do not annotate a handler with a Pydantic model it never constructs: the checker then trusts a type the function does not return.
+- **Lint:** Ruff's default rule set, run as `uv run ruff check src tests alembic`, and CI gates it. Every exception in `pyproject.toml` is a convention with its reason beside it. FastAPI's `Depends()`-style markers are declared immutable calls rather than silencing `B008`, and deployed migrations are excluded because they are never edited.
+- **Rules:** `api/rules.py` pre-filters candidate transactions in SQL, loads only those columns, and leaves `_matches` in Python as the final word. That is also the only place a regex is evaluated. The SQL has to be a *superset* of what `_matches` accepts, never narrower. It folds case with `translate()` rather than `lower()`, whose result depends on the database collation. `tests/pg/test_rules_prefilter.py` holds it to that.
 - **PostgreSQL tests:** the rest of the suite runs on SQLite and mocks, which cannot execute `INSERT ... ON CONFLICT`, `to_char` or the migration chain. Those paths are tested in `tests/pg/`, against the server named by `TEST_DATABASE_URL` (a role allowed to `CREATE DATABASE`). The chain is migrated once into a template database and every test gets its own clone, so the code under test begins and commits transactions exactly as in production. Without the variable the tier skips; under CI it fails instead, and the `tests` job runs a `postgres` service for it. Locally, use a throwaway server rather than the compose `db`, which holds real data: `docker run --rm -d -p 5432:5432 -e POSTGRES_PASSWORD=postgres postgres:18-alpine` with `TEST_DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/postgres`. An upsert, a dialect-specific function or a migration that rewrites data gets its test there, not a mock.
 
 ## Frontend conventions
@@ -302,6 +338,8 @@ non-empty — the detail line.
 - **Routing:** `App.tsx` — nested routes under `<Route path="/" element={<Layout />}>`. Every page is a `lazy()` import, so each screen (and recharts, which only chart pages pull in) is its own chunk; `Layout`, `SettingsLayout`, `LoginPage` and `SetupPage` stay eager because they render before or around every route.
   - `Layout` owns the **only** `<Suspense>` and a `RouteErrorBoundary` around `<Outlet />`. React Router runs navigations in a transition, so after the first paint the previous page stays on screen while the next chunk loads — a per-route boundary would flash a spinner instead.
   - A chunk that fails to load (typically a tab opened before a deploy, whose hashed file no longer exists) shows a reload prompt inside the shell. React caches the rejected import, so only a reload recovers — do not replace this with a silent `vite:preloadError` auto-reload, which would throw away an in-flight assistant answer or a half-filled form.
+  - **Prefetch:** `routePrefetch.ts` holds every page's loader in `pageChunks`, and `App.tsx` builds its `lazy()` components from it. `Layout` fetches a page's chunk when the pointer or focus reaches an in-app link (or a `data-prefetch` element). In production it also fetches `LIKELY_NEXT`, one chunk at a time while the browser is idle, and skips that under Save-Data. A new page goes into `pageChunks`, or it is simply never prefetched.
+- **Local dates:** build a `YYYY-MM-DD` with `todayIso()` / `isoDate(d)` from `utils/dates.ts`. Never use `toISOString().slice(0, 10)`: it converts to UTC first, so in Spain it returns yesterday between midnight and 02:00, and a local midnight comes out as the previous day. Vitest pins `TZ=Europe/Madrid` because CI runs in UTC, where that bug cannot show.
 - **i18n:** Bilingual EN/ES. `Dict` interface in `i18n/index.ts`, implementations in `es.ts` / `en.ts`. All three files must be updated for every new string.
   - **Locale and money:** a UI language becomes an `Intl` locale tag only in `i18n/index.ts`. Format amounts with `formatCurrency` (from `useT()` in a component, or the module export with a `lang` argument in a pure helper), and hand `useT().locale` / `langLocale(lang)` to any other `Intl` or `toLocale*` call. Never inline `'es-ES'` or pass the bare `lang` (`'en'` resolves to `en-US`): the English UI used to print `1.234,56 €` beside `€1,234.56`. `test/locale.test.ts` fails on an inline tag.
   - **Percentages and plain numbers:** `formatPercent` / `formatNumber`, or `<Percent>` in JSX — never `toFixed()` plus `'%'`, which printed `12.5%` in the Spanish UI and `-0.0 %` for a value that rounds to zero. Pass `unit: 'fraction'` for the API values that are fractions (see the units note under *Public demo*). `formatCurrency` never prints `-0,00 €` either: anything under half a cent is zero. `test/format.test.ts` pins these cases.
@@ -322,6 +360,8 @@ non-empty — the detail line.
   - `SortableTh`: a button inside the `th` takes the pointer and the keyboard, and the `th` carries `aria-sort`. Trailing controls (an info tip) sit beside the button, never inside it.
   - `splitTopSlices` (`utils/categorySlices.ts`): a donut draws the six largest slices and folds the rest into one neutral slice. A tail of one is never folded.
   - `computeDelta` (`utils/comparison.ts`) divides by the **absolute** baseline, so a negative figure that improves reads as a rise rather than a fall.
+  - `useModalDismiss(onDismiss, disabled)` (`hooks/useModalDismiss.ts`), spread on a modal's backdrop, closes it on Escape or on a click that both starts and ends on the backdrop. A plain `onClick` used to discard the whole form when a text selection was dragged out of an input and released outside the dialog. Pass `disabled` while a save is in flight.
+- **Forms:** a numeric field keeps the text as typed and parses it on submit, as the mortgage bonuses do. Parsing on every keystroke drops a trailing decimal separator, so `0,25` could not be typed at all, and a field that starts at `0` can never be emptied.
 - **Category palette:** the base-category colours in `seed.py` are chosen to stay distinguishable under protanopia and deuteranopia. Changing them takes a migration that recolours only rows still on the old seeded value (see `0025_recolor_base_category_palette.py`), and `tests/test_seed.py` asserts that the seed equals the palette that migration installs — a new palette moves that test to the new migration. `demo/scenario.ts` and `api/mock.ts` mirror the same hexes.
 - **Accessibility:** axe reports no violations on any route; keep it that way.
   - One focus ring for the whole app — `:focus-visible` in `tokens.css`. Text fields get a halo instead, because they match `:focus-visible` on a mouse click too. Never remove an outline without a replacement.
@@ -331,8 +371,10 @@ non-empty — the detail line.
   - The typeaheads (`TagTypeahead`, `PreviewTypeahead`, `TagFilterSelect`) follow the ARIA combobox pattern: `role="combobox"` on the input, `aria-activedescendant` on the highlighted `role="option"`, `role="listbox"` for the popup. A chip's remove button is labelled `tagChipRemoveNamed(name)`, never a bare "×".
 - **Responsive layout:** below 768px (`COMPACT_NAV_QUERY` in `hooks/useMediaQuery.ts`, which must match the CSS breakpoint) the sidebar becomes a drawer and a bottom nav appears; fixed elements along the bottom edge clear it through `--chrome-bottom`. At 600px and below a transaction row reads as a card instead of a scrolled table. The Indexa view is intrinsic — auto-fit grids plus `flex-wrap`, no viewport breakpoints — because its width depends on the sidebar, not the viewport.
 - **Tests:** Vitest + Testing Library + MSW. `npm test` runs them once, `npm run test:watch` in watch mode, `npm run test:coverage` with coverage. `npm run lint` is oxlint, and `npm run build` runs `tsc --noEmit` first. CI gates all three (`lint` → `test` → `build`), so all three must pass.
+  - **Lint warnings fail too:** the script is `oxlint --deny-warnings src e2e`, configured in `.oxlintrc.json`. A disable directive names its rule and gives the reason after `--`. List keys are stable ids, never the index of a list that can be filtered or reordered.
+  - **Smoke test:** `npm run e2e` runs Playwright (`e2e/demo-smoke.spec.ts`). It builds the demo, serves it on port 4173, signs in and opens every route in `ROUTES`, then asks the assistant a question. Each test fails on a page error, a console error or any response ≥ 400, the demo's 501 catch-all included. It runs in CI as the `e2e` job. A new demo screen goes into `ROUTES`. Where the Playwright browser download is blocked, a local config that extends `playwright.config.ts` with `channel: 'msedge'` or `'chrome'` runs it on an installed browser. Do not commit that config. The spec and `playwright.config.ts` are in `.dockerignore`; `tsconfig.json` still lists them, and tsc accepts a missing include, so the image's build keeps type-checking.
 - **Lockfile:** every `resolved` URL in `package-lock.json` must point at `https://registry.npmjs.org/`, and CI rejects anything else. An install behind a private mirror (check `npm config get registry`) records the mirror's URLs, and Dependabot then fails on every package they cover — security updates included — without opening a PR. Rewrite the prefix before committing; the tarballs are the same, so the integrity hashes still match.
-- **Plugin view registry:** `frontend/src/investments/registry.ts` — maps `plugin_id → { icon, name, component }`. Add an entry here for any new investment connector view.
+- **Plugin view registry:** `frontend/src/investments/registry.ts` — maps `plugin_id → { icon, name, load, component }`, built with `lazyView()` so the view's chunk can be prefetched. Add an entry here for any new investment connector view.
 - **Design tokens:** CSS custom properties in `styles/tokens.css`, imported first by `index.css` (`--bg`, `--surface`, `--border`, `--primary`, `--radius`, `--shadow`, plus the `--text-*` type scale and `--space-*` 4px grid that new rules use instead of raw pixels). Light/dark via `[data-theme="dark"]`. `--income` / `--expense` colour text and must clear 4.5:1; chart marks use `--income-fill` / `--expense-fill`, which only need 3:1.
 
 ### Privacy mode
@@ -462,7 +504,8 @@ visitor back out — the same reset that restores the dataset.
 Rules when touching the frontend:
 
 - **A new `/api` endpoint reached by a demo route needs a handler in `handlers.ts`**, or the demo
-  silently loses that screen. The catch-all's console error is the signal.
+  silently loses that screen. The catch-all answers 501 and logs a console error, and the
+  Playwright smoke test fails on either, provided the route is listed in `e2e/demo-smoke.spec.ts`.
 - Demo mode intentionally exposes a reduced surface (`DemoRoutes` in `App.tsx`). Anything that
   writes, uploads or asks for third-party credentials stays out.
 - Keep the demo free of MSW leakage into production: the dynamic import in `main.tsx` is guarded

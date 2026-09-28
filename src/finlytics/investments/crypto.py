@@ -18,7 +18,7 @@ class EncryptionNotConfiguredError(Exception):
 
 def _get_fernet() -> Fernet:
     # Deferred import avoids a circular dependency at module load time.
-    from finlytics.config import settings  # noqa: PLC0415
+    from finlytics.config import settings
 
     key = settings.finlytics_encryption_key
     if not key:

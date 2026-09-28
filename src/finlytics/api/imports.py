@@ -25,11 +25,20 @@ import unicodedata
 from datetime import timedelta
 
 from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, UploadFile
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from finlytics.api.deps import get_db, get_llm_client
-from finlytics.api.schemas import CheckDuplicatesIn, CheckDuplicatesOut, ConfirmIn, ImportQuality, ImportResult, PreviewOut, SuggestedTag, mask_account_number
+from finlytics.api.schemas import (
+    CheckDuplicatesIn,
+    CheckDuplicatesOut,
+    ConfirmIn,
+    ImportQuality,
+    ImportResult,
+    PreviewOut,
+    SuggestedTag,
+    mask_account_number,
+)
 from finlytics.api.uploads import (
     ensure_within_limit,
     max_base64_chars,
@@ -39,13 +48,22 @@ from finlytics.api.uploads import (
 from finlytics.config import settings
 from finlytics.contracts import ExtractedTransaction
 from finlytics.db.models import Account, ImportRun, Tag, Transaction
-from finlytics.db.repository import compute_dedup_hash, create_opening_balance_tx, list_rules, upsert_transactions
-from finlytics.extraction.extractor import detect_statement_year, extract_account_number, extract_transactions
+from finlytics.db.repository import (
+    compute_dedup_hash,
+    create_opening_balance_tx,
+    list_rules,
+    upsert_transactions,
+)
+from finlytics.extraction.extractor import (
+    detect_statement_year,
+    extract_account_number,
+    extract_transactions,
+)
 from finlytics.extraction.import_quality import compute_import_quality
-from finlytics.extraction.prematch import pre_match_rules
-from finlytics.extraction.rules import apply_rules
 from finlytics.extraction.llm_client import LLMClient
 from finlytics.extraction.parser import parse_statement
+from finlytics.extraction.prematch import pre_match_rules
+from finlytics.extraction.rules import apply_rules
 from finlytics.extraction.tag_colors import suggest_tag_colors
 from finlytics.log_safety import one_line
 
@@ -167,7 +185,7 @@ async def _persist_import_run(
                 _store_source_pdf, settings.upload_dir, filename, source_pdf
             )
             import_run.source_path = filename
-        except Exception as exc:
+        except OSError as exc:
             log.warning("PDF save failed (import continues without source_path): %s", exc)
 
     num_inserted, num_duplicates = await upsert_transactions(
@@ -214,7 +232,7 @@ def _decode_pdf_base64(b64: str | None) -> bytes | None:
         raise upload_too_large()
     try:
         pdf = base64.b64decode(b64)
-    except Exception:
+    except ValueError:
         log.warning("source_pdf_base64 is malformed — PDF will not be saved")
         return None
     ensure_within_limit(len(pdf))
@@ -294,7 +312,7 @@ async def preview_import(
                 suggested_tags = [
                     SuggestedTag(name=n, color=c) for n, c in color_map.items()
                 ]
-        except Exception:
+        except Exception:  # noqa: BLE001 — suggested colours are cosmetic
             log.warning("preview_import: could not build suggested_tags, returning empty list")
 
     return PreviewOut(

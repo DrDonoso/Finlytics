@@ -16,7 +16,7 @@ can be substituted in tests without patching ``datetime``.
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from finlytics.config import settings
@@ -47,7 +47,7 @@ def local_timezone() -> ZoneInfo | timezone:
             "TIMEZONE=%r is not a valid timezone; falling back to UTC.",
             settings.timezone,
         )
-        _cached_zone = timezone.utc
+        _cached_zone = UTC
     return _cached_zone
 
 

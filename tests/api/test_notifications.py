@@ -25,7 +25,7 @@ Test areas
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -86,7 +86,7 @@ def _make_notif(
     dismissed_at: datetime | None = None,
     resolved_at: datetime | None = None,
 ) -> Notification:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return Notification(
         user_id=user_id,
         source=source,
@@ -181,8 +181,8 @@ async def test_list_excludes_dismissed_and_resolved(
 
     async with factory() as s:
         active = _make_notif(USER_ID, severity="info")
-        dismissed = _make_notif(USER_ID, dismissed_at=datetime.now(timezone.utc))
-        resolved = _make_notif(USER_ID, resolved_at=datetime.now(timezone.utc))
+        dismissed = _make_notif(USER_ID, dismissed_at=datetime.now(UTC))
+        resolved = _make_notif(USER_ID, resolved_at=datetime.now(UTC))
         s.add_all([active, dismissed, resolved])
         await s.commit()
         await s.refresh(active)
@@ -203,7 +203,7 @@ async def test_list_sort_warning_before_info_then_newest_first(
     """Warnings appear before infos; within same severity newest row comes first."""
     monkeypatch.setattr("finlytics.notifications.service.REGISTRY", _null_registry())
     factory = _sf(sqlite_engine)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     async with factory() as s:
         info_old = _make_notif(USER_ID, severity="info")
@@ -325,9 +325,9 @@ async def test_unread_count_active_only(sqlite_engine, notif_client, monkeypatch
         s.add_all([
             _make_notif(USER_ID),                                           # unread active
             _make_notif(USER_ID),                                           # unread active
-            _make_notif(USER_ID, read_at=datetime.now(timezone.utc)),      # read — excluded
-            _make_notif(USER_ID, dismissed_at=datetime.now(timezone.utc)), # dismissed — excluded
-            _make_notif(USER_ID, resolved_at=datetime.now(timezone.utc)),  # resolved — excluded
+            _make_notif(USER_ID, read_at=datetime.now(UTC)),      # read — excluded
+            _make_notif(USER_ID, dismissed_at=datetime.now(UTC)), # dismissed — excluded
+            _make_notif(USER_ID, resolved_at=datetime.now(UTC)),  # resolved — excluded
         ])
         await s.commit()
 
@@ -472,9 +472,9 @@ async def test_read_all_marks_unread_active_returns_count(
         u1 = _make_notif(USER_ID)
         u2 = _make_notif(USER_ID)
         u3 = _make_notif(USER_ID)
-        already_read = _make_notif(USER_ID, read_at=datetime.now(timezone.utc))
-        dismissed = _make_notif(USER_ID, dismissed_at=datetime.now(timezone.utc))
-        resolved = _make_notif(USER_ID, resolved_at=datetime.now(timezone.utc))
+        already_read = _make_notif(USER_ID, read_at=datetime.now(UTC))
+        dismissed = _make_notif(USER_ID, dismissed_at=datetime.now(UTC))
+        resolved = _make_notif(USER_ID, resolved_at=datetime.now(UTC))
         s.add_all([u1, u2, u3, already_read, dismissed, resolved])
         await s.commit()
         for n in (u1, u2, u3):
@@ -503,7 +503,7 @@ async def test_read_all_returns_zero_when_nothing_unread(
     factory = _sf(sqlite_engine)
 
     async with factory() as s:
-        s.add(_make_notif(USER_ID, read_at=datetime.now(timezone.utc)))
+        s.add(_make_notif(USER_ID, read_at=datetime.now(UTC)))
         await s.commit()
 
     resp = await notif_client.post("/api/notifications/read-all")

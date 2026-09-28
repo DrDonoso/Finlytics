@@ -276,6 +276,7 @@ export default function MonthPicker({ value, onChange, min, max, activeMonths, d
       </button>
 
       {open && (
+        // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- APG picker dialog: the panel owns Escape, the Tab trap and close-on-focus-loss for every cell inside it
         <div
           ref={panelRef}
           className="picker-panel month-picker-panel"

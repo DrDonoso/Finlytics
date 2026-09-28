@@ -162,6 +162,15 @@
   font-weight: 700;
   color: var(--text);
 }
+.inv-snapshot-partial {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--warning-text);
+}
 
 .inv-snapshot-providers {
   display: flex;

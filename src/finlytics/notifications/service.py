@@ -25,8 +25,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import date, datetime, timezone
-from typing import TYPE_CHECKING
+from datetime import UTC, date, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -37,9 +36,6 @@ from finlytics.investments.crypto import EncryptionNotConfiguredError, decrypt_t
 from finlytics.notifications.detectors import REGISTRY, DetectedNotification
 from finlytics.notifications.messages import render_notification_text
 from finlytics.notifications.telegram import TelegramError, telegram_send_message
-
-if TYPE_CHECKING:
-    pass
 
 log = logging.getLogger(__name__)
 
@@ -67,7 +63,7 @@ async def evaluate_notifications(
     if today is None:
         today = local_today()
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     new_notifications: list[Notification] = []
 
     async with db.begin():
@@ -201,7 +197,7 @@ async def deliver_new(
     if not channels:
         return
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     for channel in channels:
         for notif in new_notifs:
@@ -271,6 +267,6 @@ async def deliver_new(
             async with db.begin():
                 delivery.status = "sent" if sent else "failed"
                 if sent:
-                    delivery.sent_at = datetime.now(timezone.utc)
+                    delivery.sent_at = datetime.now(UTC)
                 else:
                     delivery.error = (error_msg or "unknown")[:500]

@@ -76,8 +76,8 @@ export function applyFilters(rows: Transaction[], f: Filters): Transaction[] {
     if (f.account_id !== undefined && tx.account !== accountName) return false
     if (f.category_id !== undefined && tx.category !== categoryName) return false
     if (wantedTags.length > 0) {
-      const own = tx.tags.map(t => t.toLowerCase())
-      if (!wantedTags.some(t => own.includes(t))) return false
+      const own = new Set(tx.tags.map(tag => tag.toLowerCase()))
+      if (!wantedTags.some(tag => own.has(tag))) return false
     }
     if (f.flow === 'expense' && tx.amount >= 0) return false
     if (f.flow === 'income' && tx.amount <= 0) return false
@@ -190,12 +190,12 @@ export function overview(f: Filters): Overview {
   const expense = rows.filter(t => t.amount < 0).reduce((sum, t) => sum - t.amount, 0)
   const income = rows.filter(t => t.amount > 0).reduce((sum, t) => sum + t.amount, 0)
 
-  const byCategory = new Map<string, number>()
+  const spendByCategory = new Map<string, number>()
   for (const t of rows) {
     if (t.amount >= 0) continue
-    byCategory.set(t.category, (byCategory.get(t.category) ?? 0) - t.amount)
+    spendByCategory.set(t.category, (spendByCategory.get(t.category) ?? 0) - t.amount)
   }
-  const top = [...byCategory.entries()].sort((a, b) => b[1] - a[1])[0]
+  const top = [...spendByCategory.entries()].sort((a, b) => b[1] - a[1])[0]
 
   return {
     total_expense: cents(expense),

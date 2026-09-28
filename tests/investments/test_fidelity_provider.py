@@ -17,14 +17,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
+from typing import Any, ClassVar
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from finlytics.api.fidelity import compute_evolution_series
-from finlytics.api.schemas import ValuePoint
 from finlytics.investments.fidelity import FidelityESPPProvider, _compute_dedup_hash
-
 
 # ---------------------------------------------------------------------------
 # Shared helpers
@@ -91,7 +90,7 @@ def _sp_lot(
 class TestComputeDedupHash:
     """Pure-function tests — no mocking needed."""
 
-    _BASE = dict(
+    _BASE: ClassVar[dict[str, Any]] = dict(
         ticker="MSFT",
         purchase_date=date(2024, 6, 30),
         shares=Decimal("100.00000000"),

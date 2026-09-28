@@ -113,6 +113,38 @@ describe('the panel', () => {
     release()
   }, 15000)
 
+  it('keeps the typed text when Enter is pressed while an answer streams', async () => {
+    let release: () => void = () => {}
+    const held = new Promise<void>(resolve => { release = resolve })
+    let streamCall = 0
+
+    server.use(
+      http.post('/api/assistant/conversations/:id/messages', () => {
+        streamCall++
+        return new HttpResponse(
+          new ReadableStream({
+            async start(controller) {
+              await held
+              controller.close()
+            },
+          }),
+          { headers: { 'Content-Type': 'text/event-stream' } },
+        )
+      }),
+    )
+
+    const user = await openPanel()
+    const composer = screen.getByRole('textbox')
+    await user.type(composer, 'Cuanto gaste el mes pasado{Enter}')
+    await screen.findByRole('button', { name: /detener|stop/i })
+
+    await user.type(composer, 'Y el anterior{Enter}')
+
+    expect(composer).toHaveValue('Y el anterior')
+    expect(streamCall).toBe(1)
+    release()
+  }, 15000)
+
   it('streams the answer in and keeps the exchange on screen', async () => {
     const user = await openPanel()
 

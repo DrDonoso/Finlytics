@@ -11,7 +11,7 @@ Coverage:
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -30,7 +30,6 @@ from finlytics.investments.service import (
     _deserialize_portfolio,
     _serialize_portfolio,
 )
-
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -184,7 +183,7 @@ async def test_cache_hit_fresh_no_api_call():
     from finlytics.investments import service as svc
 
     portfolio = _make_portfolio()
-    fresh_ts = datetime.now(timezone.utc) - timedelta(seconds=_CACHE_MAX_AGE / 2)
+    fresh_ts = datetime.now(UTC) - timedelta(seconds=_CACHE_MAX_AGE / 2)
 
     mock_cache_row = MagicMock()
     mock_cache_row.payload = _serialize_portfolio(portfolio)
@@ -255,7 +254,7 @@ async def test_stale_cache_returns_stale_and_schedules_background_refresh():
     from finlytics.investments import service as svc
 
     portfolio = _make_portfolio()
-    stale_ts = datetime.now(timezone.utc) - timedelta(seconds=_CACHE_MAX_AGE + 300)
+    stale_ts = datetime.now(UTC) - timedelta(seconds=_CACHE_MAX_AGE + 300)
 
     mock_cache_row = MagicMock()
     mock_cache_row.payload = _serialize_portfolio(portfolio)
@@ -298,7 +297,7 @@ async def test_stale_in_flight_guard_prevents_duplicate_task():
     from finlytics.investments import service as svc
 
     portfolio = _make_portfolio()
-    stale_ts = datetime.now(timezone.utc) - timedelta(seconds=_CACHE_MAX_AGE + 300)
+    stale_ts = datetime.now(UTC) - timedelta(seconds=_CACHE_MAX_AGE + 300)
 
     mock_cache_row = MagicMock()
     mock_cache_row.payload = _serialize_portfolio(portfolio)
@@ -320,3 +319,64 @@ async def test_stale_in_flight_guard_prevents_duplicate_task():
         assert len(bg.tasks) == 0, "Should not schedule a second task when one is in-flight"
     finally:
         svc._refresh_in_flight.discard(1)
+
+
+# ── Unreadable accounts — counted, never folded into the total as zero ────────
+
+
+async def test_error_connection_is_counted_as_unavailable():
+    """A connection already marked ``error`` still holds money: the total leaves it
+    out, so it is reported instead of silently disappearing."""
+    from finlytics.investments import service as svc
+
+    mock_cache_row = MagicMock()
+    mock_cache_row.payload = _serialize_portfolio(_make_portfolio())
+    mock_cache_row.fetched_at = datetime.now(UTC)
+
+    broken = _make_connection(conn_id=2, token_enc="enc-other")
+    broken.status = "error"
+    mock_db = _make_db([_make_connection(), broken], mock_cache_row)
+
+    with patch("finlytics.investments.service.decrypt_token", return_value="plain"):
+        result = await svc.get_portfolio(user_id=1, db=mock_db)
+
+    assert result.total_value == pytest.approx(1000.0)
+    assert result.accounts_unavailable == 1
+    assert result.last_updated is not None
+
+
+async def test_only_error_connections_report_nothing_was_read():
+    """With every connection in ``error`` there is no value to show, not a zero one."""
+    from finlytics.investments import service as svc
+
+    broken = _make_connection()
+    broken.status = "error"
+    mock_db = _make_db([broken], None)
+
+    result = await svc.get_portfolio(user_id=1, db=mock_db)
+
+    assert result.accounts_unavailable == 1
+    assert result.plugins_connected == 0
+    assert result.last_updated is None
+
+
+async def test_unreachable_provider_counts_the_account_as_unavailable():
+    """A network failure with no cache to fall back on must not read as an empty portfolio."""
+    from finlytics.investments import service as svc
+    from finlytics.investments.indexa import IndexaConnectionError
+
+    mock_db = _make_db([_make_connection()], None)
+
+    with (
+        patch("finlytics.investments.service.decrypt_token", return_value="plain"),
+        patch.object(
+            svc._PROVIDERS["indexa-capital"],
+            "validate_token",
+            new=AsyncMock(side_effect=IndexaConnectionError("timeout")),
+        ),
+    ):
+        result = await svc.get_portfolio(user_id=1, db=mock_db)
+
+    assert result.total_value == 0.0
+    assert result.accounts_unavailable == 1
+    assert result.last_updated is None

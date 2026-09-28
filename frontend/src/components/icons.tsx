@@ -382,8 +382,8 @@ export const ICONS = {
 export type IconName = keyof typeof ICONS
 
 /** Loading spinner: the animation is baked into the icon itself. */
-export function IconLoading({ size = 16, ...rest }: IconProps) {
-  return <IconSpinner size={size} className="icon-spin" {...rest} />
+export function IconLoading({ size = 16, className, ...rest }: IconProps) {
+  return <IconSpinner size={size} className={className ? `icon-spin ${className}` : 'icon-spin'} {...rest} />
 }
 
 /**

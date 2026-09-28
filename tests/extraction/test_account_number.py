@@ -11,10 +11,8 @@ Fabricated IBANs used:
 
 from __future__ import annotations
 
-import pytest
-
-from finlytics.extraction.extractor import _is_valid_iban, extract_account_number
 from finlytics.extraction import extract_account_number as exported_extract_account_number
+from finlytics.extraction.extractor import _is_valid_iban, extract_account_number
 
 # ---------------------------------------------------------------------------
 # Known-good fabricated IBANs (mod-97 == 1 verified)

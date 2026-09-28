@@ -9,17 +9,12 @@ history the ledger holds.
 
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass
 from datetime import date
 
-from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from finlytics.db import queries
-from finlytics.db.models import Transaction
-
-log = logging.getLogger(__name__)
 
 __all__ = ["FinancialContext", "build_context", "render_context"]
 
@@ -50,32 +45,10 @@ async def build_context(
     accounts = await queries.get_accounts(session)
     categories = await queries.get_categories(session)
     tags = await queries.get_tags(session)
-
-    bounds = (
-        await session.execute(
-            select(
-                func.min(Transaction.transaction_date),
-                func.max(Transaction.transaction_date),
-            ).where(Transaction.is_system.is_(False))
-        )
-    ).one()
-
-    has_investments = False
-    try:
-        from finlytics.db.models import InvestmentConnection
-
-        has_investments = bool(
-            await session.scalar(
-                select(func.count())
-                .select_from(InvestmentConnection)
-                .where(
-                    InvestmentConnection.user_id == user_id,
-                    InvestmentConnection.status == "active",
-                )
-            )
-        )
-    except Exception:  # noqa: BLE001 — the chat must work without the investments stack
-        log.debug("Assistant context: investment connection lookup failed", exc_info=True)
+    bounds = await queries.get_transaction_date_range(session)
+    # Counts a connection in ``error`` too: the overview still shows its card,
+    # so telling the model there is nothing would contradict the page.
+    has_investments = await queries.has_investment_connections(session, user_id)
 
     return FinancialContext(
         today=today,
@@ -84,8 +57,8 @@ async def build_context(
         ],
         categories=[{"id": c["id"], "name": c["name"]} for c in categories],
         tags=[t["name"] for t in tags][:_MAX_TAGS],
-        first_transaction=bounds[0],
-        last_transaction=bounds[1],
+        first_transaction=bounds["first"],
+        last_transaction=bounds["last"],
         has_investments=has_investments,
     )
 
@@ -111,7 +84,7 @@ def render_context(ctx: FinancialContext) -> str:
         coverage = "no transactions imported yet"
 
     investments = (
-        "The user has at least one active investment connection."
+        "The user has at least one investment connection."
         if ctx.has_investments
         else "The user has NO investment connections — get_investment_overview will be empty."
     )

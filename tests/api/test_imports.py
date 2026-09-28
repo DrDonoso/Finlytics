@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import io
-from decimal import Decimal
 from datetime import date
+from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
 from fastapi import HTTPException
 
 from finlytics.contracts import ExtractedTransaction
@@ -56,7 +55,7 @@ def _make_extracted() -> list[ExtractedTransaction]:
 # ── One-shot POST /api/imports ────────────────────────────────────────────────
 
 async def test_import_success(client_with_llm):
-    client, mock_llm = client_with_llm
+    client, _mock_llm = client_with_llm
     extracted = _make_extracted()
 
     fake_account = MagicMock()
@@ -775,7 +774,6 @@ async def test_confirm_opening_balance_zero_no_tx(client, mock_session):
 async def test_get_or_create_tag_applies_color_on_creation():
     """get_or_create_tag creates a new tag with the supplied color."""
     from finlytics.db.repository import get_or_create_tag
-    from finlytics.db.models import Tag
 
     mock_result = MagicMock()
     mock_result.scalar_one_or_none.return_value = None  # tag does not exist
@@ -794,8 +792,8 @@ async def test_get_or_create_tag_applies_color_on_creation():
 
 async def test_get_or_create_tag_does_not_recolor_existing():
     """get_or_create_tag never overwrites an existing tag's color."""
-    from finlytics.db.repository import get_or_create_tag
     from finlytics.db.models import Tag
+    from finlytics.db.repository import get_or_create_tag
 
     existing = Tag(id=7, name="agua", color="#aabbcc")
     mock_result = MagicMock()

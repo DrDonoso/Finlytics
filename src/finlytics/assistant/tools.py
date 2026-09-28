@@ -16,16 +16,15 @@ over five years would otherwise consume the whole context window on its own.
 from __future__ import annotations
 
 import logging
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import date
-from typing import Any, Awaitable, Callable
+from typing import Any
 
-from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from finlytics.assistant import projections
 from finlytics.db import queries
-from finlytics.db.models import Transaction
 
 log = logging.getLogger(__name__)
 
@@ -50,10 +49,10 @@ class ToolError(Exception):
 class ToolContext:
     """Everything a tool executor needs, passed in rather than imported.
 
-    ``background_tasks`` is threaded through from the request so the Indexa
-    portfolio cache can still schedule its refresh — without it, asking the
-    assistant about investments would silently stop the cache from ever
-    updating.
+    ``background_tasks`` is the request's own ``BackgroundTasks``: FastAPI runs
+    what is added to it once the streamed answer ends, which is what lets a
+    stale Indexa cache schedule its refresh. With None the cached portfolio is
+    still read, but asking the assistant never refreshes it.
     """
 
     session: AsyncSession
@@ -198,15 +197,7 @@ async def _list_reference_data(args: dict, ctx: ToolContext) -> dict:
     accounts = await queries.get_accounts(ctx.session)
     categories = await queries.get_categories(ctx.session)
     tags = await queries.get_tags(ctx.session)
-
-    bounds = (
-        await ctx.session.execute(
-            select(
-                func.min(Transaction.transaction_date),
-                func.max(Transaction.transaction_date),
-            ).where(Transaction.is_system.is_(False))
-        )
-    ).one()
+    bounds = await queries.get_transaction_date_range(ctx.session)
 
     return {
         "today": ctx.today.isoformat(),
@@ -217,8 +208,8 @@ async def _list_reference_data(args: dict, ctx: ToolContext) -> dict:
         "categories": [{"id": c["id"], "name": c["name"]} for c in categories],
         "tags": [t["name"] for t in tags][: ctx.max_rows],
         "data_range": {
-            "first_transaction": bounds[0].isoformat() if bounds[0] else None,
-            "last_transaction": bounds[1].isoformat() if bounds[1] else None,
+            "first_transaction": bounds["first"].isoformat() if bounds["first"] else None,
+            "last_transaction": bounds["last"].isoformat() if bounds["last"] else None,
         },
     }
 
@@ -367,30 +358,35 @@ async def _compare_periods(args: dict, ctx: ToolContext) -> dict:
 async def _get_investment_overview(args: dict, ctx: ToolContext) -> dict:
     # Imported lazily: the investments package pulls in the market-data stack,
     # and most conversations never touch it.
-    from fastapi import BackgroundTasks
+    from finlytics.investments.crypto import EncryptionNotConfiguredError
+    from finlytics.investments.overview import build_combined_overview
 
-    from finlytics.api.investments import combined_overview
+    try:
+        overview = await build_combined_overview(
+            user_id=ctx.user_id,
+            db=ctx.session,
+            background_tasks=ctx.background_tasks,
+        )
+    except EncryptionNotConfiguredError:
+        raise ToolError(
+            "Investment data is unavailable: the server cannot decrypt the "
+            "connection tokens because encryption is not configured. Tell the "
+            "user to ask the administrator; do not retry."
+        ) from None
 
-    overview = await combined_overview(
-        background_tasks=ctx.background_tasks or BackgroundTasks(),
-        user=_UserRef(ctx.user_id),
-        db=ctx.session,
-    )
     data = overview.model_dump()
     # Percentages here are already percentages (25.4 = 25.4%), unlike the
     # InvestmentPortfolio shape which uses fractions. Say so, or the model will
     # helpfully multiply by 100.
     data["_units"] = "All *_pct fields are percentages (25.4 means 25.4%). Amounts are EUR."
+    if overview.partial:
+        data["_warning"] = (
+            "partial is true: at least one connected provider could not be valued "
+            "right now, so it is missing from the totals and the allocations (its "
+            "card shows null values). Say the figures are incomplete; never present "
+            "them as the whole portfolio."
+        )
     return data
-
-
-class _UserRef:
-    """Minimal stand-in for the User the investments endpoint only reads ``id`` from."""
-
-    __slots__ = ("id",)
-
-    def __init__(self, user_id: int) -> None:
-        self.id = user_id
 
 
 async def _project_investment(args: dict, ctx: ToolContext) -> dict:
@@ -584,6 +580,6 @@ async def execute_tool(name: str, args: dict, ctx: ToolContext) -> dict:
         return await tool.executor(args or {}, ctx)
     except ToolError as exc:
         return {"error": str(exc)}
-    except Exception:  # noqa: BLE001 — a broken tool must not kill the chat
+    except Exception:  # a broken tool must not kill the chat
         log.exception("Assistant tool %s failed", name)
         return {"error": f"The {name} query failed. Do not retry it this turn."}

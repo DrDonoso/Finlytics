@@ -1,8 +1,9 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useId } from 'react'
 import type { Account, Category, Mortgage, MortgageInput, MortgageRatePeriod, MortgageRateType, MortgageBonus } from '../api/types'
 import { createMortgage, updateMortgage } from '../api/client'
 import { errorMessage } from '../api/errors'
 import { useEuriborSeries, useMortgagePaymentCandidates } from '../api/queries'
+import { useModalDismiss } from '../hooks/useModalDismiss'
 import { IconAlert, IconClose } from './icons'
 import DatePicker from './DatePicker'
 import { useT, categoryLabel } from '../i18n'
@@ -19,8 +20,13 @@ interface Props {
   onSaved: (mortgage: Mortgage) => void
 }
 
-/** A bonus plus a stable key: new rows have no id until they are saved. */
-type BonusRow = MortgageBonus & { key: string }
+/** A bonus as edited: a stable key, since new rows have no id until they are
+ *  saved, and the numbers kept as typed so "0," survives until it is "0,25". */
+type BonusRow = Omit<MortgageBonus, 'spread_reduction' | 'annual_cost'> & {
+  key: string
+  spreadReduction: string
+  annualCost: string
+}
 
 let bonusKeySeq = 0
 function nextBonusKey(): string {
@@ -82,7 +88,12 @@ function initialState(mortgage?: Mortgage | null): FormState {
     floorRate: variable?.floor_rate != null ? String(variable.floor_rate) : '',
     capRate: variable?.cap_rate != null ? String(variable.cap_rate) : '',
     fixedYears: variable?.start_month ? String(Math.round(variable.start_month / 12)) : '5',
-    bonuses: mortgage?.bonuses.map(b => ({ ...b, key: nextBonusKey() })) ?? [],
+    bonuses: mortgage?.bonuses.map(({ spread_reduction, annual_cost, ...bonus }) => ({
+      ...bonus,
+      key: nextBonusKey(),
+      spreadReduction: String(spread_reduction),
+      annualCost: String(annual_cost),
+    })) ?? [],
     linkedAccountId: mortgage?.linked_account_id != null ? String(mortgage.linked_account_id) : '',
     linkedCategoryId: mortgage?.linked_category_id != null ? String(mortgage.linked_category_id) : '',
     propertyValue: mortgage?.property_value != null ? String(mortgage.property_value) : '',
@@ -97,6 +108,8 @@ export default function MortgageFormModal({ mortgage, accounts, categories, onCl
   const [form, setForm] = useState<FormState>(() => initialState(mortgage))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const titleId = useId()
+  const backdrop = useModalDismiss(onClose, saving)
 
   // Only the variable/mixed paths need the index, so the query stays disabled otherwise.
   const euribor = useEuriborSeries({ enabled: form.rateType !== 'fixed' })
@@ -180,7 +193,11 @@ export default function MortgageFormModal({ mortgage, accounts, categories, onCl
       include_in_net_worth: form.includeInNetWorth,
       notes: form.notes.trim() || null,
       rate_periods: buildRatePeriods(),
-      bonuses: form.bonuses.map(({ key: _key, ...bonus }) => bonus),
+      bonuses: form.bonuses.map(({ key: _key, spreadReduction, annualCost, ...bonus }) => ({
+        ...bonus,
+        spread_reduction: num(spreadReduction),
+        annual_cost: num(annualCost),
+      })),
     }
     try {
       const saved = mortgage
@@ -194,10 +211,10 @@ export default function MortgageFormModal({ mortgage, accounts, categories, onCl
   }
 
   function addBonus() {
-    set('bonuses', [...form.bonuses, { key: nextBonusKey(), name: '', spread_reduction: 0, annual_cost: 0, active: true }])
+    set('bonuses', [...form.bonuses, { key: nextBonusKey(), name: '', spreadReduction: '', annualCost: '', active: true }])
   }
 
-  function updateBonus(index: number, patch: Partial<MortgageBonus>) {
+  function updateBonus(index: number, patch: Partial<Omit<BonusRow, 'key'>>) {
     set('bonuses', form.bonuses.map((b, i) => (i === index ? { ...b, ...patch } : b)))
   }
 
@@ -219,10 +236,15 @@ export default function MortgageFormModal({ mortgage, accounts, categories, onCl
   }
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal modal-wide mortgage-form" onClick={e => e.stopPropagation()}>
+    <div className="modal-backdrop" {...backdrop}>
+      <div
+        className="modal modal-wide mortgage-form"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+      >
         <div className="modal-header">
-          <span className="modal-title">
+          <span className="modal-title" id={titleId}>
             {mortgage ? t.mortgageFormEditTitle : t.mortgageFormCreateTitle}
           </span>
           <button className="modal-close" onClick={onClose} type="button" aria-label={t.mortgageFormCancel}><IconClose size={15} /></button>
@@ -360,26 +382,35 @@ export default function MortgageFormModal({ mortgage, accounts, categories, onCl
                 <p className="form-hint">{t.mortgageFormBonusesInfo}</p>
                 {form.bonuses.map((bonus, i) => (
                   <div key={bonus.key} className="mortgage-form__bonus-row">
-                    <input
-                      className="form-input"
-                      placeholder={t.mortgageFormBonusName}
-                      value={bonus.name}
-                      onChange={e => updateBonus(i, { name: e.target.value })}
-                    />
-                    <input
-                      className="form-input"
-                      inputMode="decimal"
-                      placeholder={t.mortgageFormBonusReduction}
-                      value={String(bonus.spread_reduction)}
-                      onChange={e => updateBonus(i, { spread_reduction: num(e.target.value) })}
-                    />
-                    <input
-                      className="form-input"
-                      inputMode="decimal"
-                      placeholder={t.mortgageFormBonusCost}
-                      value={String(bonus.annual_cost)}
-                      onChange={e => updateBonus(i, { annual_cost: num(e.target.value) })}
-                    />
+                    <div className="form-group">
+                      <label htmlFor={`mf-${bonus.key}-name`}>{t.mortgageFormBonusName}</label>
+                      <input
+                        id={`mf-${bonus.key}-name`}
+                        className="form-input"
+                        value={bonus.name}
+                        onChange={e => updateBonus(i, { name: e.target.value })}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label htmlFor={`mf-${bonus.key}-reduction`}>{t.mortgageFormBonusReduction}</label>
+                      <input
+                        id={`mf-${bonus.key}-reduction`}
+                        className="form-input"
+                        inputMode="decimal"
+                        value={bonus.spreadReduction}
+                        onChange={e => updateBonus(i, { spreadReduction: e.target.value })}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label htmlFor={`mf-${bonus.key}-cost`}>{t.mortgageFormBonusCost}</label>
+                      <input
+                        id={`mf-${bonus.key}-cost`}
+                        className="form-input"
+                        inputMode="decimal"
+                        value={bonus.annualCost}
+                        onChange={e => updateBonus(i, { annualCost: e.target.value })}
+                      />
+                    </div>
                     <button
                       type="button"
                       className="btn-row-delete"

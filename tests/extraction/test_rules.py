@@ -10,13 +10,11 @@ import logging
 from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
-from typing import Optional
 
 import pytest
 
 from finlytics.contracts import ExtractedTransaction
 from finlytics.extraction.rules import RuleProtocol, apply_rules
-
 
 # ---------------------------------------------------------------------------
 # Fixtures / helpers
@@ -33,17 +31,17 @@ class _Rule:
     description_value: str
     priority: int = 100
     enabled: bool = True
-    amount_sign: Optional[str] = None
-    amount_min: Optional[Decimal] = None
-    amount_max: Optional[Decimal] = None
-    account_ref: Optional[str] = None
-    currency: Optional[str] = None
-    set_category: Optional[str] = None
-    set_merchant: Optional[str] = None
+    amount_sign: str | None = None
+    amount_min: Decimal | None = None
+    amount_max: Decimal | None = None
+    account_ref: str | None = None
+    currency: str | None = None
+    set_category: str | None = None
+    set_merchant: str | None = None
     add_tags: list[str] = field(default_factory=list)
     skip_ai: bool = False
-    detail_mode: Optional[str] = None
-    detail_value: Optional[str] = None
+    detail_mode: str | None = None
+    detail_value: str | None = None
 
 
 # Verify _Rule satisfies the protocol at import time

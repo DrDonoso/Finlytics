@@ -22,6 +22,7 @@ from sqlalchemy.pool import NullPool
 from finlytics.api.deps import get_current_user, get_db
 from finlytics.app import app
 from finlytics.db.models import InvestmentConnection, PriceHistory, Rule, User
+from finlytics.db.repository import create_opening_balance_tx
 from finlytics.investments.fidelity import FidelityESPPProvider
 from tests.pg.support import create_database, drop_database, ingest, tx
 
@@ -77,10 +78,14 @@ async def seed(sessions: Sessions, accounts: tuple[int, int]) -> User:
             tx(tags=["super", "hogar"], category_confidence=0.92),
             tx(description="LIDL", amount=Decimal("-12.30")),
             tx(description="NOMINA", amount=Decimal("2150.00"), balance_after=Decimal("3200.55")),
+            tx(description="OCTOPUS", amount=Decimal("-60.00"), detail="GCREOCTOPUSENERGY"),
+            tx(description="OCTOPUS", amount=Decimal("-60.00"), detail="GCREOCTOPUSGAS"),
+            tx(description="LIDL", amount=Decimal("-12.30"), allow_duplicate=True),
         ],
     )
     await ingest(sessions, revolut, [tx(account_ref="Revolut", merchant="Mercadona")])
     async with sessions() as s, s.begin():
+        await create_opening_balance_tx(s, bbva, "EUR", 1000.0, date(2025, 3, 1))
         s.add(
             Rule(
                 name="Lidl",
@@ -123,6 +128,10 @@ def nonzero(summary: dict[str, int]) -> dict[str, int]:
     return {k: v for k, v in summary.items() if v}
 
 
+def comparable(document: dict[str, Any]) -> dict[str, Any]:
+    return {k: v for k, v in document.items() if k != "exported_at"}
+
+
 async def test_a_restored_backup_exports_the_same_data(sessions, accounts, target):
     async with api(sessions, await seed(sessions, accounts)) as client:
         backup = (await client.get("/api/backup/export")).json()
@@ -137,7 +146,7 @@ async def test_a_restored_backup_exports_the_same_data(sessions, accounts, targe
         "accounts_created": 2,
         "categories_created": 1,
         "tags_created": 2,
-        "transactions_inserted": 4,
+        "transactions_inserted": 8,
         "rules_created": 1,
         "investment_connections_created": 1,
         "espp_lots_inserted": 1,
@@ -147,15 +156,30 @@ async def test_a_restored_backup_exports_the_same_data(sessions, accounts, targe
         "accounts_existing": 2,
         "categories_updated": 1,
         "tags_updated": 2,
-        "transactions_duplicates": 4,
+        "transactions_duplicates": 8,
         "rules_updated": 1,
         "investment_connections_updated": 1,
         "espp_lots_duplicates": 1,
         "price_history_duplicates": 1,
     }
 
-    def comparable(document: dict[str, Any]) -> dict[str, Any]:
-        return {k: v for k, v in document.items() if k != "exported_at"}
-
-    assert [t["tags"] for t in backup["transactions"]] == [["hogar", "super"], [], [], []]
+    txs = backup["transactions"]
+    assert sorted(t["tags"] for t in txs) == [[]] * 7 + [["hogar", "super"]]
+    assert sorted(t["detail"] for t in txs if t["detail"]) == [
+        "GCREOCTOPUSENERGY",
+        "GCREOCTOPUSGAS",
+    ]
+    assert [t["description"] for t in txs if t["is_system"]] == ["Saldo inicial"]
+    assert [t["description"] for t in txs if t["duplicate_key"]] == ["LIDL"]
     assert comparable(restored) == comparable(backup)
+
+
+async def test_restoring_a_backup_into_its_own_instance_inserts_nothing(sessions, accounts):
+    async with api(sessions, await seed(sessions, accounts)) as client:
+        backup = (await client.get("/api/backup/export")).json()
+        summary = (await client.post("/api/backup/import", json=backup)).json()
+        after = (await client.get("/api/backup/export")).json()
+
+    assert summary["transactions_inserted"] == 0
+    assert summary["transactions_duplicates"] == len(backup["transactions"]) == 8
+    assert comparable(after) == comparable(backup)

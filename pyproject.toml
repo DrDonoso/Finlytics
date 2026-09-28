@@ -39,6 +39,10 @@ dependencies = [
     # `timeout` — the sole way to stop a catastrophically-backtracking pattern,
     # since CPython holds the GIL for the whole of a regex match.
     "regex>=2024.5.15",
+    # Already pulled in by Starlette, declared because the assistant imports it:
+    # its shielded cancel scope is what lets an abandoned turn still record what
+    # it cost after Starlette cancels the stream.
+    "anyio>=4.0",
 ]
 
 [project.optional-dependencies]
@@ -49,7 +53,7 @@ test = [
     "reportlab>=4.0",
     "aiosqlite>=0.20",
     "mypy>=1.13",
-    "ruff>=0.8",
+    "ruff>=0.16",
 ]
 
 [project.urls]
@@ -65,6 +69,36 @@ testpaths = ["tests"]
 [tool.ruff]
 target-version = "py312"
 line-length = 100
+# Deployed migrations are never edited, so they are not linted either.
+extend-exclude = ["alembic/versions"]
+
+[tool.ruff.lint]
+# Ruff's default rule set, whose version uv.lock pins. Each exception is a convention.
+ignore = [
+    "FURB157",  # Decimal("10"): every monetary literal is a string, so none is ever a float
+    "RUF022",   # __all__ is ordered by topic or emission order, not alphabetically
+    "SIM103",   # a run of guard clauses reads better than folding the last one into the return
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["FLY002"]  # "\n".join over a list keeps statement fixtures readable line by line
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI's dependency markers are meant to be called in argument defaults.
+extend-immutable-calls = [
+    "fastapi.Body",
+    "fastapi.Cookie",
+    "fastapi.Depends",
+    "fastapi.File",
+    "fastapi.Form",
+    "fastapi.Header",
+    "fastapi.Path",
+    "fastapi.Query",
+    "fastapi.Security",
+]
+
+[tool.ruff.lint.flake8-comprehensions]
+allow-dict-calls-with-keyword-arguments = true
 
 [tool.mypy]
 python_version = "3.12"

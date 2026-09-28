@@ -8,10 +8,8 @@ instructions displacing the safety rules rather than being added to them.
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from unittest.mock import MagicMock
-
-import pytest
 
 from finlytics.assistant import prompts
 from finlytics.assistant import settings as assistant_settings
@@ -69,10 +67,10 @@ class TestResolveSettings:
 
 class TestMonthStart:
     def test_is_the_first_of_the_month_in_utc(self):
-        assert month_start(date(2026, 7, 31)) == datetime(2026, 7, 1, tzinfo=timezone.utc)
+        assert month_start(date(2026, 7, 31)) == datetime(2026, 7, 1, tzinfo=UTC)
 
     def test_january_does_not_wrap(self):
-        assert month_start(date(2026, 1, 5)) == datetime(2026, 1, 1, tzinfo=timezone.utc)
+        assert month_start(date(2026, 1, 5)) == datetime(2026, 1, 1, tzinfo=UTC)
 
 
 class TestCustomInstructionsInThePrompt:

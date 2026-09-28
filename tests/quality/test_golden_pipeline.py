@@ -16,8 +16,6 @@ from datetime import date
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
-
 from finlytics.extraction.extractor import (
     _ExtractionResult,
     _RawTransaction,
@@ -25,7 +23,6 @@ from finlytics.extraction.extractor import (
 )
 from finlytics.extraction.llm_client import LLMClient
 from finlytics.extraction.schema import ExtractedTransaction
-
 
 # ---------------------------------------------------------------------------
 # Test helpers

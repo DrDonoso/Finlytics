@@ -635,6 +635,8 @@ export interface InvestmentPortfolio {
   currency: string
   plugins_connected: number
   last_updated: string | null
+  /** Connected accounts that could not be read and are missing from every figure. */
+  accounts_unavailable: number
   returns: InvestmentReturns | null
   value_series: ValuePoint[]
   contributions_series: ValuePoint[]
@@ -773,6 +775,8 @@ export interface CombinedOverview {
   by_provider: CombinedOverviewProviderSlice[]
   by_asset_class: CombinedOverviewAssetClassSlice[]
   providers: CombinedOverviewProvider[]
+  /** A connected provider could not be valued, so the totals leave it out. */
+  partial: boolean
 }
 
 // ─── Notifications ────────────────────────────────────────────────────────────

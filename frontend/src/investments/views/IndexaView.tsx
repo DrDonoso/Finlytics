@@ -184,9 +184,13 @@ export default function IndexaView() {
 
   const instrumentSlices = useMemo(() => {
     if (!portfolio) return []
-    return (portfolio.holdings ?? [])
-      .filter(h => h.current_value > 0)
-      .map(h => ({ name: h.name, value: h.current_value }))
+    // Several accounts can hold the same fund; the chart is by instrument, not by account.
+    const byName = new Map<string, number>()
+    for (const h of portfolio.holdings ?? []) {
+      if (h.current_value > 0) byName.set(h.name, (byName.get(h.name) ?? 0) + h.current_value)
+    }
+    return [...byName]
+      .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value)
   }, [portfolio])
 
@@ -300,6 +304,8 @@ export default function IndexaView() {
   }
 
   const isConnected = portfolio !== null && portfolio.plugins_connected > 0
+  // Accounts exist but none could be read: zeros here would read as an empty portfolio.
+  const unreadable = portfolio !== null && portfolio.accounts_unavailable > 0 && portfolio.last_updated == null
 
   const returnsMatrixCard = (() => {
     if (!portfolio?.monthly_returns || portfolio.monthly_returns.length === 0) return null
@@ -349,7 +355,7 @@ export default function IndexaView() {
             <thead>
               <tr>
                 <th><span className="sr-only">{t.tableColYear}</span></th>
-                {MONTHS.map((m, i) => <th key={i}>{m}</th>)}
+                {MONTHS.map(m => <th key={m}>{m}</th>)}
                 <th className="returns-matrix-cell--total">{t.invMatrixTotal}</th>
                 <th className="returns-matrix-cell--bench">{t.invMatrixBenchmark}</th>
               </tr>
@@ -415,7 +421,19 @@ export default function IndexaView() {
         <h1 className="investments-page-title">{t.investmentsTitle}</h1>
       </div>
 
-      {!isConnected ? (
+      {unreadable ? (
+
+        <div className="card investments-holdings-card">
+          <div className="investments-empty">
+            <IconAlert size={30} className="investments-empty__icon" />
+            <p className="investments-empty__text">{t.invAccountsUnreadable}</p>
+            <NavLink to="/settings/connectors" className="btn-primary">
+              {t.investmentsManageConnectors} <IconChevronRight size={14} />
+            </NavLink>
+          </div>
+        </div>
+
+      ) : !isConnected ? (
 
         /* ── Empty state ── */
         <div className="card investments-holdings-card">
@@ -443,6 +461,18 @@ export default function IndexaView() {
                   </span>
                 )}
               </div>
+            </div>
+          )}
+
+          {portfolio!.accounts_unavailable > 0 && (
+            <div className="inv-partial-banner" role="status">
+              <IconAlert size={16} />
+              <span>
+                {t.invAccountsUnavailable(portfolio!.accounts_unavailable)}
+                <NavLink to="/settings/connectors" className="inv-partial-banner__link">
+                  {t.investmentsManageConnectors}
+                </NavLink>
+              </span>
             </div>
           )}
 
@@ -581,8 +611,8 @@ export default function IndexaView() {
                             dataKey="value"
                             paddingAngle={2}
                           >
-                            {allocationData.map((entry, i) => (
-                              <Cell key={i} fill={entry.color} opacity={0.9} />
+                            {allocationData.map(entry => (
+                              <Cell key={entry.name} fill={entry.color} opacity={0.9} />
                             ))}
                           </Pie>
                           <Tooltip
@@ -652,8 +682,8 @@ export default function IndexaView() {
                             strokeWidth={1}
                             stroke="var(--surface)"
                           >
-                            {instrumentSlices.map((_, i) => (
-                              <Cell key={i} fill={INSTRUMENT_PALETTE[i % INSTRUMENT_PALETTE.length]} />
+                            {instrumentSlices.map((slice, i) => (
+                              <Cell key={slice.name} fill={INSTRUMENT_PALETTE[i % INSTRUMENT_PALETTE.length]} />
                             ))}
                           </Pie>
                         </PieChart>
@@ -911,10 +941,10 @@ export default function IndexaView() {
                         </tr>
                       </thead>
                       <tbody>
-                        {events.map((ev, i) => {
+                        {events.map(ev => {
                           const isPos = ev.amount >= 0
                           return (
-                            <tr key={i}>
+                            <tr key={ev.date}>
                               <td>
                                 <span className="inv-td-isin">{formatDDMMYYYY(ev.date)}</span>
                                 {' '}

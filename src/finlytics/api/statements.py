@@ -19,8 +19,8 @@ from finlytics.api.schemas import (
 from finlytics.clock import today as local_today
 from finlytics.config import settings
 from finlytics.db import queries
-from finlytics.db.queries.types import StatementMonthRow, StatementOriginalRow
 from finlytics.db.models import ImportRun
+from finlytics.db.queries.types import StatementMonthRow, StatementOriginalRow
 from finlytics.log_safety import one_line
 
 log = logging.getLogger(__name__)

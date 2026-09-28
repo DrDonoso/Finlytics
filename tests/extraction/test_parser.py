@@ -6,7 +6,6 @@ import pytest
 
 from finlytics.extraction.parser import _resolve_type, parse_statement
 
-
 # ---------------------------------------------------------------------------
 # _resolve_type
 # ---------------------------------------------------------------------------

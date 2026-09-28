@@ -15,7 +15,6 @@ from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
-from typing import Optional
 
 from pydantic import BaseModel, Field, field_serializer
 
@@ -43,7 +42,7 @@ class ExtractedTransaction(BaseModel):
     description: str = Field(
         description="Merchant name or raw description as it appears on the statement"
     )
-    raw_line: Optional[str] = Field(
+    raw_line: str | None = Field(
         default=None,
         description="Verbatim line(s) from the parsed statement, if available",
     )
@@ -53,7 +52,7 @@ class ExtractedTransaction(BaseModel):
             "if nothing fits"
         )
     )
-    category_confidence: Optional[float] = Field(
+    category_confidence: float | None = Field(
         default=None,
         ge=0.0,
         le=1.0,
@@ -62,7 +61,7 @@ class ExtractedTransaction(BaseModel):
     account_ref: str = Field(
         description="Source account identifier — 'BBVA' or 'Indexa Capital'"
     )
-    balance_after: Optional[Decimal] = Field(
+    balance_after: Decimal | None = Field(
         default=None,
         description="Running balance after this transaction, if present in the statement",
     )
@@ -78,7 +77,7 @@ class ExtractedTransaction(BaseModel):
     # identifiable merchant (transfers, ATM, salary, taxes, etc.).
     # NOT translated — brand names are language-neutral (Amazon = Amazon in ES/EN).
     # NOT redacted — merchant names are needed for extraction accuracy.
-    merchant: Optional[str] = Field(
+    merchant: str | None = Field(
         default=None,
         description=(
             "Normalized brand/vendor name in Title Case (e.g. 'Amazon', 'Mercadona'), "
@@ -88,18 +87,18 @@ class ExtractedTransaction(BaseModel):
     # Non-bold sub-detail text parsed from the statement (the oblique line that
     # immediately follows the bold concept, e.g. "GCREOCTOPUSENERGY" from
     # "**ADEUDOASUCARGO** GCREOCTOPUSENERGY").  None when absent.
-    detail: Optional[str] = Field(
+    detail: str | None = Field(
         default=None,
         description="Non-bold sub-detail from the statement line, or null when absent",
     )
     # Set when a user-defined rule matched this transaction (apply_rules).
     # Used by the import preview to show a "🔗 Regla" badge.
     # Intentionally ignored by the persistence layer (Shuri).
-    matched_rule_id: Optional[int] = Field(
+    matched_rule_id: int | None = Field(
         default=None,
         description="ID of the rule that matched this transaction, if any",
     )
-    matched_rule_name: Optional[str] = Field(
+    matched_rule_name: str | None = Field(
         default=None,
         description="Human-readable name of the matched rule, if any",
     )

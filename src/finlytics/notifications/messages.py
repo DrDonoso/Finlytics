@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     from finlytics.db.models import Notification
 
 
-def render_notification_text(notification: "Notification") -> str:
+def render_notification_text(notification: Notification) -> str:
     """Return a human-readable Spanish string for Telegram delivery.
 
     Args:

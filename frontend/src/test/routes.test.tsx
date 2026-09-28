@@ -69,7 +69,7 @@ vi.mock('../api/client', () => {
     getCombinedOverview: empty({
       total_value_eur: 0, total_invested_eur: 0,
       total_gain_loss_eur: 0, total_gain_loss_pct: 0,
-      providers: [], by_provider: [], by_asset_class: [],
+      providers: [], by_provider: [], by_asset_class: [], partial: false,
     }),
     getConnections: empty([]),
     getInvestmentPlugins: empty([]),

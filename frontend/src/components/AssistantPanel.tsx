@@ -112,6 +112,9 @@ export default function AssistantPanel() {
   if (!open) return null
 
   async function submit(text: string) {
+    // `send` ignores a turn while one is streaming, so clearing the composer
+    // first would silently throw away what the user typed.
+    if (sending || text.trim() === '') return
     setDraft('')
     await send(text)
   }

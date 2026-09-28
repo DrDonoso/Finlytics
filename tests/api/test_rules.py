@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
-
-import pytest
-
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
-_NOW = datetime(2026, 7, 7, 14, 55, 0, tzinfo=timezone.utc)
+_NOW = datetime(2026, 7, 7, 14, 55, 0, tzinfo=UTC)
 
 
 def _make_rule(**overrides):
@@ -309,7 +306,6 @@ def test_rule_add_tags_server_default_renders_valid_json():
     Guards against the regression where server_default=\"'[]'\" (plain string) caused
     SQLAlchemy to quote it into '''[]''' — invalid JSON syntax that crashed asyncpg.
     """
-    from sqlalchemy import text
     from finlytics.db.models import Rule
 
     col = Rule.__table__.c.add_tags

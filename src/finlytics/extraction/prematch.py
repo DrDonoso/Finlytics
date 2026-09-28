@@ -53,9 +53,10 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Iterable
 from datetime import date
 from decimal import Decimal, InvalidOperation
-from typing import Iterable, NamedTuple, Optional
+from typing import NamedTuple
 
 from finlytics.contracts import ExtractedTransaction
 from finlytics.extraction.rules import (
@@ -80,7 +81,7 @@ class _LineData(NamedTuple):
     date: date
     amount: Decimal
     description: str
-    balance_after: Optional[Decimal]
+    balance_after: Decimal | None
 
 
 # ---------------------------------------------------------------------------
@@ -359,12 +360,12 @@ def pre_match_rules(
                 continue
             if rule.amount_max is not None and abs(line_data.amount) > rule.amount_max:
                 continue
-            if rule.account_ref is not None:
-                if (account_ref or "").lower() != rule.account_ref.lower():
-                    continue
-            if rule.currency is not None:
-                if currency.lower() != rule.currency.lower():
-                    continue
+            if rule.account_ref is not None and (
+                (account_ref or "").lower() != rule.account_ref.lower()
+            ):
+                continue
+            if rule.currency is not None and currency.lower() != rule.currency.lower():
+                continue
 
             # All conditions passed — build the ExtractedTransaction.
             # set_merchant, if provided, doubles as the human-readable description.

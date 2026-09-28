@@ -16,7 +16,7 @@ from __future__ import annotations
 import hashlib
 import json
 import uuid
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from decimal import ROUND_HALF_UP, Decimal
 
 from sqlalchemy import case, func, or_, select
@@ -27,7 +27,6 @@ from sqlalchemy.orm import selectinload
 from finlytics.contracts import ExtractedTransaction
 from finlytics.db.models import Category, ImportRun, Rule, Tag, Transaction
 from finlytics.extraction.translate import translate_category_name
-
 
 # ── Dedup hash ────────────────────────────────────────────────────────────────
 
@@ -358,7 +357,7 @@ async def update_rule(session: AsyncSession, rule_id: int, **kwargs) -> Rule | N
         return None
     for field, value in kwargs.items():
         setattr(rule, field, value)
-    rule.updated_at = datetime.now(timezone.utc)
+    rule.updated_at = datetime.now(UTC)
     await session.flush()
     return rule
 

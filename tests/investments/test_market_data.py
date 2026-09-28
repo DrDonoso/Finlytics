@@ -15,15 +15,16 @@ No DB, no network — all pure / mocked.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime
 from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock, call, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
 
+from finlytics.api.fidelity import compute_evolution_series
+from finlytics.api.schemas import ValuePoint
 from finlytics.investments.market_data import (
-    _MSFT_TICKER,
     _YAHOO_HOSTS,
     _YAHOO_UA,
     _last_business_day,
@@ -34,10 +35,6 @@ from finlytics.investments.market_data import (
     get_latest_price,
     topup_recent_prices,
 )
-from finlytics.investments.market_data import LatestPriceRow
-from finlytics.api.fidelity import compute_evolution_series
-from finlytics.api.schemas import ValuePoint
-
 
 # ---------------------------------------------------------------------------
 # Minimal lot stub (duck-types EsppLot for compute_evolution_series)
@@ -55,9 +52,9 @@ class _Lot:
 # ---------------------------------------------------------------------------
 
 # Timestamps at 20:00 UTC (market close proxy) — UTC date equals calendar date
-_TS_JUL9  = int(datetime(2026, 7, 9,  20, 0, tzinfo=timezone.utc).timestamp())
-_TS_JUL10 = int(datetime(2026, 7, 10, 20, 0, tzinfo=timezone.utc).timestamp())
-_TS_JUL11 = int(datetime(2026, 7, 11, 20, 0, tzinfo=timezone.utc).timestamp())
+_TS_JUL9  = int(datetime(2026, 7, 9,  20, 0, tzinfo=UTC).timestamp())
+_TS_JUL10 = int(datetime(2026, 7, 10, 20, 0, tzinfo=UTC).timestamp())
+_TS_JUL11 = int(datetime(2026, 7, 11, 20, 0, tzinfo=UTC).timestamp())
 
 _YAHOO_CHART_MSFT = {
     "chart": {
@@ -326,7 +323,7 @@ class TestParseYahooSnapshot:
     def test_date_from_utc_timestamp(self):
         # Verify the UTC timestamp conversion gives the expected date
         snap = _parse_yahoo_snapshot(_YAHOO_CHART_MSFT)
-        expected = datetime.fromtimestamp(_TS_JUL10, tz=timezone.utc).date()
+        expected = datetime.fromtimestamp(_TS_JUL10, tz=UTC).date()
         assert snap["date"] == expected
 
 
@@ -440,7 +437,7 @@ class TestEvolutionSeries:
         lots = self._lots()
         pm = self._price_map()
         min_d, max_d = date(2026, 6, 30), date(2026, 7, 8)
-        vs, cs = compute_evolution_series(lots, pm, min_d, max_d)
+        _vs, cs = compute_evolution_series(lots, pm, min_d, max_d)
         # 6 market days in price_map within range (no weekend/holiday points)
         assert len(cs) == 6
 
@@ -512,7 +509,7 @@ class TestEvolutionSeries:
         max_d = date(2025, 7, 15)
         assert (max_d - min_d).days > 365
         assert (max_d - min_d).days <= 2200
-        vs, cs = compute_evolution_series(lots, pm, min_d, max_d)
+        _vs, cs = compute_evolution_series(lots, pm, min_d, max_d)
         # 2 market days in price_map within range → 2 points
         assert len(cs) == 2
 
@@ -521,7 +518,7 @@ class TestEvolutionSeries:
         pm = {date(2026, 1, 5): (450.0, 1.0 / 1.08)}
         min_d = date(2026, 1, 5)
         max_d = date(2026, 7, 5)   # 181 days
-        vs, cs = compute_evolution_series(lots, pm, min_d, max_d)
+        _vs, cs = compute_evolution_series(lots, pm, min_d, max_d)
         # 1 market day in price_map within range → 1 point
         assert len(cs) == 1
 
@@ -580,21 +577,19 @@ def _make_db_session(
     begin_cm = AsyncMock()
     session.begin = MagicMock(return_value=begin_cm)
 
-    max_date_result = MagicMock()
+    max_date_result = _max_date_result(max_date_row)
     # Legacy interface used by get_latest_price tests
     max_date_result.scalar_one_or_none.return_value = max_date_row
-    # Model-A interface: topup_recent_prices uses result.first()
-    if max_date_row is None:
-        max_date_result.first.return_value = None
-    else:
-        row = MagicMock()
-        row.__getitem__ = MagicMock(
-            side_effect=lambda idx: max_date_row if idx == 0 else 0.925926
-        )
-        max_date_result.first.return_value = row
 
     session.execute = AsyncMock(return_value=max_date_result)
     return session
+
+
+def _max_date_result(max_date: date | None, fx_eur_usd: float = 0.925926) -> MagicMock:
+    """Result of topup's first query: the latest stored (price_date, fx_eur_usd)."""
+    result = MagicMock()
+    result.first.return_value = None if max_date is None else (max_date, fx_eur_usd)
+    return result
 
 
 def _yahoo_history_rows(
@@ -634,7 +629,7 @@ class TestTopupRecentPrices:
         # second execute is for the upsert
         db.execute = AsyncMock(side_effect=[
             # max_date query
-            MagicMock(**{"scalar_one_or_none.return_value": date(2026, 7, 14)}),
+            _max_date_result(date(2026, 7, 14)),
             upsert_result,  # upsert
         ])
 
@@ -669,7 +664,7 @@ class TestTopupRecentPrices:
             return MagicMock()
 
         db.execute = AsyncMock(side_effect=[
-            MagicMock(**{"scalar_one_or_none.return_value": date(2026, 7, 11)}),
+            _max_date_result(date(2026, 7, 11)),
             MagicMock(),  # upsert result
         ])
 
@@ -702,11 +697,11 @@ class TestTopupRecentPrices:
     @pytest.mark.asyncio
     async def test_upsert_uses_do_update_not_do_nothing(self):
         """Explicit assertion: conflict handler is OnConflictDoUpdate."""
-        from sqlalchemy.dialects.postgresql.dml import OnConflictDoUpdate, OnConflictDoNothing
+        from sqlalchemy.dialects.postgresql.dml import OnConflictDoNothing, OnConflictDoUpdate
 
         db = _make_db_session()
         db.execute = AsyncMock(side_effect=[
-            MagicMock(**{"scalar_one_or_none.return_value": date(2026, 7, 14)}),
+            _max_date_result(date(2026, 7, 14)),
             MagicMock(),
         ])
 
@@ -728,7 +723,7 @@ class TestTopupRecentPrices:
         """When Yahoo fetch raises, no upsert is attempted and no exception propagates."""
         db = _make_db_session()
         db.execute = AsyncMock(
-            return_value=MagicMock(**{"scalar_one_or_none.return_value": date(2026, 7, 14)})
+            return_value=_max_date_result(date(2026, 7, 14))
         )
 
         with patch("finlytics.investments.market_data._fetch_yahoo_history",
@@ -744,7 +739,7 @@ class TestTopupRecentPrices:
         """When Yahoo returns empty lists, no upsert is attempted."""
         db = _make_db_session()
         db.execute = AsyncMock(
-            return_value=MagicMock(**{"scalar_one_or_none.return_value": date(2026, 7, 14)})
+            return_value=_max_date_result(date(2026, 7, 14))
         )
 
         with patch("finlytics.investments.market_data._fetch_yahoo_history",
@@ -774,7 +769,7 @@ class TestTopupRecentPrices:
         """close_eur = close_usd / eurusd_quote (inversion applied)."""
         db = _make_db_session()
         db.execute = AsyncMock(side_effect=[
-            MagicMock(**{"scalar_one_or_none.return_value": date(2026, 7, 14)}),
+            _max_date_result(date(2026, 7, 14)),
             MagicMock(),
         ])
 
@@ -788,17 +783,13 @@ class TestTopupRecentPrices:
                    side_effect=[msft, fx]):
             await topup_recent_prices(db)
 
-        # Inspect the values dict passed to the upsert statement
-        upsert_stmt = db.execute.call_args_list[1].args[0]
-        # The stmt is built via pg_insert(...).values(list_of_dicts).on_conflict...
-        # We verify FX math via the expected Decimal values
-        expected_fx_eur_usd = round(1.0 / eurusd, 6)
-        expected_close_eur  = round(close_usd * (1.0 / eurusd), 6)
-        # Verify by checking the insert statement compile includes correct numbers
         from sqlalchemy.dialects import postgresql as pg_dialect
-        compiled_str = str(upsert_stmt.compile(dialect=pg_dialect.dialect()))
-        # Both expected values should be represented in the compiled SQL
-        assert str(expected_fx_eur_usd) in compiled_str or "excluded" in compiled_str
+
+        upsert_stmt = db.execute.call_args_list[1].args[0]
+        params = upsert_stmt.compile(dialect=pg_dialect.dialect()).params
+        fx_eur_usd = 1.0 / eurusd
+        assert params["fx_eur_usd_m0"] == Decimal(str(round(fx_eur_usd, 6)))
+        assert params["close_eur_m0"] == Decimal(str(round(close_usd * fx_eur_usd, 6)))
 
 
 # ---------------------------------------------------------------------------

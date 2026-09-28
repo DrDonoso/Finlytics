@@ -114,7 +114,9 @@ export default function PreviewTypeahead({
       } else if (!freeText) {
         e.preventDefault()
       }
-    } else if (e.key === 'Escape') {
+    } else if (e.key === 'Escape' && expanded) {
+      // Claim the key so an enclosing modal stays open.
+      e.preventDefault()
       setOpen(false)
     }
   }

@@ -391,6 +391,7 @@ export default function DatePicker({ value, onChange, min, max, id, ariaLabel, p
       </button>
 
       {open && (
+        // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- APG date picker dialog: the panel owns Escape, the Tab trap and close-on-focus-loss for every cell inside it
         <div
           ref={panelRef}
           className="picker-panel day-picker-panel"

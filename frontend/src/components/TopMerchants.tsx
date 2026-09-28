@@ -90,17 +90,17 @@ export default function TopMerchants({ globalFilters, selectedMerchant, onMercha
                   dataKey="value"
                   paddingAngle={2}
                   cursor="pointer"
-                  onClick={(entry) => {
-                    const clicked = (entry as any).name as string
-                    onMerchantClick(selectedMerchant === clicked ? undefined : clicked)
+                  onClick={entry => {
+                    if (typeof entry.name !== 'string') return
+                    onMerchantClick(selectedMerchant === entry.name ? undefined : entry.name)
                   }}
                 >
-                  {chartData.map((entry, i) => {
+                  {chartData.map(entry => {
                     const isSelected = selectedMerchant === entry.name
                     const dimmed = hasSelection && !isSelected
                     return (
                       <Cell
-                        key={i}
+                        key={entry.name}
                         fill={entry.color}
                         opacity={dimmed ? 0.28 : 0.92}
                         stroke={isSelected ? entry.color : 'transparent'}

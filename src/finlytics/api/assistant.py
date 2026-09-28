@@ -19,11 +19,12 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
+import anyio
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response
 from fastapi.responses import StreamingResponse
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from finlytics.api.deps import get_current_user, get_db
@@ -48,6 +49,7 @@ from finlytics.assistant.service import (
     Completed,
     Failed,
     ToolStarted,
+    TurnUsage,
     run_turn,
 )
 from finlytics.auth.ratelimit import RateLimiter
@@ -220,7 +222,7 @@ async def update_assistant_settings(
         row.rate_limit_messages = body.rate_limit_messages
         row.rate_limit_window_seconds = body.rate_limit_window_seconds
         row.monthly_token_budget = body.monthly_token_budget
-        row.updated_at = datetime.now(timezone.utc)
+        row.updated_at = datetime.now(UTC)
 
     return _settings_out(row)
 
@@ -355,6 +357,36 @@ def _sse(event: str, payload: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
 
+async def _record_unanswered_usage(question_id: int | None, usage: TurnUsage) -> None:
+    """Bill a turn that never produced an answer to the question that opened it.
+
+    Every provider call that finished was paid for, whether the turn then failed,
+    ran out of iterations or was stopped by the user. The monthly budget sums the
+    token columns of every message, so leaving them empty would make the most
+    expensive failures free and let a stopped turn bypass the cap entirely.
+
+    Shielded because a client disconnect reaches here as a cancellation of the
+    very task running this code; any unshielded await would be cancelled too.
+    """
+    if question_id is None or not usage.reported:
+        return
+    with anyio.CancelScope(shield=True):
+        try:
+            async with async_session_factory() as session:
+                await session.execute(
+                    update(AssistantMessage)
+                    .where(AssistantMessage.id == question_id)
+                    .values(
+                        prompt_tokens=usage.prompt_tokens,
+                        completion_tokens=usage.completion_tokens,
+                        total_tokens=usage.total_tokens,
+                    )
+                )
+                await session.commit()
+        except Exception:  # never mask whatever ended the stream
+            log.exception("Could not record the token usage of an unanswered turn")
+
+
 @router.post("/conversations/{conversation_id}/messages")
 async def send_message(
     conversation_id: int,
@@ -443,13 +475,15 @@ async def send_message(
 
         # Persist the question before streaming: if the model fails halfway, the
         # user should still see what they asked rather than an empty thread.
-        db.add(
-            AssistantMessage(
-                conversation_id=conversation.id, role="user", content=body.content
-            )
+        question = AssistantMessage(
+            conversation_id=conversation.id, role="user", content=body.content
         )
+        db.add(question)
         conversation.title = title
-        conversation.updated_at = datetime.now(timezone.utc)
+        conversation.updated_at = datetime.now(UTC)
+
+    # Assigned by the commit above; the session does not expire on commit.
+    question_id = question.id
 
     history = [
         {"role": m.role, "content": m.content} for m in reversed(history_rows)
@@ -469,71 +503,85 @@ async def send_message(
     system_prompt_template = effective.system_prompt
 
     async def event_stream():
-        # The request-scoped session is closed by its dependency as soon as this
-        # generator starts yielding, so the turn runs on its own session.
-        async with async_session_factory() as stream_db:
-            try:
-                async for event in run_turn(
-                    llm=llm,
-                    session=stream_db,
-                    user_id=user_id,
-                    history=history,
-                    today=today,
-                    limits=limits,
-                    custom_instructions=custom_instructions,
-                    system_prompt_template=system_prompt_template,
-                    background_tasks=background_tasks,
-                ):
-                    if isinstance(event, ToolStarted):
-                        yield _sse("tool", {"name": event.name, "label": event.label})
-                    elif isinstance(event, AnswerDelta):
-                        yield _sse("token", {"text": event.text})
-                    elif isinstance(event, Failed):
-                        yield _sse("error", {"detail": event.message})
-                        return
-                    elif isinstance(event, Completed):
-                        message = AssistantMessage(
-                            conversation_id=conversation_id_value,
-                            role="assistant",
-                            content=event.answer,
-                            tool_calls=event.tool_calls or None,
-                            # Left null when the provider reported nothing, so
-                            # "not measured" stays distinguishable from "free".
-                            prompt_tokens=(
-                                event.prompt_tokens if event.usage_reported else None
-                            ),
-                            completion_tokens=(
-                                event.completion_tokens if event.usage_reported else None
-                            ),
-                            total_tokens=(
-                                event.total_tokens if event.usage_reported else None
-                            ),
-                        )
-                        # `commit()` rather than `begin()`: run_turn has already
-                        # run its context and tool queries on this session, so a
-                        # transaction is autobegun and `begin()` would raise.
-                        stream_db.add(message)
-                        await stream_db.commit()
-                        await stream_db.refresh(message)
-                        yield _sse(
-                            "done",
-                            {
-                                "message_id": message.id,
-                                "title": title,
-                                "total_tokens": (
+        usage = TurnUsage()
+        answered = False
+        try:
+            # The request-scoped session is closed by its dependency as soon as
+            # this generator starts yielding, so the turn runs on its own session.
+            async with async_session_factory() as stream_db:
+                try:
+                    async for event in run_turn(
+                        llm=llm,
+                        session=stream_db,
+                        user_id=user_id,
+                        history=history,
+                        today=today,
+                        limits=limits,
+                        custom_instructions=custom_instructions,
+                        system_prompt_template=system_prompt_template,
+                        background_tasks=background_tasks,
+                        usage=usage,
+                    ):
+                        if isinstance(event, ToolStarted):
+                            yield _sse("tool", {"name": event.name, "label": event.label})
+                        elif isinstance(event, AnswerDelta):
+                            yield _sse("token", {"text": event.text})
+                        elif isinstance(event, Failed):
+                            yield _sse("error", {"detail": event.message})
+                            return
+                        elif isinstance(event, Completed):
+                            message = AssistantMessage(
+                                conversation_id=conversation_id_value,
+                                role="assistant",
+                                content=event.answer,
+                                tool_calls=event.tool_calls or None,
+                                # Left null when the provider reported nothing,
+                                # so "not measured" stays distinguishable from
+                                # "free".
+                                prompt_tokens=(
+                                    event.prompt_tokens if event.usage_reported else None
+                                ),
+                                completion_tokens=(
+                                    event.completion_tokens
+                                    if event.usage_reported
+                                    else None
+                                ),
+                                total_tokens=(
                                     event.total_tokens if event.usage_reported else None
                                 ),
-                            },
-                        )
-            except Exception:  # noqa: BLE001 — the stream must close cleanly
-                # The exception text is logged, never streamed: it can carry
-                # connection strings, file paths and SQL, and this frame is
-                # rendered verbatim in the user's browser.
-                log.exception("Assistant stream failed")
-                yield _sse(
-                    "error",
-                    {"detail": "The assistant failed. Check the server logs for details."},
-                )
+                            )
+                            # `commit()` rather than `begin()`: run_turn has
+                            # already run its context and tool queries on this
+                            # session, so a transaction is autobegun and
+                            # `begin()` would raise.
+                            stream_db.add(message)
+                            await stream_db.commit()
+                            answered = True
+                            await stream_db.refresh(message)
+                            yield _sse(
+                                "done",
+                                {
+                                    "message_id": message.id,
+                                    "title": title,
+                                    "total_tokens": (
+                                        event.total_tokens if event.usage_reported else None
+                                    ),
+                                },
+                            )
+                except Exception:  # the stream must close cleanly
+                    # The exception text is logged, never streamed: it can carry
+                    # connection strings, file paths and SQL, and this frame is
+                    # rendered verbatim in the user's browser.
+                    log.exception("Assistant stream failed")
+                    yield _sse(
+                        "error",
+                        {"detail": "The assistant failed. Check the server logs for details."},
+                    )
+        finally:
+            # Reached on a failure, an exception, and a client that went away
+            # (a cancellation, or GeneratorExit when the stream is closed).
+            if not answered:
+                await _record_unanswered_usage(question_id, usage)
 
     return StreamingResponse(
         event_stream(),

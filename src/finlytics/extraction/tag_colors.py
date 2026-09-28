@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import List
 
 from pydantic import BaseModel
 
@@ -47,7 +46,7 @@ class _TagColor(BaseModel):
 
 
 class _ColorResult(BaseModel):
-    colors: List[_TagColor]
+    colors: list[_TagColor]
 
 
 def _is_valid_hex(color: str) -> bool:
@@ -101,7 +100,7 @@ async def suggest_tag_colors(tag_names: list[str]) -> dict[str, str] | None:
                 continue
             log.error("suggest_tag_colors: failed after retry")
         except Exception:
-            log.error("suggest_tag_colors: unexpected error")
+            log.exception("suggest_tag_colors: unexpected error")
             break
 
     return None

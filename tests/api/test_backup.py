@@ -13,7 +13,7 @@ Strategy
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -22,7 +22,7 @@ from httpx import ASGITransport, AsyncClient
 
 from finlytics.api.deps import get_current_user, get_db
 from finlytics.app import app
-
+from finlytics.db.repository import compute_dedup_hash
 
 # ── Mock-result helpers ───────────────────────────────────────────────────────
 
@@ -69,6 +69,16 @@ def _empty_v2_export_tail():
         _scalars_all(),   # investment connections
         _scalars_all(),   # price history
     ]
+
+
+def _tx_row(fields):
+    """A transaction export row whose stored key is the natural one."""
+    row = {"account_id": 1, "detail": None, "is_system": False, **fields}
+    row.setdefault("dedup_hash", compute_dedup_hash(
+        row["account_id"], row["transaction_date"], row["amount"],
+        row["description"], row["detail"],
+    ))
+    return row
 
 
 # ── Session fixture with auto-incrementing IDs on flush ───────────────────────
@@ -169,13 +179,13 @@ async def test_export_returns_200(client, mock_session):
     cat.color = "#22c55e"; cat.name_es = "Compras"
     tag = MagicMock(); tag.name = "food"; tag.color = "#ff0000"; tag.emoji = "🍎"
 
-    tx_row = {
+    tx_row = _tx_row({
         "id": 1, "transaction_date": date(2024, 6, 1),
         "amount": Decimal("-42.50"), "currency": "EUR",
         "description": "MERCADONA", "merchant": None,
         "category_confidence": 0.97, "balance_after": None,
         "category_name": "Groceries", "account_name": "BBVA",
-    }
+    })
 
     mock_session.execute.side_effect = [
         _scalars_all(acc),          # accounts
@@ -260,7 +270,7 @@ async def test_export_tag_fields(client, mock_session):
 
 
 async def test_export_transaction_fields(client, mock_session):
-    tx_row = {
+    tx_row = _tx_row({
         "id": 7,
         "transaction_date": date(2024, 6, 15),
         "amount": Decimal("-99.00"),
@@ -271,7 +281,7 @@ async def test_export_transaction_fields(client, mock_session):
         "balance_after": Decimal("1000.00"),
         "category_name": "Groceries",
         "account_name": "BBVA",
-    }
+    })
 
     mock_session.execute.side_effect = [
         _scalars_all(),
@@ -286,9 +296,10 @@ async def test_export_transaction_fields(client, mock_session):
     tx = body["transactions"][0]
 
     assert set(tx.keys()) == {
-        "transaction_date", "amount", "currency", "description",
+        "transaction_date", "amount", "currency", "description", "detail",
         "merchant", "category", "account",
-        "category_confidence", "balance_after", "tags",
+        "category_confidence", "balance_after", "is_system", "duplicate_key",
+        "tags",
     }
     assert tx["transaction_date"] == "2024-06-15"
     assert tx["amount"] == pytest.approx(-99.0)
@@ -296,17 +307,56 @@ async def test_export_transaction_fields(client, mock_session):
     assert tx["category"] == "Groceries"
     assert tx["balance_after"] == pytest.approx(1000.0)
     assert tx["tags"] == []
+    assert tx["detail"] is None
+    assert tx["is_system"] is False
+    assert tx["duplicate_key"] is None
+
+
+async def test_export_carries_detail_system_flag_and_forced_key(client, mock_session):
+    """Detail and is_system round-trip; only a non-derivable key is exported."""
+    natural = _tx_row({
+        "id": 1, "transaction_date": date(2025, 3, 1),
+        "amount": Decimal("1000.00"), "currency": "EUR",
+        "description": "Saldo inicial", "merchant": None,
+        "category_confidence": None, "balance_after": None,
+        "category_name": None, "account_name": "BBVA",
+        "detail": "GCREOCTOPUSENERGY", "is_system": True,
+    })
+    forced = _tx_row({
+        "id": 2, "transaction_date": date(2025, 3, 2),
+        "amount": Decimal("-3.00"), "currency": "EUR",
+        "description": "CAFE", "merchant": None,
+        "category_confidence": None, "balance_after": None,
+        "category_name": None, "account_name": "BBVA",
+        "dedup_hash": "f" * 64,
+    })
+
+    mock_session.execute.side_effect = [
+        _scalars_all(),
+        _scalars_all(),
+        _scalars_all(),
+        _mappings_all(natural, forced),
+        _rows_all(),
+        *_empty_v2_export_tail(),
+    ]
+
+    txs = (await client.get("/api/backup/export")).json()["transactions"]
+
+    assert txs[0]["detail"] == "GCREOCTOPUSENERGY"
+    assert txs[0]["is_system"] is True
+    assert txs[0]["duplicate_key"] is None
+    assert txs[1]["duplicate_key"] == "f" * 64
 
 
 async def test_export_transaction_tags_resolved(client, mock_session):
     """Tags are batch-loaded and attached to their transaction."""
-    tx_row = {
+    tx_row = _tx_row({
         "id": 10, "transaction_date": date(2024, 7, 1),
         "amount": Decimal("-10.00"), "currency": "EUR",
         "description": "TEST", "merchant": None,
         "category_confidence": None, "balance_after": None,
         "category_name": None, "account_name": "BBVA",
-    }
+    })
 
     mock_session.execute.side_effect = [
         _scalars_all(),
@@ -402,7 +452,7 @@ async def test_export_default_includes_rules_and_investments(client, mock_sessio
     conn.status = "active"
     conn.account_label_masked = "PBK•••Z5"
     conn.token_enc = "gAAAA-encrypted-token"
-    conn.last_synced_at = datetime(2026, 1, 2, 3, 4, 5, tzinfo=timezone.utc)
+    conn.last_synced_at = datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)
 
     lot = MagicMock()
     lot.id = 21
@@ -903,7 +953,7 @@ async def test_roundtrip_export_then_import(client, mock_session):
     price.close_usd = Decimal("400.000000")
     price.fx_eur_usd = Decimal("0.920000")
     price.close_eur = Decimal("368.000000")
-    tx_row = {
+    tx_row = _tx_row({
         "id": 100,
         "transaction_date": date(2024, 6, 1),
         "amount": Decimal("-42.50"),
@@ -914,7 +964,7 @@ async def test_roundtrip_export_then_import(client, mock_session):
         "balance_after": None,
         "category_name": "Groceries",
         "account_name": "BBVA",
-    }
+    })
 
     mock_session.execute.side_effect = [
         _scalars_all(acc),

@@ -4,6 +4,7 @@ import type { Account, AccountCreatePayload } from '../api/types'
 import { deleteAccount, patchAccount, createAccount } from '../api/client'
 import { useAccounts, queryKeys } from '../api/queries'
 import { errorMessage } from '../api/errors'
+import { useModalDismiss } from '../hooks/useModalDismiss'
 import { useT } from '../i18n'
 import { IconLoading, IconBank, IconPencil, IconTrash, IconClose, IconChevronDown, IconChevronRight } from '../components/icons'
 
@@ -191,13 +192,7 @@ function AccountCreateModal({ onSuccess, onCancel }: CreateModalProps) {
 
   useEffect(() => { nameRef.current?.focus() }, [])
 
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape' && !saving) onCancel()
-    }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [saving, onCancel])
+  const backdrop = useModalDismiss(onCancel, saving)
 
   async function handleConfirm() {
     setAttempted(true)
@@ -231,13 +226,12 @@ function AccountCreateModal({ onSuccess, onCancel }: CreateModalProps) {
   }
 
   return (
-    <div className="modal-backdrop" onClick={() => { if (!saving) onCancel() }}>
+    <div className="modal-backdrop" {...backdrop}>
       <div
         className="modal"
         role="dialog"
         aria-modal="true"
         aria-labelledby="acct-create-title"
-        onClick={e => e.stopPropagation()}
       >
         <div className="modal-header">
           <span className="modal-title" id="acct-create-title">
@@ -411,14 +405,7 @@ function AccountEditModal({ account, name, saving, onChangeName, onConfirm, onCa
 
   useEffect(() => { inputRef.current?.focus() }, [])
 
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape' && !saving) onCancel()
-      if (e.key === 'Enter' && !saving) { setAttempted(true); if (nameValid) onConfirm() }
-    }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [saving, nameValid, onCancel, onConfirm])
+  const backdrop = useModalDismiss(onCancel, saving)
 
   function handleConfirm() {
     setAttempted(true)
@@ -427,13 +414,12 @@ function AccountEditModal({ account, name, saving, onChangeName, onConfirm, onCa
   }
 
   return (
-    <div className="modal-backdrop" onClick={() => { if (!saving) onCancel() }}>
+    <div className="modal-backdrop" {...backdrop}>
       <div
         className="modal"
         role="dialog"
         aria-modal="true"
         aria-labelledby="acct-edit-title"
-        onClick={e => e.stopPropagation()}
       >
         <div className="modal-header">
           <span className="modal-title" id="acct-edit-title">
@@ -460,6 +446,8 @@ function AccountEditModal({ account, name, saving, onChangeName, onConfirm, onCa
               className={`form-input${attempted && !nameValid ? ' form-input--error' : ''}`}
               value={name}
               onChange={e => onChangeName(e.target.value)}
+              // Enter submits from the field only; on the Cancel button it must cancel.
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleConfirm() } }}
               disabled={saving}
             />
             {attempted && !nameValid && (
@@ -512,25 +500,15 @@ function AccountDeleteModal({ account, deleting, onConfirm, onCancel }: DeleteMo
 
   useEffect(() => { cancelRef.current?.focus() }, [])
 
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape' && !deleting) onCancel()
-    }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [deleting, onCancel])
+  const backdrop = useModalDismiss(onCancel, deleting)
 
   return (
-    <div
-      className="modal-backdrop"
-      onClick={() => { if (!deleting) onCancel() }}
-    >
+    <div className="modal-backdrop" {...backdrop}>
       <div
         className="modal stmt-delete-modal"
         role="dialog"
         aria-modal="true"
         aria-labelledby="acct-delete-title"
-        onClick={e => e.stopPropagation()}
       >
         <div className="modal-header">
           <span className="modal-title" id="acct-delete-title">

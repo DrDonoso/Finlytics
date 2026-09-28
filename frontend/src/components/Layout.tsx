@@ -1,9 +1,11 @@
 import { Suspense, useState, useEffect, useMemo } from 'react'
+import type { SyntheticEvent } from 'react'
 import { Outlet, NavLink, Link, useLocation, useNavigate } from 'react-router'
 import { useT } from '../i18n'
 import { useAuth } from '../contexts/AuthContext'
 import { useConnections } from '../api/queries'
 import { getPluginLogo, PLUGIN_VIEW_REGISTRY, pluginInitial } from '../investments/registry'
+import { LIKELY_NEXT, prefetch } from '../routePrefetch'
 import AssistantLauncher from './AssistantLauncher'
 import AssistantPanel from './AssistantPanel'
 import NotificationBell from './NotificationBell'
@@ -25,6 +27,11 @@ const SIDEBAR_ID = 'app-sidebar'
 
 function storedCollapsed(): boolean {
   try { return localStorage.getItem(LS_COLLAPSED) === '1' } catch { return false }
+}
+
+/** Starts loading a page as soon as its link is pointed at or focused. */
+function prefetchFrom(event: SyntheticEvent) {
+  prefetch.target(event.target)
 }
 
 export default function Layout() {
@@ -76,6 +83,11 @@ export default function Layout() {
   // Close mobile sidebar when route changes
   useEffect(() => { setMobileOpen(false) }, [location.pathname])
 
+  // Warm the pages a visitor most likely opens next, once the first one has
+  // settled. Production only: under the dev server every import is a fresh
+  // transform, so warming them all would just slow it down.
+  useEffect(() => (import.meta.env.PROD ? prefetch.whenIdle(LIKELY_NEXT) : undefined), [])
+
   useEffect(() => {
     if (!mobileOpen) return
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') setMobileOpen(false) }
@@ -100,7 +112,7 @@ export default function Layout() {
   }
 
   return (
-    <div className="app-shell">
+    <div className="app-shell" onPointerOver={prefetchFrom} onFocus={prefetchFrom}>
       {/* ── Sticky top bar (always visible) ─────────────────── */}
       <header className="app-topbar">
         <button
@@ -162,6 +174,7 @@ export default function Layout() {
                 type="button"
                 className={`sidebar-section-btn${isOnFinances ? ' active' : ''}`}
                 onClick={() => navigate('/finances')}
+                data-prefetch="/finances"
               >
                 <IconWallet size={17} className="nav-icon" />
                 <span className="nav-label">{t.navFinances}</span>
@@ -203,6 +216,7 @@ export default function Layout() {
                 type="button"
                 className={`sidebar-section-btn${isOnInvestments ? ' active' : ''}`}
                 onClick={() => navigate('/investments')}
+                data-prefetch="/investments"
               >
                 <IconTrendingUp size={17} className="nav-icon" />
                 <span className="nav-label">{t.navInvestments}</span>

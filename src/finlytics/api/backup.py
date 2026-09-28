@@ -13,8 +13,9 @@ JSON schema v2
   "categories":   [ {"name","is_base","color","name_es"} ],
   "tags":         [ {"name","color","emoji"} ],
   "transactions": [ {"transaction_date","amount","currency","description",
-                      "merchant","category","account","category_confidence",
-                      "balance_after","tags":[...]} ],
+                      "detail","merchant","category","account",
+                      "category_confidence","balance_after","is_system",
+                      "duplicate_key","tags":[...]} ],
   "rules":        [ ... ],
   "investments":  {
     "connections": [ {"plugin_id","status","account_label_masked","token_enc",
@@ -29,7 +30,13 @@ Restore semantics (all inside one DB transaction):
   Categories — UPSERT by canonical name: update color+name_es if exists.
                translate_category_name is BYPASSED — name_es comes from backup.
   Tags       — UPSERT by normalised name: update color+emoji if exists.
-  Transactions — dedup via SHA-256 hash (ON CONFLICT DO NOTHING).
+  Transactions — dedup via SHA-256 hash (ON CONFLICT DO NOTHING), recomputed
+                 against the target's account ids.  A row imported as a
+                 deliberate duplicate has no recomputable hash, so the backup
+                 carries its stored one as ``duplicate_key`` and the restore
+                 reuses it verbatim.  ``detail`` and ``is_system`` round-trip:
+                 without them rows differing only by detail would merge, and
+                 an opening balance would come back counted as income.
                  Tags linked via transaction_tags for newly-inserted rows only.
   ImportRun  — one synthetic run per restore (import_run_id is NOT nullable).
 """
@@ -37,12 +44,12 @@ Restore semantics (all inside one DB transaction):
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
-from sqlalchemy import select
+from sqlalchemy import RowMapping, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -71,6 +78,24 @@ _BACKUP_VERSION = 2
 _SUPPORTED_IMPORT_VERSIONS = {1, 2}
 
 
+def _duplicate_key(row: RowMapping) -> str | None:
+    """Return the stored key of a row that cannot be re-derived from its fields.
+
+    That is a deliberate duplicate (hashed with a random disambiguator) or a
+    collision kept under a ``legacy:<id>`` key by migration 0024.  Every other
+    row returns None and is re-hashed on restore, against the target's ids.
+    """
+    natural = compute_dedup_hash(
+        account_id=row["account_id"],
+        transaction_date=row["transaction_date"],
+        amount=row["amount"],
+        description=row["description"],
+        detail=row["detail"],
+    )
+    stored: str = row["dedup_hash"]
+    return None if stored == natural else stored
+
+
 # ── Export ────────────────────────────────────────────────────────────────────
 
 
@@ -90,7 +115,7 @@ async def export_backup(
     The users table is intentionally excluded — auth credentials are
     per-environment and must never be included in portable backups.
     """
-    now_utc = datetime.now(timezone.utc)
+    now_utc = datetime.now(UTC)
     payload = {
         "finlytics_backup_version": _BACKUP_VERSION,
         "exported_at": now_utc.isoformat(),
@@ -136,13 +161,17 @@ async def export_backup(
             await session.execute(
                 select(
                     Transaction.id,
+                    Transaction.account_id,
                     Transaction.transaction_date,
                     Transaction.amount,
                     Transaction.currency,
                     Transaction.description,
+                    Transaction.detail,
                     Transaction.merchant,
                     Transaction.category_confidence,
                     Transaction.balance_after,
+                    Transaction.is_system,
+                    Transaction.dedup_hash,
                     Category.name.label("category_name"),
                     Account.name.label("account_name"),
                 )
@@ -173,6 +202,7 @@ async def export_backup(
                 "amount": float(row["amount"]),
                 "currency": row["currency"],
                 "description": row["description"],
+                "detail": row["detail"],
                 "merchant": row["merchant"],
                 "category": row["category_name"],   # None when uncategorised
                 "account": row["account_name"],
@@ -180,6 +210,8 @@ async def export_backup(
                 "balance_after": (
                     float(row["balance_after"]) if row["balance_after"] is not None else None
                 ),
+                "is_system": row["is_system"],
+                "duplicate_key": _duplicate_key(row),
                 "tags": tag_map.get(row["id"], []),
             }
             for row in tx_rows
@@ -428,12 +460,12 @@ async def import_backup(
             # entries ⟹ first_account_id was set ⟹ import_run was created.
             cat_id = category_id_map.get(tx.category) if tx.category else None
 
-            dedup_hash = compute_dedup_hash(
+            dedup_hash = tx.duplicate_key or compute_dedup_hash(
                 account_id=acc_id,
                 transaction_date=tx.transaction_date,
                 amount=Decimal(str(tx.amount)),
                 description=tx.description,
-                detail=None,  # BackupTransactionIn has no detail field
+                detail=tx.detail,
             )
 
             insert_stmt = (
@@ -445,6 +477,7 @@ async def import_backup(
                     amount=Decimal(str(tx.amount)),
                     currency=tx.currency,
                     description=tx.description,
+                    detail=tx.detail,
                     merchant=tx.merchant,
                     category_id=cat_id,
                     category_confidence=tx.category_confidence,
@@ -453,6 +486,7 @@ async def import_backup(
                         if tx.balance_after is not None
                         else None
                     ),
+                    is_system=tx.is_system,
                     dedup_hash=dedup_hash,
                 )
                 .on_conflict_do_nothing(index_elements=["dedup_hash"])
@@ -512,7 +546,7 @@ async def import_backup(
             if rule_row is not None:
                 for key, value in values.items():
                     setattr(rule_row, key, value)
-                rule_row.updated_at = datetime.now(timezone.utc)
+                rule_row.updated_at = datetime.now(UTC)
                 await session.flush()
                 rules_updated += 1
             else:

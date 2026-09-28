@@ -4,20 +4,26 @@ import type { LazyExoticComponent, ComponentType } from 'react'
 export interface PluginViewEntry {
   icon: string
   name: string
+  /** The view's chunk, exposed so a link can prefetch it before `component` renders. */
+  load: () => Promise<unknown>
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   component: LazyExoticComponent<ComponentType<any>>
+}
+
+function lazyView(load: () => Promise<{ default: ComponentType }>) {
+  return { load, component: lazy(load) }
 }
 
 export const PLUGIN_VIEW_REGISTRY: Record<string, PluginViewEntry> = {
   'indexa-capital': {
     icon: '/logos/indexa-capital.svg',
     name: 'Indexa Capital',
-    component: lazy(() => import('./views/IndexaView')),
+    ...lazyView(() => import('./views/IndexaView')),
   },
   'fidelity-espp': {
     icon: '/logos/fidelity-espp.svg',
     name: 'Fidelity ESPP',
-    component: lazy(() => import('./views/FidelityView')),
+    ...lazyView(() => import('./views/FidelityView')),
   },
 }
 

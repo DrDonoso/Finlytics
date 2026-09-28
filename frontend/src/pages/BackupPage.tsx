@@ -5,6 +5,7 @@ import type { Dict } from '../i18n'
 import { exportBackup, importBackup } from '../api/client'
 import type { BackupDocument, BackupExportSelection, BackupImportSummary } from '../api/types'
 import { IconReceipt, IconBank, IconFolder, IconTag, IconSettings, IconTrendingUp, type IconProps } from '../components/icons'
+import { todayIso } from '../utils/dates'
 
 const BACKUP_SECTIONS: Array<{ key: keyof BackupExportSelection; label: keyof Dict; icon: ComponentType<IconProps> }> = [
   { key: 'transactions', label: 'backupSectionTransactions', icon: IconReceipt },
@@ -35,6 +36,19 @@ function isBackupDocument(data: unknown): data is BackupDocument {
     && 'finlytics_backup_version' in data
     && 'exported_at' in data,
   )
+}
+
+function SummaryItem({ label, value, tone }: { label: string; value: number; tone: 'positive' | 'neutral' | 'update' }) {
+  return (
+    <li>
+      {label}: <strong className={`backup-summary-count backup-summary-count--${tone}`}>{value}</strong>
+    </li>
+  )
+}
+
+function SectionIcon({ sectionKey }: { sectionKey: keyof BackupExportSelection }) {
+  const Icon = BACKUP_SECTION_ICON_BY_KEY[sectionKey]
+  return <Icon className="nav-icon" size={16} />
 }
 
 export default function BackupPage() {
@@ -69,10 +83,8 @@ export default function BackupPage() {
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
-      const now = new Date()
-      const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
       a.href = url
-      a.download = `finlytics-backup-${dateStr}.json`
+      a.download = `finlytics-backup-${todayIso()}.json`
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
@@ -132,19 +144,6 @@ export default function BackupPage() {
   function clearSelectedFile() {
     setSelectedFile(null)
     if (fileInputRef.current) fileInputRef.current.value = ''
-  }
-
-  function SummaryItem({ label, value, tone }: { label: string; value: number; tone: 'positive' | 'neutral' | 'update' }) {
-    return (
-      <li>
-        {label}: <strong className={`backup-summary-count backup-summary-count--${tone}`}>{value}</strong>
-      </li>
-    )
-  }
-
-  function SectionIcon({ sectionKey }: { sectionKey: keyof BackupExportSelection }) {
-    const Icon = BACKUP_SECTION_ICON_BY_KEY[sectionKey]
-    return <Icon className="nav-icon" size={16} />
   }
 
   return (

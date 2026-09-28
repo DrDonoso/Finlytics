@@ -8,7 +8,7 @@ bcrypt library directly — same algorithm, same cost factor, same security.
 from __future__ import annotations
 
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import bcrypt
 import jwt
@@ -25,7 +25,7 @@ def hash_password(password: str) -> str:
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     try:
         return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
-    except Exception:
+    except ValueError:  # a malformed hash, or a password over bcrypt's 72 bytes
         return False
 
 
@@ -38,7 +38,7 @@ def create_token(username: str, *, version: int, remember: bool = False) -> str:
     re-issued later keeps the lifetime the user asked for.
     """
     days = settings.auth_remember_expire_days if remember else settings.auth_token_expire_days
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     payload = {
         "sub": username,
         "ver": version,

@@ -15,7 +15,7 @@ from __future__ import annotations
 import dataclasses
 import logging
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import BackgroundTasks
 from sqlalchemy import select
@@ -34,6 +34,7 @@ from finlytics.api.schemas import (
     ValuePoint,
 )
 from finlytics.db.models import InvestmentConnection, InvestmentPortfolioCache
+from finlytics.db.queries import HOLDING_STATUSES
 from finlytics.db.session import async_session_factory
 from finlytics.investments.base import (
     InvestmentProvider,
@@ -52,8 +53,8 @@ from finlytics.investments.crypto import (
     decrypt_token,
     encrypt_token,
 )
-from finlytics.investments.indexa import IndexaAuthError, IndexaConnectionError, IndexaProvider
 from finlytics.investments.fidelity import FidelityESPPProvider
+from finlytics.investments.indexa import IndexaAuthError, IndexaConnectionError, IndexaProvider
 
 log = logging.getLogger(__name__)
 
@@ -201,7 +202,7 @@ async def _get_db_cache(
 
     fetched_at = row.fetched_at
     if fetched_at.tzinfo is None:
-        fetched_at = fetched_at.replace(tzinfo=timezone.utc)
+        fetched_at = fetched_at.replace(tzinfo=UTC)
 
     return _deserialize_portfolio(row.payload), fetched_at
 
@@ -246,38 +247,37 @@ async def _bg_refresh_connection(
             log.warning("Background refresh: portfolio fetch failed for connection %d: %s", connection_id, exc)
             return
 
-        now_dt = datetime.now(timezone.utc)
+        now_dt = datetime.now(UTC)
         payload = _serialize_portfolio(portfolio)
 
-        async with async_session_factory() as bg_db:
-            async with bg_db.begin():
-                cache_row = (
-                    await bg_db.execute(
-                        select(InvestmentPortfolioCache).where(
-                            InvestmentPortfolioCache.connection_id == connection_id
-                        )
+        async with async_session_factory() as bg_db, bg_db.begin():
+            cache_row = (
+                await bg_db.execute(
+                    select(InvestmentPortfolioCache).where(
+                        InvestmentPortfolioCache.connection_id == connection_id
                     )
-                ).scalar_one_or_none()
+                )
+            ).scalar_one_or_none()
 
-                if cache_row is None:
-                    bg_db.add(InvestmentPortfolioCache(
-                        connection_id=connection_id,
-                        payload=payload,
-                        fetched_at=now_dt,
-                    ))
-                else:
-                    cache_row.payload = payload
-                    cache_row.fetched_at = now_dt
+            if cache_row is None:
+                bg_db.add(InvestmentPortfolioCache(
+                    connection_id=connection_id,
+                    payload=payload,
+                    fetched_at=now_dt,
+                ))
+            else:
+                cache_row.payload = payload
+                cache_row.fetched_at = now_dt
 
-                conn_row = (
-                    await bg_db.execute(
-                        select(InvestmentConnection).where(
-                            InvestmentConnection.id == connection_id
-                        )
+            conn_row = (
+                await bg_db.execute(
+                    select(InvestmentConnection).where(
+                        InvestmentConnection.id == connection_id
                     )
-                ).scalar_one_or_none()
-                if conn_row is not None:
-                    conn_row.last_synced_at = now_dt
+                )
+            ).scalar_one_or_none()
+            if conn_row is not None:
+                conn_row.last_synced_at = now_dt
 
         log.info("Background refresh completed for connection %d", connection_id)
     except Exception as exc:
@@ -444,17 +444,22 @@ async def get_portfolio(
              (this first load is unavoidably slower).
 
     Raises EncryptionNotConfiguredError if decryption is impossible (propagates
-    to API layer which returns 503).  Per-connection Indexa errors are logged
-    and silently skipped so a single bad connection doesn't kill the whole page.
+    to API layer which returns 503).  A connection that cannot be read — an
+    Indexa error, an account the token no longer lists, or one already marked
+    ``error`` — is skipped so it does not kill the whole page, and counted in
+    ``accounts_unavailable``: its money still exists, so the total is partial
+    rather than complete.
     """
-    connections = (
+    rows = (
         await db.execute(
             select(InvestmentConnection).where(
                 InvestmentConnection.user_id == user_id,
-                InvestmentConnection.status == "active",
+                InvestmentConnection.status.in_(HOLDING_STATUSES),
             )
         )
     ).scalars().all()
+    connections = [c for c in rows if c.status == "active"]
+    unavailable = sum(1 for c in rows if c.status == "error" and c.token_enc is not None)
 
     if not connections:
         return InvestmentPortfolioOut(
@@ -466,6 +471,7 @@ async def get_portfolio(
             holdings=[],
             plugins_connected=0,
             last_updated=None,
+            accounts_unavailable=unavailable,
         )
 
     # Group by token_enc; skip statement_import providers (token_enc IS NULL).
@@ -482,7 +488,7 @@ async def get_portfolio(
     any_cached = False
     any_stale = False
     oldest_cache_ts: datetime | None = None
-    now_dt = datetime.now(timezone.utc)
+    now_dt = datetime.now(UTC)
 
     for token_enc, group in by_token.items():
         need_fetch: list[InvestmentConnection] = []
@@ -512,11 +518,9 @@ async def get_portfolio(
         if not need_fetch:
             continue
 
-        # Live fetch for connections with no cache row
-        try:
-            token = decrypt_token(token_enc)
-        except EncryptionNotConfiguredError:
-            raise  # Let the API layer surface a 503
+        # Live fetch for connections with no cache row. EncryptionNotConfiguredError
+        # propagates: the API layer surfaces it as a 503.
+        token = decrypt_token(token_enc)
 
         # Resolve account numbers from /users/me (once per unique token)
         try:
@@ -591,6 +595,8 @@ async def get_portfolio(
                 )
 
     result = _aggregate(fetched, len(connections))
+    expected = sum(len(group) for group in by_token.values())
+    result.accounts_unavailable = unavailable + expected - len(fetched)
 
     # Attach cache freshness metadata (additive/optional fields)
     if any_cached and oldest_cache_ts is not None:
@@ -619,16 +625,15 @@ def _aggregate(
             last_updated=None,
         )
 
-    now_str = datetime.now(timezone.utc).isoformat()
+    now_str = datetime.now(UTC).isoformat()
     all_holdings: list[InvestmentHoldingOut] = []
     total_value = 0.0
     total_invested = 0.0
     total_gain_loss = 0.0
     has_invested = False
 
-    agg_pl = 0.0
-    agg_invested_ret = 0.0
-    agg_money_return = 0.0
+    agg_pl: float | None = None
+    agg_invested_ret: float | None = None
     agg_aportaciones: float | None = None
     agg_retenciones: float | None = None
     agg_rentabilidad_eur: float | None = None
@@ -679,12 +684,13 @@ def _aggregate(
                 first_perf_returns = perf.returns
                 first_perf = perf
             if perf.returns.pl is not None:
-                agg_pl += perf.returns.pl
+                agg_pl = (agg_pl or 0.0) + perf.returns.pl
                 has_returns = True
             if perf.returns.invested is not None:
-                agg_invested_ret += perf.returns.invested
+                agg_invested_ret = (agg_invested_ret or 0.0) + perf.returns.invested
+            # money_return is a rate: adding two accounts' rates means nothing, so it
+            # is single-account only, like the TWR and XIRR below.
             if perf.returns.money_return is not None:
-                agg_money_return += perf.returns.money_return
                 has_returns = True
             # Summable box numbers
             if perf.returns.aportaciones is not None:
@@ -722,11 +728,11 @@ def _aggregate(
             twr_last_month=first_perf_returns.twr_last_month if single_account and first_perf_returns else None,
             twr_last_year=first_perf_returns.twr_last_year if single_account and first_perf_returns else None,
             volatility=first_perf_returns.volatility if single_account and first_perf_returns else None,
-            money_return=agg_money_return or None,
+            money_return=first_perf_returns.money_return if single_account and first_perf_returns else None,
             money_return_annual=first_perf_returns.money_return_annual if single_account and first_perf_returns else None,
             xirr=first_perf_returns.xirr if single_account and first_perf_returns else None,
             pl=agg_pl,
-            invested=agg_invested_ret or None,
+            invested=agg_invested_ret,
             aportaciones=agg_aportaciones,
             retenciones=agg_retenciones,
             rentabilidad_eur=agg_rentabilidad_eur,

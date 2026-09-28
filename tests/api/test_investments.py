@@ -20,14 +20,14 @@ Fixtures:
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from finlytics.api.deps import get_current_user, get_db
+from finlytics.api.deps import get_db
 from finlytics.app import app
 from finlytics.investments.market_data import LatestPriceRow
 
@@ -197,7 +197,6 @@ async def test_validate_network_error_returns_503(client):
 
 async def test_validate_does_not_require_db(client):
     """validate endpoint has no DB dependency — mock_session.scalar never called."""
-    from finlytics.api.schemas import DiscoveredAccountOut
 
     with patch(
         "finlytics.api.investments.inv_service.validate_token_for_wizard",
@@ -225,7 +224,7 @@ async def test_connect_with_selection_returns_201_and_masked_label(client):
             plugin_id="indexa-capital",
             status="active",
             account_label_masked="PBK•••Z5",
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
     ]
     with patch(
@@ -311,7 +310,7 @@ async def test_service_connect_filters_non_owned_accounts():
     mock_existing.plugin_id = "indexa-capital"
     mock_existing.status = "active"
     mock_existing.account_label_masked = svc._mask_account("OWNED1")
-    mock_existing.created_at = datetime(2026, 7, 14, tzinfo=timezone.utc)
+    mock_existing.created_at = datetime(2026, 7, 14, tzinfo=UTC)
     mock_existing.last_synced_at = None
 
     execute_result = MagicMock()
@@ -357,15 +356,14 @@ async def test_service_connect_all_non_owned_raises_error():
 
     with patch.object(
         svc._PROVIDERS["indexa-capital"], "validate_token", AsyncMock(return_value=mock_validation)
-    ):
-        with pytest.raises(svc.NoValidAccountsError):
-            await svc.connect_plugin(
-                user_id=1,
-                plugin_id="indexa-capital",
-                token="tok",
-                account_numbers=["COMPLETELY_WRONG"],
-                db=mock_db,
-            )
+    ), pytest.raises(svc.NoValidAccountsError):
+        await svc.connect_plugin(
+            user_id=1,
+            plugin_id="indexa-capital",
+            token="tok",
+            account_numbers=["COMPLETELY_WRONG"],
+            db=mock_db,
+        )
 
 
 # ── Auth: 401 for every endpoint ──────────────────────────────────────────────
@@ -447,7 +445,7 @@ async def test_connect_response_never_contains_raw_token(client):
             plugin_id="indexa-capital",
             status="active",
             account_label_masked="PBK•••Z5",
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
     ]
     with patch(
@@ -473,7 +471,7 @@ async def test_get_connections_no_token_enc_in_response(client):
             plugin_id="indexa-capital",
             status="active",
             account_label_masked="PBK•••Z5",
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
     ]
     with patch(
@@ -524,7 +522,6 @@ async def test_portfolio_missing_encryption_key_returns_503(client):
 
 def test_indexa_client_tls_verify_and_no_redirects():
     """_make_client uses verify=True and follow_redirects=False (Romanoff §4 build-blockers)."""
-    import httpx as httpx_mod
     from finlytics.investments.indexa import _make_client
 
     with patch("finlytics.investments.indexa.httpx.AsyncClient") as mock_cls:
@@ -546,6 +543,7 @@ def test_indexa_client_tls_verify_and_no_redirects():
 def test_crypto_encrypt_decrypt_roundtrip():
     """encrypt_token → decrypt_token returns original plaintext."""
     from cryptography.fernet import Fernet
+
     from finlytics.investments.crypto import decrypt_token, encrypt_token
 
     test_key = Fernet.generate_key().decode()
@@ -562,15 +560,18 @@ def test_crypto_encrypt_decrypt_roundtrip():
 def test_crypto_tampered_ciphertext_raises():
     """Tampered ciphertext raises EncryptionNotConfiguredError — never returns garbage."""
     from cryptography.fernet import Fernet
+
     from finlytics.investments.crypto import EncryptionNotConfiguredError, decrypt_token
 
     test_key = Fernet.generate_key().decode()
     mock_settings = MagicMock()
     mock_settings.finlytics_encryption_key = test_key
 
-    with patch("finlytics.config.settings", mock_settings):
-        with pytest.raises(EncryptionNotConfiguredError):
-            decrypt_token("this-is-not-a-valid-fernet-ciphertext")
+    with (
+        patch("finlytics.config.settings", mock_settings),
+        pytest.raises(EncryptionNotConfiguredError),
+    ):
+        decrypt_token("this-is-not-a-valid-fernet-ciphertext")
 
 
 def test_crypto_missing_key_encrypt_raises():
@@ -580,9 +581,11 @@ def test_crypto_missing_key_encrypt_raises():
     mock_settings = MagicMock()
     mock_settings.finlytics_encryption_key = None
 
-    with patch("finlytics.config.settings", mock_settings):
-        with pytest.raises(EncryptionNotConfiguredError):
-            encrypt_token("some-raw-token")
+    with (
+        patch("finlytics.config.settings", mock_settings),
+        pytest.raises(EncryptionNotConfiguredError),
+    ):
+        encrypt_token("some-raw-token")
 
 
 def test_crypto_missing_key_decrypt_raises():
@@ -592,9 +595,11 @@ def test_crypto_missing_key_decrypt_raises():
     mock_settings = MagicMock()
     mock_settings.finlytics_encryption_key = None
 
-    with patch("finlytics.config.settings", mock_settings):
-        with pytest.raises(EncryptionNotConfiguredError):
-            decrypt_token("some-ciphertext")
+    with (
+        patch("finlytics.config.settings", mock_settings),
+        pytest.raises(EncryptionNotConfiguredError),
+    ):
+        decrypt_token("some-ciphertext")
 
 
 # ── Account masking unit tests ────────────────────────────────────────────────
@@ -668,7 +673,7 @@ async def test_get_connections_200_returns_list(client):
             plugin_id="indexa-capital",
             status="active",
             account_label_masked="PBK•••Z5",
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
     ]
     with patch(
@@ -756,7 +761,7 @@ async def test_portfolio_with_data_returns_phase2_shape(client):
         ValuePoint,
     )
 
-    now_str = datetime.now(timezone.utc).isoformat()
+    now_str = datetime.now(UTC).isoformat()
     mock_out = InvestmentPortfolioOut(
         total_value=12345.67,
         total_invested=11000.0,
@@ -1048,7 +1053,7 @@ async def test_fetch_performance_total_value_from_top_level_as_last_resort():
 
 async def test_get_portfolio_deduplicates_same_isin():
     """BUG B: multiple fiscal_results with identical ISIN → aggregated into one holding."""
-    from unittest.mock import AsyncMock, MagicMock, patch
+    from unittest.mock import AsyncMock, patch
 
     from finlytics.investments.indexa import IndexaProvider
 
@@ -1702,7 +1707,12 @@ def test_investment_returns_schema_valor_total_fields():
 
 def test_portfolio_out_schema_has_contributions_monthly_drawdown():
     """Schema: InvestmentPortfolioOut carries contributions_series, monthly_returns, drawdown."""
-    from finlytics.api.schemas import DrawdownOut, InvestmentPortfolioOut, MonthlyReturnRow, ValuePoint
+    from finlytics.api.schemas import (
+        DrawdownOut,
+        InvestmentPortfolioOut,
+        MonthlyReturnRow,
+        ValuePoint,
+    )
 
     out = InvestmentPortfolioOut(
         total_value=20559.52,
@@ -1743,9 +1753,7 @@ async def test_aggregate_single_account_passes_through_monthly_and_drawdown():
     from finlytics.investments import service as svc
     from finlytics.investments.base import (
         DiscoveredAccount,
-        NormalizedCashInvested,
         NormalizedDrawdown,
-        NormalizedHolding,
         NormalizedMonthlyReturnRow,
         NormalizedPerformance,
         NormalizedPortfolio,
@@ -2108,6 +2116,8 @@ def test_aggregate_multi_account_nulls_and_sums():
     assert result.returns.volatility is None, "volatility must be None for multi-account"
     assert result.returns.sharpe_ratio is None, "sharpe_ratio must be None for multi-account"
     assert result.returns.rentabilidad_pct is None, "rentabilidad_pct must be None for multi-account"
+    assert result.returns.money_return is None, "money_return is a rate and must not be summed"
+    assert result.returns.money_return_annual is None
 
     # Per-account analytics → None
     assert result.monthly_returns is None, "monthly_returns must be None for multi-account"
@@ -2132,6 +2142,37 @@ def test_aggregate_multi_account_nulls_and_sums():
     # Total portfolio value
     assert result.total_value == pytest.approx(21000.0)
     assert result.plugins_connected == 2
+
+
+def test_aggregate_single_account_keeps_a_zero_money_return():
+    """A flat account reports a money-weighted return of exactly 0, which is data,
+    not an absence of data."""
+    from unittest.mock import MagicMock
+
+    from finlytics.investments.base import (
+        NormalizedPerformance,
+        NormalizedPortfolio,
+        NormalizedReturns,
+    )
+    from finlytics.investments.service import _aggregate
+
+    perf = NormalizedPerformance(
+        total_value=5000.0,
+        returns=NormalizedReturns(money_return=0.0, pl=0.0, invested=0.0),
+    )
+    conn = MagicMock()
+    conn.plugin_id = "indexa-capital"
+    portfolio = NormalizedPortfolio(
+        holdings=[], total_value=5000.0, total_invested=5000.0,
+        total_gain_loss=0.0, performance=perf,
+    )
+
+    result = _aggregate([(conn, portfolio)], total_connections=1)
+
+    assert result.returns is not None
+    assert result.returns.money_return == 0.0
+    assert result.returns.pl == 0.0
+    assert result.returns.invested == 0.0
 
 # ── GET /combined-overview ────────────────────────────────────────────────────
 # Helpers shared by combined-overview tests
@@ -2183,7 +2224,7 @@ _CO_MOCK_PRICE = LatestPriceRow(
 # Holdings: equity=20000, fixed_income=8000, cash=2000
 def _make_indexa_portfolio_mock():
     from finlytics.api.schemas import InvestmentHoldingOut, InvestmentPortfolioOut
-    now_str = datetime.now(timezone.utc).isoformat()
+    now_str = datetime.now(UTC).isoformat()
     return InvestmentPortfolioOut(
         total_value=30000.0,
         total_invested=25000.0,
@@ -2258,8 +2299,8 @@ async def test_combined_overview_both_providers_totals_correct(client, mock_sess
         _co_exec_result(scalars_all=[_CO_LOT]),
     ])
     with (
-        patch("finlytics.api.investments.get_latest_price", new=AsyncMock(return_value=_CO_MOCK_PRICE)),
-        patch("finlytics.api.investments.inv_service.get_portfolio", new=AsyncMock(return_value=_make_indexa_portfolio_mock())),
+        patch("finlytics.investments.overview.get_latest_price", new=AsyncMock(return_value=_CO_MOCK_PRICE)),
+        patch("finlytics.investments.overview.inv_service.get_portfolio", new=AsyncMock(return_value=_make_indexa_portfolio_mock())),
     ):
         resp = await client.get("/api/investments/combined-overview")
 
@@ -2283,8 +2324,8 @@ async def test_combined_overview_both_providers_pct_sums_to_100(client, mock_ses
         _co_exec_result(scalars_all=[_CO_LOT]),
     ])
     with (
-        patch("finlytics.api.investments.get_latest_price", new=AsyncMock(return_value=_CO_MOCK_PRICE)),
-        patch("finlytics.api.investments.inv_service.get_portfolio", new=AsyncMock(return_value=_make_indexa_portfolio_mock())),
+        patch("finlytics.investments.overview.get_latest_price", new=AsyncMock(return_value=_CO_MOCK_PRICE)),
+        patch("finlytics.investments.overview.inv_service.get_portfolio", new=AsyncMock(return_value=_make_indexa_portfolio_mock())),
     ):
         resp = await client.get("/api/investments/combined-overview")
 
@@ -2305,8 +2346,8 @@ async def test_combined_overview_both_providers_shape(client, mock_session):
         _co_exec_result(scalars_all=[_CO_LOT]),
     ])
     with (
-        patch("finlytics.api.investments.get_latest_price", new=AsyncMock(return_value=_CO_MOCK_PRICE)),
-        patch("finlytics.api.investments.inv_service.get_portfolio", new=AsyncMock(return_value=_make_indexa_portfolio_mock())),
+        patch("finlytics.investments.overview.get_latest_price", new=AsyncMock(return_value=_CO_MOCK_PRICE)),
+        patch("finlytics.investments.overview.inv_service.get_portfolio", new=AsyncMock(return_value=_make_indexa_portfolio_mock())),
     ):
         resp = await client.get("/api/investments/combined-overview")
 
@@ -2338,7 +2379,7 @@ async def test_combined_overview_indexa_only(client, mock_session):
         _co_exec_result(scalars_all=[_make_indexa_conn()]),
         # No second call; Fidelity is not connected
     ])
-    with patch("finlytics.api.investments.inv_service.get_portfolio", new=AsyncMock(return_value=_make_indexa_portfolio_mock())):
+    with patch("finlytics.investments.overview.inv_service.get_portfolio", new=AsyncMock(return_value=_make_indexa_portfolio_mock())):
         resp = await client.get("/api/investments/combined-overview")
 
     assert resp.status_code == 200
@@ -2359,7 +2400,7 @@ async def test_combined_overview_fidelity_only(client, mock_session):
         _co_exec_result(scalars_all=[_make_fidelity_conn()]),
         _co_exec_result(scalars_all=[_CO_LOT]),
     ])
-    with patch("finlytics.api.investments.get_latest_price", new=AsyncMock(return_value=_CO_MOCK_PRICE)):
+    with patch("finlytics.investments.overview.get_latest_price", new=AsyncMock(return_value=_CO_MOCK_PRICE)):
         resp = await client.get("/api/investments/combined-overview")
 
     assert resp.status_code == 200
@@ -2382,8 +2423,8 @@ async def test_combined_overview_degraded_fidelity_price(client, mock_session):
         _co_exec_result(scalars_all=[_CO_LOT]),
     ])
     with (
-        patch("finlytics.api.investments.get_latest_price", new=AsyncMock(return_value=None)),
-        patch("finlytics.api.investments.inv_service.get_portfolio", new=AsyncMock(return_value=_make_indexa_portfolio_mock())),
+        patch("finlytics.investments.overview.get_latest_price", new=AsyncMock(return_value=None)),
+        patch("finlytics.investments.overview.inv_service.get_portfolio", new=AsyncMock(return_value=_make_indexa_portfolio_mock())),
     ):
         resp = await client.get("/api/investments/combined-overview")
 
@@ -2411,6 +2452,92 @@ async def test_combined_overview_degraded_fidelity_price(client, mock_session):
     # Indexa card still has values
     indexa_card = next(c for c in data["providers"] if c["id"] == "indexa-capital")
     assert indexa_card["value_eur"] == pytest.approx(30000.0)
+    # Fidelity holds shares the total cannot value, so the total is incomplete
+    assert data["partial"] is True
+
+
+async def test_combined_overview_complete_is_not_partial(client, mock_session):
+    mock_session.execute = AsyncMock(side_effect=[
+        _co_exec_result(scalars_all=[_make_indexa_conn(), _make_fidelity_conn()]),
+        _co_exec_result(scalars_all=[_CO_LOT]),
+    ])
+    with (
+        patch("finlytics.investments.overview.get_latest_price", new=AsyncMock(return_value=_CO_MOCK_PRICE)),
+        patch("finlytics.investments.overview.inv_service.get_portfolio", new=AsyncMock(return_value=_make_indexa_portfolio_mock())),
+    ):
+        resp = await client.get("/api/investments/combined-overview")
+
+    assert resp.status_code == 200
+    assert resp.json()["partial"] is False
+
+
+async def test_combined_overview_indexa_failure_is_partial_not_zero(client, mock_session):
+    """An Indexa fetch that raises leaves its card unvalued and flags the total."""
+    mock_session.execute = AsyncMock(side_effect=[
+        _co_exec_result(scalars_all=[_make_indexa_conn(), _make_fidelity_conn()]),
+        _co_exec_result(scalars_all=[_CO_LOT]),
+    ])
+    with (
+        patch("finlytics.investments.overview.get_latest_price", new=AsyncMock(return_value=_CO_MOCK_PRICE)),
+        patch(
+            "finlytics.investments.overview.inv_service.get_portfolio",
+            new=AsyncMock(side_effect=RuntimeError("boom")),
+        ),
+    ):
+        resp = await client.get("/api/investments/combined-overview")
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["partial"] is True
+    assert data["total_value_eur"] == pytest.approx(round(_CO_FIDELITY_VALUE, 2), abs=0.02)
+    indexa_card = next(c for c in data["providers"] if c["id"] == "indexa-capital")
+    assert indexa_card["value_eur"] is None
+
+
+async def test_combined_overview_error_connection_keeps_its_card(client, mock_session):
+    """An Indexa connection in ``error`` is not "no investments": the card stays,
+    unvalued, and the overview says the total is partial."""
+    broken = _make_indexa_conn()
+    broken.status = "error"
+    mock_session.execute = AsyncMock(side_effect=[
+        _co_exec_result(scalars_all=[broken]),
+    ])
+    unread = _make_indexa_portfolio_mock().model_copy(update={
+        "total_value": 0.0,
+        "holdings": [],
+        "plugins_connected": 0,
+        "last_updated": None,
+        "accounts_unavailable": 1,
+    })
+    with patch(
+        "finlytics.investments.overview.inv_service.get_portfolio",
+        new=AsyncMock(return_value=unread),
+    ):
+        resp = await client.get("/api/investments/combined-overview")
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["partial"] is True
+    assert data["by_provider"] == []
+    assert [c["id"] for c in data["providers"]] == ["indexa-capital"]
+    assert data["providers"][0]["value_eur"] is None
+
+
+async def test_combined_overview_partly_read_indexa_is_partial(client, mock_session):
+    """The accounts that were read still count; the ones that were not flag the total."""
+    mock_session.execute = AsyncMock(side_effect=[
+        _co_exec_result(scalars_all=[_make_indexa_conn()]),
+    ])
+    partly = _make_indexa_portfolio_mock().model_copy(update={"accounts_unavailable": 1})
+    with patch(
+        "finlytics.investments.overview.inv_service.get_portfolio",
+        new=AsyncMock(return_value=partly),
+    ):
+        resp = await client.get("/api/investments/combined-overview")
+
+    data = resp.json()
+    assert data["partial"] is True
+    assert data["total_value_eur"] == pytest.approx(30000.0)
 
 
 async def test_combined_overview_401_unauthenticated(unauthenticated_client):
@@ -2511,7 +2638,7 @@ async def test_sv_cache_hit_current_version_no_live_fetch():
 
     mock_row = MagicMock()
     mock_row.payload = payload
-    mock_row.fetched_at = datetime.now(timezone.utc)
+    mock_row.fetched_at = datetime.now(UTC)
 
     conn = _sv_conn()
     mock_db = _sv_mock_db([
@@ -2549,7 +2676,7 @@ async def test_sv_get_db_cache_absent_version_returns_none():
     }
     mock_row = MagicMock()
     mock_row.payload = old_payload
-    mock_row.fetched_at = datetime.now(timezone.utc)
+    mock_row.fetched_at = datetime.now(UTC)
 
     mock_db = _sv_mock_db([_sv_scalar_result(mock_row)])
 
@@ -2576,7 +2703,7 @@ async def test_sv_get_db_cache_wrong_version_returns_none():
     }
     mock_row = MagicMock()
     mock_row.payload = old_payload
-    mock_row.fetched_at = datetime.now(timezone.utc)
+    mock_row.fetched_at = datetime.now(UTC)
 
     mock_db = _sv_mock_db([_sv_scalar_result(mock_row)])
 
@@ -2602,7 +2729,7 @@ async def test_sv_absent_version_triggers_sync_refetch_returns_fresh():
     }
     old_row = MagicMock()
     old_row.payload = old_payload
-    old_row.fetched_at = datetime.now(timezone.utc)
+    old_row.fetched_at = datetime.now(UTC)
 
     conn = _sv_conn()
     mock_db = _sv_mock_db([
@@ -2648,7 +2775,7 @@ async def test_sv_wrong_version_triggers_sync_refetch_returns_fresh():
     }
     old_row = MagicMock()
     old_row.payload = old_payload
-    old_row.fetched_at = datetime.now(timezone.utc)
+    old_row.fetched_at = datetime.now(UTC)
 
     conn = _sv_conn()
     mock_db = _sv_mock_db([
@@ -2682,9 +2809,9 @@ async def test_sv_no_duplicate_row_on_version_invalid_recache():
     returning None, so the subsequent db.add() in get_portfolio does not hit a
     unique-constraint on (connection_id).
     """
+    from finlytics.db.models import InvestmentPortfolioCache
     from finlytics.investments import service as svc
     from finlytics.investments.base import DiscoveredAccount, ValidationResult
-    from finlytics.db.models import InvestmentPortfolioCache
 
     old_payload = {
         "_schema_version": 0,  # stale version
@@ -2696,7 +2823,7 @@ async def test_sv_no_duplicate_row_on_version_invalid_recache():
     }
     old_row = MagicMock()
     old_row.payload = old_payload
-    old_row.fetched_at = datetime.now(timezone.utc)
+    old_row.fetched_at = datetime.now(UTC)
 
     conn = _sv_conn(conn_id=42)
     mock_db = _sv_mock_db([
@@ -2789,7 +2916,7 @@ async def test_sv_regression_fresh_current_version_no_live_fetch():
     payload = svc._serialize_portfolio(_sv_live_portfolio())
     mock_row = MagicMock()
     mock_row.payload = payload
-    mock_row.fetched_at = datetime.now(timezone.utc)
+    mock_row.fetched_at = datetime.now(UTC)
 
     conn = _sv_conn(conn_id=11)
     mock_db = _sv_mock_db([
@@ -2823,7 +2950,7 @@ async def test_sv_regression_stale_current_version_schedules_bg_refresh():
     payload = svc._serialize_portfolio(_sv_live_portfolio())
     mock_row = MagicMock()
     mock_row.payload = payload
-    mock_row.fetched_at = datetime.now(timezone.utc) - timedelta(hours=25)
+    mock_row.fetched_at = datetime.now(UTC) - timedelta(hours=25)
 
     conn = _sv_conn(conn_id=13)
     mock_db = _sv_mock_db([
@@ -2887,7 +3014,7 @@ async def test_cache_schema_version_mismatch_triggers_refetch():
         "performance": None,
         # no "_schema_version" key — simulates a row cached by the old code
     }
-    stale_row.fetched_at = datetime(2026, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+    stale_row.fetched_at = datetime(2026, 1, 1, 12, 0, 0, tzinfo=UTC)
 
     # First execute call → connection list; second → stale cache row
     exec_conns = MagicMock()

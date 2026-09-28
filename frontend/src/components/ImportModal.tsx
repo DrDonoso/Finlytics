@@ -9,6 +9,7 @@ import { previewImport, confirmImport, checkDuplicates } from '../api/client'
 import { useT, type Dict, paletteColor } from '../i18n'
 import ImportPreviewTable, { type EditRow } from './ImportPreviewTable'
 import RuleFormModal from './RuleFormModal'
+import { todayIso } from '../utils/dates'
 import { computeLiveImportQuality, type LiveImportQuality } from './importQuality'
 import {
   IconBan, IconAlert, IconCheck, IconClose, IconChevronRight,
@@ -23,6 +24,8 @@ type ExtractStatus = 'pending' | 'running' | 'done' | 'error'
 type ConfirmStatus = 'pending' | 'running' | 'done' | 'error'
 
 interface FileItem {
+  /** Its position in `initialFiles`, fixed for the modal's lifetime. */
+  id: number
   file: File
   extractStatus: ExtractStatus
   preview: PreviewResponse | null
@@ -236,7 +239,8 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
   )
 
   const [fileItems, setFileItems] = useState<FileItem[]>(() =>
-    initialFiles.map(f => ({
+    initialFiles.map((f, id) => ({
+      id,
       file: f,
       extractStatus: 'pending' as ExtractStatus,
       preview: null,
@@ -320,6 +324,13 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
       }
 
       if (cancelled) return
+
+      // With nothing extracted, "resolve" would be an empty step leading to a
+      // disabled confirm button; the summary lists every file's error.
+      if (previews.every(p => p === null)) {
+        setPhase('summary')
+        return
+      }
 
       // Build newIbanEntries for unique new (unmatched) IBANs
       const ibanMap = new Map<string, NewIbanEntry>()
@@ -473,7 +484,7 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
   }
 
   function addBlankRow(fileIdx: number, accountRef: string) {
-    const today = new Date().toISOString().slice(0, 10)
+    const today = todayIso()
     setFileItems(prev => prev.map((fi, i) =>
       i === fileIdx
         ? {
@@ -568,6 +579,11 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
 
   // ── S6: Close & notify parent ─────────────────────────────────────────────
   function handleClose() {
+    // Nothing reached the server, so there is no result to report or refetch.
+    if (fileItems.every(fi => fi.confirmStatus === 'pending')) {
+      onClose()
+      return
+    }
     const doneItems = fileItems.filter(fi => fi.confirmStatus === 'done' && fi.confirmResult)
     const aggregate: ImportResult = {
       import_run_id: 0,
@@ -579,6 +595,9 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
   }
 
   const isBlocking = phase === 'extracting' || phase === 'confirming'
+  const summaryTitle = fileItems.some(fi => fi.confirmStatus === 'done')
+    ? t.batchSummaryTitle
+    : t.batchSummaryFailedTitle
 
   function getModalTitle(): string {
     switch (phase) {
@@ -587,7 +606,7 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
       case 'resolve':       return t.batchResolveTitle
       case 'preview':       return t.batchPreviewTitle
       case 'confirming':    return t.batchConfirmingTitle
-      case 'summary':       return t.batchSummaryTitle
+      case 'summary':       return summaryTitle
     }
   }
 
@@ -624,8 +643,8 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
           </span>
         </div>
         <ul className="batch-file-list">
-          {fileItems.map((fi, i) => (
-            <li key={i} className="batch-file-row">
+          {fileItems.map(fi => (
+            <li key={fi.id} className="batch-file-row">
               <span className="batch-file-icon">
                 {fi.extractStatus === 'running' && <div className="spinner spinner--sm" />}
                 {fi.extractStatus === 'done'    && <span className="batch-file-icon--done"><IconCheck size={14} /></span>}
@@ -667,8 +686,8 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
     return (
       <div className="batch-resolve-section">
         <div className="batch-resolve-list">
-          {matchedEntries.map((e, i) => (
-            <div key={i} className="batch-resolve-matched-banner">
+          {matchedEntries.map(e => (
+            <div key={e.masked} className="batch-resolve-matched-banner">
               <IconCheck size={14} /> {t.importDetectedAccount(e.masked, e.name)}
             </div>
           ))}
@@ -696,6 +715,7 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
                     onBlur={() => setNewIbanEntries(prev =>
                       prev.map((en, j) => j === i ? { ...en, touched: true } : en)
                     )}
+                    // eslint-disable-next-line jsx-a11y/no-autofocus -- the resolve step replaces the modal body on its own once extraction ends, so focus would otherwise drop to the document body
                     autoFocus={i === 0 && matchedEntries.length === 0}
                   />
                   {showErr && (
@@ -796,6 +816,7 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
                           onChange={e => setFileItems(prev =>
                             prev.map((item, i) => i === idx ? { ...item, resolvedAccountName: e.target.value } : item)
                           )}
+                          // eslint-disable-next-line jsx-a11y/no-autofocus -- revealed by the user choosing "new account", and the name is the next thing they must type
                           autoFocus
                         />
                         <div style={{ marginTop: 8 }}>
@@ -928,10 +949,10 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
           </span>
         </div>
         <ul className="batch-file-list">
-          {fileItems.map((fi, i) => {
+          {fileItems.map(fi => {
             if (fi.extractStatus !== 'done') return null
             return (
-              <li key={i} className="batch-file-row">
+              <li key={fi.id} className="batch-file-row">
                 <span className="batch-file-icon">
                   {fi.confirmStatus === 'running' && <div className="spinner spinner--sm" />}
                   {fi.confirmStatus === 'done'    && <span className="batch-file-icon--done"><IconCheck size={14} /></span>}
@@ -958,7 +979,7 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
 
     return (
       <div className="batch-summary-section">
-        <div className="batch-summary-title">{t.batchSummaryTitle}</div>
+        <div className="batch-summary-title">{summaryTitle}</div>
         <div className="batch-summary-totals">
           <div className="batch-summary-total-row"><IconFileText size={15} /> <strong>{t.batchSummaryStmts(doneItems.length)}</strong></div>
           <div className="batch-summary-total-row"><IconCheck size={15} /> <strong>{t.batchSummaryNewTx(totalInserted)}</strong></div>
@@ -970,24 +991,24 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
 
         <div className="batch-detail-title">{t.previewColDesc}</div>
         <ul className="batch-detail-list">
-          {fileItems.map((fi, i) => {
+          {fileItems.map(fi => {
             if (fi.confirmStatus === 'done' && fi.confirmResult) {
               return (
-                <li key={i} className="batch-detail-row batch-detail-row--done">
+                <li key={fi.id} className="batch-detail-row batch-detail-row--done">
                   {t.batchSummaryFileDone(fi.file.name, fi.confirmResult.num_inserted, fi.confirmResult.num_duplicates)}
                 </li>
               )
             }
             if (fi.confirmStatus === 'error') {
               return (
-                <li key={i} className="batch-detail-row batch-detail-row--error">
+                <li key={fi.id} className="batch-detail-row batch-detail-row--error">
                   {t.batchSummaryFileError(fi.file.name, fi.confirmError ?? '')}
                 </li>
               )
             }
             if (fi.extractStatus === 'error') {
               return (
-                <li key={i} className="batch-detail-row batch-detail-row--error">
+                <li key={fi.id} className="batch-detail-row batch-detail-row--error">
                   {t.batchSummaryFileError(fi.file.name, fi.extractError ?? '')}
                 </li>
               )

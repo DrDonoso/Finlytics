@@ -161,7 +161,7 @@ export default function MortgagePage() {
       )}
       {loading && (
         <div className="state-box">
-          <IconLoading size={26} className="icon" />
+          <IconLoading size={26} />
           <span>{t.loading}</span>
         </div>
       )}

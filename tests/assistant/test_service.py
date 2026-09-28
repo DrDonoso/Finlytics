@@ -19,6 +19,7 @@ from finlytics.assistant.service import (
     Completed,
     Failed,
     ToolStarted,
+    TurnUsage,
     run_turn,
 )
 from finlytics.extraction.llm_client import (
@@ -260,6 +261,53 @@ class TestUsageAccounting:
         assert "Answer in Catalan." in system
         # And they must not have displaced the rules.
         assert "ALWAYS get numbers from the tools" in system
+
+    async def test_the_meter_keeps_what_an_exhausted_turn_spent(self, fake_context):
+        # Running out of iterations is the most expensive way to fail: every
+        # pass was billed, and Failed carries no numbers to record.
+        passes = [
+            [
+                ToolCallsRequested([
+                    ToolCallRequest(id=f"c{i}", name="get_spending_by_category", arguments="{}")
+                ]),
+                UsageReported(prompt_tokens=100, completion_tokens=10, total_tokens=110),
+            ]
+            for i in range(10)
+        ]
+        usage = TurnUsage()
+        with patch(
+            "finlytics.assistant.tools.queries.get_by_category", AsyncMock(return_value=[])
+        ):
+            events = await collect(
+                FakeLLM(passes), limits=AgentLimits(max_tool_iterations=2), usage=usage
+            )
+
+        assert isinstance(events[-1], Failed)
+        assert usage == TurnUsage(
+            prompt_tokens=300, completion_tokens=30, total_tokens=330, reported=True
+        )
+
+    async def test_the_meter_keeps_the_calls_that_finished_before_an_error(
+        self, fake_context
+    ):
+        llm = FakeLLM([
+            [
+                ToolCallsRequested([
+                    ToolCallRequest(id="c1", name="get_spending_by_category", arguments="{}")
+                ]),
+                UsageReported(prompt_tokens=800, completion_tokens=40, total_tokens=840),
+            ],
+            [LLMError("upstream timed out")],
+        ])
+        usage = TurnUsage()
+        with patch(
+            "finlytics.assistant.tools.queries.get_by_category", AsyncMock(return_value=[])
+        ):
+            events = await collect(llm, usage=usage)
+
+        assert isinstance(events[-1], Failed)
+        assert usage.total_tokens == 840
+        assert usage.reported is True
 
 
 class TestBounds:

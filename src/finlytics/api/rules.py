@@ -2,20 +2,21 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+import string
+from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, NamedTuple
 
 import regex
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import ColumnElement, ColumnExpressionArgument, Numeric, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from finlytics.api.deps import get_db
 from finlytics.api.schemas import RuleApplyResult, RuleIn, RuleOut, RulePreviewResult, RuleUpdate
 from finlytics.db import repository
-from finlytics.db.models import Transaction
+from finlytics.db.models import Account, Tag, Transaction
 from finlytics.db.repository import get_or_create_category, get_or_create_tag
 from finlytics.extraction.rules import (
     _compile_detail_regex,
@@ -59,88 +60,204 @@ class _RuleLike:
         self.skip_ai = body.skip_ai
 
 
-class _StoredTxView:
-    """Minimal adapter over a ``Transaction`` ORM row satisfying ``_matches()``."""
+class _Candidate(NamedTuple):
+    """A stored transaction as the matcher reads it, without loading the ORM row."""
 
-    __slots__ = ("description", "detail", "amount", "account_ref", "currency")
-
-    def __init__(self, tx: Transaction) -> None:
-        self.description: str = tx.description
-        self.detail: str | None = tx.detail
-        self.amount: Decimal = tx.amount
-        self.account_ref: str = tx.account.name if tx.account else ""
-        self.currency: str = tx.currency
+    id: int
+    description: str
+    detail: str | None
+    amount: Decimal
+    account_ref: str
+    currency: str
 
 
-async def _count_matching(session: AsyncSession, rule_like: Any) -> int:
-    """Return the count of stored transactions that match *rule_like* conditions."""
-    compiled_regex = _compile_regex(rule_like) if rule_like.description_mode == "regex" else None
-    compiled_detail = (
-        _compile_detail_regex(rule_like) if rule_like.detail_mode == "regex" else None
+# The SQL pre-filter only has to be a superset of what ``_matches`` accepts.
+# Postgres's lower() follows the database collation — a C-locale database
+# leaves "É" alone, a Turkish one lowers "I" to a dotless "ı" — so it could
+# drop a row str.lower() matches.  translate() folds ASCII the same way
+# everywhere, plus the two non-ASCII letters Python lowers to ASCII.
+_FOLD_FROM = string.ascii_uppercase + "\u0130\u212a"
+_FOLD_TO = string.ascii_lowercase + "ik"
+_LIKE_ESCAPE = "/"
+_APPLY_CHUNK = 1000
+
+
+def _folded(column: ColumnExpressionArgument[str]) -> ColumnElement[str]:
+    return func.translate(column, _FOLD_FROM, _FOLD_TO)
+
+
+def _like_pattern(value: str) -> str:
+    """LIKE pattern over the folded column, loose enough never to miss a match.
+
+    Only ASCII is compared literally.  Python lowers any other character to
+    exactly one character the database left untouched, so it becomes ``_``.
+    The combining dot ``"İ".lower()`` appends after its ``i`` becomes ``%``,
+    because the database folds that letter to a bare ``i``.
+    """
+    parts: list[str] = []
+    previous = ""
+    for char in value.lower():
+        if char in "%_" + _LIKE_ESCAPE:
+            parts.append(_LIKE_ESCAPE + char)
+        elif char.isascii():
+            parts.append(char)
+        elif char == "\u0307" and previous == "i":
+            parts.append("%")
+        else:
+            parts.append("_")
+        previous = char
+    return "".join(parts)
+
+
+def _text_condition(
+    column: ColumnExpressionArgument[str], mode: str, value: str
+) -> ColumnElement[bool] | None:
+    """SQL counterpart of ``_value_matches``; None for modes only Python can evaluate."""
+    pattern = _like_pattern(value)
+    if mode == "contains":
+        pattern = f"%{pattern}%"
+    elif mode == "starts_with":
+        pattern = f"{pattern}%"
+    elif mode != "exact":
+        return None
+    return _folded(column).like(pattern, escape=_LIKE_ESCAPE)
+
+
+async def _candidate_conditions(
+    session: AsyncSession, rule_like: Any
+) -> list[ColumnElement[bool]] | None:
+    """WHERE clauses narrowing the transactions *rule_like* could match.
+
+    Returns None when no transaction can match, because ``account_ref`` names
+    no existing account.
+    """
+    conditions: list[ColumnElement[bool]] = []
+
+    description = _text_condition(
+        Transaction.description, rule_like.description_mode, rule_like.description_value
     )
-    txs = (
-        await session.execute(
-            select(Transaction).options(selectinload(Transaction.account))
+    if description is not None:
+        conditions.append(description)
+
+    if rule_like.detail_mode and rule_like.detail_value:
+        detail = _text_condition(
+            func.coalesce(Transaction.detail, ""), rule_like.detail_mode, rule_like.detail_value
         )
-    ).scalars().all()
-    return sum(
-        _matches(_StoredTxView(tx), rule_like, compiled_regex, compiled_detail) for tx in txs
-    )
+        if detail is not None:
+            conditions.append(detail)
+
+    if rule_like.amount_sign == "negative":
+        conditions.append(Transaction.amount < 0)
+    elif rule_like.amount_sign == "positive":
+        conditions.append(Transaction.amount > 0)
+
+    magnitude = func.abs(Transaction.amount, type_=Numeric())
+    if rule_like.amount_min is not None:
+        conditions.append(magnitude >= rule_like.amount_min)
+    if rule_like.amount_max is not None:
+        conditions.append(magnitude <= rule_like.amount_max)
+
+    if rule_like.currency is not None:
+        currency = _text_condition(Transaction.currency, "exact", rule_like.currency)
+        if currency is not None:
+            conditions.append(currency)
+
+    if rule_like.account_ref is not None:
+        wanted = rule_like.account_ref.lower()
+        accounts = (await session.execute(select(Account.id, Account.name))).all()
+        account_ids = [account_id for account_id, name in accounts if name.lower() == wanted]
+        if not account_ids:
+            return None
+        conditions.append(Transaction.account_id.in_(account_ids))
+
+    return conditions
 
 
-async def _apply_to_transactions(session: AsyncSession, rule_like: Any) -> int:
-    """Apply *rule_like* actions to all matching stored transactions.
+async def _matching_candidates(session: AsyncSession, rule_like: Any) -> list[_Candidate]:
+    """Stored transactions matching *rule_like*, filtered in SQL and confirmed by ``_matches``.
 
-    Runs inside a single ``session.begin()`` transaction.  Actions applied:
-    - ``set_category`` → resolve/create category (same as import path), set ``category_id``.
-    - ``set_merchant`` → update ``merchant`` column.
-    - ``add_tags`` → MERGE with existing tags (case-insensitive dedup, order preserved).
-
-    Returns the number of transactions that were matched (and had actions applied).
+    The database discards what it can prove cannot match; every survivor is
+    re-evaluated by the same matcher the import path uses, which is also the
+    only place regular expressions run.
     """
     compiled_regex = _compile_regex(rule_like) if rule_like.description_mode == "regex" else None
     compiled_detail = (
         _compile_detail_regex(rule_like) if rule_like.detail_mode == "regex" else None
     )
-    async with session.begin():
+    conditions = await _candidate_conditions(session, rule_like)
+    if conditions is None:
+        return []
+    rows = await session.execute(
+        select(
+            Transaction.id,
+            Transaction.description,
+            Transaction.detail,
+            Transaction.amount,
+            Account.name,
+            Transaction.currency,
+        )
+        .join(Transaction.account)
+        .where(*conditions)
+    )
+    candidates = (_Candidate._make(row) for row in rows)
+    return [
+        candidate
+        for candidate in candidates
+        if _matches(candidate, rule_like, compiled_regex, compiled_detail)
+    ]
+
+
+async def _count_matching(session: AsyncSession, rule_like: Any) -> int:
+    """Return the count of stored transactions that match *rule_like* conditions."""
+    return len(await _matching_candidates(session, rule_like))
+
+
+async def _apply_to_transactions(session: AsyncSession, rule_like: Any) -> int:
+    """Apply *rule_like* actions to all matching stored transactions.
+
+    Runs inside the caller's transaction.  Actions applied:
+    - ``set_category`` → resolve/create category (same as import path), set ``category_id``.
+    - ``set_merchant`` → update ``merchant`` column.
+    - ``add_tags`` → MERGE with existing tags (case-insensitive dedup, order preserved).
+
+    Only the matched rows are loaded as ORM objects.  Returns the number of
+    transactions that were matched (and had actions applied).
+    """
+    ids = [candidate.id for candidate in await _matching_candidates(session, rule_like)]
+    if not ids:
+        return 0
+
+    category_id = None
+    if rule_like.set_category is not None:
+        category_id = (await get_or_create_category(session, rule_like.set_category)).id
+    tag_cache: dict[str, Tag] = {}
+
+    for start in range(0, len(ids), _APPLY_CHUNK):
         txs = (
             await session.execute(
-                select(Transaction).options(
-                    selectinload(Transaction.account),
-                    selectinload(Transaction.tags),
-                )
+                select(Transaction)
+                .where(Transaction.id.in_(ids[start : start + _APPLY_CHUNK]))
+                .options(selectinload(Transaction.tags))
             )
         ).scalars().all()
 
-        category_cache: dict[str, Any] = {}
-        applied = 0
-
         for tx in txs:
-            if not _matches(_StoredTxView(tx), rule_like, compiled_regex, compiled_detail):
-                continue
-
-            if rule_like.set_category is not None:
-                if rule_like.set_category not in category_cache:
-                    category_cache[rule_like.set_category] = await get_or_create_category(
-                        session, rule_like.set_category
-                    )
-                tx.category_id = category_cache[rule_like.set_category].id
+            if category_id is not None:
+                tx.category_id = category_id
 
             if rule_like.set_merchant is not None:
                 tx.merchant = rule_like.set_merchant
 
             if rule_like.add_tags:
-                existing_names = [t.name for t in tx.tags]
-                merged_names = _merge_tags(existing_names, rule_like.add_tags)
                 new_tags = []
-                for name in merged_names:
-                    new_tags.append(await get_or_create_tag(session, name))
+                for name in _merge_tags([t.name for t in tx.tags], rule_like.add_tags):
+                    if name not in tag_cache:
+                        tag_cache[name] = await get_or_create_tag(session, name)
+                    new_tags.append(tag_cache[name])
                 tx.tags = new_tags
 
-            applied += 1
-
-        await session.flush()
-        return applied
+    await session.flush()
+    return len(ids)
 
 
 def _rule_dict(rule: Any) -> dict[str, Any]:
@@ -310,7 +427,8 @@ async def apply_rule_to_transactions(
     * 200 — ``{"applied": <int>}`` — number of transactions that were matched
       and had actions applied.
     """
-    applied = await _apply_to_transactions(session, _RuleLike(body))
+    async with session.begin():
+        applied = await _apply_to_transactions(session, _RuleLike(body))
     return RuleApplyResult(applied=applied)
 
 
@@ -327,10 +445,11 @@ async def apply_saved_rule(
     * 200 — ``{"applied": <int>}``
     * 404 — rule not found.
     """
-    rule = await repository.get_rule(session, rule_id)
-    if rule is None:
-        raise HTTPException(status_code=404, detail="Rule not found.")
-    applied = await _apply_to_transactions(session, rule)
+    async with session.begin():
+        rule = await repository.get_rule(session, rule_id)
+        if rule is None:
+            raise HTTPException(status_code=404, detail="Rule not found.")
+        applied = await _apply_to_transactions(session, rule)
     return RuleApplyResult(applied=applied)
 
 
@@ -368,7 +487,7 @@ async def update_rule(
         )
         for field, value in updates.items():
             setattr(rule, field, value)
-        rule.updated_at = datetime.now(timezone.utc)
+        rule.updated_at = datetime.now(UTC)
         await session.flush()
     return _rule_dict(rule)
 

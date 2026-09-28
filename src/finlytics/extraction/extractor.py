@@ -14,7 +14,6 @@ import re
 from collections import Counter
 from datetime import date
 from decimal import Decimal, InvalidOperation
-from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -291,19 +290,19 @@ class _RawTransaction(BaseModel):
     )
     currency: str = Field(default="EUR")
     description: str
-    raw_line: Optional[str] = None
+    raw_line: str | None = None
     category: str
     is_proposed_category: bool = Field(
         default=False,
         description="True when the category is not in the base taxonomy and was invented by the model",
     )
-    category_confidence: Optional[float] = Field(default=None, ge=0.0, le=1.0)
-    balance_after: Optional[float] = None
+    category_confidence: float | None = Field(default=None, ge=0.0, le=1.0)
+    balance_after: float | None = None
     tags: list[str] = Field(
         default_factory=list,
         description="0–3 free-form tag names (lowercase Spanish) suggested by the extractor",
     )
-    merchant: Optional[str] = Field(
+    merchant: str | None = Field(
         default=None,
         description=(
             "Normalized brand/vendor name in Title Case "
@@ -311,7 +310,7 @@ class _RawTransaction(BaseModel):
             "or null when no merchant is identifiable"
         ),
     )
-    detail: Optional[str] = Field(
+    detail: str | None = Field(
         default=None,
         description=(
             "Non-bold sub-detail text that followed the bold concept in the statement "

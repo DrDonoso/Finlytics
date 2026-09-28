@@ -170,6 +170,7 @@ export default function SettingsPage() {
                       onChange={e => setEditName(e.target.value)}
                       className="form-input settings-tag-name-input"
                       disabled={saving}
+                      // eslint-disable-next-line jsx-a11y/no-autofocus -- the field appears in response to the user's own "edit" click, which moved focus off a button that no longer exists
                       autoFocus
                       placeholder={t.settingsTagsAddName}
                       onKeyDown={e => {

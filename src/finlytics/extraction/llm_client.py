@@ -12,7 +12,7 @@ from __future__ import annotations
 import logging
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Type, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from openai import AsyncOpenAI
 from pydantic import BaseModel
@@ -104,10 +104,10 @@ class LLMClient:
     @classmethod
     def from_settings(
         cls,
-        settings: "Settings",
+        settings: Settings,
         *,
         _client: AsyncOpenAI | None = None,
-    ) -> "LLMClient":
+    ) -> LLMClient:
         """Construct a client from the shared settings singleton."""
         return cls(
             api_key=settings.openai_api_key,
@@ -167,7 +167,7 @@ class LLMClient:
         self,
         system: str,
         user: str,
-        response_format: Type[T],
+        response_format: type[T],
         *,
         max_completion_tokens: int = 4096,
     ) -> T:
@@ -308,7 +308,7 @@ class LLMClient:
                 yield ToolCallsRequested(calls=calls)
 
 
-def is_llm_configured(settings: "Settings") -> bool:
+def is_llm_configured(settings: Settings) -> bool:
     """Return True only when all three OpenAI env vars are non-empty."""
     return bool(
         settings.openai_api_key

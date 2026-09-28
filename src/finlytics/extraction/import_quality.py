@@ -10,9 +10,10 @@ import math
 import re
 import unicodedata
 from collections import Counter
+from collections.abc import Iterable
 from datetime import date
 from decimal import Decimal, InvalidOperation
-from typing import Any, Iterable
+from typing import Any
 
 from finlytics.db.repository import compute_dedup_hash
 
@@ -156,7 +157,7 @@ def _intra_batch_duplicate_indexes(transactions: list[Any]) -> list[int]:
                 description=str(_get(tx, "description") or ""),
                 detail=_get(tx, "detail"),
             )
-        except Exception:
+        except (ArithmeticError, AttributeError, TypeError, ValueError):
             continue
 
         if tx_hash in seen:

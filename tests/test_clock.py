@@ -12,7 +12,7 @@ the kind of thing worth pinning with tests.
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -41,7 +41,7 @@ def test_falls_back_to_utc_on_an_invalid_timezone(monkeypatch):
     """An invalid zone name must not prevent the application from starting."""
     monkeypatch.setattr(clock.settings, "timezone", "Marte/Olympus_Mons")
 
-    assert clock.local_timezone() is timezone.utc
+    assert clock.local_timezone() is UTC
 
 
 def test_now_always_carries_tzinfo(monkeypatch):
@@ -61,17 +61,17 @@ def test_local_date_differs_from_utc_in_the_early_hours(monkeypatch):
     madrid = ZoneInfo("Europe/Madrid")
     instant = datetime(2026, 7, 30, 1, 0, tzinfo=madrid)   # 2026-07-29T23:00Z
 
-    assert instant.astimezone(timezone.utc).date() == date(2026, 7, 29)
+    assert instant.astimezone(UTC).date() == date(2026, 7, 29)
     assert instant.astimezone(madrid).date() == date(2026, 7, 30)
 
 
 def test_today_follows_the_configured_timezone(monkeypatch):
     """The returned date changes with TIMEZONE, not with the server clock."""
-    instant = datetime(2026, 7, 29, 23, 30, tzinfo=timezone.utc)
+    instant = datetime(2026, 7, 29, 23, 30, tzinfo=UTC)
 
     class _FrozenDatetime(datetime):
         @classmethod
-        def now(cls, tz=None):  # noqa: ANN001, ANN206
+        def now(cls, tz=None):
             return instant.astimezone(tz) if tz else instant
 
     monkeypatch.setattr(clock, "datetime", _FrozenDatetime)
@@ -93,7 +93,7 @@ def test_today_matches_a_plain_date_today_when_configured_as_utc(monkeypatch):
     """
     monkeypatch.setattr(clock.settings, "timezone", "UTC")
 
-    assert clock.today() == datetime.now(timezone.utc).date()
+    assert clock.today() == datetime.now(UTC).date()
 
 
 def test_no_module_reads_the_process_date():

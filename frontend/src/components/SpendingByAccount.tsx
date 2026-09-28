@@ -73,20 +73,12 @@ export default function SpendingByAccount({ data, loading, error, selectedFlow, 
               contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8 }}
               labelStyle={{ color: 'var(--text)' }}
               itemStyle={{ color: 'var(--text)' }}
-              formatter={(value, name) => [
-                formatCurrency(Number(value)),
-                name === 'expense' ? t.legendExpense : t.legendIncome,
-              ]}
+              formatter={value => formatCurrency(Number(value))}
             />
-            <Legend
-              formatter={(value: string) => (
-                <span style={{ fontSize: 12 }}>
-                  {value === 'expense' ? t.legendExpense : t.legendIncome}
-                </span>
-              )}
-            />
+            <Legend wrapperStyle={{ fontSize: 12 }} />
             <Bar
               dataKey="expense"
+              name={t.legendExpense}
               fill="var(--expense-fill)"
               radius={[0, 4, 4, 0]}
               maxBarSize={32}
@@ -96,6 +88,7 @@ export default function SpendingByAccount({ data, loading, error, selectedFlow, 
             />
             <Bar
               dataKey="income"
+              name={t.legendIncome}
               fill="var(--income-fill)"
               radius={[0, 4, 4, 0]}
               maxBarSize={32}

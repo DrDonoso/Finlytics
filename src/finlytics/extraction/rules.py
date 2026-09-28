@@ -41,8 +41,9 @@ way to stop a catastrophically-backtracking pattern.  See ``_BoundedPattern``.
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterable
 from decimal import Decimal
-from typing import Iterable, Optional, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 import regex
 
@@ -79,19 +80,19 @@ class RuleProtocol(Protocol):
     # Match criteria
     description_mode: str           # "contains" | "starts_with" | "exact" | "regex"
     description_value: str          # pattern / substring (case-insensitive always)
-    amount_sign: Optional[str]      # "negative" | "positive" | None
-    amount_min: Optional[Decimal]   # abs(tx.amount) >= amount_min when set; None = no lower bound
-    amount_max: Optional[Decimal]   # abs(tx.amount) <= amount_max when set; None = no upper bound
-    account_ref: Optional[str]      # None = any account
-    currency: Optional[str]         # None = any currency
+    amount_sign: str | None      # "negative" | "positive" | None
+    amount_min: Decimal | None   # abs(tx.amount) >= amount_min when set; None = no lower bound
+    amount_max: Decimal | None   # abs(tx.amount) <= amount_max when set; None = no upper bound
+    account_ref: str | None      # None = any account
+    currency: str | None         # None = any currency
     # Optional detail condition — both must be set to activate (AND with description).
     # Uses the same modes as description_mode (contains/starts_with/exact/regex).
-    detail_mode: Optional[str]      # None = no detail condition
-    detail_value: Optional[str]     # None = no detail condition
+    detail_mode: str | None      # None = no detail condition
+    detail_value: str | None     # None = no detail condition
 
     # Actions
-    set_category: Optional[str]     # None = don't override
-    set_merchant: Optional[str]     # None = don't override
+    set_category: str | None     # None = don't override
+    set_merchant: str | None     # None = don't override
     add_tags: list[str]             # empty list = no tags to add
     skip_ai: bool                   # Phase-2 concern; ignored by apply_rules
 
@@ -99,8 +100,8 @@ class RuleProtocol(Protocol):
 class MatchableTransaction(Protocol):
     """What ``_matches`` reads from a transaction.
 
-    Satisfied by an ``ExtractedTransaction`` at import time and by the adapter
-    ``api/rules.py`` wraps stored rows in, so both paths share one matcher.
+    Satisfied by an ``ExtractedTransaction`` at import time and by the candidate
+    rows ``api/rules.py`` reads from the database, so both paths share one matcher.
     """
 
     @property
@@ -299,13 +300,13 @@ def _matches(
     if rule.amount_max is not None and abs(tx.amount) > rule.amount_max:
         return False
 
-    if rule.account_ref is not None:
-        if (tx.account_ref or "").lower() != rule.account_ref.lower():
-            return False
+    if rule.account_ref is not None and (
+        (tx.account_ref or "").lower() != rule.account_ref.lower()
+    ):
+        return False
 
-    if rule.currency is not None:
-        if (tx.currency or "").lower() != rule.currency.lower():
-            return False
+    if rule.currency is not None and (tx.currency or "").lower() != rule.currency.lower():
+        return False
 
     return True
 

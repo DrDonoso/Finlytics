@@ -41,6 +41,10 @@ from finlytics.db.queries.catalog import (
     update_category,
     update_tag,
 )
+from finlytics.db.queries.investments import (
+    HOLDING_STATUSES,
+    has_investment_connections,
+)
 from finlytics.db.queries.statements import (
     delete_statement_month,
     get_statement_months,
@@ -56,6 +60,7 @@ from finlytics.db.queries.summaries import (
     get_overview,
 )
 from finlytics.db.queries.transactions import (
+    get_transaction_date_range,
     get_transactions,
     update_transaction,
 )
@@ -76,8 +81,12 @@ __all__ = [
     "update_category",
     "update_tag",
     # Transactions
+    "get_transaction_date_range",
     "get_transactions",
     "update_transaction",
+    # Investment connections
+    "HOLDING_STATUSES",
+    "has_investment_connections",
     # Resumenes
     "get_by_account",
     "get_by_category",

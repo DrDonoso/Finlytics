@@ -8,10 +8,7 @@ Verifies:
 
 from __future__ import annotations
 
-import pytest
-
 from finlytics.extraction.redaction import redact_pii
-
 
 # ---------------------------------------------------------------------------
 # IBAN redaction

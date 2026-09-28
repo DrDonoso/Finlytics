@@ -22,6 +22,9 @@ node_modules/
 frontend/dist/
 # Static demo build output (npm run build:demo)
 frontend/dist-demo/
+# Playwright output (npm run e2e)
+frontend/playwright-report/
+frontend/test-results/
 
 # IDE
 .vscode/

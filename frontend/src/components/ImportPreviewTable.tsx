@@ -51,12 +51,12 @@ export default function ImportPreviewTable({
     if (flags.length === 0) return null
     return (
       <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 3 }}>
-        {flags.map((flag, i) => {
+        {flags.map(flag => {
           const title = `${signalLabel(flag.code)} — ${signalMessage(flag.code)}`
           const color = flag.severity === 'error' ? 'var(--expense)' : flag.severity === 'warning' ? '#b45309' : 'var(--text-muted)'
           return (
             <span
-              key={`${flag.code}-${i}`}
+              key={flag.code}
               className="import-dup-badge"
               title={title}
               aria-label={title}
