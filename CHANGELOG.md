@@ -4,6 +4,14 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260928.02] - 2026-09-28
+
+- react/set-state-in-effect: state that followed a prop or the route through an effect now adjusts during render (DateInput, the Layout drawer and nav accordions, StatementsPage landing on the newest month and closing the originals dropdown). TransactionDetailModal resets through a key instead.
+- react/refs: ImportModal's latest-value ref for the debounced duplicate check is written in useLayoutEffect instead of during render.
+- react/preserve-manual-memoization: TagTypeahead's handlers read its memoised suggestions before they were declared; they now come first.
+- react/exhaustive-effect-dependencies is off. react-hooks/exhaustive-deps already fails on a missing dependency, and the new rule also rejects extra ones, which is how an effect re-runs on purpose.
+
+
 ## [20260928] - 2026-09-28
 
 - Backup: export detail, is_system and a duplicate_key for rows whose hash cannot be re-derived, and re-hash the rest against the target's account ids on restore. A restored opening balance no longer counts as income, rows differing only in detail no longer merge, and re-importing the original PDF no longer duplicates rows.
