@@ -487,6 +487,7 @@ export default function TransactionsTable({ globalFilters, categories, allTags, 
 
       {detailTx && (
         <TransactionDetailModal
+          key={detailTx.id}
           tx={detailTx}
           sortedBaseCategories={sortedBaseCategories}
           dbExtraCategories={dbExtraCategories}

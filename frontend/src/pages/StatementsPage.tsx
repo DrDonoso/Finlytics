@@ -96,17 +96,22 @@ export default function StatementsPage() {
   const originalsDropdownRef = useRef<HTMLDivElement>(null)
 
   // When the month list changes (initial load or after import/delete), land on the most recent month.
-  // react-query shares structure: a refetch with identical data keeps the same reference and does not fire this.
-  useEffect(() => {
-    if (months.length > 0) {
-      setSelY(months[0].year)
-      setSelM(months[0].month)
-    } else if (!monthsLoading) {
-      const { y, m } = todayYM()
-      setSelY(y)
-      setSelM(m)
-    }
-  }, [months, monthsLoading])
+  // react-query shares structure: a refetch with identical data keeps the same reference and does not land again.
+  const [landedOn, setLandedOn] = useState<typeof months | null>(null)
+  if (landedOn !== months && (months.length > 0 || !monthsLoading)) {
+    const { y, m } = months.length > 0 ? { y: months[0].year, m: months[0].month } : todayYM()
+    setLandedOn(months)
+    setSelY(y)
+    setSelM(m)
+  }
+
+  // Close the originals dropdown when the month or account changes.
+  const selection = `${selAccountId ?? ''}:${selY}-${selM}`
+  const [dropdownSelection, setDropdownSelection] = useState(selection)
+  if (dropdownSelection !== selection) {
+    setDropdownSelection(selection)
+    setOriginalsDropdownOpen(false)
+  }
 
   // ── Derived date strings ────────────────────────────────────────────────────
   const from = selY ? `${selY}-${pad2(selM)}-01` : ''
@@ -146,11 +151,6 @@ export default function StatementsPage() {
   // Original PDFs available for the selected month
   const originalsQuery = useStatementOriginals(selY, selM, selAccountId, { enabled: Boolean(selY && selM) })
   const originals = originalsQuery.data ?? EMPTY
-
-  // Close the originals dropdown when the month or account changes.
-  useEffect(() => {
-    setOriginalsDropdownOpen(false)
-  }, [selY, selM, selAccountId])
 
   // ── Close originals dropdown on outside click ────────────────────────────────
   useEffect(() => {

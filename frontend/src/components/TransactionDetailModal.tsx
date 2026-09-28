@@ -1,4 +1,4 @@
-import { useState, useEffect, useId } from 'react'
+import { useState, useId } from 'react'
 import type { Category, Tag, Transaction } from '../api/types'
 import { updateTransaction } from '../api/client'
 import { useModalDismiss } from '../hooks/useModalDismiss'
@@ -52,19 +52,6 @@ export default function TransactionDetailModal({
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const backdrop = useModalDismiss(onClose, saving)
-
-  // Reset form when tx changes
-  useEffect(() => {
-    setEditData({
-      description: tx.description,
-      category: tx.category,
-      sign: tx.amount <= 0 ? '-' : '+',
-      absAmount: String(Math.abs(tx.amount)),
-      tags: tx.tags,
-      merchant: tx.merchant ?? '',
-    })
-    setSaveError(null)
-  }, [tx.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleSave() {
     setSaving(true)

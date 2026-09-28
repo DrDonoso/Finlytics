@@ -149,6 +149,7 @@ describe('the old useEffect pattern was genuinely broken', () => {
     const [value, setValue] = useState<number | null>(null)
 
     useEffect(() => {
+      // eslint-disable-next-line react/set-state-in-effect -- the legacy pattern this suite documents; the bug is the point
       setValue(null)
       getOverview(params).then((d: Overview) => setValue(d.total_expense))
     }, [params])

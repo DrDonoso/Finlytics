@@ -25,6 +25,10 @@ frontend/dist-demo/
 # Playwright output (npm run e2e)
 frontend/playwright-report/
 frontend/test-results/
+# Vitest output: coverage (npm run test:coverage) and, since vitest 5, the
+# default directory for reports and attachments
+frontend/coverage/
+frontend/.vitest/
 
 # IDE
 .vscode/

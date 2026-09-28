@@ -3,11 +3,12 @@
  * fall through to the generic "unexpected error" text, which gives no hint that
  * the file is simply too big.
  */
-import { render, screen } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, expect, it, vi } from 'vitest'
 
 import ImportModal from './ImportModal'
+import type { PreviewResponse } from '../api/types'
 import es from '../i18n/es'
 
 afterEach(() => {
@@ -76,4 +77,60 @@ it('shows why every statement failed instead of an empty account step', async ()
   // Nothing reached the server, so there is no "0 new transactions" toast.
   expect(onClose).toHaveBeenCalledOnce()
   expect(onSuccess).not.toHaveBeenCalled()
+})
+
+it('re-checks duplicates once typing settles, against the edited rows', async () => {
+  // The debounce is armed on the first keystroke and fires after the last one,
+  // so it has to read the rows through a ref that follows every commit.
+  const preview: PreviewResponse = {
+    account_ref: 'Main',
+    filename: 'may.pdf',
+    transactions: [{
+      transaction_date: '2024-05-02', amount: -93.4, currency: 'EUR', description: 'Mercadona',
+      raw_line: null, category: 'Groceries', category_confidence: 0.9, account_ref: 'Main',
+      balance_after: null, tags: [], merchant: 'Mercadona',
+    }],
+    statement_year: 2024,
+    year_detected: true,
+    matched_account_id: 1,
+    matched_account_name: 'Main',
+    quality: {
+      summary: { error_count: 0, warning_count: 0, info_count: 0, flagged_row_count: 0 },
+      signals: [],
+      row_flags: [],
+    },
+  }
+  const checked: { account_name: string; transactions: { description: string }[] }[] = []
+  vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+    if (url === '/api/imports/preview') return new Response(JSON.stringify(preview))
+    if (url === '/api/imports/check-duplicates') {
+      checked.push(JSON.parse(String(init?.body)))
+      return new Response(JSON.stringify({ is_duplicate: [false] }))
+    }
+    return new Response('{}', { status: 404, statusText: 'Not Found' })
+  }))
+
+  render(
+    <ImportModal
+      accounts={[]}
+      categories={[]}
+      allTags={[]}
+      onClose={() => {}}
+      onSuccess={() => {}}
+      initialFiles={[pdf('may.pdf')]}
+    />,
+  )
+
+  await userEvent.click(await screen.findByRole('button', { name: es.modalBtnContinue }))
+  expect(checked).toHaveLength(1)
+
+  await userEvent.type(await screen.findByLabelText(es.previewColDesc), ' Madrid')
+
+  await waitFor(() => expect(checked).toHaveLength(2))
+  expect(checked[1].account_name).toBe('Main')
+  expect(checked[1].transactions.map(tx => tx.description)).toEqual(['Mercadona Madrid'])
+
+  // One check for the whole burst, not one per keystroke.
+  await act(() => new Promise(resolve => setTimeout(resolve, 500)))
+  expect(checked).toHaveLength(2)
 })
