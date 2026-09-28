@@ -4,6 +4,21 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260928] - 2026-09-28
+
+- Backup: export detail, is_system and a duplicate_key for rows whose hash cannot be re-derived, and re-hash the rest against the target's account ids on restore. A restored opening balance no longer counts as income, rows differing only in detail no longer merge, and re-importing the original PDF no longer duplicates rows.
+- Investments: an errored connection or an unreadable account is counted in accounts_unavailable and the combined overview is marked partial, instead of valuing the portfolio at 0 EUR. Dashboard, investments page, snapshot card and assistant say the total is incomplete.
+- Indexa: rates are no longer summed across accounts. With several accounts money_return, money_return_annual and monthly_returns are withheld; euro amounts still add up and a real 0 stays 0.
+- Import: when every file fails extraction the modal goes straight to a summary listing each error instead of an empty resolve step, and closing with nothing sent no longer reports a result.
+- Mortgage: bonus fields keep the typed text, so decimals such as "0,25" can be entered, fields can be emptied, and each field has a label.
+- Assistant: a failed, capped or stopped turn is billed to its question, so the monthly budget can no longer be bypassed. Pressing Enter while an answer streams no longer clears the draft.
+- Ruff runs in CI with its default rule set; the codebase is clean.
+- Rule previews and applies pre-filter candidates in SQL and keep only the final match (and regexes) in Python.
+- Assistant tools read through the query layer; the combined overview is a service shared by the API and the assistant.
+- Route chunks are prefetched on hover/focus and while idle; local dates go through utils/dates.ts instead of toISOString().
+- Accessibility and i18n fixes, useModalDismiss for every modal, stable list keys, oxlint with --deny-warnings, and a Playwright smoke test of the demo build that runs as a new CI job.
+
+
 ## [20260927] - 2026-09-27
 
 - D1: no horizontal overflow at 390 px (minmax chart grids, focusable table scroll regions, intrinsic Indexa layout).
