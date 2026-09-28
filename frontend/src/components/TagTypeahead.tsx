@@ -63,6 +63,38 @@ export default function TagTypeahead({ tags, availableTags, suggestedColors, pre
     return m
   }, [availableTags])
 
+  const query = inputValue.trim().toLowerCase()
+
+  /** Merged, deduped candidates: DB tags first, then preview-wide names. */
+  const candidates = useMemo(() => {
+    const seen = new Set<string>()
+    const result: Array<{ name: string; emoji: string | null }> = []
+    for (const tag of availableTags) {
+      const norm = tag.name.toLowerCase()
+      if (!seen.has(norm)) { seen.add(norm); result.push({ name: tag.name, emoji: tag.emoji }) }
+    }
+    for (const name of previewTagNames ?? []) {
+      const norm = name.toLowerCase()
+      if (!seen.has(norm)) { seen.add(norm); result.push({ name, emoji: null }) }
+    }
+    return result
+  }, [availableTags, previewTagNames])
+
+  const suggestions = useMemo(() => {
+    const notAdded = candidates.filter(c => !tags.includes(c.name))
+    if (!query) {
+      return [...notAdded]
+        .sort((a, b) => {
+          const diff = (txCountMap[b.name] ?? 0) - (txCountMap[a.name] ?? 0)
+          return diff !== 0 ? diff : a.name.localeCompare(b.name)
+        })
+        .slice(0, 8)
+    }
+    return notAdded.filter(c => c.name.toLowerCase().includes(query))
+  }, [candidates, tags, query, txCountMap])
+
+  const expanded = open && suggestions.length > 0
+
   function resolveColor(name: string): string {
     return dbColorMap[name] ?? suggestedColors[name] ?? paletteColor(name)
   }
@@ -100,38 +132,6 @@ export default function TagTypeahead({ tags, availableTags, suggestedColors, pre
       setOpen(false)
     }
   }
-
-  const query = inputValue.trim().toLowerCase()
-
-  /** Merged, deduped candidates: DB tags first, then preview-wide names. */
-  const candidates = useMemo(() => {
-    const seen = new Set<string>()
-    const result: Array<{ name: string; emoji: string | null }> = []
-    for (const tag of availableTags) {
-      const norm = tag.name.toLowerCase()
-      if (!seen.has(norm)) { seen.add(norm); result.push({ name: tag.name, emoji: tag.emoji }) }
-    }
-    for (const name of previewTagNames ?? []) {
-      const norm = name.toLowerCase()
-      if (!seen.has(norm)) { seen.add(norm); result.push({ name, emoji: null }) }
-    }
-    return result
-  }, [availableTags, previewTagNames])
-
-  const suggestions = useMemo(() => {
-    const notAdded = candidates.filter(c => !tags.includes(c.name))
-    if (!query) {
-      return [...notAdded]
-        .sort((a, b) => {
-          const diff = (txCountMap[b.name] ?? 0) - (txCountMap[a.name] ?? 0)
-          return diff !== 0 ? diff : a.name.localeCompare(b.name)
-        })
-        .slice(0, 8)
-    }
-    return notAdded.filter(c => c.name.toLowerCase().includes(query))
-  }, [candidates, tags, query, txCountMap])
-
-  const expanded = open && suggestions.length > 0
 
   return (
     // A pointer shortcut only: the input is keyboard-reachable on its own

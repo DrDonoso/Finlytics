@@ -39,6 +39,12 @@
 
     "react/no-array-index-key": "warn",
     "react/no-unstable-nested-components": "warn",
+    // react-hooks/exhaustive-deps already fails on a missing dependency. This
+    // compiler-derived rule reports those again, so a deliberate omission needs
+    // two directives, and it flags extra ones, which in an effect is how "run
+    // again when X changes" is written (the assistant autoscroll, the pickers
+    // refocusing a cell after the grid moves).
+    "react/exhaustive-effect-dependencies": "off",
 
     // Every role it flags is a deliberate custom widget: the modals manage focus
     // themselves rather than use <dialog>'s top layer, a live region is not an

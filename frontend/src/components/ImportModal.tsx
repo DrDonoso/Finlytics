@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo, useEffect } from 'react'
+import { useState, useRef, useMemo, useEffect, useLayoutEffect } from 'react'
 import type {
   Account, Category, Tag,
   ImportTransaction, PreviewResponse, ConfirmRequest, ImportResult,
@@ -70,6 +70,20 @@ function friendlyError(e: unknown, t: Dict): string {
     return t.errorNetwork
   }
   return t.errorUnexpected(msg)
+}
+
+/** The account a file imports into: a matched one, a new IBAN's typed name, or the one picked by hand. */
+function resolveAccount(fi: FileItem, newIbanEntries: NewIbanEntry[]): { name: string; number: string | null } {
+  const p = fi.preview
+  if (!p) return { name: '', number: null }
+  if (p.matched_account_id != null && p.matched_account_name) {
+    return { name: p.matched_account_name, number: null }
+  }
+  if (p.detected_account_iban) {
+    const entry = newIbanEntries.find(e => e.iban === p.detected_account_iban)
+    return { name: entry?.name.trim() ?? '', number: p.detected_account_iban }
+  }
+  return { name: fi.resolvedAccountName.trim(), number: null }
 }
 
 function toImportTxn(row: EditRow): ImportTransaction {
@@ -348,21 +362,7 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
 
     runExtract()
     return () => { cancelled = true }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── Account resolution helpers ────────────────────────────────────────────
-  function getResolvedAccount(fi: FileItem): { name: string; number: string | null } {
-    const p = fi.preview
-    if (!p) return { name: '', number: null }
-    if (p.matched_account_id != null && p.matched_account_name) {
-      return { name: p.matched_account_name, number: null }
-    }
-    if (p.detected_account_iban) {
-      const entry = newIbanEntries.find(e => e.iban === p.detected_account_iban)
-      return { name: entry?.name.trim() ?? '', number: p.detected_account_iban }
-    }
-    return { name: fi.resolvedAccountName.trim(), number: null }
-  }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps -- once per modal: re-running on a language change would restart the extraction and bill every file again
 
   const canProceedResolve = useMemo(() => {
     if (newIbanEntries.some(e => e.name.trim() === '')) return false
@@ -379,7 +379,7 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
     const fi = fileItems[fileIdx]
     if (!fi || fi.extractStatus !== 'done' || !fi.preview) return
     if (fi.preview.detected_account_iban && fi.preview.matched_account_id == null) return
-    const { name: accountName } = getResolvedAccount(fi)
+    const { name: accountName } = resolveAccount(fi, newIbanEntries)
     if (!accountName) return
 
     const seq = (dupSeqCounters.current[fileIdx] ?? 0) + 1
@@ -403,7 +403,8 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
       ))
     }).catch(() => { /* degrade gracefully — leave rows unmarked */ })
   }
-  runDupCheckRef.current = runDuplicateCheckForFile
+  // The debounce in updateRow fires after later edits: it must see this render's rows
+  useLayoutEffect(() => { runDupCheckRef.current = runDuplicateCheckForFile })
 
   function handleResolveContinue() {
     setResolveAttempted(true)
@@ -422,7 +423,7 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
     const groups = new Map<string, AccountGroup>()
     fileItems.forEach((fi, idx) => {
       if (fi.extractStatus !== 'done') return
-      const { name } = getResolvedAccount(fi)
+      const { name } = resolveAccount(fi, newIbanEntries)
       const iban = fi.preview?.detected_account_iban
       const key = iban ?? `manual:${idx}`
       const maskedIban = fi.preview?.detected_account_masked ?? null
@@ -432,7 +433,7 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
       groups.get(key)!.fileIndices.push(idx)
     })
     return [...groups.values()]
-  }, [fileItems, newIbanEntries]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [fileItems, newIbanEntries])
 
   useEffect(() => {
     const newKeys = accountGroups
@@ -518,7 +519,7 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
       const fi = snapshot[i]
       if (fi.extractStatus !== 'done' || !fi.preview) continue
 
-      const { name: accountName, number: accountNumber } = getResolvedAccount(fi)
+      const { name: accountName, number: accountNumber } = resolveAccount(fi, newIbanEntries)
 
       setFileItems(prev => prev.map((item, idx) =>
         idx === i ? { ...item, confirmStatus: 'running' } : item
@@ -898,7 +899,7 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
                   {group.fileIndices.map((fileIdx, _fi_i) => {
                     const fi = fileItems[fileIdx]
                     const showSep = group.fileIndices.length > 1
-                    const { name: resolvedName } = getResolvedAccount(fi)
+                    const { name: resolvedName } = resolveAccount(fi, newIbanEntries)
                     const yearWarning = fi.preview
                       ? (fi.preview.year_detected === false || fi.preview.statement_year == null)
                       : false

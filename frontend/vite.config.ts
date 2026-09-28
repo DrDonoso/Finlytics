@@ -112,9 +112,6 @@ export default defineConfig(({ mode }) => {
       // CI runs in UTC, where toISOString() always matches the local date, so a
       // UTC/local mix-up would only fail on a developer's machine.
       env: { TZ: 'Europe/Madrid' },
-      // Node 25+ defines its own (undefined) `localStorage` global and vitest 4's
-      // jsdom environment does not override it. Vitest 5 does; drop this then.
-      execArgv: ['--no-experimental-webstorage'],
       include: ['src/**/*.{test,spec}.{ts,tsx}'],
       coverage: {
         provider: 'v8',

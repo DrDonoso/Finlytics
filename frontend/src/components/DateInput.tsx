@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { formatDate, type Lang } from '../i18n'
 
 interface Props {
@@ -25,12 +25,17 @@ function tryParse(s: string): string | null {
  * Invalid input is reset to the last valid value on blur.
  */
 export default function DateInput({ value, lang, onChange, className, ariaLabel }: Props) {
-  const [text, setText] = useState(() => formatDate(value, lang))
+  const formatted = formatDate(value, lang)
+  const [text, setText] = useState(formatted)
+  const [shown, setShown] = useState(formatted)
   const placeholder = lang === 'es' ? 'dd/mm/aaaa' : 'dd/mm/yyyy'
 
-  useEffect(() => {
-    setText(formatDate(value, lang))
-  }, [value, lang])
+  // A new value from the parent (a preset, Clear, the back button) replaces
+  // whatever is typed; adjusted during render, so no stale frame is painted.
+  if (shown !== formatted) {
+    setShown(formatted)
+    setText(formatted)
+  }
 
   return (
     <input

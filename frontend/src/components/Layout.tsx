@@ -34,6 +34,20 @@ function prefetchFrom(event: SyntheticEvent) {
   prefetch.target(event.target)
 }
 
+/**
+ * A nav group unfolds when one of its routes becomes active, and stays
+ * foldable by hand while the visitor is still on it.
+ */
+function useExpandedWhenActive(active: boolean) {
+  const [expanded, setExpanded] = useState(active)
+  const [wasActive, setWasActive] = useState(active)
+  if (active !== wasActive) {
+    setWasActive(active)
+    if (active) setExpanded(true)
+  }
+  return [expanded, setExpanded] as const
+}
+
 export default function Layout() {
   const { t } = useT()
   const { username, onLogout } = useAuth()
@@ -44,44 +58,36 @@ export default function Layout() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [desktopCollapsed, setDesktopCollapsed] = useState(storedCollapsed)
 
+  // The drawer closes when a navigation lands on another route
+  const [drawerPath, setDrawerPath] = useState(location.pathname)
+  if (drawerPath !== location.pathname) {
+    setDrawerPath(location.pathname)
+    setMobileOpen(false)
+  }
+
   // ── Finances accordion ───────────────────────────────────────────────────
   const isOnFinances = ['/finances', '/transactions', '/analytics', '/statements']
     .some(p => location.pathname.startsWith(p))
-  const [financesExpanded, setFinancesExpanded] = useState(isOnFinances)
-
-  useEffect(() => {
-    if (isOnFinances && !financesExpanded) setFinancesExpanded(true)
-  }, [isOnFinances]) // eslint-disable-line react-hooks/exhaustive-deps
+  const [financesExpanded, setFinancesExpanded] = useExpandedWhenActive(isOnFinances)
 
   // ── Investments accordion ────────────────────────────────────────────────
   const isOnInvestments = location.pathname.startsWith('/investments')
-  const [investmentsExpanded, setInvestmentsExpanded] = useState(isOnInvestments)
+  const [investmentsExpanded, setInvestmentsExpanded] = useExpandedWhenActive(isOnInvestments)
   const connectionsQuery = useConnections()
   const connectedPlugins = useMemo(
     () => (connectionsQuery.data ?? []).filter(c => c.status === 'active'),
     [connectionsQuery.data],
   )
 
-  useEffect(() => {
-    if (isOnInvestments && !investmentsExpanded) setInvestmentsExpanded(true)
-  }, [isOnInvestments]) // eslint-disable-line react-hooks/exhaustive-deps
-
   // ── Settings accordion ───────────────────────────────────────────────────
   const isOnSettings = location.pathname.startsWith('/settings')
-  const [settingsExpanded, setSettingsExpanded] = useState(isOnSettings)
-
-  useEffect(() => {
-    if (isOnSettings && !settingsExpanded) setSettingsExpanded(true)
-  }, [isOnSettings]) // eslint-disable-line react-hooks/exhaustive-deps
+  const [settingsExpanded, setSettingsExpanded] = useExpandedWhenActive(isOnSettings)
 
   // ── Settings group collapsibles (default collapsed) ─────────────────────
   const [sgData,   setSgData]   = useState(false)
   const [sgRules,  setSgRules]  = useState(false)
   const [sgSystem, setSgSystem] = useState(false)
   const [sgApp,    setSgApp]    = useState(false)
-
-  // Close mobile sidebar when route changes
-  useEffect(() => { setMobileOpen(false) }, [location.pathname])
 
   // Warm the pages a visitor most likely opens next, once the first one has
   // settled. Production only: under the dev server every import is a fresh

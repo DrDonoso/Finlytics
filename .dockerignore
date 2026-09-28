@@ -35,6 +35,8 @@ frontend/e2e/
 frontend/playwright.config.ts
 frontend/playwright-report/
 frontend/test-results/
+frontend/coverage/
+frontend/.vitest/
 
 # Documentation assets (README screenshots — never used at runtime)
 docs/

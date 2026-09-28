@@ -70,6 +70,10 @@ updates:
       # vite major and its plugin major have to land together.
       vite:
         patterns: ["vite", "@vitejs/*"]
+      # Lockstep: @vitest/coverage-v8 pins vitest as an exact peer dependency, so
+      # a major of either one cannot install on its own (that split #77 and #78).
+      vitest:
+        patterns: ["vitest", "@vitest/*"]
       # Everything else — notably typescript, which is independent of vite —
       # is grouped for minor/patch only, so its majors arrive one at a time.
       npm-minor-patch:
