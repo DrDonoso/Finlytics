@@ -4,6 +4,29 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20260928.03] - 2026-09-28
+
+- [Release notes](https://github.com/TanStack/query/releases)
+- [Changelog](https://github.com/TanStack/query/blob/main/packages/react-query/CHANGELOG.md)
+- [Commits](https://github.com/TanStack/query/commits/@tanstack/react-query@5.103.1/packages/react-query)
+- [Release notes](https://github.com/testing-library/jest-dom/releases)
+- [Changelog](https://github.com/testing-library/jest-dom/blob/main/CHANGELOG.md)
+- [Commits](https://github.com/testing-library/jest-dom/compare/v7.0.0...v7.0.1)
+- [Release notes](https://github.com/testing-library/react-testing-library/releases)
+- [Changelog](https://github.com/testing-library/react-testing-library/blob/main/CHANGELOG.md)
+- [Commits](https://github.com/testing-library/react-testing-library/compare/v16.3.2...v16.3.3)
+- [Release notes](https://github.com/testing-library/user-event/releases)
+- [Changelog](https://github.com/testing-library/user-event/blob/main/CHANGELOG.md)
+- [Commits](https://github.com/testing-library/user-event/compare/v14.6.1...v14.6.7)
+- [Release notes](https://github.com/jsdom/jsdom/releases)
+- [Commits](https://github.com/jsdom/jsdom/compare/v30.0.1...v30.1.0)
+- dependency-name: "@tanstack/react-query" dependency-version: 5.103.1 dependency-type: direct:production update-type: version-update:semver-minor dependency-group: npm-minor-patch
+- dependency-name: "@testing-library/jest-dom" dependency-version: 7.0.1 dependency-type: direct:development update-type: version-update:semver-patch dependency-group: npm-minor-patch
+- dependency-name: "@testing-library/react" dependency-version: 16.3.3 dependency-type: direct:development update-type: version-update:semver-patch dependency-group: npm-minor-patch
+- dependency-name: "@testing-library/user-event" dependency-version: 14.6.7 dependency-type: direct:development update-type: version-update:semver-patch dependency-group: npm-minor-patch
+- dependency-name: jsdom dependency-version: 30.1.0 dependency-type: direct:development update-type: version-update:semver-minor dependency-group: npm-minor-patch
+
+
 ## [20260928.02] - 2026-09-28
 
 - react/set-state-in-effect: state that followed a prop or the route through an effect now adjusts during render (DateInput, the Layout drawer and nav accordions, StatementsPage landing on the newest month and closing the originals dropdown). TransactionDetailModal resets through a key instead.
