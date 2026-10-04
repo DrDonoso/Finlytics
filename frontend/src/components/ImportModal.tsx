@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo, useEffect, useLayoutEffect } from 'react'
+import { useState, useRef, useMemo, useEffect, useLayoutEffect, useCallback } from 'react'
 import type {
   Account, Category, Tag,
   ImportTransaction, PreviewResponse, ConfirmRequest, ImportResult,
@@ -9,7 +9,11 @@ import { previewImport, confirmImport, checkDuplicates } from '../api/client'
 import { useT, type Dict, paletteColor } from '../i18n'
 import ImportPreviewTable, { type EditRow } from './ImportPreviewTable'
 import RuleFormModal from './RuleFormModal'
+import Modal from './Modal'
+import { useToast } from '../contexts/ToastContext'
 import { todayIso } from '../utils/dates'
+import { isMalformed, parseAmount } from '../utils/parseNumber'
+import NumericInput from './NumericInput'
 import { computeLiveImportQuality, type LiveImportQuality } from './importQuality'
 import {
   IconBan, IconAlert, IconCheck, IconClose, IconChevronRight,
@@ -243,6 +247,7 @@ function ImportQualityPanel({ liveQuality, t }: { liveQuality: LiveImportQuality
 
 export default function ImportModal({ accounts, categories, allTags, onClose, onSuccess, initialFiles }: Props) {
   const { t } = useT()
+  const showToast = useToast()
   const nextKey = useRef(0)
   const dupDebounceTimers = useRef<(ReturnType<typeof setTimeout> | null)[]>([])
   const dupSeqCounters    = useRef<number[]>([])
@@ -271,10 +276,14 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
   const [resolveAttempted, setResolveAttempted] = useState(false)
   const [noIbanNewMode, setNoIbanNewMode] = useState<Record<number, boolean>>({})
   const [noIbanOpeningBalance, setNoIbanOpeningBalance] = useState<Record<number, string>>({})
+  // With no accounts to pick from, a file without an IBAN always creates a new one.
+  const isNoIbanNew = useCallback(
+    (idx: number) => accounts.length === 0 || (noIbanNewMode[idx] ?? false),
+    [accounts.length, noIbanNewMode],
+  )
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set())
   const initializedOpenGroupKeys = useRef<Set<string>>(new Set())
   const [createRuleRow, setCreateRuleRow] = useState<EditRow | null>(null)
-  const [ruleToast, setRuleToast] = useState<string | null>(null)
 
   const liveQualityByFile = useMemo(
     () => fileItems.map(fi => applyDuplicateOverrides(
@@ -287,12 +296,6 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
     )),
     [fileItems],
   )
-
-  useEffect(() => {
-    if (!ruleToast) return
-    const id = setTimeout(() => setRuleToast(null), 4000)
-    return () => clearTimeout(id)
-  }, [ruleToast])
 
   // ── S2: Sequential extraction ─────────────────────────────────────────────
   useEffect(() => {
@@ -366,14 +369,17 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
 
   const canProceedResolve = useMemo(() => {
     if (newIbanEntries.some(e => e.name.trim() === '')) return false
-    for (const fi of fileItems) {
+    if (newIbanEntries.some(e => isMalformed(e.openingBalance, parseAmount))) return false
+    for (let i = 0; i < fileItems.length; i++) {
+      const fi = fileItems[i]
       if (fi.extractStatus !== 'done' || !fi.preview) continue
       if (fi.preview.matched_account_id != null) continue
       if (fi.preview.detected_account_iban) continue
       if (!fi.resolvedAccountName.trim()) return false
+      if (isNoIbanNew(i) && isMalformed(noIbanOpeningBalance[i] ?? '', parseAmount)) return false
     }
     return true
-  }, [newIbanEntries, fileItems])
+  }, [newIbanEntries, fileItems, noIbanOpeningBalance, isNoIbanNew])
 
   function runDuplicateCheckForFile(fileIdx: number) {
     const fi = fileItems[fileIdx]
@@ -547,10 +553,10 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
           if (fi.preview!.detected_account_iban) {
             const ibanEntry = newIbanEntries.find(e => e.iban === fi.preview!.detected_account_iban)
             const raw = ibanEntry?.openingBalance.trim() ?? ''
-            if (raw !== '') opening_balance = parseFloat(raw)
-          } else if (noIbanNewMode[i]) {
+            if (raw !== '') opening_balance = parseAmount(raw)
+          } else if (isNoIbanNew(i)) {
             const raw = (noIbanOpeningBalance[i] ?? '').trim()
-            if (raw !== '') opening_balance = parseFloat(raw)
+            if (raw !== '') opening_balance = parseAmount(raw)
           }
         }
 
@@ -561,7 +567,7 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
           ...(Object.keys(tag_colors).length > 0 ? { tag_colors } : {}),
           ...(accountNumber ? { account_number: accountNumber } : {}),
           ...(source_pdf_base64 ? { source_pdf_base64 } : {}),
-          ...(opening_balance != null && !isNaN(opening_balance) ? { opening_balance } : {}),
+          ...(opening_balance != null && Number.isFinite(opening_balance) ? { opening_balance } : {}),
         }
 
         const result = await confirmImport(payload)
@@ -725,16 +731,15 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
                 </div>
                 <div className="form-group" style={{ marginTop: 8 }}>
                   <label htmlFor={`iban-opening-${i}`}>{t.importOpeningBalanceLabel}</label>
-                  <input
+                  <NumericInput
                     id={`iban-opening-${i}`}
-                    type="number"
-                    step="0.01"
-                    className="form-input"
                     placeholder="0.00"
                     value={entry.openingBalance}
-                    onChange={e => setNewIbanEntries(prev =>
-                      prev.map((en, j) => j === i ? { ...en, openingBalance: e.target.value } : en)
+                    onChange={text => setNewIbanEntries(prev =>
+                      prev.map((en, j) => j === i ? { ...en, openingBalance: text } : en)
                     )}
+                    error={isMalformed(entry.openingBalance, parseAmount) ? t.formInvalidNumber : null}
+                    showError={resolveAttempted}
                   />
                   <span className="form-field-hint" style={{ display: 'block', marginTop: 4, fontSize: 12, color: 'var(--text-muted)' }}>
                     {t.importOpeningBalanceHelpText}
@@ -769,15 +774,14 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
                     {showErr && <span className="form-field-error">{t.modalAccountRequired}</span>}
                     <div style={{ marginTop: 8 }}>
                       <label htmlFor={`noiban-opening-${idx}`} style={{ fontSize: 13 }}>{t.importOpeningBalanceLabel}</label>
-                      <input
+                      <NumericInput
                         id={`noiban-opening-${idx}`}
-                        type="number"
-                        step="0.01"
-                        className="form-input"
                         placeholder="0.00"
                         style={{ marginTop: 4 }}
                         value={noIbanOpeningBalance[idx] ?? ''}
-                        onChange={e => setNoIbanOpeningBalance(prev => ({ ...prev, [idx]: e.target.value }))}
+                        onChange={text => setNoIbanOpeningBalance(prev => ({ ...prev, [idx]: text }))}
+                        error={isMalformed(noIbanOpeningBalance[idx] ?? '', parseAmount) ? t.formInvalidNumber : null}
+                        showError={resolveAttempted}
                       />
                       <span style={{ display: 'block', marginTop: 4, fontSize: 12, color: 'var(--text-muted)' }}>
                         {t.importOpeningBalanceHelpText}
@@ -822,15 +826,14 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
                         />
                         <div style={{ marginTop: 8 }}>
                           <label htmlFor={`noiban-opening-${idx}`} style={{ fontSize: 13 }}>{t.importOpeningBalanceLabel}</label>
-                          <input
+                          <NumericInput
                             id={`noiban-opening-${idx}`}
-                            type="number"
-                            step="0.01"
-                            className="form-input"
                             placeholder="0.00"
                             style={{ marginTop: 4 }}
                             value={noIbanOpeningBalance[idx] ?? ''}
-                            onChange={e => setNoIbanOpeningBalance(prev => ({ ...prev, [idx]: e.target.value }))}
+                            onChange={text => setNoIbanOpeningBalance(prev => ({ ...prev, [idx]: text }))}
+                            error={isMalformed(noIbanOpeningBalance[idx] ?? '', parseAmount) ? t.formInvalidNumber : null}
+                            showError={resolveAttempted}
                           />
                           <span style={{ display: 'block', marginTop: 4, fontSize: 12, color: 'var(--text-muted)' }}>
                             {t.importOpeningBalanceHelpText}
@@ -1074,14 +1077,13 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
   const footer = renderFooter()
   return (
     <>
-      <div className="modal-backdrop">
-        <div className="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="batch-modal-title">
+      <Modal onDismiss={handleClose} disabled={isBlocking} labelledBy="batch-modal-title" className="modal-wide">
 
           <div className="modal-header">
             <h2 className="modal-title" id="batch-modal-title">{getModalTitle()}</h2>
             <button
               className="modal-close"
-              onClick={onClose}
+              onClick={handleClose}
               disabled={isBlocking}
               aria-label={t.modalClose}
             >
@@ -1104,8 +1106,7 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
             </div>
           )}
 
-        </div>
-      </div>
+      </Modal>
 
       {createRuleRow && (
         <RuleFormModal
@@ -1118,12 +1119,11 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
           }}
           categories={categories}
           availableTags={allTags}
-          onSave={() => { setCreateRuleRow(null); setRuleToast(t.createRuleToast) }}
+          onSave={() => { setCreateRuleRow(null); showToast(t.createRuleToast) }}
           onClose={() => setCreateRuleRow(null)}
         />
       )}
 
-      {ruleToast && <div className="rule-toast">{ruleToast}</div>}
     </>
   )
 }

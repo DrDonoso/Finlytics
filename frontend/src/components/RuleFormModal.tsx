@@ -6,6 +6,7 @@ import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import { useT, categoryLabel } from '../i18n'
 import CategorySelect from './CategorySelect'
 import TagTypeahead from './TagTypeahead'
+import Modal from './Modal'
 import { IconClose, IconCheck, IconChevronDown, IconChevronRight } from './icons'
 
 interface FormState {
@@ -255,12 +256,11 @@ export default function RuleFormModal({
   const title = editingRule ? t.rulesEditTitle : t.rulesAddTitle
 
   return (
-    <div className="modal-backdrop modal-backdrop-rule">
-      <div className="modal modal-rule-form" role="dialog" aria-modal="true" aria-labelledby="rfm-title">
+    <Modal onDismiss={onClose} disabled={saving || applying} labelledBy="rfm-title" className="modal-rule-form">
 
         <div className="modal-header">
           <h2 className="modal-title" id="rfm-title">{title}</h2>
-          <button className="modal-close" onClick={onClose} disabled={saving} aria-label={t.modalClose}><IconClose size={16} /></button>
+          <button className="modal-close" onClick={onClose} disabled={saving || applying} aria-label={t.modalClose}><IconClose size={16} /></button>
         </div>
 
         <div className="modal-body">
@@ -307,6 +307,7 @@ export default function RuleFormModal({
                     onChange={e => patchForm('name', e.target.value)}
                     placeholder={t.rulesFieldNamePlaceholder}
                     disabled={saving}
+                    // eslint-disable-next-line jsx-a11y/no-autofocus -- focus the name when the dialog opens
                     autoFocus
                   />
                 </div>
@@ -606,7 +607,6 @@ export default function RuleFormModal({
           </button>
         </div>
 
-      </div>
-    </div>
+    </Modal>
   )
 }

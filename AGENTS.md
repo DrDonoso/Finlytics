@@ -47,9 +47,9 @@ The `IMAGE_TAG` / `BUILD_DATE` build args are injected there and surfaced by
 
 ## Migrations
 
-Alembic migrations live in `alembic/versions/`. The current head is `0025_recolor_base_category_palette.py`.
+Alembic migrations live in `alembic/versions/`. The current head is `0026_add_assistant_usage_ledger.py`.
 
-- Always create a new numbered migration (`0026_...`) for schema changes.
+- Always create a new numbered migration (`0027_...`) for schema changes.
 - Verify the head before writing one — this file goes stale. `down_revision` in the
   highest-numbered file is the source of truth, not this document.
 - The entrypoint runs `alembic upgrade head` automatically on container start.
@@ -120,16 +120,18 @@ decoration — each message is one to three paid LLM calls.
 > **The rate limit and the monthly budget are not interchangeable.** The rate limit is an
 > in-process sliding window: it stops a burst, and it resets on every restart. That makes it
 > structurally incapable of capping a month's spend, because a redeploy hands back a full
-> allowance. The monthly token budget is counted from `assistant_messages` in the database,
-> which is the only reason it works. If you move the limiter to Redis some day, that does not
-> change — the budget still belongs in the database.
+> allowance. The monthly token budget is counted from `assistant_usage` in the database,
+> independently of the conversations. Deleting a chat only clears the ledger's conversation
+> link; it never refunds the tokens. Migration 0026 backfills existing usage. If you move the
+> limiter to Redis some day, the budget still belongs in the database.
 
 > **A turn without an answer is billed too.** Every provider call that finished was paid for,
 > so when a turn fails, hits the iteration cap or is stopped by the user,
-> `_record_unanswered_usage` in `api/assistant.py` writes its summed usage onto the
-> question's row. Otherwise the most expensive turns would be free, and pressing Stop would
-> bypass the monthly cap. The write is shielded from cancellation, because a client
-> disconnect arrives as a cancellation of the very task running it.
+> `_record_unanswered_usage` in `api/assistant.py` writes its summed usage to the ledger with
+> `answered=false` and to the question's row for display. Successful answers write their
+> ledger entry alongside the message. Otherwise the most expensive turns would be free,
+> and pressing Stop would bypass the monthly cap. The write is shielded from cancellation,
+> because a client disconnect cancels the very task running it.
 
 > **The system prompt is editable from Settings → Assistant**, pre-filled with the shipped
 > default and restorable in one click. Stored per user; null means "use the default", so
@@ -191,6 +193,12 @@ Both produce data consumed by `GET /api/investments/combined-overview`, which
 > an unknown one unknown rather than zero. A percentage does not add up: with more than one
 > Indexa account, `money_return` and `money_return_annual` are `null` and `monthly_returns` is
 > `[]`, and the UI hides them. A legitimate `0` stays `0`, so never coalesce it with `or None`.
+
+> **Repeated holdings are merged, not concatenated.** `investments/service.py::_merge_holdings`
+> keys instruments on `(plugin_id, ticker or name)` across accounts, sums their values, and
+> recomputes the return from the combined gain and cost basis. An unknown quantity, cost or
+> gain stays unknown through `_sum_known`; treating it as zero would understate the position.
+> Asset-class labels go through the bilingual `investments/assetClass.ts` helper.
 
 ### Token encryption
 
@@ -282,6 +290,10 @@ and the `ver` (`users.token_version`) it was minted under; `load_session_user` i
 > **The password change shares the login rate limiter.** Without it, a stolen session
 > becomes an unthrottled oracle for guessing the current password.
 
+> **bcrypt accepts at most 72 UTF-8 bytes, not 72 characters.** `auth/security.py` rejects
+> longer passwords before hashing or verification. Setup and password-change forms use
+> `utils/password.ts` to enforce the same cap; never truncate a password to make it fit.
+
 > **`/settings/security` stays out of the demo.** It writes credentials.
 
 ---
@@ -323,8 +335,12 @@ non-empty — the detail line.
 ## Backend conventions
 
 - **Routers:** `APIRouter(prefix="/...", tags=["..."])` per module in `src/finlytics/api/`. Registered in `app.py` with `app.include_router(router, prefix="/api", dependencies=_auth)`.
-- **Schemas:** Pydantic `BaseModel` in `schemas.py`. Amounts as `float`, percentages as raw numbers (e.g. `12.5` = 12.5%).
+- **Schemas:** Pydantic `BaseModel` in `api/schemas.py`. Amounts as `float`, percentages as raw numbers (e.g. `12.5` = 12.5%).
 - **Auth:** All `/api/*` routes (except `/api/auth/*`) are auth-gated via the `get_current_user` dependency.
+- **Response headers:** `api/middleware.py` supplies CSP, nosniff, frame denial, referrer and permissions policies. `FinlyticsApp.build_middleware_stack` wraps the complete Starlette stack, including its 500 responder. Keep these wrappers pure ASGI so assistant SSE is not buffered. Interactive API docs skip only CSP. The demo mirrors the policy in `vite.config.ts` (`DEMO_CSP`, emitted into `_headers`) and `nginx.demo.conf`; update all three together.
+- **Request ids and logging:** `X-Request-ID` is reused only when it matches `[A-Za-z0-9._-]{1,64}`; otherwise generate a UUID. The same id tags responses and logs. Unexpected errors use `log.exception`; caught warning-level failures use `exc_info=True`. A broad exception handler without logging needs a specific `BLE001` exemption and reason. Never expose statement text, connector tokens or internal exception details in an API error.
+- **Import failures:** unsupported files and malformed Fidelity CSVs are client errors. Unexpected extraction/import failures return generic details and retain diagnostics in `log.exception`, not in the response.
+- **API contract:** `scripts/export_openapi.py` writes `frontend/src/api/openapi.json`; `npm run gen:api` generates `schema.gen.ts`, and `contract.ts` checks the handwritten client types against it. Both generators have a `--check` mode that CI runs. Regenerate both outputs after schema changes, never edit the generated types. The small schema generator avoids a dependency on TypeScript's JavaScript compiler API, which the Go-native TypeScript 7 no longer supplies.
 - **Config:** `pydantic-settings` `BaseSettings` in `config.py` — env vars + `.env` file.
 - **Dependencies:** `uv.lock` is the source of truth. The image and CI install with `uv sync --locked`, which fails when the lock is out of date with `pyproject.toml` — after editing dependencies, run `uv lock` and commit both files. Local setup: `uv sync --extra test`, then `uv run pytest` and `uv run mypy`. Dependabot's `uv` ecosystem moves the lock; the uv binary itself is pinned once, in the Dockerfile's `uv` stage, and CI reads it from there.
 - **Lockfile:** every `registry` in `uv.lock` must be `https://pypi.org/simple` and every artefact `url` must be on `https://files.pythonhosted.org/`; CI rejects anything else, for the same reason as `package-lock.json` below. A lock resolved through a private mirror (`UV_DEFAULT_INDEX`, `UV_INDEX_URL` or a user-level `uv.toml`) records the mirror's URLs — re-lock against PyPI instead of committing it.
@@ -343,6 +359,7 @@ non-empty — the detail line.
 - **i18n:** Bilingual EN/ES. `Dict` interface in `i18n/index.ts`, implementations in `es.ts` / `en.ts`. All three files must be updated for every new string.
   - **Locale and money:** a UI language becomes an `Intl` locale tag only in `i18n/index.ts`. Format amounts with `formatCurrency` (from `useT()` in a component, or the module export with a `lang` argument in a pure helper), and hand `useT().locale` / `langLocale(lang)` to any other `Intl` or `toLocale*` call. Never inline `'es-ES'` or pass the bare `lang` (`'en'` resolves to `en-US`): the English UI used to print `1.234,56 €` beside `€1,234.56`. `test/locale.test.ts` fails on an inline tag.
   - **Percentages and plain numbers:** `formatPercent` / `formatNumber`, or `<Percent>` in JSX — never `toFixed()` plus `'%'`, which printed `12.5%` in the Spanish UI and `-0.0 %` for a value that rounds to zero. Pass `unit: 'fraction'` for the API values that are fractions (see the units note under *Public demo*). `formatCurrency` never prints `-0,00 €` either: anything under half a cent is zero. `test/format.test.ts` pins these cases.
+  - **Chart axes:** use `formatCompactCurrency` with `width="auto"` on monetary Y axes. Full currency strings clip or squeeze the plot at large balances; tooltips still show the full amount.
 - **API client:** `frontend/src/api/client.ts` — typed `apiFetch<T>()`. New endpoints follow the `getX()` / `postX()` pattern.
   - **Mock layer:** `frontend/src/api/mock.ts`, activated build-time by `VITE_USE_MOCK=1`. Coverage is **partial** — roughly 40 of 68 client functions have a mock branch. Rules, backup, statements, all Fidelity endpoints and `combined-overview` have none.
   - ⚠️ **Never fall back to the mock on an error** (`catch { return mockGetX() }`). Thirteen reads used to, so in production a 500 or a network drop rendered **fake data as if it were the user's** — and the unconditional reference also shipped the whole mock dataset in the production bundle. The mock is reachable only behind `if (USE_MOCK)`, which the bundler drops; `api/client.test.ts` asserts that a failed read rejects. The same goes for "degrade to zeros": a figure that feeds a total (the mortgage's net-worth contribution, say) must throw, so the page can mark the total as partial instead of silently omitting a line of it.
@@ -360,8 +377,9 @@ non-empty — the detail line.
   - `SortableTh`: a button inside the `th` takes the pointer and the keyboard, and the `th` carries `aria-sort`. Trailing controls (an info tip) sit beside the button, never inside it.
   - `splitTopSlices` (`utils/categorySlices.ts`): a donut draws the six largest slices and folds the rest into one neutral slice. A tail of one is never folded.
   - `computeDelta` (`utils/comparison.ts`) divides by the **absolute** baseline, so a negative figure that improves reads as a rise rather than a fall.
-  - `useModalDismiss(onDismiss, disabled)` (`hooks/useModalDismiss.ts`), spread on a modal's backdrop, closes it on Escape or on a click that both starts and ends on the backdrop. A plain `onClick` used to discard the whole form when a text selection was dragged out of an input and released outside the dialog. Pass `disabled` while a save is in flight.
-- **Forms:** a numeric field keeps the text as typed and parses it on submit, as the mortgage bonuses do. Parsing on every keystroke drops a trailing decimal separator, so `0,25` could not be typed at all, and a field that starts at `0` can never be emptied.
+  - `Modal` (`components/Modal.tsx`) opens a native `<dialog>` with `showModal()`: the browser makes the background inert and restores focus on close. Mount/unmount it to open/close it, pass `labelledBy` or `label`, and set `disabled` while saving, including on the site's close buttons. Escape dismisses unless an inner picker claimed it; backdrop dismissal requires both the press and release outside the box, so dragging a text selection cannot discard a form. Nested dialogs stack naturally. Content portaled to `document.body` is beneath the dialog and inert: render its tooltips inside `Modal` instead. The assistant panel and non-modal pickers keep their own widget behavior.
+  - `ToastProvider` (`contexts/ToastContext.tsx`) is mounted once in the authenticated app, inside the language provider. `useToast()` replaces the current message, announces it through a persistent status region and starts a six-second timer, cleaned up on replacement, dismissal and unmount. Dialogs register in opening order so the toast portal stays inside the active one; a manual popover lifts it above the dialog without making its controls inert. Logging out unmounts the provider and clears its messages. Do not add local toast states or timeouts.
+- **Forms:** use `NumericInput` for money and keep its text unchanged until submit, never `type="number"` or parsing on every keystroke. `utils/parseNumber.ts` supplies `parseAmount` for money and `parseDecimal` for rates/counts, accepting English and Spanish separators. A single separator before three digits means grouping for amounts (`1.234` is 1234), but a decimal for rates (`2,125` is 2.125). Malformed or empty required values must block saving, not become zero. `parseOr` defaults only a blank field; pair optional parsing with `isMalformed` validation. This preserves trailing separators and lets a field be emptied.
 - **Effects:** never call a state setter synchronously in an effect to follow a prop, the route or a query result; oxlint's `react/set-state-in-effect` fails the build. That pattern paints the stale value first and renders a second time to correct it.
   - To follow a value, adjust during render against the previous one, kept in state: `DateInput` resyncing its text, the `Layout` drawer and accordions, `StatementsPage` landing on the newest month.
   - To start over for a new record, remount it with a `key`, as `TransactionsTable` does for `TransactionDetailModal` (`key={detailTx.id}`).
@@ -369,7 +387,7 @@ non-empty — the detail line.
   - Anything derived from a query result must keep its identity when the result is absent. Otherwise an error renders a fresh `[]` each time and the adjustment loops forever. `StatementsPage` falls back to a memoised `EMPTY` for this.
   - `react/exhaustive-effect-dependencies` is off in `.oxlintrc.json`. `react-hooks/exhaustive-deps` already fails on a missing dependency, and the compiler rule also flags extra ones, which is how an effect says "run again when X changes".
 - **Category palette:** the base-category colours in `seed.py` are chosen to stay distinguishable under protanopia and deuteranopia. Changing them takes a migration that recolours only rows still on the old seeded value (see `0025_recolor_base_category_palette.py`), and `tests/test_seed.py` asserts that the seed equals the palette that migration installs — a new palette moves that test to the new migration. `demo/scenario.ts` and `api/mock.ts` mirror the same hexes.
-- **Accessibility:** axe reports no violations on any route; keep it that way.
+- **Accessibility:** `@axe-core/playwright` enforces zero axe violations on every demo route, with the assistant open and in the native prepayment dialog at desktop and mobile widths. Failures report rule ids and element targets; fix the markup rather than excluding a rule.
   - One focus ring for the whole app — `:focus-visible` in `tokens.css`. Text fields get a halo instead, because they match `:focus-visible` on a mouse click too. Never remove an outline without a replacement.
   - A header cell with no visible text (an actions column) needs `sr-only` text, and every `<label>` needs `htmlFor` pointing at its control's `id`.
   - A clickable row gets a real `<button>` inside a cell. Never put `onClick` or `role="button"` on a `tr`: that breaks the table semantics and is unreachable by keyboard.
@@ -378,7 +396,7 @@ non-empty — the detail line.
 - **Responsive layout:** below 768px (`COMPACT_NAV_QUERY` in `hooks/useMediaQuery.ts`, which must match the CSS breakpoint) the sidebar becomes a drawer and a bottom nav appears; fixed elements along the bottom edge clear it through `--chrome-bottom`. At 600px and below a transaction row reads as a card instead of a scrolled table. The Indexa view is intrinsic — auto-fit grids plus `flex-wrap`, no viewport breakpoints — because its width depends on the sidebar, not the viewport.
 - **Tests:** Vitest + Testing Library + MSW. `npm test` runs them once, `npm run test:watch` in watch mode, `npm run test:coverage` with coverage. `npm run lint` is oxlint, and `npm run build` runs `tsc --noEmit` first. CI gates all three (`lint` → `test` → `build`), so all three must pass.
   - **Lint warnings fail too:** the script is `oxlint --deny-warnings src e2e`, configured in `.oxlintrc.json`. A disable directive names its rule and gives the reason after `--`. List keys are stable ids, never the index of a list that can be filtered or reordered.
-  - **Smoke test:** `npm run e2e` runs Playwright (`e2e/demo-smoke.spec.ts`). It builds the demo, serves it on port 4173, signs in and opens every route in `ROUTES`, then asks the assistant a question. Each test fails on a page error, a console error or any response ≥ 400, the demo's 501 catch-all included. It runs in CI as the `e2e` job. A new demo screen goes into `ROUTES`. Where the Playwright browser download is blocked, a local config that extends `playwright.config.ts` with `channel: 'msedge'` or `'chrome'` runs it on an installed browser. Do not commit that config. The spec and `playwright.config.ts` are in `.dockerignore`; `tsconfig.json` still lists them, and tsc accepts a missing include, so the image's build keeps type-checking.
+  - **Smoke test:** `npm run e2e` runs Playwright (`e2e/demo-smoke.spec.ts`). It builds the demo, serves it on port 4173, signs in and opens every route in `ROUTES`, then asks the assistant a question. It also exercises the simulator's background inertness, focus restoration, bottom sheet and drag-safe backdrop dismissal. Each test fails on axe violations, a page error, a console error or any response ≥ 400, the demo's 501 catch-all included. It runs in CI as the `e2e` job. A new demo screen goes into `ROUTES`. Where the Playwright browser download is blocked, a local config that extends `playwright.config.ts` with `channel: 'msedge'` or `'chrome'` runs it on an installed browser. Do not commit that config. The spec and `playwright.config.ts` are in `.dockerignore`; `tsconfig.json` still lists them, and tsc accepts a missing include, so the image's build keeps type-checking.
 - **Lockfile:** every `resolved` URL in `package-lock.json` must point at `https://registry.npmjs.org/`, and CI rejects anything else. An install behind a private mirror (check `npm config get registry`) records the mirror's URLs, and Dependabot then fails on every package they cover — security updates included — without opening a PR. Rewrite the prefix before committing; the tarballs are the same, so the integrity hashes still match.
 - **Plugin view registry:** `frontend/src/investments/registry.ts` — maps `plugin_id → { icon, name, load, component }`, built with `lazyView()` so the view's chunk can be prefetched. Add an entry here for any new investment connector view.
 - **Design tokens:** CSS custom properties in `styles/tokens.css`, imported first by `index.css` (`--bg`, `--surface`, `--border`, `--primary`, `--radius`, `--shadow`, plus the `--text-*` type scale and `--space-*` 4px grid that new rules use instead of raw pixels). Light/dark via `[data-theme="dark"]`. `--income` / `--expense` colour text and must clear 4.5:1; chart marks use `--income-fill` / `--expense-fill`, which only need 3:1.
@@ -432,8 +450,9 @@ SPA catch-all and `nginx.demo.conf` already serve any real file at the root.
 
 > **`theme-color` is media-less on purpose.** The theme is a stored user choice, so a
 > `prefers-color-scheme` media query would get it wrong whenever the two disagree. The
-> FOUC-prevention script in `index.html` sets it on first paint and `ThemeContext.applyTheme`
-> keeps it in step; both mirror `--bg` from `tokens.css`.
+> FOUC-prevention script in `public/theme-init.js`, loaded by `index.html`, sets it on first
+> paint and `ThemeContext.applyTheme` keeps it in step; both mirror `--bg` from `tokens.css`.
+> Keep the bootstrap external: the CSP deliberately forbids inline scripts.
 
 > **`app.py` registers the `.webmanifest` MIME type.** Python's `mimetypes` table has no
 > entry for it, so `FileResponse` would serve the manifest as `text/plain`. nginx has

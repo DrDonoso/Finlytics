@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { createTelegramChannel, testTelegramChannel } from '../api/client'
 import { useT } from '../i18n'
+import Modal from './Modal'
 import { IconClose, IconLock, IconAlert, IconSend, IconCheck, IconChevronRight } from './icons'
 
 type TelegramStep = 1 | 2 | 3
@@ -113,8 +114,7 @@ export default function TelegramWizard({ onClose, onConnected }: Props) {
   }
 
   return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="tg-wizard-title">
-      <div className="modal inv-wizard">
+    <Modal onDismiss={onClose} disabled={saveState === 'saving'} labelledBy="tg-wizard-title" className="inv-wizard">
 
         {/* Step progress indicator */}
         <div className="inv-wizard__progress" aria-label={t.tgWizardProgressLabel}>
@@ -128,7 +128,7 @@ export default function TelegramWizard({ onClose, onConnected }: Props) {
         {/* Modal header */}
         <div className="modal-header">
           <span className="modal-title" id="tg-wizard-title">{t.tgWizardTitle}</span>
-          <button className="modal-close" onClick={onClose} aria-label={t.tgWizardClose}><IconClose size={16} /></button>
+          <button className="modal-close" onClick={onClose} disabled={saveState === 'saving'} aria-label={t.tgWizardClose}><IconClose size={16} /></button>
         </div>
 
         {/* Modal body */}
@@ -326,7 +326,6 @@ export default function TelegramWizard({ onClose, onConnected }: Props) {
           )}
         </div>
 
-      </div>
-    </div>
+    </Modal>
   )
 }

@@ -142,8 +142,12 @@ async def _yahoo_get(symbol: str, params: dict | None = None) -> dict | None:
                     continue
                 resp.raise_for_status()
                 return resp.json()
-        except Exception as exc:  # noqa: BLE001 — try the next host
+        except httpx.HTTPError as exc:
             log.warning("Yahoo request failed for %r on %s: %s", symbol, host, exc)
+        except Exception as exc:  # try the next host
+            log.warning(
+                "Yahoo request failed for %r on %s: %s", symbol, host, exc, exc_info=True
+            )
     return None
 
 
@@ -212,8 +216,11 @@ async def _fetch_stooq(symbol: str, start: date | None = None) -> list[dict]:
         if len(text) < 30 or "No data" in text:
             return []
         return _parse_stooq_csv(text)
-    except Exception as exc:  # noqa: BLE001 — fall through to the next source
+    except httpx.HTTPError as exc:
         log.warning("Stooq fetch failed for %r: %s", symbol, exc)
+        return []
+    except Exception as exc:  # fall through to the next source
+        log.warning("Stooq fetch failed for %r: %s", symbol, exc, exc_info=True)
         return []
 
 
@@ -321,8 +328,8 @@ async def topup_recent_prices(db: AsyncSession) -> None:
             _fetch_yahoo_history(_MSFT_TICKER, start=lookback_start),
             _fetch_yahoo_history("EURUSD=X", start=lookback_start),
         )
-    except Exception as exc:  # noqa: BLE001 — keep the stored series
-        log.warning("topup_recent_prices: fetch failed: %s", exc)
+    except Exception as exc:  # keep the stored series
+        log.warning("topup_recent_prices: fetch failed: %s", exc, exc_info=True)
         return
 
     if not msft_rows:
@@ -400,8 +407,8 @@ async def get_latest_price(db: AsyncSession) -> LatestPriceRow | None:
     # 1. Incremental top-up — settles last day to official close, fills gaps
     try:
         await topup_recent_prices(db)
-    except Exception as exc:  # noqa: BLE001 — serve the cached close
-        log.warning("get_latest_price: topup failed (degraded): %s", exc)
+    except Exception as exc:  # serve the cached close
+        log.warning("get_latest_price: topup failed (degraded): %s", exc, exc_info=True)
 
     # 2. Return latest close row from price_history
     async with db.begin():
@@ -504,6 +511,6 @@ async def get_current_fx_rate() -> float | None:
         snap = await _fetch_yahoo_snapshot("EURUSD=X")
         if snap and snap.get("close", 0) > 0:
             return 1.0 / snap["close"]  # USD per EUR → EUR per USD
-    except Exception as exc:  # noqa: BLE001 — the caller uses the stored FX
-        log.warning("get_current_fx_rate: snapshot failed: %s", exc)
+    except Exception as exc:  # the caller uses the stored FX
+        log.warning("get_current_fx_rate: snapshot failed: %s", exc, exc_info=True)
     return None

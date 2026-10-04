@@ -31,7 +31,14 @@ from finlytics.api.deps import (
     load_session_user,
 )
 from finlytics.auth.ratelimit import RateLimiter, client_ip
-from finlytics.auth.security import create_token, decode_token, hash_password, verify_password
+from finlytics.auth.security import (
+    BCRYPT_MAX_PASSWORD_BYTES,
+    create_token,
+    decode_token,
+    hash_password,
+    password_exceeds_bcrypt_limit,
+    verify_password,
+)
 from finlytics.config import settings
 from finlytics.db.models import RevokedToken, User
 
@@ -76,15 +83,33 @@ class LoginIn(_AuthBase):
     remember: bool = Field(default=False)
 
 
+def _check_bcrypt_limit(password: str) -> str:
+    # 128 characters can be up to 512 bytes, and bcrypt would ignore everything
+    # past the 72nd: the user would believe the tail of the password protects them.
+    if password_exceeds_bcrypt_limit(password):
+        raise ValueError(f"password must be at most {BCRYPT_MAX_PASSWORD_BYTES} bytes when UTF-8 encoded")
+    return password
+
+
 class SetupIn(_AuthBase):
     """First-user setup request — enforces a minimum password length."""
     password: str = Field(..., min_length=8, max_length=128)
+
+    @field_validator("password")
+    @classmethod
+    def fits_bcrypt(cls, v: str) -> str:
+        return _check_bcrypt_limit(v)
 
 
 class PasswordChangeIn(BaseModel):
     """Password change — the current password is re-verified, like a login."""
     current_password: str = Field(..., min_length=1, max_length=128)
     new_password: str = Field(..., min_length=8, max_length=128)
+
+    @field_validator("new_password")
+    @classmethod
+    def fits_bcrypt(cls, v: str) -> str:
+        return _check_bcrypt_limit(v)
 
 
 class AuthResponse(BaseModel):

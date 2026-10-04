@@ -45,6 +45,10 @@ Source = Path | bytes
 _DATE_ROW_RE = re.compile(r"^\d{2}/\d{2}")
 
 
+class UnsupportedFileTypeError(ValueError):
+    """The file type is not one the parser knows; the message is safe to show a user."""
+
+
 def parse_statement(source: Source, *, file_type: str | None = None, bold_markup: bool = True) -> str:
     """Parse a bank-statement file and return extracted text.
 
@@ -61,7 +65,8 @@ def parse_statement(source: Source, *, file_type: str | None = None, bold_markup
         Raw text content suitable for passing to the LLM extractor.
 
     Raises:
-        ValueError: Unknown or unresolvable file type.
+        UnsupportedFileTypeError: Unknown file type.
+        ValueError: The file type cannot be inferred from the source.
         NotImplementedError: File type is known but not yet implemented.
     """
     resolved_type = _resolve_type(source, file_type)
@@ -74,7 +79,7 @@ def parse_statement(source: Source, *, file_type: str | None = None, bold_markup
     if resolved_type == "csv":
         return _parse_csv(source)
 
-    raise ValueError(
+    raise UnsupportedFileTypeError(
         f"Unsupported file type: {resolved_type!r}. Supported types: pdf, xlsx, csv."
     )
 

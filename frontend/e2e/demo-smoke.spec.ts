@@ -1,4 +1,5 @@
 import { expect, test as base, type Page } from '@playwright/test'
+import AxeBuilder from '@axe-core/playwright'
 
 /** What can go wrong without the page showing it: an exception a boundary
  *  swallowed, a chunk that failed to load, or a request the demo does not serve
@@ -55,6 +56,15 @@ async function signIn(page: Page) {
   await expect(page.locator('.app-shell')).toBeVisible()
 }
 
+async function expectAccessible(page: Page) {
+  const { violations } = await new AxeBuilder({ page }).analyze()
+  expect(violations.map(({ id, impact, nodes }) => ({
+    id,
+    impact,
+    targets: nodes.map(node => node.target),
+  }))).toEqual([])
+}
+
 for (const { path, money } of ROUTES) {
   test(`${path} renders its data`, async ({ page }) => {
     await page.goto(path)
@@ -69,6 +79,7 @@ for (const { path, money } of ROUTES) {
     if (money) {
       await expect(page.locator('.private').filter({ hasText: '€', visible: true }).first()).toBeVisible()
     }
+    await expectAccessible(page)
   })
 }
 
@@ -85,4 +96,44 @@ test('the assistant answers from the demo data', async ({ page }) => {
   await expect(stop).toBeHidden({ timeout: 30_000 })
   await expect(panel.locator('.assistant-msg--assistant').last()).toContainText('€')
   await expect(panel.locator('.assistant-error')).toHaveCount(0)
+  await expectAccessible(page)
 })
+
+for (const width of [1280, 390]) {
+  test(`the prepayment dialog is accessible and dismisses safely at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 850 })
+    await page.goto('/mortgage')
+    await signIn(page)
+    const opener = page.getByRole('button', { name: 'Simulate prepayment', exact: true })
+    await opener.click()
+    const dialog = page.getByRole('dialog', { name: 'Prepayment simulator' })
+    await expect(dialog.locator('.modal')).toBeInViewport({ ratio: 1 })
+    await opener.evaluate(element => element.focus())
+    await expect(opener).not.toBeFocused()
+    expect(await dialog.evaluate(element => element.contains(document.activeElement))).toBe(true)
+
+    if (width <= 600) {
+      const bottom = await dialog.locator('.modal').evaluate(element => element.getBoundingClientRect().bottom)
+      expect(bottom).toBeCloseTo(850, 0)
+    }
+    await dialog.getByLabel('Amount to prepay', { exact: true }).fill('5.000,00')
+    await dialog.getByRole('button', { name: 'Simulate', exact: true }).click()
+    await expect(dialog.getByText('Interest saved', { exact: true })).toBeVisible()
+    await expectAccessible(page)
+
+    await page.keyboard.press('Escape')
+    await expect(dialog).toHaveCount(0)
+    await expect(opener).toBeFocused()
+    await opener.click()
+    const bounds = await dialog.getByLabel('Amount to prepay', { exact: true }).boundingBox()
+    if (!bounds) throw new Error('The prepayment amount input has no layout box')
+    await page.mouse.move(bounds.x + 5, bounds.y + bounds.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(1, 1)
+    await page.mouse.up()
+    await expect(dialog).toBeVisible()
+    await page.mouse.click(1, 1)
+    await expect(dialog).toHaveCount(0)
+    await expect(opener).toBeFocused()
+  })
+}

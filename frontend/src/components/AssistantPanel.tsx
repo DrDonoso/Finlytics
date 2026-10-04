@@ -143,14 +143,14 @@ export default function AssistantPanel() {
   return createPortal(
     <>
       <div className="assistant-overlay" onClick={closePanel} aria-hidden="true" />
-      <aside
+      <div
         className="assistant-panel"
         role="dialog"
         aria-modal="true"
         aria-label={t.assistantTitle}
         ref={panelRef}
       >
-        <header className="assistant-header">
+        <div className="assistant-header">
           <span className="assistant-header-title">
             <IconSparkles size={16} />
             {t.assistantTitle}
@@ -185,7 +185,7 @@ export default function AssistantPanel() {
               <IconClose size={15} />
             </button>
           </div>
-        </header>
+        </div>
 
         {showThreads && (
           <div className="assistant-threads">
@@ -325,7 +325,7 @@ export default function AssistantPanel() {
         </form>
 
         <p className="assistant-disclaimer">{t.assistantDisclaimer}</p>
-      </aside>
+      </div>
     </>,
     document.body,
   )

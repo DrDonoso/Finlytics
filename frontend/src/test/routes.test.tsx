@@ -20,6 +20,7 @@ import Layout from '../components/Layout'
 import SettingsLayout from '../components/SettingsLayout'
 import { LanguageProvider } from '../i18n'
 import { ThemeProvider } from '../contexts/ThemeContext'
+import { ToastProvider } from '../contexts/ToastContext'
 
 import AboutPage from '../pages/AboutPage'
 import AccountsPage from '../pages/AccountsPage'
@@ -177,6 +178,7 @@ function renderRoute(path: string, element: React.ReactNode) {
     <QueryClientProvider client={client}>
       <ThemeProvider>
         <LanguageProvider>
+          <ToastProvider>
           <MemoryRouter initialEntries={[path]}>
             <Routes>
               <Route path="/" element={<Layout />}>
@@ -187,6 +189,7 @@ function renderRoute(path: string, element: React.ReactNode) {
               </Route>
             </Routes>
           </MemoryRouter>
+          </ToastProvider>
         </LanguageProvider>
       </ThemeProvider>
     </QueryClientProvider>,

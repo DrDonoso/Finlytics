@@ -95,7 +95,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     return () => mq.removeEventListener('change', handler)
   }, [])
 
-  // Apply on mount (after FOUC-prevention script in index.html)
+  // Apply on mount (after the FOUC-prevention script, public/theme-init.js)
   useEffect(() => { applyTheme(resolved) }, [resolved])
   useEffect(() => { applyPalette(palette) }, [palette])
 

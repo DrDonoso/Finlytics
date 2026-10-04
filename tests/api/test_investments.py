@@ -8,7 +8,7 @@ Coverage:
   * DELETE /connections/{id}: 204 on success, 404 on missing/other-user.
   * GET /portfolio: zero state, full shape with Phase 2 fields, service-level mapping,
     gain_loss_pct formula, value_series YYYYMMDD dates, missing encryption key.
-  * GET /plugins: Indexa status dynamic (available / connected).
+  * GET /plugins: Indexa status dynamic (available / connected / error).
   * GET /combined-overview: both providers, single provider, no connections, degraded price.
   * 🔒 SECURITY INVARIANTS (Romanoff): token never in any response; masked label has "•";
     crypto round-trip; tampered ciphertext fails; missing key → fail-closed (raise); TLS verify=True.
@@ -86,14 +86,14 @@ async def test_plugins_all_required_keys_present(client):
 
 async def test_plugins_all_status_coming_soon(client):
     """Phase 2: non-connectable plugins stay 'coming_soon'.
-    Indexa Capital and Fidelity ESPP are dynamic — 'available' when no active
+    Indexa Capital and Fidelity ESPP are dynamic — 'available' when no holding
     connection exists (mock execute returns empty set).
     """
     resp = await client.get("/api/investments/plugins")
     for plugin in resp.json():
         if plugin["id"] in ("indexa-capital", "fidelity-espp"):
-            # Dynamic: 'available' (no connection) or 'connected' — never 'coming_soon'
-            assert plugin["status"] in ("available", "connected"), (
+            # Dynamic: 'available', 'connected' or 'error' — never 'coming_soon'
+            assert plugin["status"] in ("available", "connected", "error"), (
                 f"Unexpected status for dynamic plugin '{plugin['id']}': {plugin['status']}"
             )
         else:
@@ -939,7 +939,7 @@ async def test_portfolio_service_maps_holdings_gain_loss_and_returns():
 
 async def test_plugins_indexa_status_connected_when_connection_exists(client, mock_session):
     """Indexa status = 'connected' when DB execute returns it as an active connection."""
-    mock_session.execute = AsyncMock(return_value=[("indexa-capital",)])
+    mock_session.execute = AsyncMock(return_value=[("indexa-capital", "active")])
 
     resp = await client.get("/api/investments/plugins")
 
@@ -960,7 +960,7 @@ async def test_plugins_indexa_status_connected_when_connection_exists(client, mo
 
 async def test_plugins_fidelity_status_connected_when_connection_exists(client, mock_session):
     """fidelity-espp status = 'connected' when DB execute returns it as an active connection."""
-    mock_session.execute = AsyncMock(return_value=[("fidelity-espp",)])
+    mock_session.execute = AsyncMock(return_value=[("fidelity-espp", "active")])
 
     resp = await client.get("/api/investments/plugins")
 
@@ -977,6 +977,31 @@ async def test_plugins_fidelity_status_connected_when_connection_exists(client, 
     others = [p for p in plugins if p["id"] not in ("indexa-capital", "fidelity-espp")]
     for p in others:
         assert p["status"] == "coming_soon"
+
+
+async def test_plugins_status_error_when_only_failed_connections(client, mock_session):
+    """A plugin whose connections all failed still holds money: 'error', not 'available'."""
+    mock_session.execute = AsyncMock(return_value=[("indexa-capital", "error")])
+
+    resp = await client.get("/api/investments/plugins")
+
+    assert resp.status_code == 200
+    plugins = {p["id"]: p["status"] for p in resp.json()}
+    assert plugins["indexa-capital"] == "error"
+    assert plugins["fidelity-espp"] == "available"
+
+
+async def test_plugins_status_connected_when_any_connection_active(client, mock_session):
+    """One active connection is enough for 'connected', even beside a failed one."""
+    mock_session.execute = AsyncMock(
+        return_value=[("indexa-capital", "error"), ("indexa-capital", "active")]
+    )
+
+    resp = await client.get("/api/investments/plugins")
+
+    assert resp.status_code == 200
+    plugins = {p["id"]: p["status"] for p in resp.json()}
+    assert plugins["indexa-capital"] == "connected"
 
 
 # ── BUG A: total_value fallback chain ─────────────────────────────────────────
@@ -2173,6 +2198,77 @@ def test_aggregate_single_account_keeps_a_zero_money_return():
     assert result.returns.money_return == 0.0
     assert result.returns.pl == 0.0
     assert result.returns.invested == 0.0
+
+
+def test_aggregate_merges_holdings_shared_across_accounts():
+    """Two accounts holding the same fund show it once, with summed figures and a
+    return recomputed from the totals rather than copied from either account."""
+    from unittest.mock import MagicMock
+
+    from finlytics.investments.base import NormalizedHolding, NormalizedPortfolio
+    from finlytics.investments.service import _aggregate
+
+    def conn() -> MagicMock:
+        c = MagicMock()
+        c.plugin_id = "indexa-capital"
+        return c
+
+    first = NormalizedPortfolio(
+        holdings=[
+            NormalizedHolding("Vanguard Global", "IE00A", "equity", 10.0, 1200.0, 1000.0, 200.0, 0.2),
+            NormalizedHolding("Vanguard Bonds", "IE00B", "fixed_income", 5.0, 600.0, None, None, None),
+            NormalizedHolding("Cash fund", "IE00C", "cash", None, 50.0, 50.0, 0.0, 0.0),
+        ],
+        total_value=1850.0, total_invested=1050.0, total_gain_loss=200.0,
+    )
+    second = NormalizedPortfolio(
+        holdings=[
+            NormalizedHolding("Vanguard Global", "IE00A", "equity", 30.0, 3300.0, 3000.0, 300.0, 0.1),
+            NormalizedHolding("Vanguard Bonds", "IE00B", "fixed_income", 2.0, 250.0, 240.0, 10.0, 0.0417),
+        ],
+        total_value=3550.0, total_invested=3240.0, total_gain_loss=310.0,
+    )
+
+    result = _aggregate([(conn(), first), (conn(), second)], total_connections=2)
+
+    assert [h.ticker for h in result.holdings] == ["IE00A", "IE00B", "IE00C"]
+    shared, partial, alone = result.holdings
+
+    assert shared.units == pytest.approx(40.0)
+    assert shared.current_value == pytest.approx(4500.0)
+    assert shared.cost_basis == pytest.approx(4000.0)
+    assert shared.gain_loss == pytest.approx(500.0)
+    assert shared.gain_loss_pct == pytest.approx(0.125)
+
+    assert partial.current_value == pytest.approx(850.0)
+    assert partial.cost_basis is None
+    assert partial.gain_loss is None
+    assert partial.gain_loss_pct is None
+
+    assert alone.units is None
+    assert alone.gain_loss_pct == 0.0
+
+
+def test_aggregate_single_account_keeps_its_holdings_as_reported():
+    from unittest.mock import MagicMock
+
+    from finlytics.investments.base import NormalizedHolding, NormalizedPortfolio
+    from finlytics.investments.service import _aggregate
+
+    conn = MagicMock()
+    conn.plugin_id = "indexa-capital"
+    portfolio = NormalizedPortfolio(
+        holdings=[
+            NormalizedHolding("Small", "IE00S", "equity", 1.0, 100.0, 90.0, 10.0, 0.111),
+            NormalizedHolding("Large", "IE00L", "equity", 2.0, 900.0, 800.0, 100.0, 0.125),
+        ],
+        total_value=1000.0, total_invested=890.0, total_gain_loss=110.0,
+    )
+
+    result = _aggregate([(conn, portfolio)], total_connections=1)
+
+    assert [h.ticker for h in result.holdings] == ["IE00S", "IE00L"]
+    assert result.holdings[0].gain_loss_pct == 0.111
 
 # ── GET /combined-overview ────────────────────────────────────────────────────
 # Helpers shared by combined-overview tests

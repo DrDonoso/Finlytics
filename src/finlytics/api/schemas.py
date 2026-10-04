@@ -428,16 +428,29 @@ class ImportQualitySummary(BaseModel):
     flagged_row_count: int
 
 
+ImportQualitySeverity = Literal["error", "warning", "info"]
+ImportQualityCode = Literal[
+    "low_confidence_category",
+    "missing_category",
+    "generic_category",
+    "missing_merchant",
+    "zero_amount",
+    "date_year_mismatch",
+    "year_undetected",
+    "intra_batch_duplicate",
+]
+
+
 class ImportQualitySignal(BaseModel):
-    code: str
-    severity: str
+    code: ImportQualityCode
+    severity: ImportQualitySeverity
     count: int
 
 
 class ImportQualityRowFlag(BaseModel):
     row_index: int
-    code: str
-    severity: str
+    code: ImportQualityCode
+    severity: ImportQualitySeverity
     fields: list[str]
 
 
@@ -534,7 +547,7 @@ class ContributionEventOut(BaseModel):
     date: str        # YYYY-MM-DD
     amount: float    # positive = contribution, negative = withdrawal (rounded to cents)
     cumulative: float  # running net invested after this event
-    type: str        # "contribution" | "withdrawal"
+    type: Literal["contribution", "withdrawal"]
 
 
 class DrawdownOut(BaseModel):
@@ -569,8 +582,8 @@ class InvestmentPluginOut(BaseModel):
     name: str
     description: str
     icon: str
-    status: str             # coming_soon | available | connected | error
-    auth_type: str          # api_key | oauth | token | none
+    status: Literal["coming_soon", "available", "connected", "error"]
+    auth_type: Literal["api_key", "oauth", "token", "none"]
     supported_features: list[str]
     import_route: str | None = None  # frontend route for in-app CSV import; None when not supported
 
@@ -867,7 +880,7 @@ class NotificationOut(BaseModel):
     type: str              # "missing_statement" | "espp_overdue" | …
     severity: str          # "info" | "warning"
     title_key: str
-    title_args: dict
+    title_args: dict[str, str]
     body_key: str | None = None
     body_args: dict | None = None
     action_link: str | None = None
@@ -1314,7 +1327,7 @@ class MortgageSummary(BaseModel):
     id: int
     name: str
     lender: str | None = None
-    rate_type: str
+    rate_type: RateType
     outstanding_balance: float
     monthly_payment: float
     progress_pct: float
@@ -1326,7 +1339,7 @@ class MortgageOverview(BaseModel):
     id: int
     name: str
     lender: str | None = None
-    rate_type: str
+    rate_type: RateType
     initial_principal: float
     outstanding_balance: float
     amortized_principal: float
@@ -1476,7 +1489,7 @@ class SimulationOut(BaseModel):
     after: SimulationSideOut
     amount: float
     fee: float
-    mode: str
+    mode: PrepaymentMode
     interest_saved: float
     months_saved: int
     payment_delta: float

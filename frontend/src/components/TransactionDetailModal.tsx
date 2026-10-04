@@ -1,8 +1,9 @@
 import { useState, useId } from 'react'
 import type { Category, Tag, Transaction } from '../api/types'
 import { updateTransaction } from '../api/client'
-import { useModalDismiss } from '../hooks/useModalDismiss'
+import Modal from './Modal'
 import { useT, categoryLabel, formatDate } from '../i18n'
+import { parseAmount } from '../utils/parseNumber'
 import CategoryBadge from './CategoryBadge'
 import CategorySelect from './CategorySelect'
 import TagEditor from './TagEditor'
@@ -51,15 +52,17 @@ export default function TransactionDetailModal({
   })
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
-  const backdrop = useModalDismiss(onClose, saving)
 
   async function handleSave() {
+    const parsed = parseAmount(editData.absAmount)
+    if (!Number.isFinite(parsed)) {
+      setSaveError(t.formInvalidNumber)
+      return
+    }
+    const abs = Math.abs(parsed)
+    const signedAmount = editData.sign === '-' ? -abs : abs
     setSaving(true)
     setSaveError(null)
-    const signedAmount =
-      editData.sign === '-'
-        ? -Math.abs(Number(editData.absAmount))
-        : Math.abs(Number(editData.absAmount))
     try {
       const updated = await updateTransaction(tx.id, {
         description: editData.description,
@@ -80,13 +83,7 @@ export default function TransactionDetailModal({
   const catColor = categoryColorMap[editData.category]
 
   return (
-    <div className="modal-backdrop" {...backdrop}>
-      <div
-        className="modal modal-tx-detail"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={`${fieldId}-title`}
-      >
+    <Modal onDismiss={onClose} disabled={saving} labelledBy={`${fieldId}-title`} className="modal-tx-detail">
         <div className="modal-header">
           <h2 className="modal-title" id={`${fieldId}-title`}>{t.txDetailModalTitle}</h2>
           <button
@@ -175,12 +172,11 @@ export default function TransactionDetailModal({
               </select>
               <input
                 id={`${fieldId}-amount`}
-                type="number"
+                type="text"
+                inputMode="decimal"
                 className="td-edit-input"
                 style={{ color: amountColor, flex: 1 }}
                 value={editData.absAmount}
-                min="0"
-                step="0.01"
                 disabled={saving}
                 onChange={e =>
                   setEditData(d => ({ ...d, absAmount: e.target.value }))
@@ -213,7 +209,6 @@ export default function TransactionDetailModal({
             {t.tableSaveRow}
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   )
 }

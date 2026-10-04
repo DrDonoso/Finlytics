@@ -90,8 +90,13 @@ async def fetch_ecb_series(index_name: str = INDEX_EURIBOR_12M) -> list[tuple[da
             )
             resp.raise_for_status()
         return parse_ecb_csv(resp.text)
-    except Exception as exc:  # noqa: BLE001 — degrade to the cached series
+    except httpx.HTTPError as exc:
         log.warning("ECB fetch failed for %r: %s", one_line(index_name), exc)
+        return []
+    except Exception as exc:  # degrade to the cached series
+        log.warning(
+            "ECB fetch failed for %r: %s", one_line(index_name), exc, exc_info=True
+        )
         return []
 
 

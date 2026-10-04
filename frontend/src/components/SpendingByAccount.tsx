@@ -15,7 +15,7 @@ interface Props {
 }
 
 export default function SpendingByAccount({ data, loading, error, selectedFlow, onFlowClick }: Props) {
-  const { t, formatCurrency } = useT()
+  const { t, formatCurrency, formatCompactCurrency } = useT()
 
   function handleBarClick(flow: 'expense' | 'income') {
     onFlowClick(selectedFlow === flow ? undefined : flow)
@@ -56,7 +56,7 @@ export default function SpendingByAccount({ data, loading, error, selectedFlow, 
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
             <XAxis
               type="number"
-              tickFormatter={v => `${(v / 1000).toFixed(0)}k€`}
+              tickFormatter={v => formatCompactCurrency(Number(v))}
               tick={{ fontSize: 12, fill: 'var(--text-muted)' as string }}
               axisLine={false}
               tickLine={false}

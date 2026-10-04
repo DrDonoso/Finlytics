@@ -14,6 +14,7 @@ import { ThemeProvider } from '../contexts/ThemeContext'
 import { createQueryClient } from '../api/queryClient'
 import { handlers } from '../demo/handlers'
 import { LanguageProvider } from '../i18n'
+import { ToastProvider } from '../contexts/ToastContext'
 import Layout from '../components/Layout'
 import PrivacyToggle from '../components/PrivacyToggle'
 
@@ -151,6 +152,7 @@ function renderRoute(path: string, element: React.ReactNode) {
       <ThemeProvider>
         <PrivacyProvider>
           <LanguageProvider>
+            <ToastProvider>
             <MemoryRouter initialEntries={[path]}>
               <Routes>
                 <Route path="/" element={<Layout />}>
@@ -158,6 +160,7 @@ function renderRoute(path: string, element: React.ReactNode) {
                 </Route>
               </Routes>
             </MemoryRouter>
+            </ToastProvider>
           </LanguageProvider>
         </PrivacyProvider>
       </ThemeProvider>

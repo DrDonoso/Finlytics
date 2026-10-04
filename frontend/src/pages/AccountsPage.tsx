@@ -4,12 +4,16 @@ import type { Account, AccountCreatePayload } from '../api/types'
 import { deleteAccount, patchAccount, createAccount } from '../api/client'
 import { useAccounts, queryKeys } from '../api/queries'
 import { errorMessage } from '../api/errors'
-import { useModalDismiss } from '../hooks/useModalDismiss'
+import Modal from '../components/Modal'
+import { useToast } from '../contexts/ToastContext'
 import { useT } from '../i18n'
+import NumericInput from '../components/NumericInput'
+import { isBlank, isMalformed, parseAmount } from '../utils/parseNumber'
 import { IconLoading, IconBank, IconPencil, IconTrash, IconClose, IconChevronDown, IconChevronRight } from '../components/icons'
 
 export default function AccountsPage() {
   const { t } = useT()
+  const showToast = useToast()
   const queryClient = useQueryClient()
   const accountsQuery = useAccounts()
   const EMPTY: never[] = useMemo(() => [], [])
@@ -17,7 +21,6 @@ export default function AccountsPage() {
   const loading = accountsQuery.isPending
   // Mutation errors only; load errors come from the query.
   const [error, setError] = useState<string | null>(null)
-  const [toast, setToast] = useState<string | null>(null)
   const shownError = error ?? (accountsQuery.error ? errorMessage(accountsQuery.error, t) : null)
 
   const [deleteTarget, setDeleteTarget] = useState<Account | null>(null)
@@ -28,11 +31,6 @@ export default function AccountsPage() {
   const [editSaving, setEditSaving] = useState(false)
 
   const [createOpen, setCreateOpen] = useState(false)
-
-  function showToast(msg: string) {
-    setToast(msg)
-    setTimeout(() => setToast(null), 6000)
-  }
 
   async function handleDeleteConfirm() {
     if (!deleteTarget) return
@@ -152,14 +150,6 @@ export default function AccountsPage() {
         />
       )}
 
-      {toast && (
-        <div className="toast" role="status">
-          {toast}
-          <button type="button" className="toast-close" onClick={() => setToast(null)}>
-            {t.toastClose}
-          </button>
-        </div>
-      )}
     </>
   )
 }
@@ -187,16 +177,17 @@ function AccountCreateModal({ onSuccess, onCancel }: CreateModalProps) {
   const [attempted, setAttempted] = useState(false)
 
   const nameValid = name.trim().length > 0
-  const hasAmount = amount.trim() !== '' && !isNaN(parseFloat(amount))
+  const amountValue = parseAmount(amount)
+  const amountInvalid = isMalformed(amount, parseAmount)
+  const hasAmount = !isBlank(amount) && Number.isFinite(amountValue)
   const dateValid = !hasAmount || date.trim() !== ''
 
   useEffect(() => { nameRef.current?.focus() }, [])
 
-  const backdrop = useModalDismiss(onCancel, saving)
-
   async function handleConfirm() {
     setAttempted(true)
-    if (!nameValid || !dateValid) return
+    if (amountInvalid || !dateValid) setShowOpening(true)
+    if (!nameValid || !dateValid || amountInvalid) return
     setSaving(true)
     setServerError(null)
 
@@ -205,7 +196,7 @@ function AccountCreateModal({ onSuccess, onCancel }: CreateModalProps) {
       type,
       currency: currency.trim() || 'EUR',
       account_number: iban.trim() || null,
-      opening_balance: hasAmount ? parseFloat(amount) : null,
+      opening_balance: hasAmount ? amountValue : null,
       opening_date: date.trim() || null,
     }
 
@@ -226,13 +217,7 @@ function AccountCreateModal({ onSuccess, onCancel }: CreateModalProps) {
   }
 
   return (
-    <div className="modal-backdrop" {...backdrop}>
-      <div
-        className="modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="acct-create-title"
-      >
+    <Modal onDismiss={onCancel} disabled={saving} labelledBy="acct-create-title">
         <div className="modal-header">
           <span className="modal-title" id="acct-create-title">
             {t.accountsCreateTitle}
@@ -328,14 +313,13 @@ function AccountCreateModal({ onSuccess, onCancel }: CreateModalProps) {
 
                   <div className="form-group">
                     <label htmlFor="acct-create-amount">{t.accountsCreateLabelAmount}</label>
-                    <input
+                    <NumericInput
                       id="acct-create-amount"
-                      type="number"
-                      step="0.01"
-                      className="form-input"
                       value={amount}
-                      onChange={e => setAmount(e.target.value)}
+                      onChange={setAmount}
                       disabled={saving}
+                      error={amountInvalid ? t.formInvalidNumber : null}
+                      showError={attempted}
                     />
                   </div>
 
@@ -381,8 +365,7 @@ function AccountCreateModal({ onSuccess, onCancel }: CreateModalProps) {
             {t.accountsCreateSubmit}
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   )
 }
 
@@ -405,8 +388,6 @@ function AccountEditModal({ account, name, saving, onChangeName, onConfirm, onCa
 
   useEffect(() => { inputRef.current?.focus() }, [])
 
-  const backdrop = useModalDismiss(onCancel, saving)
-
   function handleConfirm() {
     setAttempted(true)
     if (!nameValid) return
@@ -414,13 +395,7 @@ function AccountEditModal({ account, name, saving, onChangeName, onConfirm, onCa
   }
 
   return (
-    <div className="modal-backdrop" {...backdrop}>
-      <div
-        className="modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="acct-edit-title"
-      >
+    <Modal onDismiss={onCancel} disabled={saving} labelledBy="acct-edit-title">
         <div className="modal-header">
           <span className="modal-title" id="acct-edit-title">
             {t.accountsEditTitle(account.name)}
@@ -480,8 +455,7 @@ function AccountEditModal({ account, name, saving, onChangeName, onConfirm, onCa
             {t.accountsEditSave}
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   )
 }
 
@@ -500,16 +474,8 @@ function AccountDeleteModal({ account, deleting, onConfirm, onCancel }: DeleteMo
 
   useEffect(() => { cancelRef.current?.focus() }, [])
 
-  const backdrop = useModalDismiss(onCancel, deleting)
-
   return (
-    <div className="modal-backdrop" {...backdrop}>
-      <div
-        className="modal stmt-delete-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="acct-delete-title"
-      >
+    <Modal onDismiss={onCancel} disabled={deleting} labelledBy="acct-delete-title" className="stmt-delete-modal">
         <div className="modal-header">
           <span className="modal-title" id="acct-delete-title">
             {t.accountsDeleteTitle(account.name)}
@@ -549,7 +515,6 @@ function AccountDeleteModal({ account, deleting, onConfirm, onCancel }: DeleteMo
             {t.accountsDeleteOk}
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   )
 }

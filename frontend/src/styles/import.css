@@ -123,6 +123,7 @@
 }
 .cell-input:hover { border-color: var(--border); background: var(--surface); }
 .cell-input:focus { border-color: var(--primary); background: var(--surface); }
+.cell-input[aria-invalid="true"] { border-color: var(--expense); }
 .cell-date     { min-width: 110px; }
 .cell-desc     { min-width: 300px; }
 .cell-merchant { min-width: 140px; }

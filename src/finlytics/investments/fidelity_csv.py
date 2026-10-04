@@ -21,6 +21,10 @@ _TICKER = "MSFT"
 _CURRENCY_RE = re.compile(r"the values are displayed in\s+(\w+)", re.IGNORECASE)
 
 
+class FidelityCsvError(ValueError):
+    """A problem with the uploaded file, worded for the person who uploaded it."""
+
+
 # ---------------------------------------------------------------------------
 # Public dataclasses
 # ---------------------------------------------------------------------------
@@ -68,7 +72,7 @@ def _parse_decimal(raw: str, eu_style: bool = False) -> Decimal:
     """
     s = raw.strip().lstrip("\u20ac$\xa3").strip()
     if not s:
-        raise ValueError(f"Empty numeric field: {raw!r}")
+        raise FidelityCsvError(f"Empty numeric field: {raw!r}")
 
     has_dot = "." in s
     has_comma = "," in s
@@ -86,9 +90,12 @@ def _parse_decimal(raw: str, eu_style: bool = False) -> Decimal:
     # elif has_dot only, or plain integer → already correct
 
     try:
-        return Decimal(s)
+        value = Decimal(s)
     except InvalidOperation as exc:
-        raise ValueError(f"Cannot parse decimal from {raw!r}") from exc
+        raise FidelityCsvError(f"Cannot parse decimal from {raw!r}") from exc
+    if not value.is_finite():
+        raise FidelityCsvError(f"Cannot parse decimal from {raw!r}")
+    return value
 
 
 def _parse_date(raw: str) -> date | None:
@@ -99,7 +106,7 @@ def _parse_date(raw: str) -> date | None:
     try:
         return datetime.strptime(s, _DATE_FMT).date()  # noqa: DTZ007 — a calendar date
     except ValueError as exc:
-        raise ValueError(f"Cannot parse date from {raw!r}") from exc
+        raise FidelityCsvError(f"Cannot parse date from {raw!r}") from exc
 
 
 def _is_data_row(row: list[str]) -> bool:
@@ -132,13 +139,20 @@ def parse_open_lots_csv(file_bytes: bytes) -> ParsedOpenLots:
     - ``dedup_ordinal`` assigned 0, 1, 2 … within groups sharing identical
       ``(purchase_date, shares, cost_basis_per_share, share_source)``.
     """
-    text = file_bytes.decode("utf-8-sig")  # strips BOM when present
+    try:
+        text = file_bytes.decode("utf-8-sig")  # strips BOM when present
+    except UnicodeDecodeError as exc:
+        raise FidelityCsvError(
+            "The file is not UTF-8 text; export the CSV again from Fidelity"
+        ) from exc
 
     currency = _detect_currency(text)
     eu_style = currency == "EUR"
 
-    reader = csv.reader(io.StringIO(text))
-    rows = list(reader)
+    try:
+        rows = list(csv.reader(io.StringIO(text)))
+    except csv.Error as exc:
+        raise FidelityCsvError("Malformed CSV") from exc
 
     # Locate header row: first row whose first cell is 'Date acquired'
     header_idx = next(
@@ -150,7 +164,7 @@ def parse_open_lots_csv(file_bytes: bytes) -> ParsedOpenLots:
         None,
     )
     if header_idx is None:
-        raise ValueError("Header row 'Date acquired' not found in CSV")
+        raise FidelityCsvError("Header row 'Date acquired' not found in CSV")
 
     ordinal_counter: dict[tuple, int] = defaultdict(int)
     lots: list[NormalizedLot] = []

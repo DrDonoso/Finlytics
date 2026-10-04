@@ -246,3 +246,55 @@ describe('rate discounts keep what is typed', () => {
     expect(bonus).toEqual({ name: 'Payroll', spread_reduction: 0.25, annual_cost: 120.5, active: true })
   })
 })
+
+describe('the principal accepts Spanish grouping', () => {
+  // A number input dropped "250.000" to 250, which silently priced a mortgage
+  // a thousand times smaller than the one signed.
+  it('reads "250.000" as two hundred and fifty thousand', async () => {
+    const user = userEvent.setup()
+    renderWizard()
+
+    await user.type(screen.getByLabelText(/name/i), 'Home')
+    await user.clear(screen.getByLabelText(/amount borrowed/i))
+    await user.type(screen.getByLabelText(/amount borrowed/i), '250.000')
+    await pickStartDate(user)
+    await user.click(screen.getByRole('button', { name: /next/i }))
+    await user.type(screen.getByLabelText(/nominal rate/i), '2')
+    await user.click(screen.getByRole('button', { name: /next/i }))
+    await user.click(screen.getByRole('button', { name: /^save$/i }))
+
+    await waitFor(() => expect(saved).toHaveLength(1))
+    expect(saved[0]).toMatchObject({ initial_principal: 250000 })
+  })
+
+  it('flags a malformed amount instead of guessing', async () => {
+    const user = userEvent.setup()
+    renderWizard()
+
+    await user.type(screen.getByLabelText(/name/i), 'Home')
+    await pickStartDate(user)
+    const principal = screen.getByLabelText(/amount borrowed/i)
+    await user.clear(principal)
+    await user.type(principal, '1.2.3')
+    await user.tab()
+
+    expect(screen.getByText(/enter a valid number/i)).toBeInTheDocument()
+    expect(principal).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByRole('button', { name: /next/i })).toBeDisabled()
+  })
+
+  it('refuses a zero principal', async () => {
+    const user = userEvent.setup()
+    renderWizard()
+
+    await user.type(screen.getByLabelText(/name/i), 'Home')
+    await pickStartDate(user)
+    const principal = screen.getByLabelText(/amount borrowed/i)
+    await user.clear(principal)
+    await user.type(principal, '0')
+    await user.tab()
+
+    expect(screen.getByText(/enter an amount greater than zero/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /next/i })).toBeDisabled()
+  })
+})

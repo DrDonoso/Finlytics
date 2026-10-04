@@ -11,6 +11,7 @@ from decimal import Decimal
 import pytest
 
 from finlytics.investments.fidelity_csv import (
+    FidelityCsvError,
     ParsedOpenLots,
     _detect_currency,
     _parse_date,
@@ -309,8 +310,22 @@ class TestEdgeCases:
 
     def test_missing_header_raises(self):
         bad = b"col1,col2,col3\nfoo,bar,baz\n"
-        with pytest.raises(ValueError, match="Header row"):
+        with pytest.raises(FidelityCsvError, match="Header row"):
             parse_open_lots_csv(bad)
+
+    def test_non_utf8_raises_user_facing_error(self):
+        with pytest.raises(FidelityCsvError, match="UTF-8"):
+            parse_open_lots_csv(b"\xff\xfebad")
+
+    def test_csv_module_error_is_user_facing(self):
+        # A field past the csv module's size limit raises csv.Error.
+        with pytest.raises(FidelityCsvError, match="Malformed CSV"):
+            parse_open_lots_csv(b"a" * 200_000)
+
+    @pytest.mark.parametrize("raw", ["NaN", "Infinity", "-inf", "sNaN"])
+    def test_non_finite_decimal_raises(self, raw):
+        with pytest.raises(FidelityCsvError, match="Cannot parse decimal"):
+            _parse_decimal(raw)
 
     def test_holding_period_dash_becomes_none(self):
         csv_with_dash_hp = (

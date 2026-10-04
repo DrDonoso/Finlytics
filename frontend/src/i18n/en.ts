@@ -117,6 +117,9 @@ const en: Dict = {
   authErrorInvalidCredentials: 'Invalid username or password.',
   authErrorPasswordMismatch: 'Passwords do not match.',
   authErrorPasswordTooShort: 'Password must be at least 8 characters.',
+  authErrorPasswordTooLong: 'Password is too long (maximum 72 bytes; accented letters count double).',
+  formInvalidNumber: 'Enter a valid number',
+  formPositiveNumber: 'Enter an amount greater than zero',
   authErrorUsernameTooShort: 'Username must be at least 3 characters.',
   authErrorAlreadySetup: 'Setup already completed. Reload the page to log in.',
   authErrorTooManyAttempts: (minutes: number) => minutes <= 1
@@ -556,6 +559,8 @@ const en: Dict = {
   invAssetFixed_income: 'Fixed income',
   invAssetCash: 'Cash',
   invAssetOther: 'Other',
+  invAssetEspp_stock: 'ESPP stock',
+  invAssetMixed: 'Mixed',
   invErrorLoading: 'Error loading portfolio',
   invPartialTotal: 'Some of your investments could not be read, so this total leaves them out.',
   invAccountsUnavailable: (count: number) => count === 1
@@ -868,6 +873,7 @@ const en: Dict = {
   settingsSubAssistant: 'Assistant',
   // ── Mortgage ──────────────────────────────────────────────────────────────
   navMortgage: 'Mortgage',
+  navConnectionError: 'Connection error: the total may be incomplete',
   mortgageTitle: 'Mortgage',
   mortgageEmptyText: 'No mortgage added yet. Enter your loan terms and Finlytics will build the full amortization schedule.',
   mortgageAddBtn: 'Add mortgage',
@@ -970,6 +976,7 @@ const en: Dict = {
   mortgageFormTermExtraMonthsInfo: 'If the first charge only covered interest, capital is usually amortized over 359 instalments rather than 360. Check against the figure on your statement.',
   mortgageFormTermTotal: (months: number) => `${months} instalments in total`,
   mortgageFormPaymentDay: 'Payment day',
+  mortgageFormPaymentDayInvalid: 'Enter a day between 1 and 31',
   mortgageFormRateType: 'Rate type',
   mortgageFormTin: 'Nominal rate (%)',
   mortgageFormSpread: 'Spread (%)',

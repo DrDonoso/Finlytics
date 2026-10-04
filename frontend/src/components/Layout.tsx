@@ -19,7 +19,7 @@ import { useIsCompactNav } from '../hooks/useMediaQuery'
 import {
   IconMenu, IconHome, IconWallet, IconReceipt, IconChartLine, IconFileText,
   IconTrendingUp, IconSettings, IconChevronDown, IconUser, IconLogout,
-  IconBuilding,
+  IconBuilding, IconAlert,
 } from './icons'
 
 const LS_COLLAPSED = 'finlytics_sidebar_collapsed'
@@ -74,10 +74,21 @@ export default function Layout() {
   const isOnInvestments = location.pathname.startsWith('/investments')
   const [investmentsExpanded, setInvestmentsExpanded] = useExpandedWhenActive(isOnInvestments)
   const connectionsQuery = useConnections()
-  const connectedPlugins = useMemo(
-    () => (connectionsQuery.data ?? []).filter(c => c.status === 'active'),
-    [connectionsQuery.data],
-  )
+  // An `error` connection still holds money, so its view stays reachable and
+  // carries a warning instead of vanishing from the menu.
+  const connectedPlugins = useMemo(() => {
+    const byPlugin = new Map<string, { pluginId: string; name: string; hasError: boolean }>()
+    for (const conn of connectionsQuery.data ?? []) {
+      if (conn.status !== 'active' && conn.status !== 'error') continue
+      const entry = PLUGIN_VIEW_REGISTRY[conn.plugin_id]
+      if (!entry) continue
+      const seen = byPlugin.get(conn.plugin_id)
+      const hasError = conn.status === 'error'
+      if (seen) seen.hasError ||= hasError
+      else byPlugin.set(conn.plugin_id, { pluginId: conn.plugin_id, name: entry.name, hasError })
+    }
+    return [...byPlugin.values()]
+  }, [connectionsQuery.data])
 
   // ── Settings accordion ───────────────────────────────────────────────────
   const isOnSettings = location.pathname.startsWith('/settings')
@@ -241,21 +252,26 @@ export default function Layout() {
             </div>
             {investmentsExpanded && connectedPlugins.length > 0 && (
               <div className="sidebar-subnav">
-                {connectedPlugins.map(conn => {
-                  const entry = PLUGIN_VIEW_REGISTRY[conn.plugin_id]
-                  if (!entry) return null
+                {connectedPlugins.map(plugin => {
+                  const logo = getPluginLogo(plugin.pluginId)
                   return (
                     <NavLink
-                      key={conn.id}
-                      to={`/investments/${conn.plugin_id}`}
+                      key={plugin.pluginId}
+                      to={`/investments/${plugin.pluginId}`}
                       className={navLinkClass}
                     >
-                      {getPluginLogo(conn.plugin_id) ? (
-                        <img src={getPluginLogo(conn.plugin_id) ?? ''} alt="" className="nav-icon plugin-logo nav-plugin-logo" />
+                      {logo ? (
+                        <img src={logo} alt="" className="nav-icon plugin-logo nav-plugin-logo" />
                       ) : (
-                        <span className="nav-icon plugin-logo-fallback nav-plugin-logo" aria-hidden="true">{pluginInitial(entry.name)}</span>
+                        <span className="nav-icon plugin-logo-fallback nav-plugin-logo" aria-hidden="true">{pluginInitial(plugin.name)}</span>
                       )}
-                      <span className="nav-label">{entry.name}</span>
+                      <span className="nav-label">{plugin.name}</span>
+                      {plugin.hasError && (
+                        <>
+                          <IconAlert size={14} className="nav-alert" />
+                          <span className="sr-only">{t.navConnectionError}</span>
+                        </>
+                      )}
                     </NavLink>
                   )
                 })}

@@ -8,7 +8,7 @@ import {
 import { useInvestmentPortfolio, useConnections } from '../../api/queries'
 import { errorMessage } from '../../api/errors'
 import { useT, langLocale } from '../../i18n'
-import type { Dict } from '../../i18n'
+import { assetClassLabel } from '../assetClass'
 import { IconLoading, IconAlert, IconChartPie, IconChartLine, IconReceipt, IconBanknote, IconLink, IconChevronRight } from '../../components/icons'
 import SortableTh from '../../components/SortableTh'
 import Money, { Percent, Private } from '../../components/Money'
@@ -42,16 +42,6 @@ function formatRelativeTime(iso: string, lang: string): string {
   }
 }
 
-function assetLabel(assetClass: string, t: Dict): string {
-  const map: Record<string, string> = {
-    equity:       t.invAssetEquity,
-    fixed_income: t.invAssetFixed_income,
-    cash:         t.invAssetCash,
-    other:        t.invAssetOther,
-  }
-  return map[assetClass] ?? assetClass
-}
-
 function formatDDMMYYYY(isoDate: string): string {
   try {
     const parts = isoDate.split('-')
@@ -80,12 +70,18 @@ function niceCeil(value: number, step: number): number {
   return Math.ceil(value / step) * step
 }
 
+function compareNullable(a: number | null, b: number | null, dir: number): number {
+  if (a == null) return b == null ? 0 : 1
+  if (b == null) return -1
+  return dir * (a - b)
+}
+
 type EvolutionPeriod = string
 type EvolutionMode   = 'eur' | 'pct'
 type MatrixMode      = 'pct' | 'eur'
 
 export default function IndexaView() {
-  const { t, lang, formatCurrency, formatPercent } = useT()
+  const { t, lang, formatCurrency, formatCompactCurrency, formatPercent } = useT()
   const locale = langLocale(lang)
 
   const portfolioQuery = useInvestmentPortfolio()
@@ -196,26 +192,32 @@ export default function IndexaView() {
 
   const sortedHoldings = useMemo(() => {
     if (!portfolio) return []
-    const totalVal = portfolio.total_value
     const holdings = [...portfolio.holdings]
     const dir = sortDir === 'asc' ? 1 : -1
     holdings.sort((a, b) => {
       switch (sortCol) {
         case 'name':   return dir * a.name.localeCompare(b.name, locale)
-        case 'isin':   return dir * a.ticker.localeCompare(b.ticker, locale)
-        case 'class':  return dir * assetLabel(a.asset_class, t).localeCompare(assetLabel(b.asset_class, t), locale)
-        case 'units':  return dir * (a.units - b.units)
+        case 'isin':
+          if (a.ticker == null) return b.ticker == null ? 0 : 1
+          if (b.ticker == null) return -1
+          return dir * a.ticker.localeCompare(b.ticker, locale)
+        case 'class':  return dir * assetClassLabel(a.asset_class, t).localeCompare(assetClassLabel(b.asset_class, t), locale)
+        case 'units':  return compareNullable(a.units, b.units, dir)
         case 'value':  return dir * (a.current_value - b.current_value)
         case 'weight': return dir * (a.current_value - b.current_value)
-        case 'cost':   return dir * (a.cost_basis - b.cost_basis)
-        case 'pnl':    return dir * (a.gain_loss - b.gain_loss)
-        case 'pnlpct': return dir * (a.gain_loss_pct - b.gain_loss_pct)
+        case 'cost':   return compareNullable(a.cost_basis, b.cost_basis, dir)
+        case 'pnl':    return compareNullable(a.gain_loss, b.gain_loss, dir)
+        case 'pnlpct': return compareNullable(a.gain_loss_pct, b.gain_loss_pct, dir)
         default:       return 0
       }
     })
-    void totalVal
     return holdings
   }, [portfolio, sortCol, sortDir, t, locale])
+
+  const unitsFmt = useMemo(
+    () => new Intl.NumberFormat(locale, { minimumFractionDigits: 2, maximumFractionDigits: 4 }),
+    [locale],
+  )
 
   function handleSortClick(col: HoldingsSortCol) {
     if (col === sortCol) {
@@ -619,7 +621,7 @@ export default function IndexaView() {
                             contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8 }}
                             labelStyle={{ color: 'var(--text)' }}
                             itemStyle={{ color: 'var(--text)' }}
-                            formatter={(value, name) => [formatCurrency(Number(value)), assetLabel(String(name), t)]}
+                            formatter={(value, name) => [formatCurrency(Number(value)), assetClassLabel(String(name), t)]}
                           />
                         </PieChart>
                       </ResponsiveContainer>
@@ -643,7 +645,7 @@ export default function IndexaView() {
                               <td className="cat-td-name">
                                 <div className="cat-td-name-inner">
                                   <span className="cat-swatch" style={{ background: item.color }} />
-                                  <span className="cat-td-label">{assetLabel(item.name, t)}</span>
+                                  <span className="cat-td-label">{assetClassLabel(item.name, t)}</span>
                                 </div>
                               </td>
                               <td className="cat-td-num"><Money value={item.value} /></td>
@@ -794,12 +796,12 @@ export default function IndexaView() {
                       <YAxis
                         domain={evolutionDomain}
                         tickFormatter={evMode === 'eur'
-                          ? (v: number) => `${(v / 1000).toFixed(0)}k€`
+                          ? (v: number) => formatCompactCurrency(v)
                           : (v: number) => formatPercent(v)}
                         tick={{ fontSize: 11, fill: 'var(--text-muted)' }}
                         axisLine={false}
                         tickLine={false}
-                        width={52}
+                        width="auto"
                       />
                       <Tooltip
                         contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8 }}
@@ -886,28 +888,28 @@ export default function IndexaView() {
                         portfolio!.total_value > 0 ? h.current_value / portfolio!.total_value : 0,
                         { unit: 'fraction' },
                       )
-                      const isPos = h.gain_loss >= 0
-                      const fmtUnits = new Intl.NumberFormat(locale, {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 4,
-                      }).format(h.units)
+                      const pnlClass = h.gain_loss == null
+                        ? 'inv-td-num'
+                        : h.gain_loss >= 0 ? 'inv-td-num inv-pnl--pos' : 'inv-td-num inv-pnl--neg'
                       return (
-                        <tr key={h.ticker}>
+                        <tr key={h.ticker || h.name}>
                           <td className="inv-td-name" title={h.name}>{h.name}</td>
-                          <td className="inv-td-isin">{h.ticker}</td>
+                          <td className="inv-td-isin">{h.ticker ?? '—'}</td>
                           <td>
                             <span className={`inv-asset-class-badge inv-asset-class-badge--${h.asset_class.replace(/_/g, '-')}`}>
-                              {assetLabel(h.asset_class, t)}
+                              {assetClassLabel(h.asset_class, t)}
                             </span>
                           </td>
-                          <td className="inv-td-num"><Private>{fmtUnits}</Private></td>
+                          <td className="inv-td-num">
+                            {h.units == null ? '—' : <Private>{unitsFmt.format(h.units)}</Private>}
+                          </td>
                           <td className="inv-td-num"><Money value={h.current_value} /></td>
                           <td className="inv-td-weight">{weight}</td>
                           <td className="inv-td-num"><Money value={h.cost_basis} /></td>
-                          <td className={`inv-td-num ${isPos ? 'inv-pnl--pos' : 'inv-pnl--neg'}`}>
+                          <td className={pnlClass}>
                             <Money value={h.gain_loss} signed />
                           </td>
-                          <td className={`inv-td-num ${isPos ? 'inv-pnl--pos' : 'inv-pnl--neg'}`}>
+                          <td className={pnlClass}>
                             <Percent value={h.gain_loss_pct} unit="fraction" signed decimals={2} />
                           </td>
                         </tr>

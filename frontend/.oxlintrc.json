@@ -46,9 +46,8 @@
     // refocusing a cell after the grid moves).
     "react/exhaustive-effect-dependencies": "off",
 
-    // Every role it flags is a deliberate custom widget: the modals manage focus
-    // themselves rather than use <dialog>'s top layer, a live region is not an
-    // <output> calculation, and the comboboxes render chips a <select> cannot.
+    // Non-modal panels and pickers remain custom widgets, a live region is not
+    // an <output> calculation, and the comboboxes render chips a <select> cannot.
     "jsx-a11y/prefer-tag-over-role": "off",
     "jsx-a11y/no-redundant-roles": "warn",
     "jsx-a11y/control-has-associated-label": ["warn", { "depth": 3 }],

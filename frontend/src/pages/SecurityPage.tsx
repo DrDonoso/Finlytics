@@ -2,8 +2,7 @@ import { useState } from 'react'
 import { changePassword, logoutOtherSessions } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
 import { useT } from '../i18n'
-
-const MIN_PASSWORD_LENGTH = 8
+import { MIN_PASSWORD_LENGTH, passwordTooLong } from '../utils/password'
 
 type Outcome = { ok: boolean; message: string } | null
 
@@ -38,6 +37,10 @@ export default function SecurityPage() {
     e.preventDefault()
     if (next.length < MIN_PASSWORD_LENGTH) {
       setPasswordOutcome({ ok: false, message: t.authErrorPasswordTooShort })
+      return
+    }
+    if (passwordTooLong(next)) {
+      setPasswordOutcome({ ok: false, message: t.authErrorPasswordTooLong })
       return
     }
     if (next !== confirm) {
