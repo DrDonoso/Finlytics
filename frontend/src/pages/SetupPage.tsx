@@ -2,8 +2,7 @@ import { useState } from 'react'
 import { setupUser } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
 import { useT } from '../i18n'
-
-const MIN_PASSWORD_LENGTH = 8
+import { MIN_PASSWORD_LENGTH, passwordTooLong } from '../utils/password'
 
 export default function SetupPage() {
   const { onSetupSuccess } = useAuth()
@@ -17,6 +16,7 @@ export default function SetupPage() {
   function validate(): string | null {
     if (username.trim().length < 3) return t.authErrorUsernameTooShort
     if (password.length < MIN_PASSWORD_LENGTH) return t.authErrorPasswordTooShort
+    if (passwordTooLong(password)) return t.authErrorPasswordTooLong
     if (password !== confirmPassword) return t.authErrorPasswordMismatch
     return null
   }

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router'
 import type { ValidatedAccount, InvestmentConnection } from '../api/types'
 import { validateIndexaToken, connectPlugin } from '../api/client'
 import { useT } from '../i18n'
+import Modal from './Modal'
 import { IconClose, IconTrendingUp, IconKey, IconLock, IconAlert, IconCheck } from './icons'
 
 type WizardStep = 1 | 2 | '3-loading' | '3-error' | '3-accounts' | 4
@@ -40,8 +41,10 @@ export default function IndexaWizard({ onClose, onConnected }: Props) {
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([])
   const [connectedAccounts, setConnectedAccounts] = useState<InvestmentConnection[]>([])
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [connecting, setConnecting] = useState(false)
 
   const activeDot = stepToActiveDot(step)
+  const busy = step === '3-loading' || connecting
 
   function toggleAccount(accountNumber: string) {
     setSelectedAccounts(prev =>
@@ -67,6 +70,7 @@ export default function IndexaWizard({ onClose, onConnected }: Props) {
   }
 
   async function handleConnect() {
+    setConnecting(true)
     try {
       const connections = await connectPlugin(token, selectedAccounts)
       setConnectedAccounts(connections)
@@ -75,6 +79,8 @@ export default function IndexaWizard({ onClose, onConnected }: Props) {
     } catch {
       setErrorMsg(t.wizardErrorNetwork)
       setStep('3-error')
+    } finally {
+      setConnecting(false)
     }
   }
 
@@ -84,8 +90,7 @@ export default function IndexaWizard({ onClose, onConnected }: Props) {
   }
 
   return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="wizard-title">
-      <div className="modal inv-wizard">
+    <Modal onDismiss={onClose} disabled={busy} labelledBy="wizard-title" className="inv-wizard">
 
         {/* Step progress indicator */}
         <div className="inv-wizard__progress" aria-label={t.wizardProgressLabel}>
@@ -101,7 +106,7 @@ export default function IndexaWizard({ onClose, onConnected }: Props) {
         {/* Modal header */}
         <div className="modal-header">
           <span className="modal-title" id="wizard-title">{t.wizardTitle}</span>
-          <button className="modal-close" onClick={onClose} aria-label={t.wizardClose}><IconClose size={16} /></button>
+          <button className="modal-close" onClick={onClose} disabled={busy} aria-label={t.wizardClose}><IconClose size={16} /></button>
         </div>
 
         {/* Modal body */}
@@ -252,8 +257,8 @@ export default function IndexaWizard({ onClose, onConnected }: Props) {
           )}
           {step === '3-accounts' && (
             <>
-              <button className="btn-secondary" onClick={() => setStep(2)}>{t.wizardBack}</button>
-              <button className="btn-primary" onClick={handleConnect} disabled={selectedAccounts.length === 0}>
+              <button className="btn-secondary" onClick={() => setStep(2)} disabled={connecting}>{t.wizardBack}</button>
+              <button className="btn-primary" onClick={handleConnect} disabled={connecting || selectedAccounts.length === 0}>
                 {t.wizardConnect}
               </button>
             </>
@@ -265,7 +270,6 @@ export default function IndexaWizard({ onClose, onConnected }: Props) {
           )}
         </div>
 
-      </div>
-    </div>
+    </Modal>
   )
 }

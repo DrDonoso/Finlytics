@@ -586,14 +586,14 @@
 }
 
 /* ── Delete confirm modal: compact width ────────────────────────────── */
-.stmt-delete-modal {
-  max-width: 420px !important;
+.modal.stmt-delete-modal {
+  max-width: 420px;
   width: min(420px, 100%);
 }
 @media (max-width: 600px) {
-  .stmt-delete-modal {
+  .modal.stmt-delete-modal {
     width: 100%;
-    max-width: 100% !important;
+    max-width: 100%;
   }
 }
 

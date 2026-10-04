@@ -7,6 +7,7 @@ import SetupPage from './pages/SetupPage'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { AssistantProvider } from './contexts/AssistantContext'
 import { NotificationsProvider } from './contexts/NotificationsContext'
+import { ToastProvider } from './contexts/ToastContext'
 import { useT } from './i18n'
 import { IS_DEMO } from './demo/config'
 import { pageChunks } from './routePrefetch'
@@ -113,6 +114,7 @@ function AppContent() {
   if (!authenticated) return <LoginPage />
 
   return (
+    <ToastProvider>
     <NotificationsProvider>
       <AssistantProvider>
         <BrowserRouter>
@@ -120,6 +122,7 @@ function AppContent() {
         </BrowserRouter>
       </AssistantProvider>
     </NotificationsProvider>
+    </ToastProvider>
   )
 }
 

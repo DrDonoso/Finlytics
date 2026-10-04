@@ -3,6 +3,7 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 import { useCombinedOverview } from '../api/queries'
 import { errorMessage } from '../api/errors'
 import { getPluginLogo, pluginInitial } from '../investments/registry'
+import { assetClassLabel } from '../investments/assetClass'
 import { formatCurrency, useT } from '../i18n'
 import type { Lang } from '../i18n'
 import { IconLoading, IconChartBar, IconChartPie, IconChevronRight, IconAlert } from '../components/icons'
@@ -111,7 +112,7 @@ export default function InvestmentsLandingPage() {
 
   const assetDonutData = overview.by_asset_class.map((item, i) => ({
     name: item.asset_class,
-    label: item.label,
+    label: assetClassLabel(item.asset_class, t),
     value: item.value_eur,
     color: sliceColor(ASSET_CLASS_COLORS, item.asset_class, i),
   }))

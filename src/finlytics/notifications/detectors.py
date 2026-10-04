@@ -41,7 +41,7 @@ class DetectedNotification:
     severity: str           # "info" | "warning"
     dedup_key: str          # stable identity (e.g. "statement:missing:2026-06:acct-3")
     title_key: str          # i18n key (e.g. "notif.statement_missing")
-    title_args: dict = field(default_factory=dict)
+    title_args: dict[str, str] = field(default_factory=dict)
     body_key: str | None = None
     body_args: dict | None = None
     action_link: str | None = None

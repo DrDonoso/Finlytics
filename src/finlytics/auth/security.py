@@ -17,15 +17,29 @@ from finlytics.config import settings
 
 _BCRYPT_ROUNDS = 12
 
+# bcrypt only ever reads the first 72 bytes of a password. Before 5.0 the library
+# truncated silently; since then it raises ValueError instead. New passwords are
+# capped at the API, and truncating here keeps a longer password set under the
+# old behaviour verifiable, exactly as it was hashed.
+BCRYPT_MAX_PASSWORD_BYTES = 72
+
+
+def password_exceeds_bcrypt_limit(password: str) -> bool:
+    return len(password.encode("utf-8")) > BCRYPT_MAX_PASSWORD_BYTES
+
+
+def _bcrypt_input(password: str) -> bytes:
+    return password.encode("utf-8")[:BCRYPT_MAX_PASSWORD_BYTES]
+
 
 def hash_password(password: str) -> str:
-    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt(rounds=_BCRYPT_ROUNDS)).decode("utf-8")
+    return bcrypt.hashpw(_bcrypt_input(password), bcrypt.gensalt(rounds=_BCRYPT_ROUNDS)).decode("utf-8")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     try:
-        return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
-    except ValueError:  # a malformed hash, or a password over bcrypt's 72 bytes
+        return bcrypt.checkpw(_bcrypt_input(plain_password), hashed_password.encode("utf-8"))
+    except ValueError:  # a malformed hash
         return False
 
 

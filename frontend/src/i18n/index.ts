@@ -131,6 +131,9 @@ export interface Dict {
   authErrorInvalidCredentials: string
   authErrorPasswordMismatch: string
   authErrorPasswordTooShort: string
+  authErrorPasswordTooLong: string
+  formInvalidNumber: string
+  formPositiveNumber: string
   authErrorUsernameTooShort: string
   authErrorAlreadySetup: string
   /** 429: se ha agotado el cupo de intentos de acceso desde esta red. */
@@ -567,6 +570,8 @@ export interface Dict {
   invAssetFixed_income: string
   invAssetCash: string
   invAssetOther: string
+  invAssetEspp_stock: string
+  invAssetMixed: string
   invErrorLoading: string
   /** Total combinado al que le falta algún proveedor que no se ha podido valorar. */
   invPartialTotal: string
@@ -879,6 +884,7 @@ export interface Dict {
   settingsSubAssistant: string
   // ── Mortgage ──────────────────────────────────────────────────────────────
   navMortgage: string
+  navConnectionError: string
   mortgageTitle: string
   mortgageEmptyText: string
   mortgageAddBtn: string
@@ -989,6 +995,7 @@ export interface Dict {
   mortgageFormTermExtraMonthsInfo: string
   mortgageFormTermTotal: (months: number) => string
   mortgageFormPaymentDay: string
+  mortgageFormPaymentDayInvalid: string
   mortgageFormRateType: string
   mortgageFormTin: string
   mortgageFormSpread: string
@@ -1122,6 +1129,17 @@ export function formatCurrency(amount: number, lang: Lang): string {
   // Anything under half a cent would otherwise print as "-0,00 €".
   const value = Math.abs(amount) < 0.005 ? 0 : amount
   return new Intl.NumberFormat(LOCALES[lang], { style: 'currency', currency: 'EUR' }).format(value)
+}
+
+/** Short money for chart axis ticks: "1,23 mil €" / "€1.23k". */
+export function formatCompactCurrency(amount: number, lang: Lang): string {
+  const value = Math.abs(amount) < 0.005 ? 0 : amount
+  return new Intl.NumberFormat(LOCALES[lang], {
+    style: 'currency',
+    currency: 'EUR',
+    notation: 'compact',
+    maximumSignificantDigits: 3,
+  }).format(value)
 }
 
 export interface PercentOptions {
@@ -1293,6 +1311,7 @@ export interface UseTResult {
   locale: string
   setLang: (l: Lang) => void
   formatCurrency: (amount: number) => string
+  formatCompactCurrency: (amount: number) => string
   formatPercent: (value: number, opts?: PercentOptions) => string
   formatNumber: (value: number, opts?: { decimals?: number; signed?: boolean }) => string
 }
@@ -1305,6 +1324,7 @@ export function useT(): UseTResult {
     locale: LOCALES[lang],
     setLang,
     formatCurrency: (amount: number) => formatCurrency(amount, lang),
+    formatCompactCurrency: (amount: number) => formatCompactCurrency(amount, lang),
     formatPercent: (value: number, opts?: PercentOptions) => formatPercent(value, lang, opts),
     formatNumber: (value: number, opts?: { decimals?: number; signed?: boolean }) => formatNumber(value, lang, opts),
   }

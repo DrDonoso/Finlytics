@@ -264,7 +264,7 @@
 }
 
 /* ── Transaction Detail Modal ─────────────────────────────────────── */
-.modal-tx-detail { max-width: 520px; }
+.modal.modal-tx-detail { max-width: 520px; }
 
 .tx-detail-body { padding: 0 24px; }
 

@@ -152,6 +152,50 @@ async def test_setup_422_password_too_short(auth_client):
     assert resp.status_code == 422
 
 
+async def test_setup_422_password_over_bcrypt_limit(auth_client):
+    client, session = auth_client
+    session.scalar = AsyncMock(return_value=0)
+
+    # 40 characters, but 80 bytes in UTF-8: bcrypt would ignore the last 8.
+    resp = await client.post(
+        "/api/auth/setup",
+        json={"username": "drdonoso", "password": "ñ" * 40},
+    )
+
+    assert resp.status_code == 422
+    assert "72 bytes" in resp.text
+
+
+async def test_setup_accepts_password_of_exactly_72_bytes(auth_client):
+    client, session = auth_client
+    session.scalar = AsyncMock(return_value=0)
+
+    resp = await client.post(
+        "/api/auth/setup",
+        json={"username": "drdonoso", "password": "a" * 72},
+    )
+
+    assert resp.status_code == 201
+
+
+def test_a_hash_of_a_long_password_made_by_an_older_bcrypt_still_verifies():
+    import bcrypt
+
+    from finlytics.auth.security import verify_password
+
+    long_password = "x" * 100
+    legacy_hash = bcrypt.hashpw(long_password.encode()[:72], bcrypt.gensalt(4)).decode()
+
+    assert verify_password(long_password, legacy_hash) is True
+    assert verify_password("x" * 71, legacy_hash) is False
+
+
+def test_verify_password_rejects_a_malformed_hash():
+    from finlytics.auth.security import verify_password
+
+    assert verify_password("whatever", "not-a-bcrypt-hash") is False
+
+
 async def test_setup_422_username_too_short(auth_client):
     client, session = auth_client
     session.scalar = AsyncMock(return_value=0)

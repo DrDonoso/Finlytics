@@ -117,6 +117,9 @@ const es: Dict = {
   authErrorInvalidCredentials: 'Usuario o contraseña incorrectos.',
   authErrorPasswordMismatch: 'Las contraseñas no coinciden.',
   authErrorPasswordTooShort: 'La contraseña debe tener al menos 8 caracteres.',
+  authErrorPasswordTooLong: 'La contraseña es demasiado larga (máximo 72 bytes; las letras acentuadas cuentan doble).',
+  formInvalidNumber: 'Introduce un número válido',
+  formPositiveNumber: 'Introduce un importe mayor que cero',
   authErrorUsernameTooShort: 'El nombre de usuario debe tener al menos 3 caracteres.',
   authErrorAlreadySetup: 'El sistema ya está configurado. Recarga la página para iniciar sesión.',
   authErrorTooManyAttempts: (minutes: number) => minutes <= 1
@@ -556,6 +559,8 @@ const es: Dict = {
   invAssetFixed_income: 'Renta fija',
   invAssetCash: 'Efectivo',
   invAssetOther: 'Otros',
+  invAssetEspp_stock: 'Acciones ESPP',
+  invAssetMixed: 'Mixto',
   invErrorLoading: 'Error al cargar la cartera',
   invPartialTotal: 'Parte de tus inversiones no se ha podido leer, así que este total no la incluye.',
   invAccountsUnavailable: (count: number) => count === 1
@@ -868,6 +873,7 @@ const es: Dict = {
   settingsSubAssistant: 'Asistente',
   // ── Hipoteca ──────────────────────────────────────────────────────────────
   navMortgage: 'Hipoteca',
+  navConnectionError: 'Conexión con errores: el total puede estar incompleto',
   mortgageTitle: 'Hipoteca',
   mortgageEmptyText: 'Aún no has añadido ninguna hipoteca. Introduce las condiciones de tu préstamo y Finlytics calculará el cuadro de amortización completo.',
   mortgageAddBtn: 'Añadir hipoteca',
@@ -970,6 +976,7 @@ const es: Dict = {
   mortgageFormTermExtraMonthsInfo: 'Si la primera cuota fue solo de intereses, el capital suele amortizarse en 359 cuotas en vez de 360. Compruébalo con la cuota de tu recibo.',
   mortgageFormTermTotal: (months: number) => `${months} cuotas en total`,
   mortgageFormPaymentDay: 'Día de cargo',
+  mortgageFormPaymentDayInvalid: 'Introduce un día entre 1 y 31',
   mortgageFormRateType: 'Tipo de interés',
   mortgageFormTin: 'TIN (%)',
   mortgageFormSpread: 'Diferencial (%)',

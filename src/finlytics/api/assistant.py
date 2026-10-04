@@ -55,7 +55,12 @@ from finlytics.assistant.service import (
 from finlytics.auth.ratelimit import RateLimiter
 from finlytics.clock import today as local_today
 from finlytics.config import settings
-from finlytics.db.models import AssistantConversation, AssistantMessage, AssistantSettings
+from finlytics.db.models import (
+    AssistantConversation,
+    AssistantMessage,
+    AssistantSettings,
+    AssistantUsage,
+)
 from finlytics.db.session import async_session_factory
 from finlytics.extraction.llm_client import LLMClient, is_llm_configured
 
@@ -357,13 +362,20 @@ def _sse(event: str, payload: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
 
-async def _record_unanswered_usage(question_id: int | None, usage: TurnUsage) -> None:
+async def _record_unanswered_usage(
+    question_id: int | None,
+    usage: TurnUsage,
+    *,
+    user_id: int,
+    conversation_id: int,
+) -> None:
     """Bill a turn that never produced an answer to the question that opened it.
 
     Every provider call that finished was paid for, whether the turn then failed,
-    ran out of iterations or was stopped by the user. The monthly budget sums the
-    token columns of every message, so leaving them empty would make the most
-    expensive failures free and let a stopped turn bypass the cap entirely.
+    ran out of iterations or was stopped by the user. The monthly budget reads the
+    `assistant_usage` ledger, so skipping the row would make the most expensive
+    failures free and let a stopped turn bypass the cap entirely. The question keeps
+    the same figures so the conversation still shows what the turn cost.
 
     Shielded because a client disconnect reaches here as a cancellation of the
     very task running this code; any unshielded await would be cancelled too.
@@ -380,6 +392,16 @@ async def _record_unanswered_usage(question_id: int | None, usage: TurnUsage) ->
                         prompt_tokens=usage.prompt_tokens,
                         completion_tokens=usage.completion_tokens,
                         total_tokens=usage.total_tokens,
+                    )
+                )
+                session.add(
+                    AssistantUsage(
+                        user_id=user_id,
+                        conversation_id=conversation_id,
+                        prompt_tokens=usage.prompt_tokens,
+                        completion_tokens=usage.completion_tokens,
+                        total_tokens=usage.total_tokens,
+                        answered=False,
                     )
                 )
                 await session.commit()
@@ -555,6 +577,16 @@ async def send_message(
                             # session, so a transaction is autobegun and
                             # `begin()` would raise.
                             stream_db.add(message)
+                            stream_db.add(
+                                AssistantUsage(
+                                    user_id=user_id,
+                                    conversation_id=conversation_id_value,
+                                    prompt_tokens=message.prompt_tokens,
+                                    completion_tokens=message.completion_tokens,
+                                    total_tokens=message.total_tokens,
+                                    answered=True,
+                                )
+                            )
                             await stream_db.commit()
                             answered = True
                             await stream_db.refresh(message)
@@ -581,7 +613,12 @@ async def send_message(
             # Reached on a failure, an exception, and a client that went away
             # (a cancellation, or GeneratorExit when the stream is closed).
             if not answered:
-                await _record_unanswered_usage(question_id, usage)
+                await _record_unanswered_usage(
+                    question_id,
+                    usage,
+                    user_id=user_id,
+                    conversation_id=conversation_id_value,
+                )
 
     return StreamingResponse(
         event_stream(),

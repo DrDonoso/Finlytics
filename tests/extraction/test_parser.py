@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from finlytics.extraction.parser import _resolve_type, parse_statement
+from finlytics.extraction.parser import UnsupportedFileTypeError, _resolve_type, parse_statement
 
 # ---------------------------------------------------------------------------
 # _resolve_type
@@ -42,7 +42,7 @@ def test_resolve_type_strips_dot_from_override():
 
 
 def test_unsupported_type_raises():
-    with pytest.raises(ValueError, match="Unsupported file type"):
+    with pytest.raises(UnsupportedFileTypeError, match="Unsupported file type"):
         parse_statement(b"data", file_type="docx")
 
 

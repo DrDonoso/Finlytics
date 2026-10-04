@@ -1,10 +1,10 @@
 import { useMemo } from 'react'
 import { useNavigate } from 'react-router'
 import { useInvestmentPlugins } from '../api/queries'
-import { useModalDismiss } from '../hooks/useModalDismiss'
 import { useT } from '../i18n'
 import { getPluginLogo, pluginInitial } from '../investments/registry'
 import { IconClose, IconFileText, IconChevronRight } from './icons'
+import Modal from './Modal'
 
 interface ImportSourcePickerProps {
   onClose: () => void
@@ -26,28 +26,22 @@ export default function ImportSourcePicker({ onClose, onStatements }: ImportSour
     () => (pluginsQuery.data ?? []).filter(p => p.import_route !== null),
     [pluginsQuery.data],
   )
-  const backdrop = useModalDismiss(onClose)
 
   return (
-    <div className="modal-backdrop" {...backdrop}>
-      <div
-        className="modal-box import-picker-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="import-picker-title"
-      >
-        <div className="modal-header">
-          <span className="modal-title" id="import-picker-title">{t.importPickerTitle}</span>
-          <button
-            className="modal-close"
-            onClick={onClose}
-            aria-label={t.importPickerClose}
-            type="button"
-          >
-            <IconClose size={16} />
-          </button>
-        </div>
+    <Modal onDismiss={onClose} labelledBy="import-picker-title" className="import-picker-modal">
+      <div className="modal-header">
+        <span className="modal-title" id="import-picker-title">{t.importPickerTitle}</span>
+        <button
+          className="modal-close"
+          onClick={onClose}
+          aria-label={t.importPickerClose}
+          type="button"
+        >
+          <IconClose size={16} />
+        </button>
+      </div>
 
+      <div className="modal-body">
         <div className="import-picker-list">
           {/* Bank statements — always the first source */}
           <button
@@ -90,6 +84,6 @@ export default function ImportSourcePicker({ onClose, onStatements }: ImportSour
           })}
         </div>
       </div>
-    </div>
+    </Modal>
   )
 }

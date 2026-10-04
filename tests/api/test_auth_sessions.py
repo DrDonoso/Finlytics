@@ -253,6 +253,19 @@ async def test_new_password_below_the_minimum_is_rejected(factory):
     assert resp.status_code == 422
 
 
+async def test_new_password_over_the_bcrypt_limit_is_rejected(factory):
+    async with _device() as laptop:
+        await _login(laptop)
+
+        resp = await laptop.post(
+            "/api/auth/password",
+            json={"current_password": PASSWORD, "new_password": "ñ" * 40},
+        )
+
+    assert resp.status_code == 422
+    assert "72 bytes" in resp.text
+
+
 async def test_guessing_the_current_password_is_rate_limited(factory, monkeypatch):
     """Otherwise a stolen session could brute-force the password it lacks."""
     monkeypatch.setattr(login_rate_limiter, "max_attempts", 3)

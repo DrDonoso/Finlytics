@@ -10,6 +10,8 @@ Security (Romanoff, mandatory):
 """
 from __future__ import annotations
 
+from typing import Literal
+
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,6 +27,7 @@ from finlytics.api.schemas import (
     ValidateTokenResponse,
 )
 from finlytics.db.models import InvestmentConnection
+from finlytics.db.queries import HOLDING_STATUSES
 from finlytics.investments import service as inv_service
 from finlytics.investments.crypto import EncryptionNotConfiguredError
 from finlytics.investments.indexa import IndexaAuthError, IndexaConnectionError
@@ -55,8 +58,18 @@ _PLUGIN_REGISTRY: list[InvestmentPluginOut] = [
     ),
 ]
 
-# Plugin IDs whose status is resolved dynamically against active DB connections.
+# Plugin IDs whose status is resolved dynamically against the user's holding connections.
 _DYNAMIC_PLUGIN_IDS: frozenset[str] = frozenset({"indexa-capital", "fidelity-espp"})
+
+PluginStatus = Literal["coming_soon", "available", "connected", "error"]
+
+
+def _resolve_plugin_status(connection_statuses: set[str]) -> PluginStatus:
+    if "active" in connection_statuses:
+        return "connected"
+    if connection_statuses:
+        return "error"
+    return "available"
 
 
 @router.get("/plugins", response_model=list[InvestmentPluginOut])
@@ -64,19 +77,26 @@ async def list_plugins(
     user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[InvestmentPluginOut]:
-    """Plugin registry. Dynamic plugins resolve status from active DB connections."""
+    """Plugin registry. Dynamic plugins resolve their status from holding connections.
+
+    A plugin whose only connections are in ``error`` still holds money, so it reports
+    ``error`` rather than ``available``: offering to connect it again would hide that
+    its value is missing from every total.
+    """
     result = await db.execute(
-        select(InvestmentConnection.plugin_id)
+        select(InvestmentConnection.plugin_id, InvestmentConnection.status)
         .where(
             InvestmentConnection.user_id == user.id,
-            InvestmentConnection.status == "active",
+            InvestmentConnection.status.in_(HOLDING_STATUSES),
             InvestmentConnection.plugin_id.in_(list(_DYNAMIC_PLUGIN_IDS)),
         )
         .distinct()
     )
-    connected_ids = {row[0] for row in result}
+    statuses: dict[str, set[str]] = {}
+    for plugin_id, status in result:
+        statuses.setdefault(plugin_id, set()).add(status)
     return [
-        p.model_copy(update={"status": "connected" if p.id in connected_ids else "available"})
+        p.model_copy(update={"status": _resolve_plugin_status(statuses.get(p.id, set()))})
         if p.id in _DYNAMIC_PLUGIN_IDS
         else p
         for p in _PLUGIN_REGISTRY

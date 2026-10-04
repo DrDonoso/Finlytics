@@ -3,23 +3,20 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsi
 import type { MortgageSimulation, PrepaymentMode } from '../api/types'
 import { simulateMortgagePrepayment, createMortgagePrepayment } from '../api/client'
 import { errorMessage } from '../api/errors'
-import { useModalDismiss } from '../hooks/useModalDismiss'
+import Modal from './Modal'
 import { IconAlert, IconClose } from './icons'
 import DatePicker from './DatePicker'
 import { IS_DEMO } from '../demo/config'
 import { useT } from '../i18n'
 import { Percent, Private } from './Money'
 import { todayIso } from '../utils/dates'
+import NumericInput from './NumericInput'
+import { isBlank, isMalformed, parseAmount, parseDecimal, parseOptional, parseOr } from '../utils/parseNumber'
 
 interface Props {
   mortgageId: number
   onClose: () => void
   onApplied: () => void
-}
-
-function num(value: string): number {
-  const parsed = Number(value.replace(',', '.'))
-  return Number.isFinite(parsed) ? parsed : 0
 }
 
 /** Merge both balance curves into a single series keyed by date, for one chart. */
@@ -37,7 +34,7 @@ function mergeCurves(sim: MortgageSimulation) {
 }
 
 export default function MortgagePrepaymentSimulator({ mortgageId, onClose, onApplied }: Props) {
-  const { t, formatCurrency } = useT()
+  const { t, formatCurrency, formatCompactCurrency } = useT()
   const [amount, setAmount] = useState('')
   const [date, setDate] = useState(todayIso)
   const [mode, setMode] = useState<PrepaymentMode>('reduce_term')
@@ -48,20 +45,31 @@ export default function MortgagePrepaymentSimulator({ mortgageId, onClose, onApp
   const [applying, setApplying] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const titleId = useId()
-  const backdrop = useModalDismiss(onClose, applying)
 
-  const canRun = num(amount) > 0 && date !== ''
+  const amountValue = parseAmount(amount)
+  const feeValue = parseOr(fee, parseAmount, 0)
+  const altValue = parseOptional(altReturn, parseDecimal)
+  const altInvalid = isMalformed(altReturn, parseDecimal)
+  const canRun = amountValue > 0 && date !== '' && Number.isFinite(feeValue) && !altInvalid
+
+  const amountError = isBlank(amount)
+    ? null
+    : !Number.isFinite(amountValue)
+      ? t.formInvalidNumber
+      : amountValue <= 0 ? t.formPositiveNumber : null
+  const feeError = isMalformed(fee, parseAmount) ? t.formInvalidNumber : null
+  const altError = altInvalid ? t.formInvalidNumber : null
 
   async function run() {
     setLoading(true)
     setError(null)
     try {
       const sim = await simulateMortgagePrepayment(mortgageId, {
-        amount: num(amount),
+        amount: amountValue,
         payment_date: date,
         mode,
-        fee: num(fee),
-        alt_return_pct: altReturn.trim() === '' ? null : num(altReturn),
+        fee: feeValue,
+        alt_return_pct: altValue,
       })
       setResult(sim)
     } catch (e) {
@@ -75,10 +83,10 @@ export default function MortgagePrepaymentSimulator({ mortgageId, onClose, onApp
     setError(null)
     try {
       await createMortgagePrepayment(mortgageId, {
-        amount: num(amount),
+        amount: amountValue,
         payment_date: date,
         mode,
-        fee: num(fee),
+        fee: feeValue,
       })
       onApplied()
     } catch (e) {
@@ -90,11 +98,10 @@ export default function MortgagePrepaymentSimulator({ mortgageId, onClose, onApp
   const curves = result ? mergeCurves(result) : []
 
   return (
-    <div className="modal-backdrop" {...backdrop}>
-      <div className="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby={titleId}>
+    <Modal onDismiss={onClose} disabled={applying} labelledBy={titleId} className="modal-wide">
         <div className="modal-header">
           <span className="modal-title" id={titleId}>{t.mortgageSimulatorTitle}</span>
-          <button className="modal-close" onClick={onClose} type="button" aria-label={t.mortgageFormCancel}><IconClose size={15} /></button>
+          <button className="modal-close" onClick={onClose} disabled={applying} type="button" aria-label={t.mortgageFormCancel}><IconClose size={15} /></button>
         </div>
 
         <div className="modal-body">
@@ -103,7 +110,7 @@ export default function MortgagePrepaymentSimulator({ mortgageId, onClose, onApp
           <div className="mortgage-form__grid">
             <div className="form-group">
               <label htmlFor="sim-amount">{t.mortgageSimAmount}</label>
-              <input id="sim-amount" className="form-input" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} />
+              <NumericInput id="sim-amount" value={amount} onChange={setAmount} error={amountError} />
             </div>
             <div className="form-group">
               <label htmlFor="sim-date">{t.mortgageSimDate}</label>
@@ -111,11 +118,11 @@ export default function MortgagePrepaymentSimulator({ mortgageId, onClose, onApp
             </div>
             <div className="form-group">
               <label htmlFor="sim-fee">{t.mortgageSimFee}</label>
-              <input id="sim-fee" className="form-input" inputMode="decimal" value={fee} onChange={e => setFee(e.target.value)} />
+              <NumericInput id="sim-fee" value={fee} onChange={setFee} error={feeError} />
             </div>
             <div className="form-group">
               <label htmlFor="sim-alt">{t.mortgageSimAltReturn}</label>
-              <input id="sim-alt" className="form-input" inputMode="decimal" placeholder="4" value={altReturn} onChange={e => setAltReturn(e.target.value)} />
+              <NumericInput id="sim-alt" value={altReturn} onChange={setAltReturn} error={altError} placeholder="4" />
               <span className="form-hint">{t.mortgageSimAltReturnInfo}</span>
             </div>
           </div>
@@ -204,7 +211,7 @@ export default function MortgagePrepaymentSimulator({ mortgageId, onClose, onApp
                   <LineChart data={curves}>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                     <XAxis dataKey="date" tick={{ fontSize: 11 }} minTickGap={40} />
-                    <YAxis tick={{ fontSize: 11 }} width={70} tickFormatter={v => `${Math.round(v / 1000)}k`} />
+                    <YAxis tick={{ fontSize: 11 }} width="auto" tickFormatter={v => formatCompactCurrency(Number(v))} />
                     <Tooltip
                       contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8 }}
                       formatter={value => formatCurrency(Number(value))}
@@ -231,7 +238,6 @@ export default function MortgagePrepaymentSimulator({ mortgageId, onClose, onApp
             </button>
           )}
         </div>
-      </div>
-    </div>
+    </Modal>
   )
 }

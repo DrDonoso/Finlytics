@@ -676,17 +676,19 @@ function buildEspp(rng: Rng, today: Date): EsppBundle {
 // ─── Combined investments overview ────────────────────────────────────────────
 
 const ASSET_LABELS: Record<string, string> = {
-  equity: 'Renta variable',
-  fixed_income: 'Renta fija',
-  espp_stock: 'Acciones ESPP',
-  cash: 'Efectivo',
+  equity: 'Equity',
+  fixed_income: 'Fixed income',
+  espp_stock: 'ESPP stock',
+  cash: 'Cash',
+  other: 'Other',
+  mixed: 'Mixed',
 }
 
 /** Consolidates both connectors, exactly as `GET /api/investments/combined-overview`
  *  does on the backend.
  *
  *  UNITS: every `pct` here is a PERCENTAGE (25.4 = 25.4%), matching
- *  `api/investments.py`, which multiplies by 100 for `by_provider.pct`,
+ *  `investments/overview.py`, which multiplies by 100 for `by_provider.pct`,
  *  `by_asset_class.pct`, `providers[].gain_loss_pct` and `total_gain_loss_pct`.
  *  `InvestmentPortfolio.total_gain_loss_pct` is the odd one out — that one is a
  *  decimal fraction — so it has to be scaled on the way in. */

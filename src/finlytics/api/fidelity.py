@@ -38,7 +38,7 @@ from finlytics.api.uploads import read_upload
 from finlytics.clock import today as local_today
 from finlytics.db.models import EsppLot, InvestmentConnection, InvestmentImportRun, PriceHistory
 from finlytics.investments.fidelity import FidelityESPPProvider, _compute_dedup_hash
-from finlytics.investments.fidelity_csv import parse_open_lots_csv
+from finlytics.investments.fidelity_csv import FidelityCsvError, parse_open_lots_csv
 from finlytics.investments.market_data import (
     LatestPriceRow,
     backfill_price_history,
@@ -292,8 +292,8 @@ async def fidelity_import_preview(
 
     try:
         parsed = parse_open_lots_csv(file_bytes)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=f"CSV parsing failed: {exc}")
+    except FidelityCsvError as exc:
+        raise HTTPException(status_code=400, detail=f"CSV parsing failed: {exc}") from exc
 
     # Check if this exact file was previously imported for this user
     file_already_imported = (
@@ -391,8 +391,8 @@ async def fidelity_import_confirm(
 
     try:
         parsed = parse_open_lots_csv(file_bytes)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=f"CSV parsing failed: {exc}")
+    except FidelityCsvError as exc:
+        raise HTTPException(status_code=400, detail=f"CSV parsing failed: {exc}") from exc
 
     # 1. Get or create the fidelity-espp connection (own transaction)
     async with db.begin():
@@ -415,8 +415,8 @@ async def fidelity_import_confirm(
         earliest_date = min(lot.purchase_date for lot in parsed.lots)
         try:
             await backfill_price_history(earliest_date, db)
-        except Exception as exc:  # noqa: BLE001 — the lots are committed; prices can follow later
-            log.warning("Price backfill failed (non-fatal): %s", exc)
+        except Exception as exc:  # the lots are committed; prices can follow later
+            log.warning("Price backfill failed (non-fatal): %s", exc, exc_info=True)
 
     return FidelityImportResult(inserted=inserted, duplicates=skipped)
 
@@ -432,8 +432,8 @@ async def fidelity_kpis(
     # Price refresh first — must precede any other SQL (owns its transaction lifecycle)
     try:
         price: LatestPriceRow | None = await get_latest_price(db)
-    except Exception as exc:  # noqa: BLE001 — render without a price rather than fail
-        log.warning("get_latest_price failed (degraded): %s", exc)
+    except Exception as exc:  # render without a price rather than fail
+        log.warning("get_latest_price failed (degraded): %s", exc, exc_info=True)
         price = None
 
     conn = await _get_fidelity_connection(user.id, db)
@@ -541,8 +541,8 @@ async def fidelity_evolution(
     await db.commit()
     try:
         await topup_recent_prices(db)
-    except Exception as exc:  # noqa: BLE001 — serve the stored series
-        log.warning("topup_recent_prices failed (non-fatal): %s", exc)
+    except Exception as exc:  # serve the stored series
+        log.warning("topup_recent_prices failed (non-fatal): %s", exc, exc_info=True)
 
     prices: Sequence[PriceHistory] = (await db.execute(_price_query())).scalars().all()
 
@@ -565,8 +565,8 @@ async def fidelity_evolution(
         await db.commit()
         try:
             await backfill_price_history(min_date, db)
-        except Exception as exc:  # noqa: BLE001 — serve the stored series
-            log.warning("Backfill failed (non-fatal): %s", exc)
+        except Exception as exc:  # serve the stored series
+            log.warning("Backfill failed (non-fatal): %s", exc, exc_info=True)
         prices = (await db.execute(_price_query())).scalars().all()
 
     # Single latest EUR/USD rate for all historical conversions (Model-A).
@@ -578,8 +578,8 @@ async def fidelity_evolution(
         live_fx = await get_current_fx_rate()
         if live_fx is not None:
             latest_fx_eur_usd = live_fx
-    except Exception as exc:  # noqa: BLE001 — fall back to the stored FX
-        log.warning("get_current_fx_rate failed (using stored FX): %s", exc)
+    except Exception as exc:  # fall back to the stored FX
+        log.warning("get_current_fx_rate failed (using stored FX): %s", exc, exc_info=True)
 
     price_map: dict[date, tuple[float, float]] = {
         p.price_date: (float(p.close_usd), latest_fx_eur_usd or float(p.fx_eur_usd))
@@ -604,8 +604,8 @@ async def fidelity_lots(
     # Price refresh first — must precede any other SQL
     try:
         price: LatestPriceRow | None = await get_latest_price(db)
-    except Exception as exc:  # noqa: BLE001 — render without a price rather than fail
-        log.warning("get_latest_price failed (degraded): %s", exc)
+    except Exception as exc:  # render without a price rather than fail
+        log.warning("get_latest_price failed (degraded): %s", exc, exc_info=True)
         price = None
 
     conn = await _get_fidelity_connection(user.id, db)
