@@ -87,6 +87,8 @@ Connectors are a plugin model, and there are two kinds of them:
 
 Both feed one **combined overview**: total value, invested, gain/loss, and allocation by provider and by asset class — plus a detail view per provider with its own charts and tables. Adding a third connector is a new plugin, not a new dashboard.
 
+Pending ESPP purchase reminders on Home and the Fidelity page open the CSV import wizard directly. Confirming an import refreshes the reminders as well as the portfolio; previewing a file does not clear a pending purchase.
+
 ### 🏡 Mortgage
 
 The counterweight to the investments side: the first **liability** the app models. Enter the loan terms once and Finlytics builds the whole amortization schedule.

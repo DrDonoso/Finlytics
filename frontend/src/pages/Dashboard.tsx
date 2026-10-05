@@ -13,6 +13,7 @@ import { Private } from '../components/Money'
 import { formatCurrency, formatNumber, formatPercent, langLocale, useT } from '../i18n'
 import type { Lang } from '../i18n'
 import { useNotifications } from '../contexts/NotificationsContext'
+import { IS_DEMO } from '../demo/config'
 import { savingsRate } from '../utils/comparison'
 import {
   IconInfo, IconAlert, IconLoading, IconArrowUpRight, IconArrowDownRight,
@@ -408,7 +409,7 @@ export default function Dashboard() {
 
       {(() => {
         const activeEspp = notifications.find(n => n.source === 'espp')
-        if (!activeEspp) return null
+        if (IS_DEMO || !activeEspp) return null
         const period = typeof activeEspp.title_args.period === 'string' ? activeEspp.title_args.period : null
         return (
           <div className="espp-reminder-banner" role="alert">
@@ -416,7 +417,7 @@ export default function Dashboard() {
               <IconAlert size={16} />
               {t.esppReminderBanner(period)}
             </span>
-            <Link to="/investments/fidelity-espp" className="espp-reminder-banner__link">
+            <Link to="/investments/fidelity-espp?import=1" className="espp-reminder-banner__link">
               {t.esppReminderAction}
             </Link>
           </div>

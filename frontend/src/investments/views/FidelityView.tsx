@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef } from 'react'
 import type { FocusEvent, MouseEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { Link } from 'react-router'
+import { useSearchParams } from 'react-router'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts'
@@ -96,7 +96,7 @@ function SourceBadge({ source, onTip }: { source: string; onTip: (tip: Tip | nul
 export default function FidelityView() {
   const { t, lang, formatCurrency, formatCompactCurrency, formatNumber } = useT()
   const locale = langLocale(lang)
-  const { notifications } = useNotifications()
+  const { notifications, refresh: refreshNotifications } = useNotifications()
 
   // ── Data state ─────────────────────────────────────────────────────────────
   const queryClient    = useQueryClient()
@@ -122,7 +122,8 @@ export default function FidelityView() {
   const [evPeriod, setEvPeriod] = useState<EvolutionPeriod>('All')
 
   // ── Import wizard state ────────────────────────────────────────────────────
-  const [importOpen, setImportOpen]           = useState(false)
+  const [searchParams, setSearchParams]       = useSearchParams()
+  const importOpen = !IS_DEMO && searchParams.get('import') === '1'
   const [wizStep, setWizStep]                 = useState<WizStep>('upload')
   const [importFile, setImportFile]           = useState<File | null>(null)
   const [importPreview, setImportPreview]     = useState<FidelityImportPreview | null>(null)
@@ -282,12 +283,20 @@ export default function FidelityView() {
   function openImport() {
     setOpenTip(null)
     resetImport()
-    setImportOpen(true)
+    setSearchParams(params => {
+      const next = new URLSearchParams(params)
+      next.set('import', '1')
+      return next
+    }, { replace: true })
   }
 
   function closeImport() {
     setOpenTip(null)
-    setImportOpen(false)
+    setSearchParams(params => {
+      const next = new URLSearchParams(params)
+      next.delete('import')
+      return next
+    }, { replace: true })
     resetImport()
   }
 
@@ -317,6 +326,7 @@ export default function FidelityView() {
       // The combined overview and the connection list move with the lots, so refresh the whole investments tree.
       void queryClient.invalidateQueries({ queryKey: ['investments'] })
       void queryClient.invalidateQueries({ queryKey: queryKeys.connections })
+      refreshNotifications()
     } catch (err) {
       setImportError(err instanceof Error ? err.message : String(err))
       setWizStep('preview')
@@ -405,14 +415,14 @@ export default function FidelityView() {
 
       {(() => {
         const activeEspp = notifications.find(n => n.source === 'espp')
-        if (!activeEspp) return null
+        if (IS_DEMO || !activeEspp) return null
         const period = typeof activeEspp.title_args.period === 'string' ? activeEspp.title_args.period : null
         return (
           <div className="espp-reminder-banner" role="alert">
             <span><IconAlert size={15} /> {t.esppReminderBanner(period)}</span>
-            <Link to="/investments/fidelity-espp" className="espp-reminder-banner__link">
+            <button type="button" onClick={openImport} className="espp-reminder-banner__link">
               {t.esppReminderAction}
-            </Link>
+            </button>
           </div>
         )
       })()}
@@ -453,14 +463,14 @@ export default function FidelityView() {
           </div>
 
           {/* ── KPI cards ── */}
-          <div className="kpi-grid">
+          <div className="kpi-grid fid-kpi-grid">
 
             {/* 1. Total MSFT shares */}
             <div className="kpi-card">
               <div className="kpi-label">{t.fidelityKpiShares}</div>
               <div className="kpi-value">
                 {kpis != null
-                  ? <><Private>{new Intl.NumberFormat(locale, { minimumFractionDigits: 3, maximumFractionDigits: 3 }).format(kpis.total_shares)}</Private> MSFT</>
+                  ? <Private>{new Intl.NumberFormat(locale, { minimumFractionDigits: 3, maximumFractionDigits: 3 }).format(kpis.total_shares)}</Private>
                   : '—'}
               </div>
               <div className="kpi-sub">
@@ -741,7 +751,7 @@ export default function FidelityView() {
                   <div className="inv-wizard__token-field">
                     <span className="inv-wizard__token-label">CSV</span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
-                      <label className="backup-file-label">
+                      <label className="backup-file-label" htmlFor="fid-csv-file">
                         <span className="btn-primary">{t.fidelityImportCta}</span>
                         <input
                           ref={fileInputRef}
