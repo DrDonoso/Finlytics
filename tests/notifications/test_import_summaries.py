@@ -572,6 +572,41 @@ async def api(env):
     app.dependency_overrides.pop(get_current_user, None)
 
 
+@pytest.mark.parametrize("operation", ["settings", "retry"])
+async def test_summary_writes_reject_plain_text_but_accept_the_same_json_body(env, api, operation):
+    if operation == "settings":
+        method = "PUT"
+        path = "/api/notifications/import-summary-settings"
+        payload = {"enabled": True, "channel_id": 1, "language": "es"}
+    else:
+        job_id = await enqueue(env)
+        async with env.sessions() as db, db.begin():
+            (await db.get(ImportSummaryJob, job_id)).status = "failed"
+        method = "POST"
+        path = f"/api/notifications/import-summaries/{job_id}/retry"
+        payload = {"acknowledge_uncertain": False}
+    body = json.dumps(payload)
+
+    rejected = await api.request(
+        method, path, content=body, headers={"Content-Type": "text/plain;charset=UTF-8"},
+    )
+    assert rejected.status_code == 422
+    assert rejected.json()["detail"][0]["loc"] == ["body"]
+
+    accepted = await api.request(
+        method, path, content=body, headers={"Content-Type": "application/json"},
+    )
+    assert accepted.status_code == 200
+    if operation == "settings":
+        assert accepted.json() == {**payload, "ai_available": True}
+        assert (await api.get(path)).json() == accepted.json()
+    else:
+        assert accepted.json()["status"] == "pending"
+        assert (await stored(env, job_id)).status == "pending"
+    assert not env.llm.calls
+    env.send.assert_not_called()
+
+
 async def test_settings_require_owned_channel_and_ai(env, api):
     response = await api.put("/api/notifications/import-summary-settings", json={
         "enabled": True, "channel_id": 999, "language": "es",
