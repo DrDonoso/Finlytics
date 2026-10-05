@@ -6,6 +6,7 @@ import json
 import re
 
 from finlytics.db.queries.types import ImportSummaryFacts
+from finlytics.notifications.telegram import TelegramTextEntity
 
 SYSTEM_PROMPT = """You explain a newly saved bank statement for Finlytics.
 Use ONLY the supplied account-period facts. All figures are already calculated.
@@ -13,6 +14,7 @@ Do not calculate, invent or estimate amounts, percentages, balances or returns.
 Write a concise analytical spending digest, not an import receipt or a mortgage
 audit. Use three or four short plain-text paragraphs, usually 90-140 words; use
 less when there is little to explain. No greeting, headings, tables, Markdown or tools.
+Return plain prose without HTML or emojis; the application adds visual formatting.
 Start with how spending evolved against the reference period: current and previous
 totals plus the supplied spending_change. Then explain the main spending areas and
 the most meaningful increases, decreases or stability using categories and changes.
@@ -47,6 +49,18 @@ account numbers, credentials or personal identifiers.
 _IDENTIFIERS = re.compile(r"\b[A-Z]{2}\d{2}[A-Z0-9]{8,30}\b|\b\d{8,}\b", re.IGNORECASE)
 _CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
 MAX_TELEGRAM_UNITS = 4096
+_ANALYSIS_HEADINGS = {"es": "🔎 Análisis", "en": "🔎 Analysis"}
+_MORTGAGE_HEADINGS = {"es": "🏠 Detalle de la hipoteca", "en": "🏠 Mortgage timing"}
+_TOTAL_ICONS = {
+    "Ingresos": "💰", "Income": "💰",
+    "Gastos": "💸", "Expenses": "💸",
+    "Flujo neto": "⚖️", "Net cash flow": "⚖️",
+}
+_TOTAL_PREFIXES = tuple(
+    prefix
+    for label, icon in _TOTAL_ICONS.items()
+    for prefix in (f"{label}: ", f"{icon} {label}: ")
+)
 
 
 def safe_text(value: str) -> str:
@@ -83,6 +97,28 @@ def telegram_units(text: str) -> int:
     return len(text.encode("utf-16-le")) // 2
 
 
+def import_summary_entities(text: str) -> list[TelegramTextEntity]:
+    """Decorate stored plain text, including jobs created before rich formatting."""
+    entities: list[TelegramTextEntity] = []
+    offset = 0
+    in_header = True
+    headings = {*_ANALYSIS_HEADINGS.values(), *_MORTGAGE_HEADINGS.values()}
+    for index, line in enumerate(text.split("\n")):
+        if not line:
+            in_header = False
+        elif index < 2 or line in headings:
+            entities.append({"type": "bold", "offset": offset, "length": telegram_units(line)})
+        elif in_header:
+            prefix = next((value for value in _TOTAL_PREFIXES if line.startswith(value)), None)
+            if prefix is not None and line != prefix:
+                entities.append({
+                    "type": "bold", "offset": offset + telegram_units(prefix),
+                    "length": telegram_units(line[len(prefix):]),
+                })
+        offset += telegram_units(line) + 1
+    return entities
+
+
 def _mortgage_notes(facts: ImportSummaryFacts, language: str) -> list[str]:
     notes = []
     for match in facts["mortgage_payments"]["matches"]:
@@ -116,15 +152,15 @@ def render_import_summary(facts: ImportSummaryFacts, commentary: str, language: 
 
     title = "Resumen del extracto" if spanish else "Statement summary"
     lines = [
-        f"Finlytics | {title}",
+        f"📊 Finlytics | {title}",
         safe_text(facts["account"]).replace("\n", " ")[:100],
         f"{facts['from_date']} - {facts['to_date']}",
         (f"Movimientos nuevos: {facts['inserted']}; duplicados: {facts['duplicates']}"
          if spanish else f"New transactions: {facts['inserted']}; duplicates: {facts['duplicates']}"),
         ("Totales de la cuenta en ese periodo:" if spanish else "Account totals for this period:"),
-        f"{'Ingresos' if spanish else 'Income'}: {money(current['total_income'])}",
-        f"{'Gastos' if spanish else 'Expenses'}: {money(current['total_expense'])}",
-        f"{'Flujo neto' if spanish else 'Net cash flow'}: {money(current['net'])}",
+        f"💰 {'Ingresos' if spanish else 'Income'}: {money(current['total_income'])}",
+        f"💸 {'Gastos' if spanish else 'Expenses'}: {money(current['total_expense'])}",
+        f"⚖️ {'Flujo neto' if spanish else 'Net cash flow'}: {money(current['net'])}",
     ]
     if facts["previous"] is not None:
         lines.append(
@@ -134,14 +170,16 @@ def render_import_summary(facts: ImportSummaryFacts, commentary: str, language: 
     else:
         lines.append("Sin historial comparable." if spanish else "No comparable history available.")
     header = "\n".join(lines)
-    analysis = safe_text(commentary.strip())
+    analysis = _ANALYSIS_HEADINGS[language] + "\n" + safe_text(commentary.strip())
     mortgage_notes = _mortgage_notes(facts, language)
-    sections = [header, analysis, *mortgage_notes]
-    text = "\n\n".join(sections)
+    tail = (
+        "\n\n" + "\n".join([_MORTGAGE_HEADINGS[language], *mortgage_notes])
+        if mortgage_notes else ""
+    )
+    text = header + "\n\n" + analysis + tail
     if telegram_units(text) <= MAX_TELEGRAM_UNITS:
         return text
     suffix = "\n[Resumen abreviado]" if spanish else "\n[Summary shortened]"
-    tail = "\n\n" + "\n\n".join(mortgage_notes) if mortgage_notes else ""
     if tail and telegram_units(header + suffix + tail) < MAX_TELEGRAM_UNITS:
         text = header + "\n\n" + analysis
     else:

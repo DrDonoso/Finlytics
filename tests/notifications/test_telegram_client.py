@@ -25,6 +25,7 @@ import pytest
 from finlytics.notifications.telegram import (
     _MAX_TOKEN_LEN,
     TelegramError,
+    TelegramTextEntity,
     _bot_endpoint,
     telegram_get_me,
     telegram_send_message,
@@ -118,6 +119,22 @@ async def test_send_message_omits_thread_id_when_absent():
     with _patched_client(post_mock):
         await telegram_send_message(_VALID_TOKEN, "123456789", "hi")
     assert "message_thread_id" not in _captured_payload(post_mock)
+    assert "entities" not in _captured_payload(post_mock)
+    assert "parse_mode" not in _captured_payload(post_mock)
+
+
+async def test_explicit_bold_entities_preserve_literal_text_and_topic():
+    post_mock = AsyncMock()
+    text = "<b>Literal</b> & **unchanged**"
+    entities: list[TelegramTextEntity] = [{"type": "bold", "offset": 0, "length": len(text)}]
+    with _patched_client(post_mock):
+        await telegram_send_message(
+            _VALID_TOKEN, "-1001234567890", text, message_thread_id=42, entities=entities,
+        )
+    assert _captured_payload(post_mock) == {
+        "chat_id": "-1001234567890", "text": text, "message_thread_id": 42,
+        "entities": entities,
+    }
 
 
 @pytest.mark.parametrize(("exception", "retryable", "uncertain"), [
