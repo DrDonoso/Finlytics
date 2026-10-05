@@ -706,7 +706,9 @@ export interface FidelityReminderResponse {
 
 export interface FidelityKpis {
   total_shares: number
-  invested_eur: number
+  invested_eur: number | null
+  cost_basis_usd: number | null
+  requires_usd_reimport: boolean
   current_value_eur: number | null
   gain_loss_eur: number | null
   gain_loss_pct: number | null
@@ -726,8 +728,8 @@ export interface FidelityLot {
   id: number
   purchase_date: string            // "YYYY-MM-DD"
   shares: number
-  cost_basis_per_share_eur: number
-  cost_basis_total_eur: number
+  cost_basis_per_share_eur: number | null
+  cost_basis_total_eur: number | null
   current_value_eur: number | null
   gain_loss_eur: number | null
   gain_loss_pct: number | null     // percentage: 12.5 = 12.5%
@@ -742,8 +744,8 @@ export interface FidelityLots {
 export interface FidelityImportPreviewLot {
   purchase_date: string
   shares: number
-  cost_basis_per_share_eur: number
-  cost_basis_total_eur: number
+  cost_basis_per_share_usd: number
+  cost_basis_total_usd: number
   share_source: string             // 'SP' | 'DO'
   grant_date: string | null
 }
@@ -793,6 +795,7 @@ export interface CombinedOverviewProvider {
   gain_loss_eur: number | null
   gain_loss_pct: number | null
   route: string
+  cost_basis_at_current_fx?: boolean
 }
 
 export interface CombinedOverview {

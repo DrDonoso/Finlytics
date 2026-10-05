@@ -160,6 +160,7 @@ export interface BackupEsppLotIn {
   cost_basis: number
   cost_basis_per_share: number
   dedup_hash: string
+  dedup_ordinal?: number | null
   grant_date?: string | null
   holding_period?: string | null
   purchase_date: string
@@ -489,20 +490,22 @@ export interface FidelityImportResult {
 
 export interface FidelityKpisOut {
   as_of_date: string
+  cost_basis_usd: number | null
   current_value_eur: number | null
   gain_loss_eur: number | null
   gain_loss_pct: number | null
-  invested_eur: number
+  invested_eur: number | null
   last_price_date: string | null
   msft_price_usd: number | null
   price_stale: boolean
+  requires_usd_reimport: boolean
   total_shares: number
   usd_eur_rate: number | null
 }
 
 export interface FidelityLotOut {
-  cost_basis_per_share_eur: number
-  cost_basis_total_eur: number
+  cost_basis_per_share_eur: number | null
+  cost_basis_total_eur: number | null
   current_value_eur: number | null
   gain_loss_eur: number | null
   gain_loss_pct: number | null
@@ -518,8 +521,8 @@ export interface FidelityLotsOut {
 }
 
 export interface FidelityPreviewLotOut {
-  cost_basis_per_share_eur: number
-  cost_basis_total_eur: number
+  cost_basis_per_share_usd: number
+  cost_basis_total_usd: number
   grant_date: string | null
   purchase_date: string
   share_source: string
@@ -916,6 +919,7 @@ export interface ProviderAllocationItem {
 }
 
 export interface ProviderCardOut {
+  cost_basis_at_current_fx: boolean
   gain_loss_eur: number | null
   gain_loss_pct: number | null
   icon: string

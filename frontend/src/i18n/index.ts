@@ -664,6 +664,16 @@ export interface Dict {
   fidelityKpiShares: string
   fidelityKpiSharesSub: (n: number) => string
   fidelityKpiInvested: string
+  fidelityImportedCost: string
+  fidelityCostBasisOriginal: string
+  fidelityFxNote: string
+  fidelityLegacyNotice: string
+  fidelityClearData: string
+  fidelityClearDataConfirm: string
+  fidelityUsdRequired: string
+  fidelityPreviewUsd: string
+  invCostBasis: string
+  invFidelityFxNote: string
   fidelityKpiCurrentValue: string
   fidelityKpiGainLoss: string
   fidelityAsOf: (date: string) => string
@@ -1144,10 +1154,10 @@ export function assistantToolLabel(name: string, fallback: string, t: Dict): str
 
 const LOCALES: Record<Lang, string> = { es: 'es-ES', en: 'en-GB' }
 
-export function formatCurrency(amount: number, lang: Lang): string {
+export function formatCurrency(amount: number, lang: Lang, currency: 'EUR' | 'USD' = 'EUR'): string {
   // Anything under half a cent would otherwise print as "-0,00 €".
   const value = Math.abs(amount) < 0.005 ? 0 : amount
-  return new Intl.NumberFormat(LOCALES[lang], { style: 'currency', currency: 'EUR' }).format(value)
+  return new Intl.NumberFormat(LOCALES[lang], { style: 'currency', currency }).format(value)
 }
 
 /** Short money for chart axis ticks: "1,23 mil €" / "€1.23k". */
@@ -1329,7 +1339,7 @@ export interface UseTResult {
   lang: Lang
   locale: string
   setLang: (l: Lang) => void
-  formatCurrency: (amount: number) => string
+  formatCurrency: (amount: number, currency?: 'EUR' | 'USD') => string
   formatCompactCurrency: (amount: number) => string
   formatPercent: (value: number, opts?: PercentOptions) => string
   formatNumber: (value: number, opts?: { decimals?: number; signed?: boolean }) => string
@@ -1342,7 +1352,7 @@ export function useT(): UseTResult {
     lang,
     locale: LOCALES[lang],
     setLang,
-    formatCurrency: (amount: number) => formatCurrency(amount, lang),
+    formatCurrency: (amount: number, currency?: 'EUR' | 'USD') => formatCurrency(amount, lang, currency),
     formatCompactCurrency: (amount: number) => formatCompactCurrency(amount, lang),
     formatPercent: (value: number, opts?: PercentOptions) => formatPercent(value, lang, opts),
     formatNumber: (value: number, opts?: { decimals?: number; signed?: boolean }) => formatNumber(value, lang, opts),

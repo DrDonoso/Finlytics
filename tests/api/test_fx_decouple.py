@@ -46,6 +46,7 @@ class _Lot:
     purchase_date: date
     shares: Decimal
     cost_basis: Decimal
+    source_currency: str = "EUR"
 
 
 # ── Shared helpers ────────────────────────────────────────────────────────────
@@ -658,12 +659,8 @@ class TestTC6Regression:
             "Model A == old model for the most-recent point."
         )
 
-    def test_contributions_series_fx_independent(self):
-        """contributions_series values are cost_basis in EUR — independent of FX.
-
-        The FX refactor must not alter contributions_series values, which are
-        always cost_basis (already in EUR, no FX conversion).
-        """
+    def test_legacy_eur_contributions_series_fx_independent(self):
+        """Legacy EUR costs are retained until the owner's explicit reset."""
         lots = [
             _Lot(date(2026, 7, 13), Decimal("100"), Decimal("4000.00")),
             _Lot(date(2026, 7, 17), Decimal("50"),  Decimal("2000.00")),  # Friday

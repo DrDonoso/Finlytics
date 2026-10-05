@@ -356,6 +356,7 @@ class BackupEsppLotIn(BaseModel):
     share_source: str
     holding_period: str | None = None
     dedup_hash: str
+    dedup_ordinal: int | None = Field(default=None, ge=0)
 
 
 class BackupPriceHistoryIn(BaseModel):
@@ -752,8 +753,8 @@ class FidelityPreviewLotOut(BaseModel):
     """One lot in the preview diff."""
     purchase_date: str           # YYYY-MM-DD
     shares: float
-    cost_basis_per_share_eur: float
-    cost_basis_total_eur: float
+    cost_basis_per_share_usd: float
+    cost_basis_total_usd: float
     share_source: str            # SP | DO
     grant_date: str | None = None
     source_currency: str
@@ -777,7 +778,9 @@ class FidelityImportResult(BaseModel):
 class FidelityKpisOut(BaseModel):
     """Aggregated KPIs for the Fidelity ESPP portfolio."""
     total_shares: float
-    invested_eur: float
+    invested_eur: float | None
+    cost_basis_usd: float | None = None
+    requires_usd_reimport: bool = False
     current_value_eur: float | None = None
     gain_loss_eur: float | None = None
     gain_loss_pct: float | None = None      # e.g. 12.5 for +12.5 %
@@ -799,8 +802,8 @@ class FidelityLotOut(BaseModel):
     id: int
     purchase_date: str           # YYYY-MM-DD
     shares: float
-    cost_basis_per_share_eur: float
-    cost_basis_total_eur: float
+    cost_basis_per_share_eur: float | None
+    cost_basis_total_eur: float | None
     current_value_eur: float | None = None
     gain_loss_eur: float | None = None
     gain_loss_pct: float | None = None      # percentage
@@ -848,6 +851,7 @@ class ProviderCardOut(BaseModel):
     gain_loss_eur: float | None = None    # null when current price unavailable
     gain_loss_pct: float | None = None    # percentage e.g. 19.4 for +19.4 %; null when unavailable
     route: str                            # frontend route: "/investments/{plugin_id}"
+    cost_basis_at_current_fx: bool = False
 
 
 class CombinedOverviewOut(BaseModel):

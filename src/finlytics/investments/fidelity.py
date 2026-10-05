@@ -1,22 +1,9 @@
-"""Fidelity ESPP investment provider — statement-import flavour.
-
-This provider does NOT use a live API token.  Instead it ingests
-pre-parsed lot records produced by Banner's CSV parser
-(src/finlytics/investments/fidelity_csv.py — written in parallel; NOT
-imported here to avoid coupling during parallel development).
-
-Wave 1 ships:
-  - import_lots(): idempotent lot ingestion + import-run audit trail.
-
-Wave 2 will add:
-  - Preview/confirm HTTP endpoints.
-  - Price-service integration (Stooq + yfinance backfill).
-  - Evolution series endpoint.
-"""
+"""USD-only Fidelity imports with connection-scoped, cost-independent lot identities."""
 
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Sequence
 from datetime import date
 from decimal import Decimal
 from typing import Protocol, runtime_checkable
@@ -25,24 +12,21 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from finlytics.db.models import EsppLot, InvestmentImportRun
+from finlytics.db.models import EsppLot, InvestmentConnection, InvestmentImportRun
 from finlytics.investments.base import (
     InvestmentProvider,
     NormalizedPerformance,
     NormalizedPortfolio,
     ValidationResult,
 )
+from finlytics.investments.fidelity_csv import FidelityCurrencyError
 
 _DEFAULT_TICKER = "MSFT"
 
 
 @runtime_checkable
 class LotRecord(Protocol):
-    """Structural interface for a parsed ESPP lot.
-
-    Matches the fields that Banner's fidelity_csv.py parser emits so that
-    this module compiles and tests independently of that file.
-    """
+    """Structural interface for the CSV parser's lot records."""
 
     purchase_date: date
     shares: Decimal
@@ -52,32 +36,45 @@ class LotRecord(Protocol):
     share_source: str           # 'SP' (stock purchase) | 'DO' (dividend)
     grant_date: date | None
     holding_period: str | None
-    dedup_ordinal: int          # 0-based index within identical (date, qty, price, source) groups
+    dedup_ordinal: int
 
 
 def _compute_dedup_hash(
+    connection_id: int,
     ticker: str,
     purchase_date: date,
     shares: Decimal,
-    cost_basis_per_share: Decimal,
     share_source: str,
     dedup_ordinal: int,
+    grant_date: date | None = None,
 ) -> str:
-    """Deterministic SHA-256 dedup key for an ESPP lot.
-
-    Format: sha256("{ticker}|{purchase_date}|{shares:.8f}|{cost_basis_per_share:.6f}
-                    |{share_source}|{dedup_ordinal}")
-
-    Precision matches column types: shares NUMERIC(18,8), cost_basis_per_share NUMERIC(18,6).
-    dedup_ordinal resolves duplicate DO lots that share identical (date, qty, price).
-    """
+    """Connection-scoped identity, independent of cost or display currency."""
     payload = (
-        f"{ticker}|{purchase_date}"
+        f"fidelity:v2|{connection_id}|{ticker}|{purchase_date}"
         f"|{shares:.8f}"
-        f"|{cost_basis_per_share:.6f}"
-        f"|{share_source}|{dedup_ordinal}"
+        f"|{share_source}|{grant_date or ''}|{dedup_ordinal}"
     )
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+class LegacyFidelityLotsError(ValueError):
+    code = "fidelity_legacy_lots"
+
+    def __init__(self) -> None:
+        super().__init__(
+            "Back up your investments, then clear Fidelity data in Settings > Connectors "
+            "before importing a complete USD export."
+        )
+
+
+async def require_usd_lots(db: AsyncSession, connection_id: int) -> None:
+    legacy = await db.scalar(
+        select(EsppLot.id)
+        .where(EsppLot.connection_id == connection_id, EsppLot.source_currency != "USD")
+        .limit(1)
+    )
+    if legacy is not None:
+        raise LegacyFidelityLotsError()
 
 
 class FidelityESPPProvider(InvestmentProvider):
@@ -120,7 +117,7 @@ class FidelityESPPProvider(InvestmentProvider):
     async def import_lots(
         self,
         connection_id: int,
-        lots: list,
+        lots: Sequence[LotRecord],
         source_currency: str,
         file_hash: str,
         db: AsyncSession,
@@ -131,15 +128,14 @@ class FidelityESPPProvider(InvestmentProvider):
 
         Two-level idempotency:
         (1) File-level: if file_hash already exists in investment_import_runs
-            for this connection, return the previous (inserted, skipped) counts
-            without touching espp_lots.
+            for this connection, report no inserts and skip the file's lots.
         (2) Lot-level: INSERT INTO espp_lots ON CONFLICT (dedup_hash) DO NOTHING
             so re-uploading a partially-imported file is also safe.
 
         Args:
             connection_id: PK of the investment_connections row.
-            lots: Iterable of LotRecord-compatible objects from Banner's parser.
-            source_currency: File-level currency detected from CSV footer (e.g. 'EUR').
+            lots: Parsed USD lot records.
+            source_currency: Explicit file-level currency, which must be USD.
             file_hash: sha256 hex digest of the raw file bytes.
             db: Async SQLAlchemy session (caller owns the transaction context).
             ticker: Equity ticker; defaults to 'MSFT'.
@@ -147,7 +143,15 @@ class FidelityESPPProvider(InvestmentProvider):
         Returns:
             (lots_inserted, lots_skipped) counts.
         """
+        if source_currency != "USD" or any(lot.source_currency != "USD" for lot in lots):
+            raise FidelityCurrencyError("Only USD exports are supported.")
         async with db.begin():
+            await db.scalar(
+                select(InvestmentConnection.id)
+                .where(InvestmentConnection.id == connection_id)
+                .with_for_update()
+            )
+            await require_usd_lots(db, connection_id)
             # File-level dedup check (inside transaction for consistency)
             existing_run = (
                 await db.execute(
@@ -159,19 +163,20 @@ class FidelityESPPProvider(InvestmentProvider):
             ).scalar_one_or_none()
 
             if existing_run is not None:
-                return existing_run.lots_inserted, existing_run.lots_skipped
+                return 0, len(lots)
 
             lots_inserted = 0
             lots_skipped = 0
 
             for lot in lots:
                 dedup_hash = _compute_dedup_hash(
+                    connection_id=connection_id,
                     ticker=ticker,
                     purchase_date=lot.purchase_date,
                     shares=Decimal(str(lot.shares)),
-                    cost_basis_per_share=Decimal(str(lot.cost_basis_per_share)),
                     share_source=lot.share_source,
                     dedup_ordinal=lot.dedup_ordinal,
+                    grant_date=lot.grant_date,
                 )
 
                 stmt = (
@@ -187,6 +192,7 @@ class FidelityESPPProvider(InvestmentProvider):
                         source_currency=lot.source_currency,
                         share_source=lot.share_source,
                         holding_period=getattr(lot, "holding_period", None),
+                        dedup_ordinal=lot.dedup_ordinal,
                         dedup_hash=dedup_hash,
                     )
                     .on_conflict_do_nothing(index_elements=["dedup_hash"])

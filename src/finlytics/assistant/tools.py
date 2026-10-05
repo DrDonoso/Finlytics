@@ -500,7 +500,9 @@ _REGISTRY: list[Tool] = [
         "Reading the portfolio",
         "Current investment portfolio across all connected providers: total "
         "value, amount invested, gain/loss and allocation by provider and asset "
-        "class.",
+        "class. When cost_basis_at_current_fx is true, that provider's USD cost "
+        "basis and gain are translated at current FX, not historical EUR payroll "
+        "contributions or the investor's historical EUR return.",
         {},
         _get_investment_overview,
     ),

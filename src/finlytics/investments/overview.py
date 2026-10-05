@@ -26,6 +26,7 @@ from finlytics.db.models import EsppLot, InvestmentConnection
 from finlytics.db.queries import HOLDING_STATUSES
 from finlytics.investments import service as inv_service
 from finlytics.investments.crypto import EncryptionNotConfiguredError
+from finlytics.investments.fidelity_valuation import value_fidelity
 from finlytics.investments.market_data import LatestPriceRow, get_latest_price
 
 log = logging.getLogger(__name__)
@@ -171,15 +172,11 @@ async def build_combined_overview(
         })
 
     if has_fidelity:
-        total_shares = sum(float(lot.shares) for lot in lots)
-        invested_eur = sum(float(lot.cost_basis) for lot in lots)
-
-        fv: float | None = None
-        fg: float | None = None
-        if fidelity_price is not None and total_shares > 0:
-            fv = total_shares * fidelity_price.close_usd * fidelity_price.fx_eur_usd
-            fg = fv - invested_eur
-        elif total_shares > 0:
+        valuation = value_fidelity(lots, fidelity_price)
+        fv = float(valuation.current_value_eur) if valuation.current_value_eur is not None else None
+        fg = float(valuation.gain_loss_eur) if valuation.gain_loss_eur is not None else None
+        invested_eur = float(valuation.invested_eur) if valuation.invested_eur is not None else None
+        if fv is None and valuation.total_shares > 0:
             partial = True
 
         provider_rows.append({
@@ -188,8 +185,9 @@ async def build_combined_overview(
             "name": "Fidelity ESPP",
             "icon": "📊",
             "value_eur": fv,
-            "invested_eur": invested_eur if total_shares > 0 else None,
+            "invested_eur": invested_eur if valuation.total_shares > 0 else None,
             "gain_loss_eur": fg,
+            "cost_basis_at_current_fx": bool(lots) and not valuation.requires_usd_reimport,
         })
 
     # Totals only count providers with a known current value.
@@ -207,6 +205,10 @@ async def build_combined_overview(
 
     total_invested: float | None = sum(invested_contributors) if invested_contributors else None
     total_gain_loss: float | None = sum(gain_contributors) if gain_contributors else None
+    if any(r["value_eur"] is not None and r["invested_eur"] is None for r in provider_rows):
+        total_invested = None
+    if any(r["value_eur"] is not None and r["gain_loss_eur"] is None for r in provider_rows):
+        total_gain_loss = None
     total_gain_loss_pct: float | None = None
     if total_gain_loss is not None and total_invested and total_invested > 0:
         total_gain_loss_pct = round(total_gain_loss / total_invested * 100.0, 4)
@@ -260,6 +262,7 @@ async def build_combined_overview(
             gain_loss_eur=round(gl, 2) if gl is not None else None,
             gain_loss_pct=gain_pct,
             route=f"/investments/{r['plugin_id']}",
+            cost_basis_at_current_fx=r.get("cost_basis_at_current_fx", False),
         ))
 
     return CombinedOverviewOut(

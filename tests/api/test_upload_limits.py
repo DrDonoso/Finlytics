@@ -102,7 +102,7 @@ async def test_confirm_rejects_an_oversized_pdf_before_touching_the_database(
 
 @pytest.mark.parametrize("step", ["preview", "confirm"])
 async def test_fidelity_import_rejects_an_oversized_csv(client, small_cap, step):
-    with patch("finlytics.api.fidelity.parse_open_lots_csv", MagicMock()) as parse:
+    with patch("finlytics.api.fidelity.parse_usd_open_lots_csv", MagicMock()) as parse:
         resp = await client.post(
             f"/api/investments/fidelity/import/{step}", files=_upload(_LIMIT + 1, "lots.csv")
         )

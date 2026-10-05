@@ -467,6 +467,7 @@ async def test_export_default_includes_rules_and_investments(client, mock_sessio
     lot.share_source = "SP"
     lot.holding_period = None
     lot.dedup_hash = "h" * 64
+    lot.dedup_ordinal = 0
 
     price = MagicMock()
     price.ticker = "MSFT"
@@ -947,6 +948,7 @@ async def test_roundtrip_export_then_import(client, mock_session):
     lot.share_source = "SP"
     lot.holding_period = None
     lot.dedup_hash = "h" * 64
+    lot.dedup_ordinal = 0
     price = MagicMock()
     price.ticker = "MSFT"
     price.price_date = date(2024, 1, 2)

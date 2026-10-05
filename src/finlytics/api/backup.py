@@ -44,6 +44,7 @@ Restore semantics (all inside one DB transaction):
 from __future__ import annotations
 
 import logging
+from collections import defaultdict
 from datetime import UTC, datetime
 from decimal import Decimal
 
@@ -69,6 +70,7 @@ from finlytics.db.models import (
     transaction_tags,
 )
 from finlytics.db.repository import compute_dedup_hash, get_or_create_tag
+from finlytics.investments.fidelity import _compute_dedup_hash as fidelity_dedup_hash
 
 log = logging.getLogger(__name__)
 
@@ -268,6 +270,7 @@ async def export_backup(
                     "share_source": lot.share_source,
                     "holding_period": lot.holding_period,
                     "dedup_hash": lot.dedup_hash,
+                    "dedup_ordinal": lot.dedup_ordinal,
                 }
                 for lot in (
                     await session.execute(
@@ -615,10 +618,19 @@ async def import_backup(
                 investment_connection_id_map[plugin_id] = new_conn.id
                 return new_conn.id
 
+            ordinals: dict[tuple, int] = defaultdict(int)
             for lot_in in investments_in.espp_lots:
                 connection_id = await _ensure_investment_connection(
                     lot_in.connection_plugin_id
                 )
+                identity = (
+                    connection_id, lot_in.ticker, lot_in.purchase_date,
+                    Decimal(str(lot_in.shares)), lot_in.share_source, lot_in.grant_date,
+                )
+                ordinal = lot_in.dedup_ordinal
+                if ordinal is None:
+                    ordinal = ordinals[identity]
+                ordinals[identity] = max(ordinals[identity], ordinal + 1)
                 insert_stmt = (
                     pg_insert(EsppLot)
                     .values(
@@ -632,7 +644,16 @@ async def import_backup(
                         source_currency=lot_in.source_currency,
                         share_source=lot_in.share_source,
                         holding_period=lot_in.holding_period,
-                        dedup_hash=lot_in.dedup_hash,
+                        dedup_ordinal=ordinal,
+                        dedup_hash=fidelity_dedup_hash(
+                            connection_id=connection_id,
+                            ticker=lot_in.ticker,
+                            purchase_date=lot_in.purchase_date,
+                            shares=Decimal(str(lot_in.shares)),
+                            share_source=lot_in.share_source,
+                            grant_date=lot_in.grant_date,
+                            dedup_ordinal=ordinal,
+                        ),
                     )
                     .on_conflict_do_nothing(index_elements=["dedup_hash"])
                     .returning(EsppLot.id)

@@ -525,6 +525,12 @@
 .fid-kpi-grid .kpi-value {
   overflow-wrap: anywhere;
 }
+.fid-currency-note {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  margin: 0;
+}
 
 /* ─── Fidelity ESPP — lot source badges (SP / DO) ───────────────────────────── */
 .fid-source-badge {

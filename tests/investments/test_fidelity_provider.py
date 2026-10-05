@@ -48,6 +48,7 @@ def _make_session() -> MagicMock:
     """Async session mock: supports async with db.begin() + execute + add."""
     session = MagicMock()
     session.execute = AsyncMock()
+    session.scalar = AsyncMock(return_value=None)
     session.flush = AsyncMock()
     session.commit = AsyncMock()
     session.close = AsyncMock()
@@ -75,7 +76,7 @@ def _sp_lot(
         shares=shares,
         cost_basis=shares * cbps,
         cost_basis_per_share=cbps,
-        source_currency="EUR",
+        source_currency="USD",
         share_source="SP",
         grant_date=date(2024, 4, 1),
         holding_period="Long",
@@ -91,10 +92,10 @@ class TestComputeDedupHash:
     """Pure-function tests — no mocking needed."""
 
     _BASE: ClassVar[dict[str, Any]] = dict(
+        connection_id=1,
         ticker="MSFT",
         purchase_date=date(2024, 6, 30),
         shares=Decimal("100.00000000"),
-        cost_basis_per_share=Decimal("40.000000"),
         share_source="SP",
         dedup_ordinal=0,
     )
@@ -133,18 +134,18 @@ class TestComputeDedupHash:
     def test_identical_do_lots_via_parser_dataclass(self):
         """Simulate the ordinal-0/1 scenario that comes from Banner's parser."""
         h_ord0 = _compute_dedup_hash(
+            connection_id=1,
             ticker="MSFT",
             purchase_date=date(2024, 12, 15),
             shares=Decimal("0.55000000"),
-            cost_basis_per_share=Decimal("40.000000"),
             share_source="DO",
             dedup_ordinal=0,
         )
         h_ord1 = _compute_dedup_hash(
+            connection_id=1,
             ticker="MSFT",
             purchase_date=date(2024, 12, 15),
             shares=Decimal("0.55000000"),
-            cost_basis_per_share=Decimal("40.000000"),
             share_source="DO",
             dedup_ordinal=1,
         )
@@ -162,17 +163,17 @@ class TestImportLotsFileDedup:
     def provider(self) -> FidelityESPPProvider:
         return FidelityESPPProvider()
 
-    async def test_returns_previous_counts_when_file_already_imported(self, provider):
+    async def test_reports_no_inserts_when_file_already_imported(self, provider):
         session = _make_session()
         existing_run = MagicMock(lots_inserted=3, lots_skipped=2)
         session.execute.return_value = _exec_result(scalar=existing_run)
 
         inserted, skipped = await provider.import_lots(
-            connection_id=1, lots=[], source_currency="EUR",
+            connection_id=1, lots=[_sp_lot(), _sp_lot()], source_currency="USD",
             file_hash="existing_hash", db=session,
         )
 
-        assert inserted == 3
+        assert inserted == 0
         assert skipped == 2
 
     async def test_only_one_execute_call_when_file_already_imported(self, provider):
@@ -182,7 +183,7 @@ class TestImportLotsFileDedup:
         session.execute.return_value = _exec_result(scalar=existing_run)
 
         await provider.import_lots(
-            connection_id=1, lots=[_sp_lot()], source_currency="EUR",
+            connection_id=1, lots=[_sp_lot()], source_currency="USD",
             file_hash="existing_hash", db=session,
         )
 
@@ -194,7 +195,7 @@ class TestImportLotsFileDedup:
         session.execute.return_value = _exec_result(scalar=existing_run)
 
         await provider.import_lots(
-            connection_id=1, lots=[_sp_lot()], source_currency="EUR",
+            connection_id=1, lots=[_sp_lot()], source_currency="USD",
             file_hash="existing_hash", db=session,
         )
 
@@ -221,7 +222,7 @@ class TestImportLotsLotDedup:
         session.execute = AsyncMock(side_effect=[no_run, inserted_row, inserted_row])
 
         ins, skipped = await provider.import_lots(
-            connection_id=1, lots=lots, source_currency="EUR",
+            connection_id=1, lots=lots, source_currency="USD",
             file_hash="new_file", db=session,
         )
 
@@ -239,7 +240,7 @@ class TestImportLotsLotDedup:
         session.execute = AsyncMock(side_effect=[no_run, conflict, inserted])
 
         ins, skipped = await provider.import_lots(
-            connection_id=1, lots=lots, source_currency="EUR",
+            connection_id=1, lots=lots, source_currency="USD",
             file_hash="partial_reimport", db=session,
         )
 
@@ -255,7 +256,7 @@ class TestImportLotsLotDedup:
         session.execute = AsyncMock(side_effect=[no_run, conflict, conflict])
 
         ins, skipped = await provider.import_lots(
-            connection_id=1, lots=lots, source_currency="EUR",
+            connection_id=1, lots=lots, source_currency="USD",
             file_hash="full_reimport", db=session,
         )
 
@@ -267,7 +268,7 @@ class TestImportLotsLotDedup:
         session.execute.return_value = _exec_result(scalar=None)  # no existing run
 
         ins, skipped = await provider.import_lots(
-            connection_id=1, lots=[], source_currency="EUR",
+            connection_id=1, lots=[], source_currency="USD",
             file_hash="empty_file", db=session,
         )
 
@@ -294,7 +295,7 @@ class TestImportLotsAuditTrail:
         ])
 
         await provider.import_lots(
-            connection_id=1, lots=[_sp_lot()], source_currency="EUR",
+            connection_id=1, lots=[_sp_lot()], source_currency="USD",
             file_hash="new_file", db=session,
         )
 
@@ -306,7 +307,7 @@ class TestImportLotsAuditTrail:
         session.execute.return_value = _exec_result(scalar=None)
 
         await provider.import_lots(
-            connection_id=1, lots=[], source_currency="EUR",
+            connection_id=1, lots=[], source_currency="USD",
             file_hash="zero_lots_file", db=session,
         )
 
@@ -318,7 +319,7 @@ class TestImportLotsAuditTrail:
         session.execute.return_value = _exec_result(scalar=existing_run)
 
         await provider.import_lots(
-            connection_id=1, lots=[_sp_lot()], source_currency="EUR",
+            connection_id=1, lots=[_sp_lot()], source_currency="USD",
             file_hash="dup_file", db=session,
         )
 
@@ -334,6 +335,7 @@ class _LotForEvol:
     purchase_date: date
     shares: Decimal
     cost_basis: Decimal
+    source_currency: str = "EUR"
 
 
 class TestComputeEvolutionSeriesEdgeCases:
