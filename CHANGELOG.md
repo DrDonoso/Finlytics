@@ -4,6 +4,11 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20261005.03] - 2026-10-05
+
+- Fix 422 errors when saving import summary settings (#93)
+
+
 ## [20261005.02] - 2026-10-05
 
 - Make Fidelity KPI cards fill the available width and keep labels and values inside their cards.
