@@ -4,6 +4,11 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20261005] - 2026-10-05
+
+- Add opt-in Telegram import summaries with spending analysis (#91)
+
+
 ## [20261004] - 2026-10-04
 
 - Review round 4: harden APIs and unify accessible dialogs (#86)
