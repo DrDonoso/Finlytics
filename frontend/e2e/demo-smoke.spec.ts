@@ -49,10 +49,10 @@ const ROUTES = [
 
 /** The demo keeps its session in memory, so every page load starts signed out
  *  and the login form renders in place of the requested route. */
-async function signIn(page: Page) {
+async function signIn(page: Page, label = 'Log in') {
   await page.locator('#auth-username').fill('demo')
   await page.locator('#auth-password').fill('demo')
-  await page.getByRole('button', { name: 'Log in', exact: true }).click()
+  await page.getByRole('button', { name: label, exact: true }).click()
   await expect(page.locator('.app-shell')).toBeVisible()
 }
 
@@ -82,6 +82,53 @@ for (const { path, money } of ROUTES) {
     await expectAccessible(page)
   })
 }
+
+for (const lang of ['en', 'es']) {
+  test(`Fidelity KPIs fit their cards at desktop and mobile widths in ${lang}`, async ({ page }) => {
+    await page.addInitScript(language => localStorage.setItem('finlytics_lang', language), lang)
+    await page.goto('/investments/fidelity-espp')
+    await signIn(page, lang === 'en' ? 'Log in' : 'Iniciar sesión')
+    const grid = page.locator('.kpi-grid')
+    await expect(grid.locator('.kpi-card')).toHaveCount(4)
+
+    for (const width of [1920, 1440, 1152, 936, 768, 600, 390, 320]) {
+      await page.setViewportSize({ width, height: 1080 })
+      await expect.poll(async () => grid.locator('.kpi-card').evaluateAll(cards =>
+        cards.flatMap(card => {
+          const bounds = card.getBoundingClientRect()
+          const style = getComputedStyle(card)
+          const left = bounds.left + parseFloat(style.borderLeftWidth) + parseFloat(style.paddingLeft)
+          const right = bounds.right - parseFloat(style.borderRightWidth) - parseFloat(style.paddingRight)
+          return Array.from(card.querySelectorAll('.kpi-label, .kpi-value, .kpi-sub')).flatMap(content => {
+            const range = document.createRange()
+            range.selectNodeContents(content)
+            const text = range.getBoundingClientRect()
+            const lineHeight = parseFloat(getComputedStyle(content).lineHeight)
+            const outside = text.width > 0 && (text.left < left - 1 || text.right > right + 1)
+            const wrappedValue = content.classList.contains('kpi-value')
+              && content.getBoundingClientRect().height > lineHeight + 1
+            return outside || wrappedValue ? [content.textContent] : []
+          })
+        }),
+      ), { message: `KPI content should fit without wrapping values at ${width}px` }).toEqual([])
+
+      const { gridRight, cardsRight } = await grid.evaluate(element => ({
+        gridRight: element.getBoundingClientRect().right,
+        cardsRight: Math.max(...Array.from(element.children, card => card.getBoundingClientRect().right)),
+      }))
+      expect(cardsRight, `No empty KPI columns at ${width}px`).toBeCloseTo(gridRight, 0)
+    }
+    await expectAccessible(page)
+  })
+}
+
+test('a Fidelity import link cannot open a write dialog in the demo', async ({ page }) => {
+  await page.goto('/investments/fidelity-espp?import=1')
+  await signIn(page)
+  await expect(page.locator('.kpi-card')).toHaveCount(4)
+  await expect(page.getByRole('dialog', { name: 'Import Fidelity lots' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /Import CSV|Import now/ })).toHaveCount(0)
+})
 
 test('the assistant answers from the demo data', async ({ page }) => {
   await page.goto('/')
