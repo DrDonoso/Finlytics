@@ -19,7 +19,7 @@ _TICKER = "MSFT"
 
 # Footer pattern: "The values are displayed in EUR"
 _CURRENCY_RE = re.compile(
-    r'^[ \t]*"?the values are displayed in[ \t]+([a-z]{3})"?[ \t\r]*,*[ \t\r]*$',
+    r'^[ \t]*"?the values are displayed in[ \t]+([a-z]{3})"?[ \t\r,]*$',
     re.IGNORECASE | re.MULTILINE,
 )
 

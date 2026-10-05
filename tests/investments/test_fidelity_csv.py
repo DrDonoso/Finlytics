@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
+from time import perf_counter
 
 import pytest
 
@@ -110,6 +111,12 @@ class TestDetectCurrency:
     def test_rejects_conflicting_declarations(self):
         with pytest.raises(FidelityCurrencyError):
             _detect_currency("The values are displayed in EUR\nThe values are displayed in USD")
+
+    def test_malformed_footer_with_long_padding_is_rejected_promptly(self):
+        started = perf_counter()
+        with pytest.raises(FidelityCurrencyError):
+            _detect_currency("The values are displayed in USD" + " " * 100_000 + "!")
+        assert perf_counter() - started < 1
 
     def test_import_rejects_eur(self):
         with pytest.raises(FidelityCurrencyError):
