@@ -7,15 +7,18 @@ chart / reconciliation payloads.
 
 from __future__ import annotations
 
+import logging
+from collections import Counter
 from dataclasses import dataclass
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from finlytics.db.models import Mortgage, Transaction
-from finlytics.mortgage.euribor import INDEX_EURIBOR_12M, ensure_series, make_resolver
+from finlytics.db.models import Mortgage
+from finlytics.db.queries.mortgages import get_linked_mortgages, get_mortgage_charges
+from finlytics.db.queries.types import MortgagePaymentContext, MortgagePaymentMatch
+from finlytics.mortgage.euribor import INDEX_EURIBOR_12M, ensure_series, load_series, make_resolver
 from finlytics.mortgage.schedule import (
     BonusSpec,
     IndexResolver,
@@ -30,6 +33,11 @@ from finlytics.mortgage.schedule import (
 
 _CENTS = Decimal("0.01")
 _ZERO = Decimal("0")
+log = logging.getLogger(__name__)
+
+
+class MortgageIndexUnavailableError(ValueError):
+    pass
 
 
 def _q(value: Decimal) -> Decimal:
@@ -96,7 +104,9 @@ def needs_index(mortgage: Mortgage) -> bool:
     return any(p.kind == "variable" for p in mortgage.rate_periods)
 
 
-async def resolver_for(db: AsyncSession, mortgage: Mortgage) -> IndexResolver:
+async def resolver_for(
+    db: AsyncSession, mortgage: Mortgage, *, cached_only: bool = False
+) -> IndexResolver:
     """Build the index resolver for *mortgage*, syncing the series when needed."""
     if not needs_index(mortgage):
         return zero_index
@@ -104,7 +114,9 @@ async def resolver_for(db: AsyncSession, mortgage: Mortgage) -> IndexResolver:
         (p.index_name for p in mortgage.rate_periods if p.index_name),
         INDEX_EURIBOR_12M,
     )
-    series = await ensure_series(db, index_name)
+    series = await load_series(db, index_name) if cached_only else await ensure_series(db, index_name)
+    if cached_only and not series:
+        raise MortgageIndexUnavailableError("No cached mortgage index data.")
     return make_resolver(series)
 
 
@@ -116,9 +128,11 @@ class MortgageSchedules:
     baseline: Schedule
 
 
-async def build_schedules(db: AsyncSession, mortgage: Mortgage) -> MortgageSchedules:
+async def build_schedules(
+    db: AsyncSession, mortgage: Mortgage, *, cached_only: bool = False
+) -> MortgageSchedules:
     """Build both the real schedule and the no-prepayment baseline."""
-    index = await resolver_for(db, mortgage)
+    index = await resolver_for(db, mortgage, cached_only=cached_only)
     actual = build_schedule(spec_from_model(mortgage), index)
     if mortgage.prepayments:
         baseline = build_schedule(
@@ -362,23 +376,11 @@ async def load_charges(
     income, and treating its absolute value as a charge reports a quarter of a
     million euros for that month.
     """
-    if not is_linked(mortgage):
-        return []
-
-    conditions = [
-        Transaction.transaction_date >= since,
-        Transaction.amount < 0,
-        Transaction.is_system.is_(False),
-    ]
-    if mortgage.linked_account_id is not None:
-        conditions.append(Transaction.account_id == mortgage.linked_account_id)
-    if mortgage.linked_category_id is not None:
-        conditions.append(Transaction.category_id == mortgage.linked_category_id)
-
-    result = await db.execute(
-        select(Transaction.transaction_date, Transaction.amount).where(*conditions)
+    charges = await get_mortgage_charges(
+        db, account_id=mortgage.linked_account_id,
+        category_id=mortgage.linked_category_id, since=since,
     )
-    return sorted((d, abs(a)) for d, a in result.all())
+    return [(charge["date"], charge["amount"]) for charge in charges]
 
 
 class ChargeMatcher:
@@ -399,6 +401,7 @@ class ChargeMatcher:
     def __init__(self, charges: list[tuple[date, Decimal]]) -> None:
         self._charges = charges
         self._used: set[int] = set()
+        self.last_match_ambiguous = False
 
     @property
     def covers_from(self) -> date | None:
@@ -412,8 +415,14 @@ class ChargeMatcher:
         return min((when for when, _ in self._charges), default=None)
 
     def match(self, due: date, expected: Decimal) -> Decimal | None:
+        index = self.match_index(due, expected)
+        return self._charges[index][1] if index is not None else None
+
+    def match_index(self, due: date, expected: Decimal) -> int | None:
+        """Keep the consumed charge's identity available to explanatory callers."""
         best_idx: int | None = None
         best_key: tuple[Decimal, int] | None = None
+        self.last_match_ambiguous = False
         for idx, (charged_on, charged) in enumerate(self._charges):
             if idx in self._used:
                 continue
@@ -423,7 +432,86 @@ class ChargeMatcher:
             key = (abs(charged - expected), distance)
             if best_key is None or key < best_key:
                 best_idx, best_key = idx, key
+                self.last_match_ambiguous = False
+            elif key == best_key:
+                self.last_match_ambiguous = True
         if best_idx is None:
             return None
         self._used.add(best_idx)
-        return self._charges[best_idx][1]
+        return best_idx
+
+
+_MAX_SUMMARY_MORTGAGES = 10
+_MAX_SUMMARY_PAYMENT_MATCHES = 24
+
+
+def _offset_date(value: date, days: int) -> date:
+    return date.fromordinal(max(1, min(date.max.toordinal(), value.toordinal() + days)))
+
+
+async def build_payment_context(
+    db: AsyncSession, *, user_id: int, account_id: int,
+    from_date: date, to_date: date, history_from: date,
+) -> MortgagePaymentContext:
+    """Explain cash timing without re-dating charges or fetching an external index."""
+    mortgages = await get_linked_mortgages(
+        db, user_id, account_id, limit=_MAX_SUMMARY_MORTGAGES + 1,
+    )
+    matches: list[MortgagePaymentMatch] = []
+    unavailable: list[str] = []
+    start = _offset_date(history_from, -MATCH_WINDOW_DAYS)
+    end = _offset_date(to_date, MATCH_WINDOW_DAYS)
+    for mortgage in mortgages[:_MAX_SUMMARY_MORTGAGES]:
+        try:
+            schedules = await build_schedules(db, mortgage, cached_only=True)
+        except (ValueError, ArithmeticError) as exc:
+            unavailable.append(mortgage.name)
+            log.warning("Mortgage summary context unavailable for mortgage_id=%d (%s)",
+                        mortgage.id, type(exc).__name__)
+            continue
+        rows = [row for row in schedules.actual.rows if start <= row.date <= end]
+        if not rows:
+            continue
+        charges = await get_mortgage_charges(
+            db, account_id=mortgage.linked_account_id,
+            category_id=mortgage.linked_category_id,
+            since=_offset_date(rows[0].date, -MATCH_WINDOW_DAYS),
+            through=_offset_date(rows[-1].date, MATCH_WINDOW_DAYS),
+        )
+        matcher = ChargeMatcher([(charge["date"], charge["amount"]) for charge in charges])
+        for row in rows:
+            index = matcher.match_index(row.date, row.payment)
+            if index is None:
+                continue
+            charge = charges[index]
+            if charge["account_id"] != account_id:
+                continue
+            if not (history_from <= charge["date"] <= to_date or history_from <= row.date <= to_date):
+                continue
+            matches.append({
+                "mortgage_id": mortgage.id, "mortgage_name": mortgage.name,
+                "transaction_id": charge["id"],
+                "due_date": row.date.isoformat(), "charged_date": charge["date"].isoformat(),
+                "expected_amount": _f(row.payment), "actual_amount": _f(charge["amount"]),
+                "cross_month": row.date.strftime("%Y-%m") != charge["date"].strftime("%Y-%m"),
+                "timing_supported": (
+                    _q(row.payment) == _q(charge["amount"])
+                    and not matcher.last_match_ambiguous and not row.projected
+                ),
+            })
+    claims = Counter(match["transaction_id"] for match in matches)
+    for match in matches:
+        if claims[match["transaction_id"]] > 1:
+            match["timing_supported"] = False
+    matches.sort(key=lambda match: (
+        not match["cross_month"],
+        not (from_date.isoformat() <= match["charged_date"] <= to_date.isoformat()),
+        match["due_date"], match["mortgage_id"],
+    ))
+    return {
+        "matches": matches[:_MAX_SUMMARY_PAYMENT_MATCHES],
+        "unavailable": unavailable,
+        "truncated": (
+            len(mortgages) > _MAX_SUMMARY_MORTGAGES or len(matches) > _MAX_SUMMARY_PAYMENT_MATCHES
+        ),
+    }

@@ -28,6 +28,10 @@ T = TypeVar("T", bound=BaseModel)
 class LLMError(Exception):
     """Raised when the LLM backend returns an unexpected error."""
 
+    def __init__(self, message: str, *, retryable: bool = True) -> None:
+        super().__init__(message)
+        self.retryable = retryable
+
 
 # ── Streaming event types ─────────────────────────────────────────────────────
 
@@ -56,10 +60,10 @@ class ToolCallsRequested:
 
 @dataclass(frozen=True)
 class UsageReported:
-    """Token counts for one provider call.
+    """Incremental token counts from one provider call.
 
-    Emitted only when the provider sends them. A turn makes several calls (one
-    per tool round-trip), so the caller has to accumulate rather than overwrite.
+    Emitted immediately when reported, even if the stream later fails. Cumulative
+    frames become deltas, so callers accumulate across frames and tool round-trips.
     """
 
     prompt_tokens: int
@@ -89,13 +93,17 @@ class LLMClient:
         *,
         temperature: float | None = None,
         _client: AsyncOpenAI | None = None,
+        max_retries: int | None = None,
     ) -> None:
         self.model = model
         self.temperature = temperature
         # Real client is only instantiated if no mock is provided.
         # Empty credentials are acceptable here — the constructor must not fail
         # even when env vars are unset (importable without live credentials).
-        self._client = _client or AsyncOpenAI(api_key=api_key, base_url=base_url)
+        options: dict[str, Any] = {}
+        if max_retries is not None:
+            options["max_retries"] = max_retries
+        self._client = _client or AsyncOpenAI(api_key=api_key, base_url=base_url, **options)
 
     # -------------------------------------------------------------------------
     # Factory
@@ -107,6 +115,7 @@ class LLMClient:
         settings: Settings,
         *,
         _client: AsyncOpenAI | None = None,
+        max_retries: int | None = None,
     ) -> LLMClient:
         """Construct a client from the shared settings singleton."""
         return cls(
@@ -115,7 +124,11 @@ class LLMClient:
             model=settings.openai_model or "",
             temperature=settings.openai_temperature,
             _client=_client,
+            max_retries=max_retries,
         )
+
+    async def close(self) -> None:
+        await self._client.close()
 
     # -------------------------------------------------------------------------
     # Request helpers
@@ -254,11 +267,25 @@ class LLMClient:
                 # the next guard drops.
                 reported = getattr(chunk, "usage", None)
                 if reported is not None:
-                    usage = UsageReported(
+                    current_usage = UsageReported(
                         prompt_tokens=getattr(reported, "prompt_tokens", 0) or 0,
                         completion_tokens=getattr(reported, "completion_tokens", 0) or 0,
                         total_tokens=getattr(reported, "total_tokens", 0) or 0,
                     )
+                    previous_usage = usage or UsageReported(0, 0, 0)
+                    delta_usage = UsageReported(
+                        current_usage.prompt_tokens - previous_usage.prompt_tokens,
+                        current_usage.completion_tokens - previous_usage.completion_tokens,
+                        current_usage.total_tokens - previous_usage.total_tokens,
+                    )
+                    if min(
+                        delta_usage.prompt_tokens, delta_usage.completion_tokens,
+                        delta_usage.total_tokens,
+                    ) < 0:
+                        raise LLMError("Provider usage decreased within a call.", retryable=False)
+                    if usage != current_usage:
+                        yield delta_usage
+                    usage = current_usage
 
                 choices = getattr(chunk, "choices", None)
                 if not choices:
@@ -284,12 +311,15 @@ class LLMClient:
                             slot["name"] = function.name
                         if getattr(function, "arguments", None):
                             slot["arguments"] += function.arguments
+        except LLMError:
+            raise
         except Exception as exc:
-            log.error("LLMClient.stream_with_tools error: %s", exc)
-            raise LLMError(str(exc)) from exc
-
-        if usage is not None:
-            yield usage
+            status = getattr(exc, "status_code", None)
+            log.error("LLMClient.stream_with_tools failed (%s, status=%s)", type(exc).__name__, status)
+            raise LLMError(
+                str(exc),
+                retryable=status is None or status == 429 or status >= 500,
+            ) from exc
 
         if pending:
             calls = [

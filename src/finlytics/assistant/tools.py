@@ -325,26 +325,7 @@ async def _compare_periods(args: dict, ctx: ToolContext) -> dict:
     by_a = {r["category"]: float(r["amount"]) for r in rows_a}
     by_b = {r["category"]: float(r["amount"]) for r in rows_b}
 
-    changes: list[dict[str, Any]] = []
-    for name in sorted(set(by_a) | set(by_b)):
-        amount_a = by_a.get(name, 0.0)
-        amount_b = by_b.get(name, 0.0)
-        delta = amount_b - amount_a
-        # A category that appears only in period B has no baseline, so a
-        # percentage would be infinite — report it as null and let the model
-        # describe it as new spending instead.
-        pct = round(delta / amount_a * 100.0, 2) if amount_a > 0 else None
-        changes.append(
-            {
-                "category": name,
-                "period_a": round(amount_a, 2),
-                "period_b": round(amount_b, 2),
-                "delta": round(delta, 2),
-                "delta_pct": pct,
-            }
-        )
-
-    changes.sort(key=lambda c: abs(c["delta"]), reverse=True)
+    changes = queries.compare_category_spending(rows_a, rows_b)
     kept, truncated = _truncate(changes, ctx)
 
     return {

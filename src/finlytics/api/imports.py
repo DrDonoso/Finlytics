@@ -28,7 +28,7 @@ from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, UploadF
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from finlytics.api.deps import get_db, get_llm_client
+from finlytics.api.deps import get_current_user, get_db, get_llm_client
 from finlytics.api.schemas import (
     CheckDuplicatesIn,
     CheckDuplicatesOut,
@@ -47,7 +47,8 @@ from finlytics.api.uploads import (
 )
 from finlytics.config import settings
 from finlytics.contracts import ExtractedTransaction
-from finlytics.db.models import Account, ImportRun, Tag, Transaction
+from finlytics.db.models import Account, ImportRun, Tag, Transaction, User
+from finlytics.db.queries.import_summaries import enqueue_import_summary
 from finlytics.db.repository import (
     compute_dedup_hash,
     create_opening_balance_tx,
@@ -66,6 +67,7 @@ from finlytics.extraction.prematch import pre_match_rules
 from finlytics.extraction.rules import apply_rules
 from finlytics.extraction.tag_colors import suggest_tag_colors
 from finlytics.log_safety import one_line
+from finlytics.notifications.import_summaries import wake_import_summaries
 
 log = logging.getLogger(__name__)
 
@@ -338,10 +340,11 @@ async def preview_import(
 
 # ── Confirm endpoint ──────────────────────────────────────────────────────────
 
-@router.post("/confirm", response_model=ImportResult)
+@router.post("/confirm", response_model=ImportResult, response_model_exclude_none=True)
 async def confirm_import(
     body: ConfirmIn = Body(...),
     session: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
 ) -> ImportResult:
     """Persist the user-reviewed (and optionally edited) transaction list from a preview.
 
@@ -433,6 +436,13 @@ async def confirm_import(
                 opening_date=opening_date,
             )
 
+        result.summary_job_id = await enqueue_import_summary(
+            session, user_id=user.id, import_run_id=result.import_run_id,
+            account=account, dates=[tx.transaction_date for tx in body.transactions],
+            num_inserted=result.num_inserted,
+        )
+    if result.summary_job_id is not None:
+        wake_import_summaries()
     return result
 
 
@@ -491,13 +501,14 @@ async def check_duplicates(
 
 # ── One-shot endpoint (kept for backwards compatibility) ──────────────────────
 
-@router.post("", response_model=ImportResult, status_code=201)
+@router.post("", response_model=ImportResult, status_code=201, response_model_exclude_none=True)
 async def create_import(
     file: UploadFile = File(...),
     account_name: str | None = Form(None),
     account_id: int | None = Form(None),
     session: AsyncSession = Depends(get_db),
     llm_client: LLMClient = Depends(get_llm_client),
+    user: User = Depends(get_current_user),
 ) -> ImportResult:
     """Upload a bank statement, extract transactions with the LLM and persist them."""
     if account_id is None and account_name is None:
@@ -547,4 +558,11 @@ async def create_import(
             source_pdf=file_bytes,
         )
 
+        result.summary_job_id = await enqueue_import_summary(
+            session, user_id=user.id, import_run_id=result.import_run_id,
+            account=account, dates=[tx.transaction_date for tx in all_txs],
+            num_inserted=result.num_inserted,
+        )
+    if result.summary_job_id is not None:
+        wake_import_summaries()
     return result

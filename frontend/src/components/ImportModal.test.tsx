@@ -5,6 +5,7 @@
  */
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router'
 import { afterEach, expect, it, vi } from 'vitest'
 
 import ImportModal from './ImportModal'
@@ -13,6 +14,42 @@ import es from '../i18n/es'
 
 afterEach(() => {
   vi.unstubAllGlobals()
+})
+
+it('reports a queued summary without claiming that Telegram has received it', async () => {
+  const onSuccess = vi.fn()
+  const preview: PreviewResponse = {
+    account_ref: 'Checking', filename: 'june.pdf', statement_year: 2026, year_detected: true,
+    matched_account_id: 1, matched_account_name: 'Checking',
+    transactions: [{
+      transaction_date: '2026-06-01', amount: -40, currency: 'EUR', description: 'Groceries',
+      category: 'Groceries', category_confidence: 1, account_ref: 'Checking', raw_line: null,
+      balance_after: null, tags: [], merchant: null,
+    }],
+    quality: {
+      summary: { error_count: 0, warning_count: 0, info_count: 0, flagged_row_count: 0 },
+      signals: [], row_flags: [],
+    },
+  }
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+    if (url === '/api/imports/preview') return new Response(JSON.stringify(preview))
+    if (url === '/api/imports/check-duplicates') return new Response(JSON.stringify({ is_duplicate: [false] }))
+    if (url === '/api/imports/confirm') return new Response(JSON.stringify({
+      import_run_id: 9, num_parsed: 1, num_inserted: 1, num_duplicates: 0, summary_job_id: 3,
+    }))
+    return new Response('{}', { status: 404 })
+  }))
+  render(
+    <MemoryRouter>
+      <ImportModal accounts={[]} categories={[]} allTags={[]} initialFiles={[pdf('june.pdf')]}
+        onClose={() => {}} onSuccess={onSuccess} />
+    </MemoryRouter>,
+  )
+  await userEvent.click(await screen.findByRole('button', { name: es.modalBtnContinue }))
+  await userEvent.click(await screen.findByRole('button', { name: es.batchConfirmAllBtn(1) }))
+  expect(await screen.findByText(es.importSummaryQueued)).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('link', { name: es.importSummaryViewStatus }))
+  expect(onSuccess).toHaveBeenCalledWith(expect.objectContaining({ num_inserted: 1 }))
 })
 
 function pdf(name: string): File {

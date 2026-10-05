@@ -45,6 +45,8 @@ import {
   getMortgageSchedule,
   getMortgages,
   getNotificationChannels,
+  getImportSummarySettings,
+  getImportSummaries,
   getNotifications,
   getOverview,
   getOverviewMonths,
@@ -91,6 +93,8 @@ import type {
   MortgageSchedule,
   MortgageSummary,
   NotificationChannelOut,
+  ImportSummarySettings,
+  ImportSummaryJob,
   NotificationOut,
   Overview,
   Rule,
@@ -151,6 +155,8 @@ export const queryKeys = {
   notifications: ['notifications', 'list'] as const,
   notificationsUnreadCount: ['notifications', 'unread-count'] as const,
   notificationChannels: ['notifications', 'channels'] as const,
+  importSummarySettings: ['notifications', 'import-summary-settings'] as const,
+  importSummaries: ['notifications', 'import-summaries'] as const,
   appVersion: ['app-version'] as const,
   assistantStatus: ['assistant', 'status'] as const,
   assistantSuggestions: ['assistant', 'suggestions'] as const,
@@ -416,6 +422,24 @@ export function useNotificationChannels(): UseQueryResult<NotificationChannelOut
     queryKey: queryKeys.notificationChannels,
     queryFn: getNotificationChannels,
     staleTime: CATALOG_STALE_MS,
+  })
+}
+
+export function useImportSummarySettings(): UseQueryResult<ImportSummarySettings> {
+  return useQuery({
+    queryKey: queryKeys.importSummarySettings,
+    queryFn: getImportSummarySettings,
+  })
+}
+
+export function useImportSummaries(): UseQueryResult<ImportSummaryJob[]> {
+  return useQuery({
+    queryKey: queryKeys.importSummaries,
+    queryFn: getImportSummaries,
+    staleTime: 0,
+    refetchInterval: query => query.state.data?.some(
+      job => ['pending', 'generating', 'ready', 'sending'].includes(job.status),
+    ) ? 3000 : false,
   })
 }
 

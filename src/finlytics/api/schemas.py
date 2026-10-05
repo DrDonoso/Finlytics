@@ -413,6 +413,7 @@ class ImportResult(BaseModel):
     num_parsed: int
     num_inserted: int
     num_duplicates: int
+    summary_job_id: int | None = None
 
 
 class SuggestedTag(BaseModel):
@@ -902,6 +903,42 @@ class NotificationChannelOut(BaseModel):
     created_at: datetime
 
 
+class ImportSummarySettingsIn(BaseModel):
+    enabled: bool = False
+    channel_id: int | None = Field(default=None, gt=0)
+    language: Literal["en", "es"] = "en"
+
+    @model_validator(mode="after")
+    def require_destination(self) -> ImportSummarySettingsIn:
+        if self.enabled and self.channel_id is None:
+            raise ValueError("Select a notification channel before enabling import summaries.")
+        return self
+
+
+class ImportSummarySettingsOut(ImportSummarySettingsIn):
+    ai_available: bool
+
+
+class ImportSummaryJobOut(BaseModel):
+    id: int
+    import_run_id: int | None
+    account_name: str
+    from_date: date
+    to_date: date
+    language: Literal["en", "es"]
+    status: Literal[
+        "pending", "generating", "ready", "sending", "sent", "blocked",
+        "failed", "uncertain", "cancelled",
+    ]
+    error: str | None
+    created_at: datetime
+    sent_at: datetime | None
+
+
+class ImportSummaryRetryIn(BaseModel):
+    acknowledge_uncertain: bool = False
+
+
 _CHAT_ID_RE = re.compile(r"^-?\d+$")
 
 
@@ -1141,6 +1178,7 @@ class AssistantUsagePeriod(BaseModel):
     completion_tokens: int
     total_tokens: int
     messages: int
+    summaries: int = 0
 
 
 class AssistantUsageDay(BaseModel):
@@ -1149,6 +1187,7 @@ class AssistantUsageDay(BaseModel):
     day: str
     tokens: int
     messages: int
+    summaries: int = 0
 
 
 class AssistantUsageOut(BaseModel):
@@ -1516,4 +1555,3 @@ class PaymentCandidateOut(BaseModel):
 class PaymentCandidatesOut(BaseModel):
     expected_payment: float | None = None
     candidates: list[PaymentCandidateOut] = []
-

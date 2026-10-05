@@ -59,9 +59,11 @@ def scalars_returning(items):
 def _reset_limiter():
     # The limiters are now keyed by (limit, window), so a test that changes the
     # configured limit gets a fresh window rather than the previous one's hits.
-    assistant_api._message_limiters.clear()
+    from finlytics.assistant.limits import message_limiters
+
+    message_limiters.clear()
     yield
-    assistant_api._message_limiters.clear()
+    message_limiters.clear()
 
 
 @pytest.fixture(autouse=True)

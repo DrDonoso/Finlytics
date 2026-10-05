@@ -698,6 +698,84 @@ class NotificationDelivery(Base):
 
 # ── Finance assistant ─────────────────────────────────────────────────────────
 
+class ImportSummarySettings(Base):
+    __tablename__ = "import_summary_settings"
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    channel_id: Mapped[int | None] = mapped_column(
+        ForeignKey("notification_channels.id", ondelete="SET NULL")
+    )
+    language: Mapped[str] = mapped_column(String(2), default="en", server_default="en")
+
+
+class ImportSummaryJob(Base):
+    """A committed import's analysis and delivery, never a detector notification."""
+
+    __tablename__ = "import_summary_jobs"
+    __table_args__ = (
+        UniqueConstraint("user_id", "import_run_id", name="uq_import_summary_user_run"),
+        Index("ix_import_summary_jobs_due", "status", "next_attempt_at"),
+        Index("ix_import_summary_jobs_user", "user_id", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    import_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("import_runs.id", ondelete="SET NULL")
+    )
+    account_id: Mapped[int | None] = mapped_column(
+        ForeignKey("accounts.id", ondelete="SET NULL")
+    )
+    channel_id: Mapped[int | None] = mapped_column(
+        ForeignKey("notification_channels.id", ondelete="SET NULL")
+    )
+    channel_version: Mapped[str] = mapped_column(String(64))
+    account_name: Mapped[str] = mapped_column(String(100))
+    from_date: Mapped[date] = mapped_column(Date)
+    to_date: Mapped[date] = mapped_column(Date)
+    language: Mapped[str] = mapped_column(String(2))
+    status: Mapped[str] = mapped_column(String(20), default="pending", server_default="pending")
+    generation_attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    delivery_attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    next_attempt_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    claim_token: Mapped[str | None] = mapped_column(String(36))
+    lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    message_text: Mapped[str | None] = mapped_column(Text)
+    error: Mapped[str | None] = mapped_column(String(100))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ImportSummaryAttempt(Base):
+    """Usage survives source deletion and is attributed to the provider-call date."""
+
+    __tablename__ = "import_summary_attempts"
+    __table_args__ = (
+        Index("ix_import_summary_attempts_user_date", "user_id", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    job_id: Mapped[int] = mapped_column(ForeignKey("import_summary_jobs.id", ondelete="CASCADE"))
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    prompt_tokens: Mapped[int | None] = mapped_column(Integer)
+    completion_tokens: Mapped[int | None] = mapped_column(Integer)
+    total_tokens: Mapped[int | None] = mapped_column(Integer)
+    answered: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
 class AssistantSettings(Base):
     """Per-user assistant configuration, editable from the UI.
 

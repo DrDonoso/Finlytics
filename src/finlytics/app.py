@@ -64,6 +64,7 @@ from finlytics.api.summary import router as summary_router
 from finlytics.api.tags import router as tags_router
 from finlytics.api.transactions import router as transactions_router
 from finlytics.api.version import router as version_router
+from finlytics.notifications.import_summaries import import_summary_loop
 
 log = logging.getLogger(__name__)
 
@@ -124,6 +125,7 @@ async def _notifications_loop() -> None:
 async def lifespan(app_: FastAPI):
     """Application lifespan: start/stop the background notifications loop."""
     _task: asyncio.Task | None = None
+    _summary_task: asyncio.Task | None = None
 
     # Guard: never run the loop inside pytest (no real DB; httpx may trigger
     # lifespan in newer versions).
@@ -145,14 +147,18 @@ async def lifespan(app_: FastAPI):
                 workers,
             )
         _task = asyncio.create_task(_notifications_loop())
+        _summary_task = asyncio.create_task(import_summary_loop())
 
-    yield  # ← application is running here
-
-    if _task is not None:
-        _task.cancel()
-        with suppress(asyncio.CancelledError):
-            await _task
-        log.info("Notification loop stopped")
+    try:
+        yield
+    finally:
+        tasks = [task for task in (_task, _summary_task) if task is not None]
+        for task in tasks:
+            task.cancel()
+        for task in tasks:
+            with suppress(asyncio.CancelledError):
+                await task
+        log.info("Notification workers stopped")
 
 
 # ── Application factory ───────────────────────────────────────────────────────
@@ -229,4 +235,3 @@ async def spa_fallback(full_path: str) -> Response:
         if os.path.isfile(index):
             return FileResponse(index)
     return JSONResponse({"detail": "Frontend not available"})
-

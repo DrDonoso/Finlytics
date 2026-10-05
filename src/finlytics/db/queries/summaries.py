@@ -16,14 +16,45 @@ from finlytics.db.queries._filters import (
 )
 from finlytics.db.queries.types import (
     AccountSummaryRow,
+    AmountChange,
     CashflowItem,
     CashflowSummary,
+    CategoryChangeRow,
     CategorySummaryRow,
     DaySummaryRow,
     MerchantSummaryRow,
     MonthSummaryRow,
     OverviewSummary,
 )
+
+
+def compare_amounts(previous: float, current: float) -> AmountChange:
+    delta = current - previous
+    percentage = round(delta / abs(previous) * 100.0, 2) if previous != 0 else None
+    return {
+        "delta": round(delta, 2) or 0.0,
+        "delta_pct": 0.0 if percentage == 0 else percentage,
+    }
+
+
+def compare_category_spending(
+    previous: list[CategorySummaryRow], current: list[CategorySummaryRow]
+) -> list[CategoryChangeRow]:
+    by_a = {r["category"]: r["amount"] for r in previous}
+    by_b = {r["category"]: r["amount"] for r in current}
+    changes: list[CategoryChangeRow] = []
+    for name in sorted(set(by_a) | set(by_b)):
+        amount_a, amount_b = by_a.get(name, 0.0), by_b.get(name, 0.0)
+        change = compare_amounts(amount_a, amount_b)
+        changes.append({
+            "category": name,
+            "period_a": round(amount_a, 2),
+            "period_b": round(amount_b, 2),
+            "delta": change["delta"],
+            "delta_pct": change["delta_pct"],
+        })
+    changes.sort(key=lambda c: abs(c["delta"]), reverse=True)
+    return changes
 
 # ── Aggregation queries ───────────────────────────────────────────────────────
 

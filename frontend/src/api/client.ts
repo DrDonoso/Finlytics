@@ -12,6 +12,7 @@ import type {
   FidelityImportPreview, FidelityImportConfirmResult, FidelityReminderResponse,
   CombinedOverview, SummaryMonths, AppVersion, NotificationOut,
   NotificationChannelOut, TelegramChannelIn, TelegramTestIn, TelegramTestOut,
+  ImportSummarySettings, ImportSummarySettingsPayload, ImportSummaryJob,
   AccountCreatePayload,
   AssistantConversation, AssistantConversationDetail, AssistantStatus,
   AssistantStreamEvent, AssistantSuggestions,
@@ -638,6 +639,26 @@ export async function dismissNotification(id: number): Promise<void> {
 export async function getNotificationChannels(): Promise<NotificationChannelOut[]> {
   if (USE_MOCK) return mockGetNotificationChannels()
   return apiFetch<NotificationChannelOut[]>('/api/notifications/channels')
+}
+
+export async function getImportSummarySettings(): Promise<ImportSummarySettings> {
+  return apiFetch<ImportSummarySettings>('/api/notifications/import-summary-settings')
+}
+
+export async function putImportSummarySettings(body: ImportSummarySettingsPayload): Promise<ImportSummarySettings> {
+  return apiFetch<ImportSummarySettings>('/api/notifications/import-summary-settings', {
+    method: 'PUT', body: JSON.stringify(body),
+  })
+}
+
+export async function getImportSummaries(): Promise<ImportSummaryJob[]> {
+  return apiFetch<ImportSummaryJob[]>('/api/notifications/import-summaries')
+}
+
+export async function retryImportSummary(id: number, acknowledgeUncertain = false): Promise<ImportSummaryJob> {
+  return apiFetch<ImportSummaryJob>(`/api/notifications/import-summaries/${id}/retry`, {
+    method: 'POST', body: JSON.stringify({ acknowledge_uncertain: acknowledgeUncertain }),
+  })
 }
 
 /** POST /api/notifications/channels (body TelegramChannelIn) → 201 NotificationChannelOut.

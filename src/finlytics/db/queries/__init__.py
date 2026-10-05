@@ -51,6 +51,7 @@ from finlytics.db.queries.statements import (
     get_statement_originals,
 )
 from finlytics.db.queries.summaries import (
+    compare_category_spending,
     get_by_account,
     get_by_category,
     get_by_day,
@@ -95,6 +96,7 @@ __all__ = [
     "get_by_month",
     "get_cashflow",
     "get_overview",
+    "compare_category_spending",
     # Extractos
     "delete_statement_month",
     "get_statement_months",

@@ -27,6 +27,15 @@ _MAX_TOKEN_LEN = 256
 class TelegramError(Exception):
     """Raised on Telegram API failures. Message NEVER contains the bot_token."""
 
+    def __init__(
+        self, message: str, *, retryable: bool = False, uncertain: bool = False,
+        retry_after: int = 0,
+    ) -> None:
+        super().__init__(message)
+        self.retryable = retryable
+        self.uncertain = uncertain
+        self.retry_after = retry_after
+
 
 def _bot_endpoint(bot_token: str, method: str) -> str:
     """Build the API URL for *method*, guaranteeing the token cannot alter it.
@@ -100,13 +109,39 @@ async def telegram_send_message(
     try:
         async with httpx.AsyncClient(timeout=10.0, verify=True, follow_redirects=False) as client:
             resp = await client.post(url, json=payload)
+    except (httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout):
+        raise TelegramError("Could not connect to Telegram.", retryable=True) from None
     except httpx.RequestError:
-        raise TelegramError("Could not reach Telegram API — check your network.")
+        raise TelegramError(
+            "Telegram delivery could not be confirmed.", uncertain=True,
+        ) from None
 
+    if resp.status_code == 429:
+        try:
+            data = resp.json()
+        except ValueError:
+            data = {}
+        parameters = data.get("parameters", {}) if isinstance(data, dict) else {}
+        delay = parameters.get("retry_after", 0) if isinstance(parameters, dict) else 0
+        raise TelegramError(
+            "Telegram rate limit reached.", retryable=True,
+            retry_after=delay if isinstance(delay, int) and 0 < delay <= 86400 else 0,
+        )
     if resp.status_code < 200 or resp.status_code >= 300:
-        raise TelegramError(f"sendMessage failed (HTTP {resp.status_code}).")
+        raise TelegramError(
+            f"sendMessage failed (HTTP {resp.status_code}).",
+            uncertain=resp.status_code >= 500,
+        )
 
-    data = resp.json()
+    try:
+        data = resp.json()
+    except ValueError:
+        raise TelegramError("Invalid Telegram response.", uncertain=True) from None
+    if not isinstance(data, dict) or not isinstance(data.get("ok"), bool):
+        raise TelegramError("Invalid Telegram response.", uncertain=True)
     if not data.get("ok"):
-        desc = data.get("description", "unknown error")
-        raise TelegramError(f"Telegram error: {desc}")
+        code = data.get("error_code")
+        raise TelegramError(
+            "Telegram rejected the message.",
+            retryable=isinstance(code, int) and (code == 429 or code >= 500),
+        )

@@ -19,6 +19,7 @@ from finlytics.extraction.llm_client import (
     LLMError,
     TextDelta,
     ToolCallsRequested,
+    UsageReported,
 )
 
 
@@ -145,3 +146,28 @@ class TestErrors:
         client = client_yielding([chunk(content="partial")], error=RuntimeError("socket died"))
         with pytest.raises(LLMError, match="socket died"):
             await drain(client)
+
+
+class TestUsageDelivery:
+    @staticmethod
+    def usage(prompt, completion):
+        return SimpleNamespace(choices=[], usage=SimpleNamespace(
+            prompt_tokens=prompt, completion_tokens=completion, total_tokens=prompt + completion,
+        ))
+
+    async def test_usage_arrives_before_a_later_disconnect(self):
+        client = client_yielding(
+            [chunk(content="answer"), self.usage(40, 20)], error=RuntimeError("disconnected"),
+        )
+        events = []
+        with pytest.raises(LLMError):
+            async for event in client.stream_with_tools([]):
+                events.append(event)
+        assert UsageReported(40, 20, 60) in events
+
+    async def test_cumulative_usage_frames_are_not_double_counted(self):
+        client = client_yielding([self.usage(40, 5), self.usage(40, 20), self.usage(40, 20)])
+        events = [event for event in await drain(client) if isinstance(event, UsageReported)]
+        assert sum(event.total_tokens for event in events) == 60
+        assert sum(event.prompt_tokens for event in events) == 40
+        assert sum(event.completion_tokens for event in events) == 20

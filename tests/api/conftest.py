@@ -53,7 +53,7 @@ def _reset_login_rate_limiter():
 
 
 @pytest.fixture
-def mock_session() -> MagicMock:
+def mock_session(monkeypatch) -> MagicMock:
     """A mock standing in for the SQLAlchemy AsyncSession.
 
     * execute, flush, commit, close → AsyncMock (need await)
@@ -72,6 +72,7 @@ def mock_session() -> MagicMock:
     # AsyncMock() supports the async context manager protocol out of the box.
     begin_cm = AsyncMock()
     session.begin = MagicMock(return_value=begin_cm)
+    monkeypatch.setattr("finlytics.api.imports.enqueue_import_summary", AsyncMock(return_value=None))
     return session
 
 

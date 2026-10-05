@@ -47,9 +47,9 @@ The `IMAGE_TAG` / `BUILD_DATE` build args are injected there and surfaced by
 
 ## Migrations
 
-Alembic migrations live in `alembic/versions/`. The current head is `0025_recolor_base_category_palette.py`.
+Alembic migrations live in `alembic/versions/`. The current head is `0026_add_import_summaries.py`.
 
-- Always create a new numbered migration (`0026_...`) for schema changes.
+- Always create a new numbered migration (`0027_...`) for schema changes.
 - Verify the head before writing one — this file goes stale. `down_revision` in the
   highest-numbered file is the source of truth, not this document.
 - The entrypoint runs `alembic upgrade head` automatically on container start.
@@ -61,6 +61,54 @@ Alembic migrations live in `alembic/versions/`. The current head is `0025_recolo
 
 `src/finlytics/assistant/` is a **read-only, tool-calling agent** over the user's own
 data, surfaced as a slide-out chat panel.
+
+### Automatic import summaries
+
+`notifications/import_summaries.py` processes opt-in jobs created by the two bank
+import saving routes, not by a detector or a frontend callback. Preferences live in
+Settings -> Connectors -> Notifications and reference one owned, enabled channel;
+Telegram is the only supported transport. Credentials remain in `NotificationChannel`.
+
+- Enqueue inside the import transaction, after final persistence, and wake the worker
+  only after commit. Preview, manual writes, restores, Fidelity and duplicate-only
+  imports must never enqueue a summary.
+- Facts come through `db/queries/import_summaries.py` and the shared overview/category
+  queries. Record the reviewed date bounds, not just `ImportRun.period`. Explain
+  account-period totals separately from the newly inserted count; missing history is
+  unknown and mixed currencies must not be silently added.
+- Mortgage context uses `mortgage/service.py::build_payment_context` and the same
+  `ChargeMatcher` as the mortgage screen. Retain each charge's identity and date so
+  a June debit can be associated with a May due date without moving June's cash flow.
+  Only the current user's linked mortgages and this account's matched charges enter
+  the summary. Amount mismatches, competing claims and projected instalments are not
+  certain timing explanations.
+- Summary reconciliation reads cached index data only: no ECB request inside the
+  import-summary transaction, and an empty cache must not become a zero interest rate.
+  Bound the context and report unavailable/truncated matching explicitly to the model.
+- The dedicated prompt in `notifications/import_summary_prompt.py` is not the editable
+  chat prompt. It receives bounded, sanitized facts and adds commentary to a calculated
+  header, followed by specific mortgage-timing notes. Lead the analysis with spending
+  evolution and category changes, not a mortgage audit. `spending_change` is calculated
+  from overview totals (including uncategorized expenses), never by summing a top-N list.
+  A missing comparison stays null and a zero baseline has no percentage.
+  Keep identifiers out without redacting
+  numeric JSON values. Do not restore the generic trailing coverage sentence; explain
+  a concrete limitation only when it affects the analysis.
+- `ImportSummaryJob` is the durable queue. Atomic claims and expiring leases protect
+  against concurrent workers. A stale worker may not overwrite a newer claim. Persist
+  the generated text before sending; a transport retry must not regenerate it.
+- An expired in-flight send or ambiguous Telegram timeout becomes `uncertain`, requiring
+  explicit manual acknowledgement before retry. Telegram has no exactly-once send key.
+  Retry only known-safe transient failures, at most three times per phase.
+- Channel/settings changes cancel pending work instead of retargeting it. Already-sent
+  and in-flight messages cannot be recalled. The read-only status endpoint is safe to
+  poll; never poll the detector-running `/api/notifications` endpoint.
+- `ImportSummaryAttempt` records each provider call's date and nullable usage, including
+  failures. Deleting source data must not delete billed usage. Chat and summaries share
+  `assistant/limits.py` and the database-backed monthly budget; automatic work does not
+  create fake chat conversations or inflate the answer count.
+- This write-capable configuration stays out of the public demo. Keep UI text bilingual
+  and store the UI language when saving the preference, then snapshot it per job.
 
 | Module | Role |
 |--------|------|
@@ -120,7 +168,8 @@ decoration — each message is one to three paid LLM calls.
 > **The rate limit and the monthly budget are not interchangeable.** The rate limit is an
 > in-process sliding window: it stops a burst, and it resets on every restart. That makes it
 > structurally incapable of capping a month's spend, because a redeploy hands back a full
-> allowance. The monthly token budget is counted from `assistant_messages` in the database,
+> allowance. The monthly token budget counts `assistant_messages` and
+> `import_summary_attempts` in the database,
 > which is the only reason it works. If you move the limiter to Redis some day, that does not
 > change — the budget still belongs in the database.
 
