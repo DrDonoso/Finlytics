@@ -51,19 +51,24 @@ export default function ConnectorsPage() {
   const error = investmentError ? messageOf(investmentError) : null
   const [wizardOpen, setWizardOpen] = useState(false)
   const [disconnecting, setDisconnecting] = useState(false)
+  const [disconnectError, setDisconnectError] = useState<string | null>(null)
 
   // A connection change also invalidates every figure derived from it.
   function refreshConnections() {
     void queryClient.invalidateQueries({ queryKey: queryKeys.connections })
     void queryClient.invalidateQueries({ queryKey: ['investments'] })
+    void queryClient.invalidateQueries({ queryKey: queryKeys.notifications, exact: true })
   }
 
   function handleDisconnect(conn: InvestmentConnection) {
-    if (!window.confirm(`${t.connectorDisconnect}?`)) return
+    if (!window.confirm(conn.plugin_id === 'fidelity-espp'
+      ? t.fidelityClearDataConfirm
+      : `${t.connectorDisconnect}?`)) return
+    setDisconnectError(null)
     setDisconnecting(true)
     disconnectConnection(conn.id)
       .then(() => { setDisconnecting(false); refreshConnections() })
-      .catch(() => { setDisconnecting(false) })
+      .catch(err => { setDisconnecting(false); setDisconnectError(messageOf(err)) })
   }
 
   // ── Notification connectors state ────────────────────────────────────────
@@ -92,7 +97,7 @@ export default function ConnectorsPage() {
 
   // ── Investment card renderers ─────────────────────────────────────────────
   function renderFidelityEsppCard(plugin: InvestmentPlugin) {
-    const conn = connections.find(c => c.plugin_id === 'fidelity-espp' && c.status === 'active')
+    const conn = connections.find(c => c.plugin_id === 'fidelity-espp')
 
     if (conn) {
       return (
@@ -106,7 +111,7 @@ export default function ConnectorsPage() {
             onClick={() => handleDisconnect(conn)}
             disabled={disconnecting}
           >
-            {t.connectorDisconnect}
+            {t.fidelityClearData}
           </button>
         </div>
       )
@@ -117,7 +122,7 @@ export default function ConnectorsPage() {
         {renderPluginIcon(plugin)}
         <span className="plugin-card__name">{plugin.name}</span>
         <p className="plugin-card__description">{pluginDesc(plugin)}</p>
-        <Link className="btn-primary" to="/investments/fidelity-espp">
+        <Link className="btn-primary" to="/investments/fidelity-espp?import=1">
           {t.fidelityImportCta}
         </Link>
       </div>
@@ -225,6 +230,7 @@ export default function ConnectorsPage() {
       {/* ── Investment connectors ─────────────────────────────── */}
       <div className="card settings-card">
         <h2 className="settings-section-title">{t.connectorsInvestmentsTitle}</h2>
+        {disconnectError && <p role="alert" className="assistant-save-error">{disconnectError}</p>}
         {loading ? (
           <div className="state-box">
             <IconLoading size={18} />

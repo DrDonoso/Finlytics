@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef } from 'react'
 import type { FocusEvent, MouseEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { useSearchParams } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts'
@@ -15,6 +15,7 @@ import {
   fidelityImportConfirm as callImportConfirm,
 } from '../../api/client'
 import { queryKeys, useFidelityEvolution, useFidelityKpis, useFidelityLots } from '../../api/queries'
+import { fidelityImportErrorMessage } from '../../api/errors'
 import { useT, langLocale } from '../../i18n'
 import { IS_DEMO } from '../../demo/config'
 import { useNotifications } from '../../contexts/NotificationsContext'
@@ -65,6 +66,12 @@ const LOTS_PAGE_SIZE = 15
 const NO_LOTS: FidelityLot[] = []
 
 interface Tip { text: string; x: number; y: number }
+
+function compareCost(a: number | null, b: number | null, direction: number): number {
+  if (a === null) return b === null ? 0 : 1
+  if (b === null) return -1
+  return direction * (a - b)
+}
 
 function SourceBadge({ source, onTip }: { source: string; onTip: (tip: Tip | null) => void }) {
   const { t } = useT()
@@ -123,7 +130,7 @@ export default function FidelityView() {
 
   // ── Import wizard state ────────────────────────────────────────────────────
   const [searchParams, setSearchParams]       = useSearchParams()
-  const importOpen = !IS_DEMO && searchParams.get('import') === '1'
+  const importOpen = !IS_DEMO && !kpis?.requires_usd_reimport && searchParams.get('import') === '1'
   const [wizStep, setWizStep]                 = useState<WizStep>('upload')
   const [importFile, setImportFile]           = useState<File | null>(null)
   const [importPreview, setImportPreview]     = useState<FidelityImportPreview | null>(null)
@@ -149,8 +156,8 @@ export default function FidelityView() {
         case 'date':         return dir * a.purchase_date.localeCompare(b.purchase_date)
         case 'source':       return dir * a.share_source.localeCompare(b.share_source)
         case 'shares':       return dir * (a.shares - b.shares)
-        case 'costPerShare': return dir * (a.cost_basis_per_share_eur - b.cost_basis_per_share_eur)
-        case 'totalCost':    return dir * (a.cost_basis_total_eur - b.cost_basis_total_eur)
+        case 'costPerShare': return compareCost(a.cost_basis_per_share_eur, b.cost_basis_per_share_eur, dir)
+        case 'totalCost':    return compareCost(a.cost_basis_total_eur, b.cost_basis_total_eur, dir)
         case 'currentValue':
           if (a.current_value_eur == null && b.current_value_eur == null) return 0
           if (a.current_value_eur == null) return 1
@@ -309,7 +316,7 @@ export default function FidelityView() {
       setImportPreview(preview)
       setWizStep('preview')
     } catch (err) {
-      setImportError(err instanceof Error ? err.message : String(err))
+      setImportError(fidelityImportErrorMessage(err, t))
     } finally {
       setImportLoading(false)
     }
@@ -328,7 +335,7 @@ export default function FidelityView() {
       void queryClient.invalidateQueries({ queryKey: queryKeys.connections })
       refreshNotifications()
     } catch (err) {
-      setImportError(err instanceof Error ? err.message : String(err))
+      setImportError(fidelityImportErrorMessage(err, t))
       setWizStep('preview')
     }
   }
@@ -407,11 +414,20 @@ export default function FidelityView() {
         <h1 className="investments-page-title">{t.fidelityTitle}</h1>
         {/* CSV import uploads a file and writes lots — not available in the demo. */}
         {!IS_DEMO && (
-          <button className="btn-primary" type="button" onClick={openImport}>
+          <button className="btn-primary" type="button" onClick={openImport} disabled={kpis?.requires_usd_reimport}>
             {t.fidelityImportBtn}
           </button>
         )}
       </div>
+
+      {kpis?.requires_usd_reimport && (
+        <div className="espp-reminder-banner" role="alert">
+          <span>{t.fidelityLegacyNotice}</span>
+          <Link to="/settings/connectors" className="espp-reminder-banner__link">
+            {t.fidelityClearData}
+          </Link>
+        </div>
+      )}
 
       {(() => {
         const activeEspp = notifications.find(n => n.source === 'espp')
@@ -420,7 +436,7 @@ export default function FidelityView() {
         return (
           <div className="espp-reminder-banner" role="alert">
             <span><IconAlert size={15} /> {t.esppReminderBanner(period)}</span>
-            <button type="button" onClick={openImport} className="espp-reminder-banner__link">
+            <button type="button" onClick={openImport} disabled={kpis?.requires_usd_reimport} className="espp-reminder-banner__link">
               {t.esppReminderAction}
             </button>
           </div>
@@ -480,10 +496,15 @@ export default function FidelityView() {
 
             {/* 2. Invested (EUR cost basis) */}
             <div className="kpi-card">
-              <div className="kpi-label">{t.fidelityKpiInvested}</div>
+              <div className="kpi-label">{kpis?.requires_usd_reimport ? t.fidelityImportedCost : t.fidelityKpiInvested}</div>
               <div className="kpi-value">
                 {kpis != null ? <Money value={kpis.invested_eur} /> : '—'}
               </div>
+              {kpis?.cost_basis_usd != null && (
+                <div className="kpi-sub">
+                  {t.fidelityCostBasisOriginal}: <Money value={kpis.cost_basis_usd} currency="USD" />
+                </div>
+              )}
             </div>
 
             {/* 3. Current value */}
@@ -498,6 +519,7 @@ export default function FidelityView() {
                     formatNumber(kpis.msft_price_usd, { decimals: 2 }),
                     formatNumber(kpis.usd_eur_rate, { decimals: 4 }),
                   )}
+                  {kpis.last_price_date && <div>{t.fidelityAsOf(formatDDMMYYYY(kpis.last_price_date))}</div>}
                 </div>
               )}
             </div>
@@ -518,6 +540,8 @@ export default function FidelityView() {
             </div>
 
           </div>
+
+          {!kpis?.requires_usd_reimport && <p className="fid-currency-note">{t.fidelityFxNote}</p>}
 
           {/* ── Evolution chart ── */}
           <div className="card inv-evolution-card">
@@ -781,6 +805,7 @@ export default function FidelityView() {
               {/* Step 2: Preview */}
               {wizStep === 'preview' && importPreview && (
                 <div>
+                  <p className="fid-currency-note">{t.fidelityPreviewUsd}</p>
                   <p style={{ marginBottom: 12, fontWeight: 600 }}>
                     {t.fidelityImportPreviewTitle}
                   </p>
@@ -814,8 +839,8 @@ export default function FidelityView() {
                                   maximumFractionDigits: 3,
                                 }).format(lot.shares)}</Private>
                               </td>
-                              <td className="inv-td-num"><Money value={lot.cost_basis_per_share_eur} /></td>
-                              <td className="inv-td-num"><Money value={lot.cost_basis_total_eur} /></td>
+                              <td className="inv-td-num"><Money value={lot.cost_basis_per_share_usd} currency="USD" /></td>
+                              <td className="inv-td-num"><Money value={lot.cost_basis_total_usd} currency="USD" /></td>
                             </tr>
                           ))}
                         </tbody>

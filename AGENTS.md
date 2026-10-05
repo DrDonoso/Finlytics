@@ -47,9 +47,9 @@ The `IMAGE_TAG` / `BUILD_DATE` build args are injected there and surfaced by
 
 ## Migrations
 
-Alembic migrations live in `alembic/versions/`. The current head is `0027_add_import_summaries.py`.
+Alembic migrations live in `alembic/versions/`. The current head is `0028_fidelity_usd_identity.py`.
 
-- Always create a new numbered migration (`0028_...`) for schema changes.
+- Always create a new numbered migration (`0029_...`) for schema changes.
 - Verify the head before writing one — this file goes stale. `down_revision` in the
   highest-numbered file is the source of truth, not this document.
 - The entrypoint runs `alembic upgrade head` automatically on container start.
@@ -230,6 +230,22 @@ Two connector types coexist under the same plugin model:
 
 Both produce data consumed by `GET /api/investments/combined-overview`, which
 `investments/overview.py::build_combined_overview` builds for the API and the assistant alike.
+
+### Fidelity USD imports
+
+- New CSV imports require an explicit USD footer. Never infer USD from a missing
+  declaration or relabel a EUR export. Both preview and confirmation enforce it.
+- Store original USD costs. `investments/fidelity_valuation.py` translates costs
+  and values at the same current FX; this is not historical EUR payroll performance.
+  Missing FX leaves EUR costs unknown. Existing non-USD lots retain their imported
+  costs and block new imports until the owner explicitly clears Fidelity data.
+- Lot keys include the connection, ticker, purchase date, shares, source, grant
+  date and `dedup_ordinal`, never costs. Repeated dividend lots must survive.
+  Migration 0028 rekeys without deleting rows or changing amounts/currencies.
+  Backup restore recomputes keys for the target connection and retains ordinals.
+- Clearing Fidelity in Settings > Connectors deletes its connection, lots and
+  import runs through foreign-key cascades. Never delete shared price history or
+  another connector. Require explicit confirmation and recommend a backup first.
 
 > **An unreadable provider is "unavailable", never 0 €.** A connection in
 > `HOLDING_STATUSES` (`active` or `error`, in `db/queries/investments.py`) still holds money.

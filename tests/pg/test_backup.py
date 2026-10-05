@@ -114,13 +114,13 @@ async def seed(sessions: Sessions, accounts: tuple[int, int]) -> User:
         shares=Decimal("1.52300000"),
         cost_basis=Decimal("533.24"),
         cost_basis_per_share=Decimal("350.123456"),
-        source_currency="EUR",
+        source_currency="USD",
         share_source="SP",
         holding_period="Short Term",
         dedup_ordinal=0,
     )
     async with sessions() as s:
-        await FidelityESPPProvider().import_lots(connection.id, [lot], "EUR", "c" * 64, s)
+        await FidelityESPPProvider().import_lots(connection.id, [lot], "USD", "c" * 64, s)
     return user
 
 

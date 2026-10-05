@@ -116,7 +116,7 @@ def lot(purchase_date: date, shares: str, price: str, *, source: str = "SP", ord
         shares=Decimal(shares),
         cost_basis=(Decimal(shares) * Decimal(price)).quantize(Decimal("0.01")),
         cost_basis_per_share=Decimal(price),
-        source_currency="EUR",
+        source_currency="USD",
         share_source=source,
         holding_period=None,
         dedup_ordinal=ordinal,
@@ -139,7 +139,7 @@ async def test_espp_lots_are_imported_once(sessions, connection_id):
 
     async def upload(lots, file_hash):
         async with sessions() as s:
-            return await provider.import_lots(connection_id, lots, "EUR", file_hash, s)
+            return await provider.import_lots(connection_id, lots, "USD", file_hash, s)
 
     statement = [
         lot(date(2025, 3, 31), "1.52300000", "350.123456"),
@@ -147,7 +147,7 @@ async def test_espp_lots_are_imported_once(sessions, connection_id):
         lot(date(2025, 3, 31), "0.01230000", "360", source="DO", ordinal=1),
     ]
     assert await upload(statement, "a" * 64) == (3, 0)
-    assert await upload(statement, "a" * 64) == (3, 0)
+    assert await upload(statement, "a" * 64) == (0, 3)
     assert await upload([*statement, lot(date(2025, 6, 30), "1.2", "370")], "b" * 64) == (1, 3)
 
     async with sessions() as s:

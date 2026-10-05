@@ -36,9 +36,25 @@ from finlytics.api.schemas import (
 )
 from finlytics.api.uploads import read_upload
 from finlytics.clock import today as local_today
-from finlytics.db.models import EsppLot, InvestmentConnection, InvestmentImportRun, PriceHistory
-from finlytics.investments.fidelity import FidelityESPPProvider, _compute_dedup_hash
-from finlytics.investments.fidelity_csv import FidelityCsvError, parse_open_lots_csv
+from finlytics.db.models import (
+    EsppLot,
+    InvestmentConnection,
+    InvestmentImportRun,
+    PriceHistory,
+    User,
+)
+from finlytics.investments.fidelity import (
+    FidelityESPPProvider,
+    LegacyFidelityLotsError,
+    _compute_dedup_hash,
+    require_usd_lots,
+)
+from finlytics.investments.fidelity_csv import (
+    FidelityCsvError,
+    FidelityCurrencyError,
+    parse_usd_open_lots_csv,
+)
+from finlytics.investments.fidelity_valuation import cost_in_eur, total_cost_eur, value_fidelity
 from finlytics.investments.market_data import (
     LatestPriceRow,
     backfill_price_history,
@@ -64,6 +80,7 @@ async def _get_or_create_fidelity_connection(
 
     Must be called inside an active ``async with db.begin()`` block.
     """
+    await db.scalar(select(User.id).where(User.id == user_id).with_for_update())
     result = await db.execute(
         select(InvestmentConnection).where(
             InvestmentConnection.user_id == user_id,
@@ -154,7 +171,7 @@ def compute_evolution_series(
     lots_sorted = sorted(lots, key=lambda lot: lot.purchase_date)
     lot_idx = 0
     cum_shares = Decimal(0)
-    cum_cost = Decimal(0)
+    cum_costs: dict[str, Decimal] = {}
 
     value_series: list[ValuePoint] = []
     contributions_series: list[ValuePoint] = []
@@ -163,7 +180,10 @@ def compute_evolution_series(
         # Advance step function: include lots whose purchase_date ≤ sd
         while lot_idx < len(lots_sorted) and lots_sorted[lot_idx].purchase_date <= sd:
             cum_shares += Decimal(str(lots_sorted[lot_idx].shares))
-            cum_cost   += Decimal(str(lots_sorted[lot_idx].cost_basis))
+            lot = lots_sorted[lot_idx]
+            cum_costs[lot.source_currency] = (
+                cum_costs.get(lot.source_currency, Decimal(0)) + Decimal(str(lot.cost_basis))
+            )
             lot_idx += 1
 
         price_pt = price_lookup.get(sd)
@@ -172,7 +192,9 @@ def compute_evolution_series(
             value = float(cum_shares) * close_usd * fx_eur_usd
             value_series.append(ValuePoint(date=sd.isoformat(), value=round(value, 2)))
 
-        if cum_cost > 0:
+        fx = Decimal(str(price_pt[1])) if price_pt is not None else None
+        cum_cost = total_cost_eur(cum_costs, fx)
+        if cum_cost is not None and cum_cost > 0:
             contributions_series.append(
                 ValuePoint(date=sd.isoformat(), value=round(float(cum_cost), 2))
             )
@@ -291,7 +313,9 @@ async def fidelity_import_preview(
     file_hash = hashlib.sha256(file_bytes).hexdigest()
 
     try:
-        parsed = parse_open_lots_csv(file_bytes)
+        parsed = parse_usd_open_lots_csv(file_bytes)
+    except FidelityCurrencyError as exc:
+        raise HTTPException(status_code=400, detail={"code": exc.code, "message": str(exc)}) from exc
     except FidelityCsvError as exc:
         raise HTTPException(status_code=400, detail=f"CSV parsing failed: {exc}") from exc
 
@@ -311,20 +335,6 @@ async def fidelity_import_preview(
         )
     ).scalar_one_or_none() is not None
 
-    # Compute dedup hashes for every lot in the file
-    ticker = parsed.ticker
-    lot_hashes = [
-        _compute_dedup_hash(
-            ticker=ticker,
-            purchase_date=lot.purchase_date,
-            shares=Decimal(str(lot.shares)),
-            cost_basis_per_share=Decimal(str(lot.cost_basis_per_share)),
-            share_source=lot.share_source,
-            dedup_ordinal=lot.dedup_ordinal,
-        )
-        for lot in parsed.lots
-    ]
-
     # Find which hashes already exist in the user's connection(s)
     user_conn_ids = list(
         (
@@ -337,33 +347,45 @@ async def fidelity_import_preview(
         ).scalars().all()
     )
 
-    existing_hashes: set[str]
-    if user_conn_ids and lot_hashes:
+    known_indices: set[int] = set()
+    for connection_id in user_conn_ids:
+        try:
+            await require_usd_lots(db, connection_id)
+        except LegacyFidelityLotsError as exc:
+            raise HTTPException(status_code=409, detail={"code": exc.code, "message": str(exc)}) from exc
+        lot_hashes = [
+            _compute_dedup_hash(
+                connection_id=connection_id, ticker=parsed.ticker,
+                purchase_date=lot.purchase_date, shares=lot.shares,
+                share_source=lot.share_source, dedup_ordinal=lot.dedup_ordinal,
+                grant_date=lot.grant_date,
+            )
+            for lot in parsed.lots
+        ]
         existing_hashes = set(
             (
                 await db.execute(
                     select(EsppLot.dedup_hash).where(
                         EsppLot.dedup_hash.in_(lot_hashes),
-                        EsppLot.connection_id.in_(user_conn_ids),
+                        EsppLot.connection_id == connection_id,
                     )
                 )
             ).scalars().all()
         )
-    else:
-        existing_hashes = set()
+        known_indices.update(i for i, h in enumerate(lot_hashes) if h in existing_hashes)
 
     new_lots: list[FidelityPreviewLotOut] = []
     duplicate_count = 0
-    for lot, h in zip(parsed.lots, lot_hashes):
-        if h in existing_hashes:
+    for i, lot in enumerate(parsed.lots):
+        if i in known_indices:
             duplicate_count += 1
         else:
             new_lots.append(
                 FidelityPreviewLotOut(
                     purchase_date=lot.purchase_date.isoformat(),
                     shares=float(lot.shares),
-                    cost_basis_per_share_eur=float(lot.cost_basis_per_share),
-                    cost_basis_total_eur=float(lot.cost_basis),
+                    cost_basis_per_share_usd=float(lot.cost_basis_per_share),
+                    cost_basis_total_usd=float(lot.cost_basis),
                     share_source=lot.share_source,
                     grant_date=lot.grant_date.isoformat() if lot.grant_date else None,
                     source_currency=lot.source_currency,
@@ -390,7 +412,9 @@ async def fidelity_import_confirm(
     file_hash = hashlib.sha256(file_bytes).hexdigest()
 
     try:
-        parsed = parse_open_lots_csv(file_bytes)
+        parsed = parse_usd_open_lots_csv(file_bytes)
+    except FidelityCurrencyError as exc:
+        raise HTTPException(status_code=400, detail={"code": exc.code, "message": str(exc)}) from exc
     except FidelityCsvError as exc:
         raise HTTPException(status_code=400, detail=f"CSV parsing failed: {exc}") from exc
 
@@ -401,14 +425,17 @@ async def fidelity_import_confirm(
 
     # 2. Import lots — FidelityESPPProvider.import_lots manages its own transaction
     provider: FidelityESPPProvider = _PROVIDERS[_PLUGIN_ID]  # type: ignore[assignment]
-    inserted, skipped = await provider.import_lots(
-        connection_id=connection_id,
-        lots=parsed.lots,
-        source_currency=parsed.source_currency,
-        file_hash=file_hash,
-        db=db,
-        ticker=parsed.ticker,
-    )
+    try:
+        inserted, skipped = await provider.import_lots(
+            connection_id=connection_id,
+            lots=parsed.lots,
+            source_currency=parsed.source_currency,
+            file_hash=file_hash,
+            db=db,
+            ticker=parsed.ticker,
+        )
+    except LegacyFidelityLotsError as exc:
+        raise HTTPException(status_code=409, detail={"code": exc.code, "message": str(exc)}) from exc
 
     # 3. Backfill price history when new lots were added
     if inserted > 0 and parsed.lots:
@@ -428,7 +455,7 @@ async def fidelity_kpis(
     user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> FidelityKpisOut:
-    """Aggregated KPIs: total shares, cost basis, current value, gain/loss, price info."""
+    """USD cost basis and gains translated to EUR at the same current FX rate."""
     # Price refresh first — must precede any other SQL (owns its transaction lifecycle)
     try:
         price: LatestPriceRow | None = await get_latest_price(db)
@@ -455,39 +482,26 @@ async def fidelity_kpis(
         await db.execute(select(EsppLot).where(EsppLot.connection_id == conn.id))
     ).scalars().all()
 
-    total_shares = sum(float(lot.shares) for lot in lots)
-    invested_eur = sum(float(lot.cost_basis) for lot in lots)
-
-    if price is None or total_shares == 0:
-        return FidelityKpisOut(
-            total_shares=total_shares,
-            invested_eur=round(invested_eur, 2),
-            current_value_eur=None,
-            gain_loss_eur=None,
-            gain_loss_pct=None,
-            msft_price_usd=None,
-            usd_eur_rate=None,
-            last_price_date=None,
-            price_stale=True,
-            as_of_date=local_today().isoformat(),
-        )
-
-    current_value_eur = total_shares * price.close_usd * price.fx_eur_usd
-    gain_loss_eur = current_value_eur - invested_eur
-    gain_loss_pct = (gain_loss_eur / invested_eur * 100.0) if invested_eur > 0 else None
+    valuation = value_fidelity(lots, price)
 
     return FidelityKpisOut(
-        total_shares=total_shares,
-        invested_eur=round(invested_eur, 2),
-        current_value_eur=round(current_value_eur, 2),
-        gain_loss_eur=round(gain_loss_eur, 2),
-        gain_loss_pct=round(gain_loss_pct, 4) if gain_loss_pct is not None else None,
-        msft_price_usd=round(price.close_usd, 4),
-        usd_eur_rate=round(price.fx_eur_usd, 6),
-        last_price_date=price.price_date.isoformat(),
-        price_stale=price.price_stale,
+        total_shares=float(valuation.total_shares),
+        invested_eur=_rounded(valuation.invested_eur),
+        cost_basis_usd=_rounded(valuation.cost_basis_usd),
+        requires_usd_reimport=valuation.requires_usd_reimport,
+        current_value_eur=_rounded(valuation.current_value_eur),
+        gain_loss_eur=_rounded(valuation.gain_loss_eur),
+        gain_loss_pct=_rounded(valuation.gain_loss_pct, 4),
+        msft_price_usd=round(price.close_usd, 4) if price else None,
+        usd_eur_rate=round(price.fx_eur_usd, 6) if price else None,
+        last_price_date=price.price_date.isoformat() if price else None,
+        price_stale=price.price_stale if price else True,
         as_of_date=local_today().isoformat(),
     )
+
+
+def _rounded(value: Decimal | None, digits: int = 2) -> float | None:
+    return round(float(value), digits) if value is not None else None
 
 
 @router.get("/fidelity/evolution", response_model=FidelityEvolutionOut)
@@ -622,27 +636,20 @@ async def fidelity_lots(
 
     result: list[FidelityLotOut] = []
     for lot in lots:
-        cost_total = float(lot.cost_basis)
-        cost_per   = float(lot.cost_basis_per_share)
-        cur_val: float | None = None
-        gl_eur: float | None  = None
-        gl_pct: float | None  = None
-
-        if price is not None:
-            cur_val = float(lot.shares) * price.close_usd * price.fx_eur_usd
-            gl_eur  = cur_val - cost_total
-            gl_pct  = (gl_eur / cost_total * 100.0) if cost_total > 0 else None
+        valuation = value_fidelity([lot], price)
+        fx = Decimal(str(price.fx_eur_usd)) if price else None
+        cost_per = cost_in_eur(lot.cost_basis_per_share, lot.source_currency, fx)
 
         result.append(
             FidelityLotOut(
                 id=lot.id,
                 purchase_date=lot.purchase_date.isoformat(),
                 shares=float(lot.shares),
-                cost_basis_per_share_eur=cost_per,
-                cost_basis_total_eur=cost_total,
-                current_value_eur=round(cur_val, 2) if cur_val is not None else None,
-                gain_loss_eur=round(gl_eur, 2) if gl_eur is not None else None,
-                gain_loss_pct=round(gl_pct, 4) if gl_pct is not None else None,
+                cost_basis_per_share_eur=_rounded(cost_per, 6),
+                cost_basis_total_eur=_rounded(valuation.invested_eur),
+                current_value_eur=_rounded(valuation.current_value_eur),
+                gain_loss_eur=_rounded(valuation.gain_loss_eur),
+                gain_loss_pct=_rounded(valuation.gain_loss_pct, 4),
                 share_source=lot.share_source,
                 grant_date=lot.grant_date.isoformat() if lot.grant_date else None,
             )

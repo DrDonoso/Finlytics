@@ -21,6 +21,9 @@ import {
   getTransactions,
   putImportSummarySettings,
   retryImportSummary,
+  fidelityImportPreview,
+  fidelityImportConfirm,
+  registerOn401Handler,
 } from './client'
 
 const READS: Array<[string, () => Promise<unknown>]> = [
@@ -41,6 +44,26 @@ const READS: Array<[string, () => Promise<unknown>]> = [
 
 afterEach(() => {
   vi.unstubAllGlobals()
+})
+
+describe.each([fidelityImportPreview, fidelityImportConfirm])('Fidelity uploads', upload => {
+  it('preserves the currency rejection code for localization', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      detail: { code: 'fidelity_usd_required', message: 'Only USD exports are supported.' },
+    }), { status: 400 })))
+    await expect(upload(new File(['synthetic'], 'lots.csv'))).rejects.toMatchObject({
+      code: 'fidelity_usd_required', status: 400,
+    })
+  })
+
+  it('invalidates the session on an actual 401', async () => {
+    const on401 = vi.fn()
+    registerOn401Handler(on401)
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('', { status: 401 })))
+    await expect(upload(new File(['synthetic'], 'lots.csv'))).rejects.toThrow('HTTP 401')
+    expect(on401).toHaveBeenCalledOnce()
+    registerOn401Handler(() => {})
+  })
 })
 
 describe.each(READS)('%s', (_name, read) => {

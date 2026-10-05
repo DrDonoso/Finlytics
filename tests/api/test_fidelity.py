@@ -50,7 +50,7 @@ from finlytics.investments.market_data import LatestPriceRow
 # Synthetic CSV fixtures — hand-crafted, no real financial values
 # ---------------------------------------------------------------------------
 
-# 2 SP lots (EUR currency) — 150 shares total, 6 100 EUR invested
+# 2 SP lots in USD.
 _MINIMAL_CSV: bytes = (
     b"Date acquired,Quantity,Cost basis,Cost basis/share,Value,Gain/loss,"
     b"Sale availability date,Transfer availability date,"
@@ -60,7 +60,7 @@ _MINIMAL_CSV: bytes = (
     b"Mar-31-2025,50.0000,2100.00,42.00,2400.00,300.00,"
     b"Jun-30-2025,Jun-30-2025,Jan-01-2025,SP,Short\n"
     b",\n"
-    b"The values are displayed in EUR\n"
+    b"The values are displayed in USD\n"
 )
 
 # Two identical DO lots (same date/qty/price) — tests ordinal dedup
@@ -73,11 +73,15 @@ _DO_DEDUP_CSV: bytes = (
     b"Dec-15-2024,0.5500,22.00,40.00,27.50,5.50,"
     b"Mar-15-2025,Mar-15-2025,-,DO,Long\n"
     b",\n"
-    b"The values are displayed in EUR\n"
+    b"The values are displayed in USD\n"
 )
 
 _EMPTY_CSV: bytes = b""
 _MALFORMED_CSV: bytes = b"col1,col2,col3\nfoo,bar,baz\n"
+
+@pytest.fixture(autouse=True)
+def empty_scalar_reads(mock_session):
+    mock_session.scalar = AsyncMock(return_value=None)
 
 # ---------------------------------------------------------------------------
 # Mock price / lot objects
@@ -233,7 +237,7 @@ class TestFidelityImportPreview:
         for key in ("new_lots", "duplicate_count", "total_in_file", "source_currency", "file_already_imported"):
             assert key in data, f"Missing key: {key}"
 
-    async def test_preview_source_currency_is_eur(self, client, mock_session):
+    async def test_preview_source_currency_is_usd(self, client, mock_session):
         mock_session.execute = AsyncMock(side_effect=[
             _result(scalar=None),
             _result(scalars_all=[]),
@@ -242,7 +246,7 @@ class TestFidelityImportPreview:
             "/api/investments/fidelity/import/preview",
             files={"file": ("test.csv", _MINIMAL_CSV, "text/csv")},
         )
-        assert resp.json()["source_currency"] == "EUR"
+        assert resp.json()["source_currency"] == "USD"
 
     async def test_preview_total_in_file_equals_csv_lot_count(self, client, mock_session):
         mock_session.execute = AsyncMock(side_effect=[
@@ -301,10 +305,11 @@ class TestFidelityImportPreview:
         """When existing_hashes contains one lot's dedup_hash, duplicate_count = 1."""
         # Compute the hash for lot 1 (Jun-30-2024, 100 shares, cbps=40, SP, ordinal=0)
         hash_lot1 = _compute_dedup_hash(
+            connection_id=42,
             ticker="MSFT",
             purchase_date=date(2024, 6, 30),
             shares=Decimal("100.0000"),
-            cost_basis_per_share=Decimal("40.00"),
+            grant_date=date(2024, 4, 1),
             share_source="SP",
             dedup_ordinal=0,
         )
@@ -416,7 +421,7 @@ class TestFidelityImportConfirm:
 
         mock_provider.import_lots.assert_awaited_once()
         _, kwargs = mock_provider.import_lots.call_args
-        assert kwargs["source_currency"] == "EUR"
+        assert kwargs["source_currency"] == "USD"
 
     async def test_confirm_backfill_called_when_lots_inserted(self, client, mock_session):
         mock_session.execute.return_value = _result(scalar=_make_conn())

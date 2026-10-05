@@ -21,3 +21,11 @@ export function errorMessage(error: unknown, t: Dict): string {
   const detail = error instanceof Error ? error.message : String(error)
   return t.errorUnexpected(detail)
 }
+
+export function fidelityImportErrorMessage(error: unknown, t: Dict): string {
+  if (error instanceof Error && 'code' in error) {
+    if (error.code === 'fidelity_usd_required') return t.fidelityUsdRequired
+    if (error.code === 'fidelity_legacy_lots') return t.fidelityLegacyNotice
+  }
+  return errorMessage(error, t)
+}

@@ -796,6 +796,18 @@
             "title": "Dedup Hash",
             "type": "string"
           },
+          "dedup_ordinal": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dedup Ordinal"
+          },
           "grant_date": {
             "anyOf": [
               {
@@ -2651,6 +2663,17 @@
             "title": "As Of Date",
             "type": "string"
           },
+          "cost_basis_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Basis Usd"
+          },
           "current_value_eur": {
             "anyOf": [
               {
@@ -2685,8 +2708,15 @@
             "title": "Gain Loss Pct"
           },
           "invested_eur": {
-            "title": "Invested Eur",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invested Eur"
           },
           "last_price_date": {
             "anyOf": [
@@ -2713,6 +2743,11 @@
           "price_stale": {
             "default": true,
             "title": "Price Stale",
+            "type": "boolean"
+          },
+          "requires_usd_reimport": {
+            "default": false,
+            "title": "Requires Usd Reimport",
             "type": "boolean"
           },
           "total_shares": {
@@ -2743,12 +2778,26 @@
         "description": "Single lot with current market valuation.",
         "properties": {
           "cost_basis_per_share_eur": {
-            "title": "Cost Basis Per Share Eur",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Basis Per Share Eur"
           },
           "cost_basis_total_eur": {
-            "title": "Cost Basis Total Eur",
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Basis Total Eur"
           },
           "current_value_eur": {
             "anyOf": [
@@ -2842,12 +2891,12 @@
       "FidelityPreviewLotOut": {
         "description": "One lot in the preview diff.",
         "properties": {
-          "cost_basis_per_share_eur": {
-            "title": "Cost Basis Per Share Eur",
+          "cost_basis_per_share_usd": {
+            "title": "Cost Basis Per Share Usd",
             "type": "number"
           },
-          "cost_basis_total_eur": {
-            "title": "Cost Basis Total Eur",
+          "cost_basis_total_usd": {
+            "title": "Cost Basis Total Usd",
             "type": "number"
           },
           "grant_date": {
@@ -2881,8 +2930,8 @@
         "required": [
           "purchase_date",
           "shares",
-          "cost_basis_per_share_eur",
-          "cost_basis_total_eur",
+          "cost_basis_per_share_usd",
+          "cost_basis_total_usd",
           "share_source",
           "source_currency"
         ],
@@ -5371,6 +5420,11 @@
       "ProviderCardOut": {
         "description": "Summary card for one investment provider on the /investments overview page.",
         "properties": {
+          "cost_basis_at_current_fx": {
+            "default": false,
+            "title": "Cost Basis At Current Fx",
+            "type": "boolean"
+          },
           "gain_loss_eur": {
             "anyOf": [
               {
@@ -8889,7 +8943,7 @@
     },
     "/api/investments/fidelity/kpis": {
       "get": {
-        "description": "Aggregated KPIs: total shares, cost basis, current value, gain/loss, price info.",
+        "description": "USD cost basis and gains translated to EUR at the same current FX rate.",
         "operationId": "fidelity_kpis_api_investments_fidelity_kpis_get",
         "responses": {
           "200": {

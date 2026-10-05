@@ -9,18 +9,25 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import * as api from '../api/client'
 import { queryKeys } from '../api/queries'
 import { createQueryClient } from '../api/queryClient'
-import type { FidelityImportPreview, NotificationOut } from '../api/types'
+import type { FidelityImportPreview, InvestmentPlugin, NotificationOut } from '../api/types'
 import { NotificationsProvider } from '../contexts/NotificationsContext'
 import { ToastProvider } from '../contexts/ToastContext'
 import { handlers } from '../demo/handlers'
 import { buildScenario } from '../demo/scenario'
 import { LanguageProvider } from '../i18n'
 import en from '../i18n/en'
+import es from '../i18n/es'
 import FidelityView from '../investments/views/FidelityView'
 import Dashboard from '../pages/Dashboard'
+import ConnectorsPage from '../pages/ConnectorsPage'
 
 const server = setupServer(...handlers)
 const scenario = buildScenario()
+const fidelityPlugin: InvestmentPlugin = {
+  id: 'fidelity-espp', name: 'Fidelity ESPP', description: '', icon: '',
+  status: 'connected', auth_type: 'none', supported_features: ['import'],
+  import_route: '/investments/fidelity-espp',
+}
 const pendingPurchase: NotificationOut = {
   id: 1,
   source: 'espp',
@@ -39,14 +46,14 @@ const preview: FidelityImportPreview = {
   new_lots: [{
     purchase_date: '2026-09-30',
     shares: 2,
-    cost_basis_per_share_eur: 400,
-    cost_basis_total_eur: 800,
+    cost_basis_per_share_usd: 400,
+    cost_basis_total_usd: 800,
     share_source: 'SP',
     grant_date: null,
   }],
   duplicate_count: 0,
   total_in_file: 1,
-  source_currency: 'EUR',
+  source_currency: 'USD',
   file_already_imported: false,
 }
 
@@ -71,6 +78,12 @@ beforeEach(() => {
     }),
     http.get('/api/notifications/unread-count', () =>
       HttpResponse.json({ count: imported ? 0 : 1 })),
+    http.get('/api/notifications/channels', () => HttpResponse.json([])),
+    http.get('/api/notifications/import-summary-settings', () => HttpResponse.json({
+      enabled: false, channel_id: null, language: 'en', ai_available: false,
+    })),
+    http.get('/api/notifications/import-summaries', () => HttpResponse.json([])),
+    http.get('/api/investments/plugins', () => HttpResponse.json([fidelityPlugin])),
   )
 })
 afterEach(() => {
@@ -85,6 +98,7 @@ function renderPage(path = '/investments/fidelity-espp') {
   const router = createMemoryRouter([
     { path: '/', element: <Dashboard /> },
     { path: '/investments/fidelity-espp', element: <FidelityView /> },
+    { path: '/settings/connectors', element: <ConnectorsPage /> },
   ], { initialEntries: [path] })
   render(
     <QueryClientProvider client={client}>
@@ -112,6 +126,60 @@ async function uploadCsv(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe('Fidelity import actions', () => {
+  it.each(['en', 'es'] as const)('explains a currency rejection in %s without allowing confirmation', async lang => {
+    localStorage.setItem('finlytics_lang', lang)
+    const t = lang === 'en' ? en : es
+    vi.mocked(api.fidelityImportPreview).mockRejectedValue(Object.assign(
+      new Error('Only USD exports are supported.'), { code: 'fidelity_usd_required' },
+    ))
+    const user = userEvent.setup()
+    renderPage('/investments/fidelity-espp?import=1')
+    const dialog = within(await screen.findByRole('dialog', { name: t.fidelityImportTitle }))
+    await user.upload(dialog.getByLabelText(t.fidelityImportCta), new File(['synthetic'], 'eur.csv', { type: 'text/csv' }))
+    await user.click(dialog.getByRole('button', { name: t.fidelityImportConfirmBtn }))
+    expect(await dialog.findByRole('alert')).toHaveTextContent(t.fidelityUsdRequired)
+    expect(api.fidelityImportConfirm).not.toHaveBeenCalled()
+    expect(dialog.queryByText(t.fidelityImportPreviewTitle)).toBeNull()
+  })
+
+  it('labels preview amounts in USD and keeps private amounts covered', async () => {
+    const user = userEvent.setup()
+    renderPage('/investments/fidelity-espp?import=1')
+    const dialog = await uploadCsv(user)
+    expect(dialog.getByText(en.fidelityPreviewUsd)).toBeInTheDocument()
+    const cost = dialog.getByText('US$800.00')
+    expect(cost).toHaveClass('private')
+    expect(dialog.queryByText('€800.00')).toBeNull()
+  })
+
+  it('blocks a legacy deep link and directs the owner to the explicit reset', async () => {
+    server.use(http.get('/api/investments/fidelity/kpis', () => HttpResponse.json({
+      ...scenario.espp.kpis, requires_usd_reimport: true, cost_basis_usd: null,
+    })))
+    renderPage('/investments/fidelity-espp?import=1')
+    expect(await screen.findByText(en.fidelityLegacyNotice)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: en.fidelityImportBtn })).toBeDisabled()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.getByRole('link', { name: en.fidelityClearData })).toHaveAttribute('href', '/settings/connectors')
+  })
+
+  it('resets only Fidelity after an explicit destructive confirmation', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true)
+    const disconnect = vi.spyOn(api, 'disconnectConnection').mockResolvedValue(undefined)
+    const user = userEvent.setup()
+    const { client } = renderPage('/settings/connectors')
+    client.setQueryData(queryKeys.fidelityKpis, scenario.espp.kpis)
+    const button = await screen.findByRole('button', { name: en.fidelityClearData })
+    await user.click(button)
+    expect(disconnect).not.toHaveBeenCalled()
+    await user.click(button)
+    expect(confirm).toHaveBeenCalledWith(en.fidelityClearDataConfirm)
+    const connection = scenario.connections.find(c => c.plugin_id === 'fidelity-espp')
+    expect(connection).toBeDefined()
+    expect(disconnect).toHaveBeenCalledExactlyOnceWith(connection?.id)
+    await waitFor(() => expect(client.getQueryState(queryKeys.fidelityKpis)?.isInvalidated).toBe(true))
+  })
+
   it.each(['/', '/investments/fidelity-espp'])('opens the importer from the reminder on %s', async path => {
     const user = userEvent.setup()
     const { router } = renderPage(path)

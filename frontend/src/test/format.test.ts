@@ -5,6 +5,12 @@ import { formatCompactCurrency, formatCurrency, formatPercent } from '../i18n'
 const plain = (s: string) => s.replace(/[\u00a0\u202f]/g, ' ')
 
 describe('formatCurrency', () => {
+  it('formats USD explicitly without changing the default EUR behavior', () => {
+    expect(plain(formatCurrency(1234.5, 'en', 'USD'))).toBe('US$1,234.50')
+    expect(plain(formatCurrency(1234.5, 'es', 'USD'))).toBe('1234,50 US$')
+    expect(plain(formatCurrency(-0.004, 'en', 'USD'))).toBe('US$0.00')
+    expect(plain(formatCurrency(1234.5, 'en'))).toBe('€1,234.50')
+  })
   it('never prints a negative zero', () => {
     expect(plain(formatCurrency(-0, 'es'))).toBe('0,00 €')
     expect(plain(formatCurrency(-0.004, 'en'))).toBe('€0.00')

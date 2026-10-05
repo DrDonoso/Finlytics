@@ -2305,6 +2305,7 @@ def _make_co_lot(lot_id: int, shares: str, cost_basis: str, conn_id: int = 2) ->
     lot.shares = Decimal(shares)
     lot.cost_basis = Decimal(cost_basis)
     lot.connection_id = conn_id
+    lot.source_currency = "EUR"
     return lot
 
 
