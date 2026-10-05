@@ -788,6 +788,24 @@ export interface Dict {
   notifSettingsDeleteBtn: string
   notifSettingsDeleteConfirm: string
   notifSettingsDeleted: string
+  importSummaryTitle: string
+  importSummaryEnable: string
+  importSummaryDescription: string
+  importSummaryDisclosure: string
+  importSummaryChannel: string
+  importSummarySelectChannel: string
+  importSummaryNoChannels: string
+  importSummaryNoAI: string
+  importSummaryLanguage: (language: string) => string
+  importSummaryRecent: string
+  importSummaryEmpty: string
+  importSummaryRetry: string
+  importSummaryUncertainConfirm: string
+  importSummaryError: string
+  importSummaryStatuses: Record<string, string>
+  importSummaryErrors: Record<string, string>
+  importSummaryQueued: string
+  importSummaryViewStatus: string
   // ── Transaction detail modal ──────────────────────────────────────────────
   txDetailModalTitle: string
   // ── Finances drill-down table ─────────────────────────────────────────────
@@ -857,6 +875,7 @@ export interface Dict {
   assistantUsageHint: string
   assistantUsageThisMonth: string
   assistantUsageMessages: string
+  assistantUsageSummaries: string
   assistantUsageAllTime: string
   assistantUsageUnavailable: string
   assistantBudgetLabel: string

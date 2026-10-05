@@ -12,6 +12,34 @@
   margin-bottom: 16px;
 }
 .settings-card { margin-bottom: 20px; }
+.import-summary-settings {
+  border-top: 1px solid var(--border);
+  margin-top: var(--space-6);
+  padding-top: var(--space-4);
+}
+.import-summary-form, .import-summary-jobs, .import-summary-jobs li {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.import-summary-form { margin-block: var(--space-4); }
+.import-summary-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.import-summary-jobs {
+  list-style: none;
+  padding: 0;
+  margin-block: var(--space-3);
+}
+.import-summary-jobs li {
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow-wrap: anywhere;
+}
+.import-summary-jobs .btn-secondary { align-self: flex-start; }
 .settings-section-title {
   font-size: 15px;
   font-weight: 700;

@@ -72,6 +72,12 @@ export default function AssistantSettingsPage() {
               </div>
               <div className="assistant-usage-stat">
                 <span className="assistant-usage-value">
+                  {formatInt(usage.this_month.summaries ?? 0, locale)}
+                </span>
+                <span className="assistant-usage-label">{t.assistantUsageSummaries}</span>
+              </div>
+              <div className="assistant-usage-stat">
+                <span className="assistant-usage-value">
                   {formatInt(usage.all_time.total_tokens, locale)}
                 </span>
                 <span className="assistant-usage-label">{t.assistantUsageAllTime}</span>

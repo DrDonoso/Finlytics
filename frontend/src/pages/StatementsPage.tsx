@@ -226,6 +226,8 @@ export default function StatementsPage() {
     setImportFiles(null)
     showToast(t.toastSuccess(result.num_inserted, result.num_duplicates))
     refreshMonthData()
+    void queryClient.invalidateQueries({ queryKey: queryKeys.importSummaries })
+    void queryClient.invalidateQueries({ queryKey: queryKeys.assistantUsage })
   }
 
   // ── Early return: loading ───────────────────────────────────────────────────

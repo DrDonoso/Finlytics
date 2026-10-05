@@ -19,21 +19,28 @@ Expense amounts in the aggregations are **positive magnitudes**.
 from __future__ import annotations
 
 from datetime import date, datetime
+from decimal import Decimal
 from typing import TypedDict
 
 __all__ = [
     "AccountRow",
     "AccountSummaryRow",
+    "AmountChange",
     "CashflowItem",
     "CashflowSummary",
     "CategoryRow",
     "CategorySummaryRow",
+    "CategoryChangeRow",
     "CategoryUpdateRow",
     "DateRange",
     "DaySummaryRow",
     "MerchantSummaryRow",
     "MonthSummaryRow",
     "OverviewSummary",
+    "ImportSummaryFacts",
+    "MortgageChargeRow",
+    "MortgagePaymentMatch",
+    "MortgagePaymentContext",
     "StatementMonthRow",
     "StatementOriginalRow",
     "TagRow",
@@ -42,6 +49,57 @@ __all__ = [
     "TransactionRow",
     "UpdatedTransactionRow",
 ]
+
+class AmountChange(TypedDict):
+    delta: float
+    delta_pct: float | None
+
+
+class CategoryChangeRow(AmountChange):
+    category: str
+    period_a: float
+    period_b: float
+
+
+class ImportSummaryFacts(TypedDict):
+    account: str
+    from_date: str
+    to_date: str
+    previous_from: str
+    previous_to: str
+    inserted: int
+    duplicates: int
+    current: OverviewSummary
+    previous: OverviewSummary | None
+    spending_change: AmountChange | None
+    categories: list[CategorySummaryRow]
+    changes: list[CategoryChangeRow]
+    mortgage_payments: MortgagePaymentContext
+
+
+class MortgageChargeRow(TypedDict):
+    id: int
+    account_id: int
+    date: date
+    amount: Decimal
+
+
+class MortgagePaymentMatch(TypedDict):
+    mortgage_id: int
+    mortgage_name: str
+    transaction_id: int
+    due_date: str
+    charged_date: str
+    expected_amount: float
+    actual_amount: float
+    cross_month: bool
+    timing_supported: bool
+
+
+class MortgagePaymentContext(TypedDict):
+    matches: list[MortgagePaymentMatch]
+    unavailable: list[str]
+    truncated: bool
 
 
 # ── Catalogues ───────────────────────────────────────────────────────────────

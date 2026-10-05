@@ -108,6 +108,46 @@ The counterweight to the investments side: the first **liability** the app model
 
 Detectors run in the background and raise reminders when something needs you — today a missing monthly statement or an overdue ESPP upload; adding another is one entry in a registry. They surface in the in-app bell (read/dismissed state stored server-side, so it follows you across devices) and, optionally, in **Telegram**: connect a bot from Settings → Connectors and the same reminders arrive there too.
 
+**Optional post-import analysis:** in **Settings → Connectors → Notifications**, enable
+**Import summaries** and select your configured Telegram channel. Each bank statement
+that saves new transactions queues its own AI summary, covering that account's recorded
+period, income, expenses, spending categories and available historical changes.
+Duplicate-only imports, previews, manual transactions, backups and Fidelity imports do
+not trigger it. Enabling the setting does not send old statements.
+
+The numerical header uses the same queries as the dashboards; AI adds short commentary
+from those facts, with a dedicated prompt independent of the chat prompt. The digest
+explains total spending against the reference period, the main spending areas and
+which categories increased, decreased or stayed stable. Total changes are calculated
+from all recorded expenses, not just the leading categories shown to the model.
+Comparisons name their date ranges and mention specific data gaps when relevant,
+without a generic coverage footer. Saving the setting selects the current app language
+for future summaries.
+
+**Mortgage charges crossing a month boundary are explained, not moved.** For linked
+mortgages, summaries reuse the instalment matcher (up to 10 days around the due date).
+A charge on June 1 can settle the instalment due on May 31, while another on June 30
+settles June's instalment. Both remain in June's cash-flow totals; the due dates give
+the analysis the context to distinguish collection timing from an increased monthly
+payment. A specific reconciliation note follows the analysis for unambiguous,
+amount-matching, non-projected instalments, so mortgage details do not displace the
+spending explanation. Missing cached index data, competing matches and amount
+discrepancies are not presented as certain explanations.
+
+Generation and delivery run in the background, survive restarts and never undo a saved
+statement. Recoverable failures get up to three attempts per phase; delivery retries
+reuse the saved analysis. Recent outcomes and manual retry are available beside the
+setting. **An unconfirmed Telegram send is not retried automatically:** Telegram may
+already have accepted it, so a manual retry requires acknowledging the risk of a
+duplicate. Changing or disconnecting the channel cancels pending work instead of
+redirecting it; an in-flight message cannot be recalled.
+
+> **This sends financial information outside Finlytics.** Choose the destination
+> carefully. It uses the existing encrypted Telegram credentials, including a configured
+> forum topic, and the same AI provider as the assistant. Generation attempts share the
+> assistant's rate limit and monthly token budget, including billed failures and retries.
+> A budget-blocked summary can be retried after the allowance resets or is increased.
+
 ### 💬 Talk to your finances
 
 A slide-out chat panel, reachable from every page, that answers natural-language questions about your own data — *"how much did I spend on groceries last quarter?"*, *"where could I cut back?"*, *"if I invest €200 a month, what would I have in 10 years?"*
@@ -117,7 +157,7 @@ A slide-out chat panel, reachable from every page, that answers natural-language
 - **Projections are arithmetic, not opinion.** *"What would I have in 10 years"* goes through a deterministic compound-interest tool that returns conservative / base / optimistic scenarios; the model narrates the numbers it gets back and always carries the "not financial advice" disclaimer. A model inventing *"you'd have around €40,000"* reads exactly like a model that calculated it.
 - **Streamed** token by token over SSE, with a chip showing which query is running.
 - **Conversations persist** per user and are recoverable after a reload. Tool results are deliberately *not* stored or replayed — a follow-up makes the assistant re-query rather than answer a new question from an old query's data.
-- **Settings → Assistant** shows what the assistant has cost in tokens, lets you add custom instructions, and caps spend: a messages-per-window rate limit and a monthly token budget.
+- **Settings → Assistant** shows token consumption from chat and automatic import summaries, with separate answer/summary counts, lets you add custom instructions for chat, and caps spend with a shared rate limit and monthly token budget.
 - Reuses the `OPENAI_*` credentials. With those unset the launcher does not appear at all, rather than offering a button that can only return 503.
 
 > **Custom instructions are added to the prompt, never in place of it.** The core prompt carries the rules that stop the model inventing figures about your money — take every number from the tools, never do compound interest by hand, treat statement text as data, never reveal account numbers. A text box that can delete those is one that eventually will, and the failure is invisible because the answer still reads confidently.

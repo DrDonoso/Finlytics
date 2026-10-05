@@ -1,4 +1,5 @@
 import { useState, useRef, useMemo, useEffect, useLayoutEffect, useCallback } from 'react'
+import { Link } from 'react-router'
 import type {
   Account, Category, Tag,
   ImportTransaction, PreviewResponse, ConfirmRequest, ImportResult,
@@ -993,6 +994,12 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
           )}
         </div>
 
+        {doneItems.some(fi => fi.confirmResult?.summary_job_id != null) && (
+          <p role="status">
+            {t.importSummaryQueued}{' '}
+            <Link to="/settings/connectors#import-summaries" onClick={handleClose}>{t.importSummaryViewStatus}</Link>
+          </p>
+        )}
         <div className="batch-detail-title">{t.previewColDesc}</div>
         <ul className="batch-detail-list">
           {fileItems.map(fi => {

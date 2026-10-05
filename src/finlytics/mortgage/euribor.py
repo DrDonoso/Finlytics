@@ -27,11 +27,11 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 
 import httpx
-from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from finlytics.db.models import EuriborRate
+from finlytics.db.queries.mortgages import get_cached_mortgage_index
 from finlytics.log_safety import one_line
 
 log = logging.getLogger(__name__)
@@ -142,12 +142,7 @@ async def load_series(
     db: AsyncSession, index_name: str = INDEX_EURIBOR_12M
 ) -> dict[date, Decimal]:
     """Load the cached monthly series as ``{period: rate}``."""
-    result = await db.execute(
-        select(EuriborRate.period, EuriborRate.rate)
-        .where(EuriborRate.index_name == index_name)
-        .order_by(EuriborRate.period)
-    )
-    return {period: rate for period, rate in result.all()}
+    return await get_cached_mortgage_index(db, index_name)
 
 
 async def ensure_series(

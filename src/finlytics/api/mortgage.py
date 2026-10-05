@@ -30,7 +30,6 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from finlytics.api.deps import get_current_user, get_db
 from finlytics.api.schemas import (
@@ -61,6 +60,7 @@ from finlytics.db.models import (
     Transaction,
     User,
 )
+from finlytics.db.queries.mortgages import MORTGAGE_RELATIONS as _RELATIONS
 from finlytics.mortgage import service
 from finlytics.mortgage.euribor import INDEX_EURIBOR_12M, ensure_series
 from finlytics.mortgage.schedule import add_months
@@ -75,13 +75,6 @@ _MIN_RECURRING_CHARGES = 3
 # qualify. Three monthly charges span ~59 days at the short end (Jan→Mar).
 _MIN_RECURRING_SPAN_DAYS = 50
 _MAX_CANDIDATES = 5
-
-_RELATIONS = (
-    selectinload(Mortgage.rate_periods),
-    selectinload(Mortgage.bonuses),
-    selectinload(Mortgage.prepayments),
-)
-
 
 def _dec(value: float | None) -> Decimal | None:
     return Decimal(str(value)) if value is not None else None

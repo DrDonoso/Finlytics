@@ -526,6 +526,11 @@
             "title": "Messages",
             "type": "integer"
           },
+          "summaries": {
+            "default": 0,
+            "title": "Summaries",
+            "type": "integer"
+          },
           "tokens": {
             "title": "Tokens",
             "type": "integer"
@@ -604,6 +609,11 @@
           },
           "prompt_tokens": {
             "title": "Prompt Tokens",
+            "type": "integer"
+          },
+          "summaries": {
+            "default": 0,
+            "title": "Summaries",
             "type": "integer"
           },
           "total_tokens": {
@@ -3133,6 +3143,17 @@
           "num_parsed": {
             "title": "Num Parsed",
             "type": "integer"
+          },
+          "summary_job_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary Job Id"
           }
         },
         "required": [
@@ -3231,6 +3252,186 @@
           "transactions_duplicates"
         ],
         "title": "ImportSummary",
+        "type": "object"
+      },
+      "ImportSummaryJobOut": {
+        "properties": {
+          "account_name": {
+            "title": "Account Name",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "from_date": {
+            "format": "date",
+            "title": "From Date",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "import_run_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Import Run Id"
+          },
+          "language": {
+            "enum": [
+              "en",
+              "es"
+            ],
+            "title": "Language",
+            "type": "string"
+          },
+          "sent_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sent At"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "generating",
+              "ready",
+              "sending",
+              "sent",
+              "blocked",
+              "failed",
+              "uncertain",
+              "cancelled"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "to_date": {
+            "format": "date",
+            "title": "To Date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "import_run_id",
+          "account_name",
+          "from_date",
+          "to_date",
+          "language",
+          "status",
+          "error",
+          "created_at",
+          "sent_at"
+        ],
+        "title": "ImportSummaryJobOut",
+        "type": "object"
+      },
+      "ImportSummaryRetryIn": {
+        "properties": {
+          "acknowledge_uncertain": {
+            "default": false,
+            "title": "Acknowledge Uncertain",
+            "type": "boolean"
+          }
+        },
+        "title": "ImportSummaryRetryIn",
+        "type": "object"
+      },
+      "ImportSummarySettingsIn": {
+        "properties": {
+          "channel_id": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channel Id"
+          },
+          "enabled": {
+            "default": false,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "language": {
+            "default": "en",
+            "enum": [
+              "en",
+              "es"
+            ],
+            "title": "Language",
+            "type": "string"
+          }
+        },
+        "title": "ImportSummarySettingsIn",
+        "type": "object"
+      },
+      "ImportSummarySettingsOut": {
+        "properties": {
+          "ai_available": {
+            "title": "Ai Available",
+            "type": "boolean"
+          },
+          "channel_id": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channel Id"
+          },
+          "enabled": {
+            "default": false,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "language": {
+            "default": "en",
+            "enum": [
+              "en",
+              "es"
+            ],
+            "title": "Language",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ai_available"
+        ],
+        "title": "ImportSummarySettingsOut",
         "type": "object"
       },
       "InvestmentHoldingOut": {
@@ -9625,6 +9826,167 @@
           }
         },
         "summary": "Delete Channel",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/notifications/import-summaries": {
+      "get": {
+        "operationId": "list_import_summaries_api_notifications_import_summaries_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ImportSummaryJobOut"
+                  },
+                  "title": "Response List Import Summaries Api Notifications Import Summaries Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Import Summaries",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/notifications/import-summaries/{job_id}/retry": {
+      "post": {
+        "operationId": "retry_import_summary_api_notifications_import_summaries__job_id__retry_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportSummaryRetryIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportSummaryJobOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retry Import Summary",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/notifications/import-summary-settings": {
+      "get": {
+        "operationId": "get_import_summary_settings_api_notifications_import_summary_settings_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportSummarySettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Import Summary Settings",
+        "tags": [
+          "notifications"
+        ]
+      },
+      "put": {
+        "operationId": "put_import_summary_settings_api_notifications_import_summary_settings_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportSummarySettingsIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportSummarySettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Import Summary Settings",
         "tags": [
           "notifications"
         ]

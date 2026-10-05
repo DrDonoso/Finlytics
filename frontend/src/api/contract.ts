@@ -53,6 +53,9 @@ import type {
   ImportQualitySignal,
   ImportQualitySummary,
   ImportResult,
+  ImportSummaryJob,
+  ImportSummarySettings,
+  ImportSummarySettingsPayload,
   ImportTransaction,
   InvestmentConnection,
   InvestmentHolding,
@@ -185,6 +188,8 @@ export type ResponseContract = [
   Satisfies<Api.NotificationOut, NotificationOut>,
   Satisfies<Api.NotificationChannelOut, NotificationChannelOut>,
   Satisfies<Api.TelegramTestOut, TelegramTestOut>,
+  Satisfies<Api.ImportSummarySettingsOut, ImportSummarySettings>,
+  Satisfies<Api.ImportSummaryJobOut, ImportSummaryJob>,
 
   // ─── Assistant ───────────────────────────────────────────────────────────
   Satisfies<Api.AssistantStatusOut, AssistantStatus>,
@@ -232,6 +237,7 @@ export type RequestContract = [
   Accepts<Api.BackupDocument, BackupDocument>,
   Accepts<Api.TelegramChannelIn, TelegramChannelIn>,
   Accepts<Api.TelegramTestIn, TelegramTestIn>,
+  Accepts<Api.ImportSummarySettingsIn, ImportSummarySettingsPayload>,
   Accepts<Api.AssistantSettingsIn, AssistantSettingsPayload>,
   Accepts<Api.MortgageCreate, MortgageInput>,
   Accepts<Api.MortgageUpdate, MortgageInput>,

@@ -152,6 +152,34 @@ export interface ImportResult {
   num_parsed: number
   num_inserted: number
   num_duplicates: number
+  summary_job_id?: number | null
+}
+
+export interface ImportSummarySettingsPayload {
+  enabled: boolean
+  channel_id: number | null
+  language: 'en' | 'es'
+}
+
+export interface ImportSummarySettings extends ImportSummarySettingsPayload {
+  ai_available: boolean
+}
+
+export type ImportSummaryStatus =
+  | 'pending' | 'generating' | 'ready' | 'sending' | 'sent'
+  | 'blocked' | 'failed' | 'uncertain' | 'cancelled'
+
+export interface ImportSummaryJob {
+  id: number
+  import_run_id: number | null
+  account_name: string
+  from_date: string
+  to_date: string
+  language: 'en' | 'es'
+  status: ImportSummaryStatus
+  error: string | null
+  created_at: string
+  sent_at: string | null
 }
 
 export type ImportQualitySeverity = 'error' | 'warning' | 'info'
@@ -903,12 +931,14 @@ export interface AssistantUsagePeriod {
   completion_tokens: number
   total_tokens: number
   messages: number
+  summaries: number
 }
 
 export interface AssistantUsageDay {
   day: string
   tokens: number
   messages: number
+  summaries: number
 }
 
 export interface AssistantUsage {

@@ -25,12 +25,16 @@ import logging
 from datetime import UTC, datetime
 from typing import Any, cast
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import CursorResult, case, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from finlytics.api.deps import get_current_user, get_db
 from finlytics.api.schemas import (
+    ImportSummaryJobOut,
+    ImportSummaryRetryIn,
+    ImportSummarySettingsIn,
+    ImportSummarySettingsOut,
     NotificationChannelOut,
     NotificationOut,
     ReadAllOut,
@@ -39,8 +43,12 @@ from finlytics.api.schemas import (
     TelegramTestOut,
     UnreadCountOut,
 )
-from finlytics.db.models import Notification, NotificationChannel
+from finlytics.config import settings
+from finlytics.db.models import ImportSummarySettings, Notification, NotificationChannel, User
+from finlytics.db.queries import import_summaries as summary_queries
+from finlytics.extraction.llm_client import is_llm_configured
 from finlytics.investments.crypto import EncryptionNotConfiguredError, decrypt_token, encrypt_token
+from finlytics.notifications.import_summaries import summary_destination, wake_import_summaries
 from finlytics.notifications.service import evaluate_notifications
 from finlytics.notifications.telegram import TelegramError, telegram_get_me, telegram_send_message
 
@@ -265,6 +273,7 @@ async def upsert_telegram_channel(
 
     now = datetime.now(UTC)
     async with db.begin():
+        await summary_queries.get_summary_settings(db, user.id, lock=True)
         result = await db.execute(
             select(NotificationChannel).where(
                 NotificationChannel.user_id == user.id,
@@ -273,6 +282,9 @@ async def upsert_telegram_channel(
         )
         channel = result.scalar_one_or_none()
         if channel is not None:
+            await summary_queries.cancel_summaries(
+                db, user.id, channel_id=channel.id, reason="configuration_changed",
+            )
             channel.config_enc = config_enc
             channel.label = label
             channel.updated_at = now
@@ -360,6 +372,7 @@ async def delete_channel(
 ) -> None:
     """Delete a notification channel (scoped to the current user). 404 if not owned."""
     async with db.begin():
+        preference = await summary_queries.get_summary_settings(db, user.id, lock=True)
         result = await db.execute(
             select(NotificationChannel).where(
                 NotificationChannel.id == channel_id,
@@ -369,4 +382,89 @@ async def delete_channel(
         channel = result.scalar_one_or_none()
         if channel is None:
             raise HTTPException(status_code=404, detail="Channel not found.")
+        if preference is not None and preference.channel_id == channel_id:
+            preference.enabled = False
+            preference.channel_id = None
+        await summary_queries.cancel_summaries(
+            db, user.id, channel_id=channel_id, reason="channel_removed",
+        )
         await db.delete(channel)
+
+
+def _summary_settings_out(row: ImportSummarySettings | None) -> ImportSummarySettingsOut:
+    return ImportSummarySettingsOut.model_validate({
+        "enabled": row.enabled if row else False,
+        "channel_id": row.channel_id if row else None,
+        "language": row.language if row else "en",
+        "ai_available": is_llm_configured(settings),
+    })
+
+
+@router.get("/import-summary-settings", response_model=ImportSummarySettingsOut)
+async def get_import_summary_settings(
+    user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db),
+) -> ImportSummarySettingsOut:
+    return _summary_settings_out(await summary_queries.get_summary_settings(db, user.id))
+
+
+@router.put("/import-summary-settings", response_model=ImportSummarySettingsOut)
+async def put_import_summary_settings(
+    body: ImportSummarySettingsIn,
+    user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db),
+) -> ImportSummarySettingsOut:
+    if body.enabled and not is_llm_configured(settings):
+        raise HTTPException(status_code=503, detail="Configure AI before enabling import summaries.")
+    async with db.begin():
+        await db.execute(select(User.id).where(User.id == user.id).with_for_update())
+        row = await summary_queries.get_summary_settings(db, user.id, lock=True)
+        if body.channel_id is not None:
+            channel = await summary_queries.get_summary_channel(db, user.id, body.channel_id)
+            if channel is None:
+                raise HTTPException(status_code=422, detail="Select an available notification channel.")
+            if body.enabled:
+                try:
+                    summary_destination(channel)
+                except EncryptionNotConfiguredError:
+                    raise HTTPException(status_code=503, detail="Notification encryption is unavailable.")
+                except TelegramError:
+                    raise HTTPException(status_code=422, detail="Reconfigure the notification channel.")
+        if row is None:
+            row = ImportSummarySettings(user_id=user.id)
+            db.add(row)
+        elif (row.enabled, row.channel_id, row.language) != (
+            body.enabled, body.channel_id, body.language,
+        ):
+            await summary_queries.cancel_summaries(
+                db, user.id, reason="configuration_changed" if body.enabled else "disabled",
+            )
+        row.enabled = body.enabled
+        row.channel_id = body.channel_id
+        row.language = body.language
+    return _summary_settings_out(row)
+
+
+@router.get("/import-summaries", response_model=list[ImportSummaryJobOut])
+async def list_import_summaries(
+    limit: int = Query(20, ge=1, le=100),
+    user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db),
+) -> list[ImportSummaryJobOut]:
+    jobs = await summary_queries.list_summary_jobs(db, user.id, limit=limit)
+    return [ImportSummaryJobOut.model_validate(job, from_attributes=True) for job in jobs]
+
+
+@router.post("/import-summaries/{job_id}/retry", response_model=ImportSummaryJobOut)
+async def retry_import_summary(
+    job_id: int, body: ImportSummaryRetryIn,
+    user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db),
+) -> ImportSummaryJobOut:
+    async with db.begin():
+        try:
+            job = await summary_queries.retry_summary(
+                db, user.id, job_id, acknowledge_uncertain=body.acknowledge_uncertain,
+            )
+        except summary_queries.SummaryConflictError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from None
+        if job is None:
+            raise HTTPException(status_code=404, detail="Import summary not found.")
+    wake_import_summaries()
+    return ImportSummaryJobOut.model_validate(job, from_attributes=True)

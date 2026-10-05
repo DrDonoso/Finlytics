@@ -43,6 +43,7 @@ from finlytics.api.schemas import (
 )
 from finlytics.assistant import prompts
 from finlytics.assistant import settings as assistant_settings
+from finlytics.assistant.limits import limiter_for
 from finlytics.assistant.service import (
     AgentLimits,
     AnswerDelta,
@@ -52,7 +53,6 @@ from finlytics.assistant.service import (
     TurnUsage,
     run_turn,
 )
-from finlytics.auth.ratelimit import RateLimiter
 from finlytics.clock import today as local_today
 from finlytics.config import settings
 from finlytics.db.models import (
@@ -67,29 +67,6 @@ from finlytics.extraction.llm_client import LLMClient, is_llm_configured
 log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/assistant", tags=["assistant"])
-
-# Keyed per user, not per IP: this guards a spending limit, and the person who
-# runs up the OpenAI bill is the account, not the network they sit on.
-#
-# Configured per user at call time rather than at import: the limit is editable
-# from Settings, and a limiter built once from the env would ignore every change
-# until the next restart.
-_message_limiters: dict[tuple[int, int], RateLimiter] = {}
-
-
-def _limiter_for(max_attempts: int, window_seconds: int) -> RateLimiter:
-    """Return the shared limiter for a (limit, window) pair, creating it once.
-
-    Keyed by the configuration rather than by user so that changing the limit
-    starts a fresh window instead of inheriting the old one's hit history.
-    """
-    key = (max_attempts, window_seconds)
-    limiter = _message_limiters.get(key)
-    if limiter is None:
-        limiter = RateLimiter(max_attempts=max_attempts, window_seconds=window_seconds)
-        _message_limiters[key] = limiter
-    return limiter
-
 
 # Longest a derived conversation title may be.
 _TITLE_CHARS = 60
@@ -250,7 +227,10 @@ async def get_assistant_usage(
 
     # A provider that never reports usage leaves every count at zero, which
     # would otherwise render as a confident "you have spent nothing".
-    usage_available = total.messages == 0 or total.total_tokens > 0
+    usage_available = (
+        (total.messages == 0 or total.total_tokens > 0)
+        and not await assistant_settings.has_unknown_summary_usage(db, user.id)
+    )
 
     return AssistantUsageOut(
         this_month=AssistantUsagePeriod(**vars(month)),
@@ -451,7 +431,7 @@ async def send_message(
         settings_row = await assistant_settings.get_settings_row(db, user.id)
         effective = assistant_settings.resolve_settings(settings_row)
 
-        verdict = _limiter_for(
+        verdict = limiter_for(
             effective.rate_limit_messages, effective.rate_limit_window_seconds
         ).check(f"user:{user.id}")
         if not verdict.allowed:

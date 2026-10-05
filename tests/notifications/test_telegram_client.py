@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 
 from finlytics.notifications.telegram import (
@@ -117,3 +118,36 @@ async def test_send_message_omits_thread_id_when_absent():
     with _patched_client(post_mock):
         await telegram_send_message(_VALID_TOKEN, "123456789", "hi")
     assert "message_thread_id" not in _captured_payload(post_mock)
+
+
+@pytest.mark.parametrize(("exception", "retryable", "uncertain"), [
+    (httpx.ConnectError("failed"), True, False),
+    (httpx.ReadTimeout("failed"), False, True),
+    (httpx.WriteError("failed"), False, True),
+])
+async def test_network_failures_distinguish_safe_retry_from_uncertain_send(exception, retryable, uncertain):
+    post_mock = AsyncMock(side_effect=exception)
+    with _patched_client(post_mock), pytest.raises(TelegramError) as caught:
+        await telegram_send_message(_VALID_TOKEN, "123", "hello")
+    assert caught.value.retryable is retryable
+    assert caught.value.uncertain is uncertain
+    assert _VALID_TOKEN not in str(caught.value)
+
+
+@pytest.mark.parametrize(("status", "retryable", "uncertain"), [
+    (403, False, False), (429, True, False), (502, False, True),
+])
+async def test_response_classification_and_retry_after(status, retryable, uncertain):
+    post_mock = AsyncMock()
+    with _patched_client(post_mock):
+        response = post_mock.return_value
+        response.status_code = status
+        response.json.return_value = {
+            "ok": False, "description": _VALID_TOKEN, "parameters": {"retry_after": 90},
+        }
+        with pytest.raises(TelegramError) as caught:
+            await telegram_send_message(_VALID_TOKEN, "123", "hello")
+    assert caught.value.retryable is retryable
+    assert caught.value.uncertain is uncertain
+    assert caught.value.retry_after == (90 if status == 429 else 0)
+    assert _VALID_TOKEN not in str(caught.value)

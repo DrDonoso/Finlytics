@@ -105,6 +105,7 @@ export interface AssistantToolCall {
 export interface AssistantUsageDay {
   day: string
   messages: number
+  summaries: number
   tokens: number
 }
 
@@ -121,6 +122,7 @@ export interface AssistantUsagePeriod {
   completion_tokens: number
   messages: number
   prompt_tokens: number
+  summaries: number
   total_tokens: number
 }
 
@@ -575,6 +577,7 @@ export interface ImportResult {
   num_duplicates: number
   num_inserted: number
   num_parsed: number
+  summary_job_id: number | null
 }
 
 export interface ImportSummary {
@@ -594,6 +597,36 @@ export interface ImportSummary {
   tags_updated: number
   transactions_duplicates: number
   transactions_inserted: number
+}
+
+export interface ImportSummaryJobOut {
+  account_name: string
+  created_at: string
+  error: string | null
+  from_date: string
+  id: number
+  import_run_id: number | null
+  language: 'en' | 'es'
+  sent_at: string | null
+  status: 'pending' | 'generating' | 'ready' | 'sending' | 'sent' | 'blocked' | 'failed' | 'uncertain' | 'cancelled'
+  to_date: string
+}
+
+export interface ImportSummaryRetryIn {
+  acknowledge_uncertain?: boolean
+}
+
+export interface ImportSummarySettingsIn {
+  channel_id?: number | null
+  enabled?: boolean
+  language?: 'en' | 'es'
+}
+
+export interface ImportSummarySettingsOut {
+  ai_available: boolean
+  channel_id: number | null
+  enabled: boolean
+  language: 'en' | 'es'
 }
 
 export interface InvestmentHoldingOut {

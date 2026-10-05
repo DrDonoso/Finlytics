@@ -8,6 +8,7 @@ import { useT } from '../i18n'
 import type { Dict } from '../i18n'
 import IndexaWizard from '../components/IndexaWizard'
 import TelegramWizard from '../components/TelegramWizard'
+import ImportSummarySettings from '../components/ImportSummarySettings'
 import { getPluginLogo, pluginInitial } from '../investments/registry'
 import { IconCheck, IconAlert, IconSend, IconLoading } from '../components/icons'
 
@@ -72,17 +73,21 @@ export default function ConnectorsPage() {
   const notifError = channelsQuery.error ? messageOf(channelsQuery.error) : null
   const [telegramWizardOpen, setTelegramWizardOpen] = useState(false)
   const [deletingChannel, setDeletingChannel] = useState(false)
+  const [channelError, setChannelError] = useState<string | null>(null)
 
   function refreshChannels() {
     void queryClient.invalidateQueries({ queryKey: queryKeys.notificationChannels })
+    void queryClient.invalidateQueries({ queryKey: queryKeys.importSummarySettings })
+    void queryClient.invalidateQueries({ queryKey: queryKeys.importSummaries })
   }
 
   function handleDeleteChannel(ch: NotificationChannelOut) {
     if (!window.confirm(t.notifSettingsDeleteConfirm)) return
     setDeletingChannel(true)
+    setChannelError(null)
     deleteNotificationChannel(ch.id)
       .then(() => { setDeletingChannel(false); refreshChannels() })
-      .catch(() => setDeletingChannel(false))
+      .catch(err => { setDeletingChannel(false); setChannelError(messageOf(err)) })
   }
 
   // ── Investment card renderers ─────────────────────────────────────────────
@@ -254,6 +259,7 @@ export default function ConnectorsPage() {
       {/* ── Notification connectors ───────────────────────────── */}
       <div className="card settings-card">
         <h2 className="settings-section-title">{t.connectorsNotificationsTitle}</h2>
+        {channelError && <p role="alert" className="assistant-save-error">{channelError}</p>}
         {notifLoading ? (
           <div className="state-box">
             <IconLoading size={18} />
@@ -265,9 +271,12 @@ export default function ConnectorsPage() {
             <span>{notifError}</span>
           </div>
         ) : (
-          <div className="plugin-catalog">
-            {renderTelegramCard()}
-          </div>
+          <>
+            <div className="plugin-catalog">
+              {renderTelegramCard()}
+            </div>
+            <ImportSummarySettings channels={channels} onConnect={() => setTelegramWizardOpen(true)} />
+          </>
         )}
       </div>
 

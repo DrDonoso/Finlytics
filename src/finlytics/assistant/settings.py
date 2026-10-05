@@ -32,7 +32,7 @@ from finlytics.assistant.prompts import (
     MAX_SYSTEM_PROMPT_CHARS,
     missing_safety_markers,
 )
-from finlytics.db.models import AssistantSettings, AssistantUsage
+from finlytics.db.models import AssistantSettings, AssistantUsage, ImportSummaryAttempt
 
 log = logging.getLogger(__name__)
 
@@ -106,6 +106,7 @@ class UsageTotals:
     completion_tokens: int
     total_tokens: int
     messages: int
+    summaries: int = 0
 
 
 async def get_settings_row(db: AsyncSession, user_id: int) -> AssistantSettings | None:
@@ -182,7 +183,20 @@ async def tokens_used_since(
             AssistantUsage.created_at >= since,
         )
     )
-    return int(total or 0)
+    summary_total = await db.scalar(select(
+        func.coalesce(func.sum(ImportSummaryAttempt.total_tokens), 0)
+    ).where(
+        ImportSummaryAttempt.user_id == user_id,
+        ImportSummaryAttempt.created_at >= since,
+    ))
+    return int(total or 0) + int(summary_total or 0)
+
+
+async def has_unknown_summary_usage(db: AsyncSession, user_id: int) -> bool:
+    return bool(await db.scalar(select(ImportSummaryAttempt.id).where(
+        ImportSummaryAttempt.user_id == user_id,
+        ImportSummaryAttempt.total_tokens.is_(None),
+    ).limit(1)))
 
 
 def _answers():
@@ -207,11 +221,21 @@ async def usage_totals(
         stmt = stmt.where(AssistantUsage.created_at >= since)
 
     row = (await db.execute(stmt)).one()
+    summary_stmt = select(
+        func.coalesce(func.sum(ImportSummaryAttempt.prompt_tokens), 0),
+        func.coalesce(func.sum(ImportSummaryAttempt.completion_tokens), 0),
+        func.coalesce(func.sum(ImportSummaryAttempt.total_tokens), 0),
+        func.count(case((ImportSummaryAttempt.answered.is_(True), ImportSummaryAttempt.id))),
+    ).where(ImportSummaryAttempt.user_id == user_id)
+    if since is not None:
+        summary_stmt = summary_stmt.where(ImportSummaryAttempt.created_at >= since)
+    summary = (await db.execute(summary_stmt)).one()
     return UsageTotals(
-        prompt_tokens=int(row[0] or 0),
-        completion_tokens=int(row[1] or 0),
-        total_tokens=int(row[2] or 0),
+        prompt_tokens=int(row[0] or 0) + int(summary[0] or 0),
+        completion_tokens=int(row[1] or 0) + int(summary[1] or 0),
+        total_tokens=int(row[2] or 0) + int(summary[2] or 0),
         messages=int(row[3] or 0),
+        summaries=int(summary[3] or 0),
     )
 
 
@@ -236,7 +260,26 @@ async def usage_by_day(
         )
     ).all()
 
-    return [
-        {"day": r.day, "tokens": int(r.tokens or 0), "messages": int(r.messages)}
+    days = {
+        r.day: {"day": r.day, "tokens": int(r.tokens or 0), "messages": int(r.messages),
+                "summaries": 0}
         for r in rows
-    ]
+    }
+    summary_day = func.to_char(ImportSummaryAttempt.created_at, "YYYY-MM-DD")
+    summaries = (await db.execute(select(
+        summary_day.label("day"),
+        func.coalesce(func.sum(ImportSummaryAttempt.total_tokens), 0).label("tokens"),
+        func.count(case(
+            (ImportSummaryAttempt.answered.is_(True), ImportSummaryAttempt.id)
+        )).label("summaries"),
+    ).where(
+        ImportSummaryAttempt.user_id == user_id,
+        ImportSummaryAttempt.created_at >= since,
+    ).group_by(summary_day))).all()
+    for summary in summaries:
+        point = days.setdefault(summary.day, {
+            "day": summary.day, "tokens": 0, "messages": 0, "summaries": 0,
+        })
+        point["tokens"] += int(summary.tokens or 0)
+        point["summaries"] += int(summary.summaries)
+    return [days[day] for day in sorted(days)]
