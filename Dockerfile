@@ -62,7 +62,7 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 # ─── uv binary ───────────────────────────────────────────────────────────────
 # A FROM line of its own, so Dependabot's docker ecosystem bumps it, and CI reads
 # the same tag. The base stage mounts the binary instead of copying it.
-FROM ghcr.io/astral-sh/uv:0.12.19 AS uv
+FROM ghcr.io/astral-sh/uv:0.12.23 AS uv
 
 
 # ─── Stage 4: Python runtime (DEFAULT TARGET — keep last) ────────────────────
