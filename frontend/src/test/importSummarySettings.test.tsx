@@ -25,6 +25,10 @@ const channels: NotificationChannelOut[] = [{
 const server = setupServer(
   http.get('/api/notifications/import-summary-settings', () => HttpResponse.json(settings)),
   http.put('/api/notifications/import-summary-settings', async ({ request }) => {
+    // FastAPI does not parse the browser's text/plain body as JSON.
+    if (request.headers.get('Content-Type') !== 'application/json') {
+      return HttpResponse.json({ detail: 'Expected a JSON request body.' }, { status: 422 })
+    }
     const payload = await request.json()
     writes.push(payload)
     settings = { ...settings, ...payload as Settings }
@@ -32,6 +36,9 @@ const server = setupServer(
   }),
   http.get('/api/notifications/import-summaries', () => HttpResponse.json(jobs)),
   http.post('/api/notifications/import-summaries/:id/retry', async ({ request }) => {
+    if (request.headers.get('Content-Type') !== 'application/json') {
+      return HttpResponse.json({ detail: 'Expected a JSON request body.' }, { status: 422 })
+    }
     retries.push(await request.json())
     return HttpResponse.json(jobs[0])
   }),
