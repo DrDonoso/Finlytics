@@ -153,3 +153,39 @@ def test_0025_recolours_only_categories_still_on_the_seeded_palette(empty_databa
         "Dining": "#123456",
         "Holidays": "#22c55e",
     }
+
+
+def test_0026_backfills_the_usage_ledger(empty_database):
+    url = empty_database
+    run_alembic(url, "upgrade", "0025")
+    user_id = query(
+        url, "INSERT INTO users (username, password_hash) VALUES ('ada', 'x') RETURNING id"
+    )[0]["id"]
+    conversation_id = query(
+        url,
+        "INSERT INTO assistant_conversations (user_id, title) VALUES ($1, 'Budget') RETURNING id",
+        user_id,
+    )[0]["id"]
+    query(
+        url,
+        "INSERT INTO assistant_messages "
+        "(conversation_id, role, content, prompt_tokens, completion_tokens, total_tokens) VALUES "
+        "($1, 'assistant', 'An answer', 100, 20, 120), "
+        "($1, 'user', 'A failed turn', 50, 0, 50), "
+        "($1, 'user', 'A question', NULL, NULL, NULL)",
+        conversation_id,
+    )
+
+    run_alembic(url, "upgrade", "0026")
+    rows = query(
+        url,
+        "SELECT user_id, conversation_id, total_tokens, answered FROM assistant_usage "
+        "ORDER BY total_tokens DESC",
+    )
+    assert [tuple(r) for r in rows] == [
+        (user_id, conversation_id, 120, True),
+        (user_id, conversation_id, 50, False),
+    ]
+
+    run_alembic(url, "downgrade", "0025")
+    assert "assistant_usage" not in public_tables(url)

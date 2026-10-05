@@ -14,6 +14,7 @@ from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, TypeVar
 
+import openai
 from openai import AsyncOpenAI
 from pydantic import BaseModel
 
@@ -172,8 +173,11 @@ class LLMClient:
                 **self._sampling_kwargs(),
             )
             return resp.choices[0].message.content.strip()
-        except Exception as exc:
+        except openai.APIError as exc:
             log.error("LLMClient.complete error: %s", exc)
+            raise LLMError(str(exc)) from exc
+        except Exception as exc:
+            log.exception("LLMClient.complete error")
             raise LLMError(str(exc)) from exc
 
     async def parse(
@@ -214,8 +218,11 @@ class LLMClient:
             return parsed
         except LLMError:
             raise
-        except Exception as exc:
+        except openai.APIError as exc:
             log.error("LLMClient.parse error: %s", exc)
+            raise LLMError(str(exc)) from exc
+        except Exception as exc:
+            log.exception("LLMClient.parse error")
             raise LLMError(str(exc)) from exc
 
     async def stream_with_tools(
@@ -313,13 +320,16 @@ class LLMClient:
                             slot["arguments"] += function.arguments
         except LLMError:
             raise
-        except Exception as exc:
+        except openai.APIError as exc:
             status = getattr(exc, "status_code", None)
             log.error("LLMClient.stream_with_tools failed (%s, status=%s)", type(exc).__name__, status)
             raise LLMError(
                 str(exc),
                 retryable=status is None or status == 429 or status >= 500,
             ) from exc
+        except Exception as exc:
+            log.exception("LLMClient.stream_with_tools error")
+            raise LLMError(str(exc), retryable=False) from exc
 
         if pending:
             calls = [

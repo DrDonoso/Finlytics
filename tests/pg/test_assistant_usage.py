@@ -9,12 +9,13 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 import pytest
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from finlytics.api import assistant as assistant_api
 from finlytics.assistant import settings as assistant_settings
 from finlytics.assistant.service import TurnUsage
-from finlytics.db.models import AssistantConversation, AssistantMessage, User
+from finlytics.db.models import AssistantConversation, AssistantMessage, AssistantUsage, User
 
 SINCE = datetime(2000, 1, 1, tzinfo=UTC)
 
@@ -40,6 +41,14 @@ async def test_a_turn_that_never_answered_still_counts_against_the_budget(
                 completion_tokens=20,
                 total_tokens=120,
             ),
+            AssistantUsage(
+                user_id=user.id,
+                conversation_id=conversation.id,
+                prompt_tokens=100,
+                completion_tokens=20,
+                total_tokens=120,
+                answered=True,
+            ),
             failed,
             AssistantMessage(conversation_id=conversation.id, role="user", content="q3"),
         ])
@@ -48,6 +57,8 @@ async def test_a_turn_that_never_answered_still_counts_against_the_budget(
     await assistant_api._record_unanswered_usage(
         failed.id,
         TurnUsage(prompt_tokens=700, completion_tokens=50, total_tokens=750, reported=True),
+        user_id=user.id,
+        conversation_id=conversation.id,
     )
 
     async with sessions() as s:
@@ -62,3 +73,44 @@ async def test_a_turn_that_never_answered_still_counts_against_the_budget(
         prompt_tokens=800, completion_tokens=70, total_tokens=870, messages=1
     )
     assert [(day["tokens"], day["messages"]) for day in by_day] == [(870, 1)]
+
+
+async def test_deleting_a_conversation_does_not_refund_its_tokens(
+    sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    async with sessions() as s, s.begin():
+        user = User(username="ana", password_hash="x")
+        s.add(user)
+        await s.flush()
+        conversation = AssistantConversation(user_id=user.id, title="Spending")
+        s.add(conversation)
+        await s.flush()
+        s.add_all([
+            AssistantMessage(
+                conversation_id=conversation.id,
+                role="assistant",
+                content="a1",
+                prompt_tokens=100,
+                completion_tokens=20,
+                total_tokens=120,
+            ),
+            AssistantUsage(
+                user_id=user.id,
+                conversation_id=conversation.id,
+                prompt_tokens=100,
+                completion_tokens=20,
+                total_tokens=120,
+                answered=True,
+            ),
+        ])
+
+    async with sessions() as s, s.begin():
+        await s.execute(
+            delete(AssistantConversation).where(AssistantConversation.id == conversation.id)
+        )
+
+    async with sessions() as s:
+        assert await assistant_settings.tokens_used_since(s, user.id, SINCE) == 120
+        rows = (await s.execute(select(AssistantUsage.conversation_id))).scalars().all()
+
+    assert rows == [None]

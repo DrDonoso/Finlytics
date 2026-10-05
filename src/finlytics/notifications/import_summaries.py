@@ -289,11 +289,8 @@ async def import_summary_loop() -> None:
             try:
                 while await process_next_summary():
                     pass
-            except Exception as exc:
-                log.exception(
-                    "Import summary worker failed (%s); pending jobs retained",
-                    type(exc).__name__, exc_info=False,
-                )
+            except Exception:
+                log.exception("Import summary worker failed; pending jobs retained")
             try:
                 await asyncio.wait_for(_wake_event.wait(), timeout=POLL_SECONDS)
             except TimeoutError:

@@ -347,13 +347,12 @@
 }
 
 /* ── ImportSourcePicker modal ───────────────────────────────────────────────── */
-.import-picker-modal { max-width: 420px; width: 100%; }
+.modal.import-picker-modal { max-width: 420px; width: 100%; }
 
 .import-picker-list {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 8px 0 4px;
 }
 
 .import-picker-row {

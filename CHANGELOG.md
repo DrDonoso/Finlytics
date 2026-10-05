@@ -4,6 +4,11 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20261004] - 2026-10-04
+
+- Review round 4: harden APIs and unify accessible dialogs (#86)
+
+
 ## [20260928.03] - 2026-09-28
 
 - [Release notes](https://github.com/TanStack/query/releases)

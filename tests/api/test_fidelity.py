@@ -360,6 +360,15 @@ class TestFidelityImportPreview:
             files={"file": ("bad.csv", _MALFORMED_CSV, "text/csv")},
         )
         assert resp.status_code == 400
+        assert "Header row" in resp.json()["detail"]
+
+    async def test_preview_non_utf8_returns_400(self, client, mock_session):
+        resp = await client.post(
+            "/api/investments/fidelity/import/preview",
+            files={"file": ("bad.csv", b"\xff\xfe\x00bad", "text/csv")},
+        )
+        assert resp.status_code == 400
+        assert "UTF-8" in resp.json()["detail"]
 
 
 # ===========================================================================

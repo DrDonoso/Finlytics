@@ -37,13 +37,15 @@ _PROVIDER_LABELS: dict[str, str] = {
     "fidelity": "Fidelity ESPP",
 }
 
+# English fallbacks only: the SPA translates `asset_class` itself
+# (frontend/src/investments/assetClass.ts), so these never reach a Spanish UI.
 _ASSET_CLASS_LABELS: dict[str, str] = {
-    "equity": "Renta Variable",
-    "fixed_income": "Renta Fija",
-    "cash": "Efectivo",
-    "espp_stock": "ESPP Stock",
-    "other": "Otros",
-    "mixed": "Mixto",
+    "equity": "Equity",
+    "fixed_income": "Fixed income",
+    "cash": "Cash",
+    "espp_stock": "ESPP stock",
+    "other": "Other",
+    "mixed": "Mixed",
 }
 
 
@@ -122,8 +124,10 @@ async def build_combined_overview(
     if has_fidelity:
         try:
             fidelity_price = await get_latest_price(db)
-        except Exception as exc:  # noqa: BLE001 — one provider must not blank the page
-            log.warning("combined_overview: get_latest_price failed (degraded): %s", exc)
+        except Exception as exc:  # one provider must not blank the page
+            log.warning(
+                "combined_overview: get_latest_price failed (degraded): %s", exc, exc_info=True
+            )
 
     # Through the 24h DB cache — never bypass it.
     indexa_portfolio: InvestmentPortfolioOut | None = None
@@ -134,8 +138,12 @@ async def build_combined_overview(
             )
         except EncryptionNotConfiguredError:
             raise
-        except Exception as exc:  # noqa: BLE001 — one provider must not blank the page
-            log.warning("combined_overview: Indexa portfolio fetch failed (degraded): %s", exc)
+        except Exception as exc:  # one provider must not blank the page
+            log.warning(
+                "combined_overview: Indexa portfolio fetch failed (degraded): %s",
+                exc,
+                exc_info=True,
+            )
 
     # value_eur is None when the provider could not be valued.
     provider_rows: list[dict] = []

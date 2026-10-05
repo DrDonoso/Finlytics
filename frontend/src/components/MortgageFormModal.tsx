@@ -3,12 +3,14 @@ import type { Account, Category, Mortgage, MortgageInput, MortgageRatePeriod, Mo
 import { createMortgage, updateMortgage } from '../api/client'
 import { errorMessage } from '../api/errors'
 import { useEuriborSeries, useMortgagePaymentCandidates } from '../api/queries'
-import { useModalDismiss } from '../hooks/useModalDismiss'
+import Modal from './Modal'
 import { IconAlert, IconClose } from './icons'
 import DatePicker from './DatePicker'
 import { useT, categoryLabel } from '../i18n'
 import { previewSchedule } from '../mortgage/calc'
 import { Private } from './Money'
+import NumericInput from './NumericInput'
+import { finiteOrZero, isBlank, isMalformed, parseAmount, parseDecimal, parseOptional, parseOr, type NumberParser } from '../utils/parseNumber'
 
 const INDEX_NAME = 'euribor_12m'
 
@@ -59,15 +61,6 @@ interface FormState {
   notes: string
 }
 
-function num(value: string): number {
-  const parsed = Number(value.replace(',', '.'))
-  return Number.isFinite(parsed) ? parsed : 0
-}
-
-function optionalNum(value: string): number | null {
-  return value.trim() === '' ? null : num(value)
-}
-
 function initialState(mortgage?: Mortgage | null): FormState {
   const fixed = mortgage?.rate_periods.find(p => p.kind === 'fixed')
   const variable = mortgage?.rate_periods.find(p => p.kind === 'variable')
@@ -109,7 +102,6 @@ export default function MortgageFormModal({ mortgage, accounts, categories, onCl
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const titleId = useId()
-  const backdrop = useModalDismiss(onClose, saving)
 
   // Only the variable/mixed paths need the index, so the query stays disabled otherwise.
   const euribor = useEuriborSeries({ enabled: form.rateType !== 'fixed' })
@@ -126,17 +118,31 @@ export default function MortgageFormModal({ mortgage, accounts, categories, onCl
   // Terms are not always a whole number of years: a loan signed mid-month
   // often amortizes over 359 instalments because the first charge only
   // covers interest, and a year-only field cannot express that.
-  const termMonths = Math.round(num(form.termYears)) * 12 + Math.round(num(form.termExtraMonths))
+  const termMonths = Math.round(parseOr(form.termYears, parseDecimal, 0)) * 12
+    + Math.round(parseOr(form.termExtraMonths, parseDecimal, 0))
+  const principal = parseAmount(form.principal)
+  const paymentDay = Math.round(parseOr(form.paymentDay, parseDecimal, 1))
+  const paymentDayValid = paymentDay >= 1 && paymentDay <= 31
+  const fixedRate = parseDecimal(form.fixedRate)
+  const spread = parseDecimal(form.spread)
+  const fixedYears = parseDecimal(form.fixedYears)
+
+  function numberError(value: string, parse: NumberParser, positive = false): string | null {
+    if (isBlank(value)) return null
+    const n = parse(value)
+    if (!Number.isFinite(n)) return t.formInvalidNumber
+    return positive && n <= 0 ? t.formPositiveNumber : null
+  }
 
   const preview = useMemo(() => previewSchedule({
-    principal: num(form.principal),
-    termMonths,
+    principal: finiteOrZero(principal),
+    termMonths: finiteOrZero(termMonths),
     rateType: form.rateType,
-    fixedRate: num(form.fixedRate),
-    spread: num(form.spread),
+    fixedRate: finiteOrZero(fixedRate),
+    spread: finiteOrZero(spread),
     latestIndex,
-    fixedYears: num(form.fixedYears),
-  }), [form.principal, termMonths, form.rateType, form.fixedRate, form.spread, latestIndex, form.fixedYears])
+    fixedYears: finiteOrZero(fixedYears),
+  }), [principal, termMonths, form.rateType, fixedRate, spread, latestIndex, fixedYears])
 
   // Queried only on the linking step, and keyed by the computed instalment so
   // the deviation always refers to the terms currently on screen.
@@ -145,28 +151,32 @@ export default function MortgageFormModal({ mortgage, accounts, categories, onCl
     { enabled: step === 3 },
   )
 
-  const step1Valid = form.name.trim() !== '' && num(form.principal) > 0 && form.startDate !== '' && termMonths > 0
-  const step2Valid = form.rateType === 'fixed'
-    ? num(form.fixedRate) > 0
+  const step1Valid = form.name.trim() !== '' && principal > 0 && form.startDate !== '' && termMonths > 0 && paymentDayValid
+  const variableValid = Number.isFinite(spread)
+    && [form.reviewMonths, form.reviewLag, form.floorRate, form.capRate].every(v => !isMalformed(v, parseDecimal))
+  const bonusesValid = form.bonuses.every(b => !isMalformed(b.spreadReduction, parseDecimal) && !isMalformed(b.annualCost, parseAmount))
+  const step2Valid = bonusesValid && (form.rateType === 'fixed'
+    ? fixedRate > 0
     : form.rateType === 'variable'
-      ? form.spread.trim() !== ''
-      : num(form.fixedRate) > 0 && form.spread.trim() !== '' && num(form.fixedYears) > 0
+      ? variableValid
+      : fixedRate > 0 && fixedYears > 0 && variableValid)
+  const step3Valid = !isMalformed(form.propertyValue, parseAmount)
 
   function buildRatePeriods(): MortgageRatePeriod[] {
     const variable: MortgageRatePeriod = {
-      start_month: form.rateType === 'mixed' ? Math.round(num(form.fixedYears) * 12) : 0,
+      start_month: form.rateType === 'mixed' ? Math.round(fixedYears * 12) : 0,
       kind: 'variable',
       index_name: INDEX_NAME,
-      spread: num(form.spread),
-      review_months: Math.round(num(form.reviewMonths)) || 12,
-      review_lag_months: Math.round(num(form.reviewLag)),
-      floor_rate: optionalNum(form.floorRate),
-      cap_rate: optionalNum(form.capRate),
+      spread,
+      review_months: Math.round(parseOr(form.reviewMonths, parseDecimal, 12)) || 12,
+      review_lag_months: Math.round(parseOr(form.reviewLag, parseDecimal, 0)),
+      floor_rate: parseOptional(form.floorRate, parseDecimal),
+      cap_rate: parseOptional(form.capRate, parseDecimal),
     }
     const fixed: MortgageRatePeriod = {
       start_month: 0,
       kind: 'fixed',
-      fixed_rate: num(form.fixedRate),
+      fixed_rate: fixedRate,
       review_lag_months: 2,
     }
     if (form.rateType === 'fixed') return [fixed]
@@ -180,23 +190,23 @@ export default function MortgageFormModal({ mortgage, accounts, categories, onCl
     const payload: MortgageInput = {
       name: form.name.trim(),
       lender: form.lender.trim() || null,
-      initial_principal: num(form.principal),
+      initial_principal: principal,
       start_date: form.startDate,
       signature_date: form.signatureDate || null,
       term_months: termMonths,
-      payment_day: Math.round(num(form.paymentDay)) || 1,
+      payment_day: paymentDay,
       rate_type: form.rateType,
       linked_account_id: form.linkedAccountId ? Number(form.linkedAccountId) : null,
       linked_category_id: form.linkedCategoryId ? Number(form.linkedCategoryId) : null,
-      property_value: optionalNum(form.propertyValue),
+      property_value: parseOptional(form.propertyValue, parseAmount),
       property_value_date: null,
       include_in_net_worth: form.includeInNetWorth,
       notes: form.notes.trim() || null,
       rate_periods: buildRatePeriods(),
       bonuses: form.bonuses.map(({ key: _key, spreadReduction, annualCost, ...bonus }) => ({
         ...bonus,
-        spread_reduction: num(spreadReduction),
-        annual_cost: num(annualCost),
+        spread_reduction: parseOr(spreadReduction, parseDecimal, 0),
+        annual_cost: parseOr(annualCost, parseAmount, 0),
       })),
     }
     try {
@@ -236,18 +246,12 @@ export default function MortgageFormModal({ mortgage, accounts, categories, onCl
   }
 
   return (
-    <div className="modal-backdrop" {...backdrop}>
-      <div
-        className="modal modal-wide mortgage-form"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-      >
+    <Modal onDismiss={onClose} disabled={saving} labelledBy={titleId} className="modal-wide mortgage-form">
         <div className="modal-header">
           <span className="modal-title" id={titleId}>
             {mortgage ? t.mortgageFormEditTitle : t.mortgageFormCreateTitle}
           </span>
-          <button className="modal-close" onClick={onClose} type="button" aria-label={t.mortgageFormCancel}><IconClose size={15} /></button>
+          <button className="modal-close" onClick={onClose} disabled={saving} type="button" aria-label={t.mortgageFormCancel}><IconClose size={15} /></button>
         </div>
 
         <div className="mortgage-form__steps">
@@ -272,7 +276,7 @@ export default function MortgageFormModal({ mortgage, accounts, categories, onCl
               </div>
               <div className="form-group">
                 <label htmlFor="mf-principal">{t.mortgageFormPrincipal}</label>
-                <input id="mf-principal" className="form-input" inputMode="decimal" value={form.principal} onChange={e => set('principal', e.target.value)} />
+                <NumericInput id="mf-principal" value={form.principal} onChange={text => set('principal', text)} error={numberError(form.principal, parseAmount, true)} />
               </div>
               <div className="form-group">
                 <label htmlFor="mf-signature">{t.mortgageFormSignatureDate}</label>
@@ -295,17 +299,17 @@ export default function MortgageFormModal({ mortgage, accounts, categories, onCl
               </div>
               <div className="form-group">
                 <label htmlFor="mf-term">{t.mortgageFormTermYears}</label>
-                <input id="mf-term" className="form-input" inputMode="numeric" value={form.termYears} onChange={e => set('termYears', e.target.value)} />
-                <span className="form-hint">{t.mortgageFormTermTotal(termMonths)}</span>
+                <NumericInput id="mf-term" inputMode="numeric" value={form.termYears} onChange={text => set('termYears', text)} error={numberError(form.termYears, parseDecimal)} />
+                <span className="form-hint">{t.mortgageFormTermTotal(finiteOrZero(termMonths))}</span>
               </div>
               <div className="form-group">
                 <label htmlFor="mf-term-months">{t.mortgageFormTermExtraMonths}</label>
-                <input id="mf-term-months" className="form-input" inputMode="numeric" value={form.termExtraMonths} onChange={e => set('termExtraMonths', e.target.value)} />
+                <NumericInput id="mf-term-months" inputMode="numeric" value={form.termExtraMonths} onChange={text => set('termExtraMonths', text)} error={numberError(form.termExtraMonths, parseDecimal)} />
                 <span className="form-hint">{t.mortgageFormTermExtraMonthsInfo}</span>
               </div>
               <div className="form-group">
                 <label htmlFor="mf-day">{t.mortgageFormPaymentDay}</label>
-                <input id="mf-day" className="form-input" inputMode="numeric" value={form.paymentDay} onChange={e => set('paymentDay', e.target.value)} />
+                <NumericInput id="mf-day" inputMode="numeric" value={form.paymentDay} onChange={text => set('paymentDay', text)} error={paymentDayValid ? null : t.mortgageFormPaymentDayInvalid} />
               </div>
             </div>
           )}
@@ -333,13 +337,13 @@ export default function MortgageFormModal({ mortgage, accounts, categories, onCl
                 {form.rateType !== 'variable' && (
                   <div className="form-group">
                     <label htmlFor="mf-tin">{t.mortgageFormTin}</label>
-                    <input id="mf-tin" className="form-input" inputMode="decimal" value={form.fixedRate} onChange={e => set('fixedRate', e.target.value)} />
+                    <NumericInput id="mf-tin" value={form.fixedRate} onChange={text => set('fixedRate', text)} error={numberError(form.fixedRate, parseDecimal, true)} />
                   </div>
                 )}
                 {form.rateType === 'mixed' && (
                   <div className="form-group">
                     <label htmlFor="mf-fyears">{t.mortgageFormFixedYears}</label>
-                    <input id="mf-fyears" className="form-input" inputMode="numeric" value={form.fixedYears} onChange={e => set('fixedYears', e.target.value)} />
+                    <NumericInput id="mf-fyears" inputMode="numeric" value={form.fixedYears} onChange={text => set('fixedYears', text)} error={numberError(form.fixedYears, parseDecimal, true)} />
                   </div>
                 )}
                 {form.rateType !== 'fixed' && (
@@ -351,24 +355,24 @@ export default function MortgageFormModal({ mortgage, accounts, categories, onCl
                     </div>
                     <div className="form-group">
                       <label htmlFor="mf-spread">{t.mortgageFormSpread}</label>
-                      <input id="mf-spread" className="form-input" inputMode="decimal" value={form.spread} onChange={e => set('spread', e.target.value)} />
+                      <NumericInput id="mf-spread" value={form.spread} onChange={text => set('spread', text)} error={numberError(form.spread, parseDecimal)} />
                     </div>
                     <div className="form-group">
                       <label htmlFor="mf-review">{t.mortgageFormReviewMonths}</label>
-                      <input id="mf-review" className="form-input" inputMode="numeric" value={form.reviewMonths} onChange={e => set('reviewMonths', e.target.value)} />
+                      <NumericInput id="mf-review" inputMode="numeric" value={form.reviewMonths} onChange={text => set('reviewMonths', text)} error={numberError(form.reviewMonths, parseDecimal)} />
                     </div>
                     <div className="form-group">
                       <label htmlFor="mf-lag">{t.mortgageFormReviewLag}</label>
-                      <input id="mf-lag" className="form-input" inputMode="numeric" value={form.reviewLag} onChange={e => set('reviewLag', e.target.value)} />
+                      <NumericInput id="mf-lag" inputMode="numeric" value={form.reviewLag} onChange={text => set('reviewLag', text)} error={numberError(form.reviewLag, parseDecimal)} />
                       <span className="form-hint">{t.mortgageFormReviewLagInfo}</span>
                     </div>
                     <div className="form-group">
                       <label htmlFor="mf-floor">{t.mortgageFormFloor}</label>
-                      <input id="mf-floor" className="form-input" inputMode="decimal" value={form.floorRate} onChange={e => set('floorRate', e.target.value)} />
+                      <NumericInput id="mf-floor" value={form.floorRate} onChange={text => set('floorRate', text)} error={numberError(form.floorRate, parseDecimal)} />
                     </div>
                     <div className="form-group">
                       <label htmlFor="mf-cap">{t.mortgageFormCap}</label>
-                      <input id="mf-cap" className="form-input" inputMode="decimal" value={form.capRate} onChange={e => set('capRate', e.target.value)} />
+                      <NumericInput id="mf-cap" value={form.capRate} onChange={text => set('capRate', text)} error={numberError(form.capRate, parseDecimal)} />
                     </div>
                   </>
                 )}
@@ -393,22 +397,20 @@ export default function MortgageFormModal({ mortgage, accounts, categories, onCl
                     </div>
                     <div className="form-group">
                       <label htmlFor={`mf-${bonus.key}-reduction`}>{t.mortgageFormBonusReduction}</label>
-                      <input
+                      <NumericInput
                         id={`mf-${bonus.key}-reduction`}
-                        className="form-input"
-                        inputMode="decimal"
                         value={bonus.spreadReduction}
-                        onChange={e => updateBonus(i, { spreadReduction: e.target.value })}
+                        onChange={text => updateBonus(i, { spreadReduction: text })}
+                        error={numberError(bonus.spreadReduction, parseDecimal)}
                       />
                     </div>
                     <div className="form-group">
                       <label htmlFor={`mf-${bonus.key}-cost`}>{t.mortgageFormBonusCost}</label>
-                      <input
+                      <NumericInput
                         id={`mf-${bonus.key}-cost`}
-                        className="form-input"
-                        inputMode="decimal"
                         value={bonus.annualCost}
-                        onChange={e => updateBonus(i, { annualCost: e.target.value })}
+                        onChange={text => updateBonus(i, { annualCost: text })}
+                        error={numberError(bonus.annualCost, parseAmount)}
                       />
                     </div>
                     <button
@@ -496,7 +498,7 @@ export default function MortgageFormModal({ mortgage, accounts, categories, onCl
                 </div>
                 <div className="form-group">
                   <label htmlFor="mf-property">{t.mortgageFormPropertyValue}</label>
-                  <input id="mf-property" className="form-input" inputMode="decimal" value={form.propertyValue} onChange={e => set('propertyValue', e.target.value)} />
+                  <NumericInput id="mf-property" value={form.propertyValue} onChange={text => set('propertyValue', text)} error={numberError(form.propertyValue, parseAmount)} />
                 </div>
                 <div className="form-group">
                   <label htmlFor="mf-notes">{t.mortgageFormNotes}</label>
@@ -551,12 +553,11 @@ export default function MortgageFormModal({ mortgage, accounts, categories, onCl
               {t.mortgageFormNext}
             </button>
           ) : (
-            <button type="button" className="btn-primary" onClick={handleSave} disabled={saving || !step1Valid || !step2Valid}>
+            <button type="button" className="btn-primary" onClick={handleSave} disabled={saving || !step1Valid || !step2Valid || !step3Valid}>
               {t.mortgageFormSave}
             </button>
           )}
         </div>
-      </div>
-    </div>
+    </Modal>
   )
 }

@@ -561,7 +561,9 @@ async def get_portfolio(
                 status_errors.append(conn)
                 continue
             except IndexaConnectionError as exc:
-                log.warning("Indexa error for connection %d: %s", conn.id, exc)
+                log.warning(
+                    "Indexa error for connection %d: %s", conn.id, exc, exc_info=True
+                )
                 continue
 
             # Cache miss → INSERT new row (no SELECT needed; _get_db_cache returned None)
@@ -607,6 +609,43 @@ async def get_portfolio(
 
 
 # ── Aggregation ───────────────────────────────────────────────────────────────
+
+
+def _sum_known(a: float | None, b: float | None) -> float | None:
+    if a is None or b is None:
+        return None
+    return a + b
+
+
+def _merge_holdings(holdings: list[InvestmentHoldingOut]) -> list[InvestmentHoldingOut]:
+    """One row per instrument when several accounts hold the same fund.
+
+    A figure one account cannot report makes the merged figure unknown rather
+    than silently understated, and the rate is recomputed from the sums because
+    rates do not add up.
+    """
+    merged: dict[tuple[str, str], InvestmentHoldingOut] = {}
+    counts: dict[tuple[str, str], int] = defaultdict(int)
+    for h in holdings:
+        key = (h.plugin_id, h.ticker or h.name)
+        counts[key] += 1
+        current = merged.get(key)
+        if current is None:
+            merged[key] = h.model_copy()
+            continue
+        current.units = _sum_known(current.units, h.units)
+        current.current_value += h.current_value
+        current.cost_basis = _sum_known(current.cost_basis, h.cost_basis)
+        current.gain_loss = _sum_known(current.gain_loss, h.gain_loss)
+
+    for key, h in merged.items():
+        if counts[key] > 1:
+            h.gain_loss_pct = (
+                h.gain_loss / h.cost_basis
+                if h.gain_loss is not None and h.cost_basis is not None and h.cost_basis > 0
+                else None
+            )
+    return sorted(merged.values(), key=lambda h: h.current_value, reverse=True)
 
 
 def _aggregate(
@@ -818,7 +857,7 @@ def _aggregate(
         total_gain_loss=gl_val,
         total_gain_loss_pct=gl_pct,
         currency="EUR",
-        holdings=all_holdings,
+        holdings=all_holdings if single_account else _merge_holdings(all_holdings),
         plugins_connected=total_connections,
         last_updated=now_str,
         returns=returns,

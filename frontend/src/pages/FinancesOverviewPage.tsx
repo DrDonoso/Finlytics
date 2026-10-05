@@ -18,9 +18,11 @@ import { defaultRange } from '../utils'
 import { serializeFilters, useUrlFilters } from '../hooks/useUrlFilters'
 import { IconClose, IconChevronRight } from '../components/icons'
 import { IS_DEMO } from '../demo/config'
+import { useToast } from '../contexts/ToastContext'
 
 export default function FinancesOverviewPage() {
   const { t, lang, formatCurrency } = useT()
+  const showToast = useToast()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { filters, setFilters, defaults } = useUrlFilters(defaultRange)
@@ -44,13 +46,11 @@ export default function FinancesOverviewPage() {
 
   const [importFiles, setImportFiles] = useState<File[] | null>(null)
   const launcherRef = useRef<ImportLauncherHandle>(null)
-  const [toast,      setToast]        = useState<string | null>(null)
   const [preZoomFilters, setPreZoomFilters] = useState<GlobalFilters | null>(null)
 
   function handleImportSuccess(result: ImportResult) {
     setImportFiles(null)
-    setToast(t.toastSuccess(result.num_inserted, result.num_duplicates))
-    setTimeout(() => setToast(null), 6000)
+    showToast(t.toastSuccess(result.num_inserted, result.num_duplicates))
     // Importing changes transactions, so everything derived is stale.
     void queryClient.invalidateQueries()
   }
@@ -291,12 +291,6 @@ export default function FinancesOverviewPage() {
         />
       )}
 
-      {toast && (
-        <div className="toast">
-          <span>{toast}</span>
-          <button className="toast-close" onClick={() => setToast(null)} aria-label={t.toastClose}><IconClose size={14} /></button>
-        </div>
-      )}
     </>
   )
 }

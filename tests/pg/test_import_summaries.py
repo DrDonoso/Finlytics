@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock
 import pytest
 from cryptography.fernet import Fernet
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 
 from finlytics.api import imports as import_api
@@ -20,6 +20,9 @@ from finlytics.assistant import settings as usage_queries
 from finlytics.config import settings
 from finlytics.db.models import (
     Account,
+    AssistantConversation,
+    AssistantMessage,
+    AssistantUsage,
     ImportRun,
     ImportSummaryAttempt,
     ImportSummaryJob,
@@ -251,6 +254,47 @@ async def test_retry_usage_is_attributed_to_each_call_month(sessions, context):
         assert await usage_queries.usage_by_day(db, context.user.id, datetime(2000, 1, 1, tzinfo=UTC)) == [
             {"day": "2026-03-31", "tokens": 40, "messages": 0, "summaries": 0},
             {"day": "2026-04-01", "tokens": 80, "messages": 0, "summaries": 1},
+        ]
+
+
+async def test_chat_ledger_and_summary_attempts_share_the_budget_after_source_deletion(sessions, context):
+    job_id = await new_job(sessions, context)
+    async with sessions() as db, db.begin():
+        conversation = AssistantConversation(user_id=context.user.id, title="Spending")
+        db.add(conversation)
+        await db.flush()
+        db.add_all([
+            AssistantMessage(
+                conversation_id=conversation.id, role="assistant", content="An answer",
+                prompt_tokens=100, completion_tokens=20, total_tokens=120,
+            ),
+            AssistantUsage(
+                user_id=context.user.id, conversation_id=conversation.id,
+                prompt_tokens=100, completion_tokens=20, total_tokens=120, answered=True,
+            ),
+            ImportSummaryAttempt(
+                job_id=job_id, user_id=context.user.id,
+                prompt_tokens=40, completion_tokens=20, total_tokens=60, answered=True,
+            ),
+        ])
+    since = datetime(2000, 1, 1, tzinfo=UTC)
+    async with sessions() as db:
+        assert await usage_queries.tokens_used_since(db, context.user.id, since) == 180
+    async with sessions() as db, db.begin():
+        await db.execute(delete(AssistantConversation).where(
+            AssistantConversation.id == conversation.id,
+        ))
+    async with sessions() as db:
+        await delete_account(db, context.account_id)
+    async with sessions() as db:
+        assert await usage_queries.tokens_used_since(db, context.user.id, since) == 180
+        totals = await usage_queries.usage_totals(db, context.user.id)
+        assert totals == usage_queries.UsageTotals(
+            prompt_tokens=140, completion_tokens=40, total_tokens=180, messages=1, summaries=1,
+        )
+        points = await usage_queries.usage_by_day(db, context.user.id, since)
+        assert [(point["tokens"], point["messages"], point["summaries"]) for point in points] == [
+            (180, 1, 1),
         ]
 
 

@@ -22,6 +22,7 @@ import { IconLoading, IconAlert, IconBriefcase, IconChartLine, IconReceipt, Icon
 import SortableTh from '../../components/SortableTh'
 import Money, { Percent, Private } from '../../components/Money'
 import CardHeader from '../../components/CardHeader'
+import Modal from '../../components/Modal'
 
 // ── Date helpers (mirrored from IndexaView) ────────────────────────────────────
 
@@ -65,7 +66,7 @@ const NO_LOTS: FidelityLot[] = []
 
 interface Tip { text: string; x: number; y: number }
 
-function SourceBadge({ source, onTip }: { source: 'SP' | 'DO'; onTip: (tip: Tip | null) => void }) {
+function SourceBadge({ source, onTip }: { source: string; onTip: (tip: Tip | null) => void }) {
   const { t } = useT()
   const show = (e: MouseEvent<HTMLElement> | FocusEvent<HTMLElement>) => {
     const r = e.currentTarget.getBoundingClientRect()
@@ -93,7 +94,7 @@ function SourceBadge({ source, onTip }: { source: 'SP' | 'DO'; onTip: (tip: Tip 
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function FidelityView() {
-  const { t, lang, formatCurrency, formatNumber } = useT()
+  const { t, lang, formatCurrency, formatCompactCurrency, formatNumber } = useT()
   const locale = langLocale(lang)
   const { notifications } = useNotifications()
 
@@ -279,11 +280,13 @@ export default function FidelityView() {
   }
 
   function openImport() {
+    setOpenTip(null)
     resetImport()
     setImportOpen(true)
   }
 
   function closeImport() {
+    setOpenTip(null)
     setImportOpen(false)
     resetImport()
   }
@@ -355,6 +358,35 @@ export default function FidelityView() {
   }
 
   const isEmpty = lots.length === 0 && kpis === null
+  const importBusy = wizStep === 'confirming' || importLoading
+  const tooltip = openTip && (
+    <div
+      role="tooltip"
+      style={{
+        position: 'fixed',
+        left: openTip.x,
+        top: openTip.y - 10,
+        transform: 'translate(-50%, -100%)',
+        zIndex: 4000,
+        pointerEvents: 'none',
+        background: 'var(--surface)',
+        border: '1px solid var(--border)',
+        borderRadius: '8px',
+        boxShadow: '0 4px 16px rgba(0,0,0,0.16)',
+        padding: '10px 12px',
+        maxWidth: '240px',
+        width: 'max-content',
+        fontSize: '12px',
+        lineHeight: 1.5,
+        color: 'var(--text-muted)',
+        textAlign: 'left',
+        fontWeight: 400,
+        whiteSpace: 'normal',
+      }}
+    >
+      {openTip.text}
+    </div>
+  )
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -538,11 +570,11 @@ export default function FidelityView() {
                       />
                       <YAxis
                         domain={evolutionDomain}
-                        tickFormatter={(v: number) => `${(v / 1000).toFixed(0)}k€`}
+                        tickFormatter={(v: number) => formatCompactCurrency(v)}
                         tick={{ fontSize: 11, fill: 'var(--text-muted)' }}
                         axisLine={false}
                         tickLine={false}
-                        width={52}
+                        width="auto"
                       />
                       <Tooltip
                         contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8 }}
@@ -684,14 +716,8 @@ export default function FidelityView() {
       )}
 
       {/* ── Import wizard modal ── */}
-      {importOpen && createPortal(
-        <div
-          className="modal-backdrop"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="fid-import-title"
-        >
-          <div className="modal">
+      {importOpen && (
+        <Modal onDismiss={closeImport} disabled={importBusy} labelledBy="fid-import-title">
 
             <div className="modal-header">
               <span className="modal-title" id="fid-import-title">{t.fidelityImportTitle}</span>
@@ -699,6 +725,7 @@ export default function FidelityView() {
                 className="modal-close"
                 type="button"
                 onClick={closeImport}
+                disabled={importBusy}
                 aria-label={t.modalClose}
               ><IconClose size={16} /></button>
             </div>
@@ -819,7 +846,7 @@ export default function FidelityView() {
             <div className="modal-footer">
               {wizStep === 'upload' && (
                 <>
-                  <button className="btn-secondary" type="button" onClick={closeImport}>
+                  <button className="btn-secondary" type="button" onClick={closeImport} disabled={importLoading}>
                     {t.modalBtnCancel}
                   </button>
                   <button
@@ -849,40 +876,11 @@ export default function FidelityView() {
               )}
             </div>
 
-          </div>
-        </div>,
-        document.body,
+          {tooltip}
+        </Modal>
       )}
 
-      {openTip && createPortal(
-        <div
-          role="tooltip"
-          style={{
-            position: 'fixed',
-            left: openTip.x,
-            top: openTip.y - 10,
-            transform: 'translate(-50%, -100%)',
-            zIndex: 4000,
-            pointerEvents: 'none',
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: '8px',
-            boxShadow: '0 4px 16px rgba(0,0,0,0.16)',
-            padding: '10px 12px',
-            maxWidth: '240px',
-            width: 'max-content',
-            fontSize: '12px',
-            lineHeight: 1.5,
-            color: 'var(--text-muted)',
-            textAlign: 'left',
-            fontWeight: 400,
-            whiteSpace: 'normal',
-          }}
-        >
-          {openTip.text}
-        </div>,
-        document.body,
-      )}
+      {!importOpen && tooltip && createPortal(tooltip, document.body)}
 
     </main>
   )

@@ -23,14 +23,23 @@ function excludeMswWorker(outDir: string): Plugin {
   }
 }
 
-/** Static-host config for the demo build, in the `_redirects` / `_headers`
- *  format Cloudflare Pages and Netlify read. These do for a CDN what
- *  `nginx.demo.conf` does for the self-hosted image; both deployment paths ship
- *  from the same `dist-demo/`, so they have to agree.
- *
- *  Emitted from here rather than committed under `public/` because everything in
- *  `public/` is copied into the PRODUCTION bundle too, where FastAPI serves the
- *  SPA and these files would be dead weight. */
+/** Mirrors `CONTENT_SECURITY_POLICY` in `src/finlytics/api/middleware.py` and
+ *  the one in `nginx.demo.conf`; the three must stay in step. */
+const DEMO_CSP = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data:",
+  "font-src 'self'",
+  "connect-src 'self'",
+  "manifest-src 'self'",
+  "worker-src 'self'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+].join('; ')
+
 /** Static-host config for the demo build, in the `_headers` format Cloudflare
  *  reads. This does for a CDN what `nginx.demo.conf` does for the self-hosted
  *  image; both deployment paths ship from the same `dist-demo/`, so they have to
@@ -65,9 +74,11 @@ function emitStaticHostConfig(outDir: string): Plugin {
     '  Cache-Control: public, max-age=31536000, immutable',
     '',
     '/*',
+    `  Content-Security-Policy: ${DEMO_CSP}`,
     '  X-Content-Type-Options: nosniff',
-    '  X-Frame-Options: SAMEORIGIN',
+    '  X-Frame-Options: DENY',
     '  Referrer-Policy: strict-origin-when-cross-origin',
+    '  Permissions-Policy: camera=(), microphone=(), geolocation=()',
     '',
   ].join('\n')
 

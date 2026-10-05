@@ -122,6 +122,12 @@ jobs:
       - name: Lint (ruff)
         run: uv run --no-sync ruff check src tests alembic
 
+      # frontend/src/api/schema.gen.ts is generated from this file, and the
+      # frontend build type-checks the hand-written client types against it.
+      # A schema change that was not re-exported would slip past both.
+      - name: OpenAPI schema is up to date
+        run: uv run --no-sync python scripts/export_openapi.py --check
+
   # The frontend had no linter, and that let real bugs through: CSS selectors
   # that never matched, untranslated strings and incomplete effect dependencies.
   # This job exists so they stop piling up.
@@ -161,6 +167,11 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      # src/api/contract.ts checks src/api/types.ts against the generated file
+      # during `npm run build`, so a stale one would hide backend drift.
+      - name: Generated API types are up to date
+        run: npm run gen:api -- --check
 
       - name: Lint
         run: npm run lint

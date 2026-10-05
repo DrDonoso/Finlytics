@@ -9,6 +9,7 @@ import { MemoryRouter } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import StatementsPage from './StatementsPage'
+import { ToastProvider } from '../contexts/ToastContext'
 import { createQueryClient } from '../api/queryClient'
 import type { StatementMonth } from '../api/types'
 import { langLocale } from '../i18n'
@@ -57,6 +58,7 @@ function renderPage(): QueryClient {
         <StatementsPage />
       </MemoryRouter>
     </QueryClientProvider>,
+    { wrapper: ToastProvider },
   )
   return queryClient
 }

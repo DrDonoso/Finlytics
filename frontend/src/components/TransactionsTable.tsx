@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useId } from 'react'
+import { useState, useMemo, useId } from 'react'
 import type { ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Category, GlobalFilters, Tag, Transaction, TransactionPage, TransactionsParams } from '../api/types'
@@ -14,6 +14,8 @@ import CategoryBadge from './CategoryBadge'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { IconAlert, IconReceipt, IconCheck, IconClose, IconSettings, IconPencil, IconArrowLeft, IconArrowRight } from './icons'
 import SortableTh from './SortableTh'
+import { parseAmount } from '../utils/parseNumber'
+import { useToast } from '../contexts/ToastContext'
 
 interface Props {
   globalFilters: GlobalFilters
@@ -42,6 +44,7 @@ const LIMIT = 10
 
 export default function TransactionsTable({ globalFilters, categories, allTags, pageSize, description, amountMin, amountMax, merchant, hideInternalFilters, onEditSuccess, headerAction }: Props) {
   const { t, lang, formatCurrency } = useT()
+  const showToast = useToast()
   const queryClient = useQueryClient()
   const limit = pageSize ?? LIMIT
   const [categoryId, setCategoryId] = useState<number | undefined>(undefined)
@@ -54,16 +57,9 @@ export default function TransactionsTable({ globalFilters, categories, allTags, 
   const [saveError,  setSaveError]  = useState<string | null>(null)
 
   const [createRuleFor, setCreateRuleFor] = useState<Transaction | null>(null)
-  const [ruleToast,     setRuleToast]     = useState<string | null>(null)
   const [detailTx,      setDetailTx]      = useState<Transaction | null>(null)
   const isMobile = useIsMobile()
   const categoryFilterId = useId()
-
-  useEffect(() => {
-    if (!ruleToast) return
-    const id = setTimeout(() => setRuleToast(null), 4000)
-    return () => clearTimeout(id)
-  }, [ruleToast])
 
   // ── Dynamic ES labels for non-base categories
   const dynamicEs = useMemo(
@@ -169,11 +165,15 @@ export default function TransactionsTable({ globalFilters, categories, allTags, 
   }
   async function commitEdit(tx: Transaction) {
     if (!editData) return
+    const parsed = parseAmount(editData.absAmount)
+    if (!Number.isFinite(parsed)) {
+      setSaveError(t.formInvalidNumber)
+      return
+    }
+    const abs = Math.abs(parsed)
+    const signedAmount = editData.sign === '-' ? -abs : abs
     setSaving(true)
     setSaveError(null)
-    const signedAmount = editData.sign === '-'
-      ? -Math.abs(Number(editData.absAmount))
-      :  Math.abs(Number(editData.absAmount))
     try {
       const updated = await updateTransaction(tx.id, {
         description: editData.description,
@@ -348,13 +348,12 @@ export default function TransactionsTable({ globalFilters, categories, allTags, 
                               <option value="+">{t.previewSignIncome}</option>
                             </select>
                             <input
-                              type="number"
+                              type="text"
+                              inputMode="decimal"
                               className="td-edit-input"
                               aria-label={t.tableColAmount}
                               style={{ color: amountColor, textAlign: 'right', width: 90 }}
                               value={editData.absAmount}
-                              min="0"
-                              step="0.01"
                               disabled={saving}
                               onChange={e => setEditData(d => d ? { ...d, absAmount: e.target.value } : d)}
                               onKeyDown={e => { if (e.key === 'Enter') commitEdit(tx); if (e.key === 'Escape') cancelEdit() }}
@@ -478,12 +477,10 @@ export default function TransactionsTable({ globalFilters, categories, allTags, 
           }}
           categories={categories}
           availableTags={allTags}
-          onSave={() => { setCreateRuleFor(null); setRuleToast(t.createRuleToast) }}
+          onSave={() => { setCreateRuleFor(null); showToast(t.createRuleToast) }}
           onClose={() => setCreateRuleFor(null)}
         />
       )}
-
-      {ruleToast && <div className="rule-toast">{ruleToast}</div>}
 
       {detailTx && (
         <TransactionDetailModal

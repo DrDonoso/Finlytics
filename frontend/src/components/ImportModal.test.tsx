@@ -3,12 +3,13 @@
  * fall through to the generic "unexpected error" text, which gives no hint that
  * the file is simply too big.
  */
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { afterEach, expect, it, vi } from 'vitest'
 
 import ImportModal from './ImportModal'
+import { ToastProvider } from '../contexts/ToastContext'
 import type { PreviewResponse } from '../api/types'
 import es from '../i18n/es'
 
@@ -44,6 +45,7 @@ it('reports a queued summary without claiming that Telegram has received it', as
       <ImportModal accounts={[]} categories={[]} allTags={[]} initialFiles={[pdf('june.pdf')]}
         onClose={() => {}} onSuccess={onSuccess} />
     </MemoryRouter>,
+    { wrapper: ToastProvider },
   )
   await userEvent.click(await screen.findByRole('button', { name: es.modalBtnContinue }))
   await userEvent.click(await screen.findByRole('button', { name: es.batchConfirmAllBtn(1) }))
@@ -80,6 +82,7 @@ it('explains the size limit when the server rejects a statement with 413', async
       onSuccess={() => {}}
       initialFiles={[pdf('huge.pdf'), pdf('next.pdf')]}
     />,
+    { wrapper: ToastProvider },
   )
 
   expect(await screen.findByText(es.error413)).toBeInTheDocument()
@@ -101,6 +104,7 @@ it('shows why every statement failed instead of an empty account step', async ()
       onSuccess={onSuccess}
       initialFiles={[pdf('huge.pdf')]}
     />,
+    { wrapper: ToastProvider },
   )
 
   expect(await screen.findByRole('heading', { name: es.batchSummaryFailedTitle })).toBeInTheDocument()
@@ -156,6 +160,7 @@ it('re-checks duplicates once typing settles, against the edited rows', async ()
       onSuccess={() => {}}
       initialFiles={[pdf('may.pdf')]}
     />,
+    { wrapper: ToastProvider },
   )
 
   await userEvent.click(await screen.findByRole('button', { name: es.modalBtnContinue }))
@@ -170,4 +175,77 @@ it('re-checks duplicates once typing settles, against the edited rows', async ()
   // One check for the whole burst, not one per keystroke.
   await act(() => new Promise(resolve => setTimeout(resolve, 500)))
   expect(checked).toHaveLength(2)
+})
+
+it.each(['Escape', 'close button', 'backdrop'])('sends the opening balance and refreshes imported data on %s', async dismissal => {
+  // With no accounts, a statement without an IBAN always creates one, but the
+  // confirm path only read its balance once "new account" had been toggled.
+  const preview: PreviewResponse = {
+    account_ref: null,
+    filename: 'june.pdf',
+    transactions: [{
+      transaction_date: '2024-06-03', amount: -20, currency: 'EUR', description: 'Bakery',
+      raw_line: null, category: 'Groceries', category_confidence: 0.9, account_ref: '',
+      balance_after: null, tags: [], merchant: 'Bakery',
+    }],
+    statement_year: 2024,
+    year_detected: true,
+    matched_account_id: null,
+    matched_account_name: null,
+    quality: {
+      summary: { error_count: 0, warning_count: 0, info_count: 0, flagged_row_count: 0 },
+      signals: [],
+      row_flags: [],
+    },
+  }
+  const confirmed: { account_name: string; opening_balance?: number }[] = []
+  const onClose = vi.fn()
+  const onSuccess = vi.fn()
+  vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+    if (url === '/api/imports/preview') return new Response(JSON.stringify(preview))
+    if (url === '/api/imports/check-duplicates') return new Response(JSON.stringify({ is_duplicate: [false] }))
+    if (url === '/api/imports/confirm') {
+      confirmed.push(JSON.parse(String(init?.body)))
+      return new Response(JSON.stringify({ import_run_id: 1, num_parsed: 1, num_inserted: 1, num_duplicates: 0 }))
+    }
+    return new Response('{}', { status: 404, statusText: 'Not Found' })
+  }))
+
+  render(
+    <ImportModal
+      accounts={[]}
+      categories={[]}
+      allTags={[]}
+      onClose={onClose}
+      onSuccess={onSuccess}
+      initialFiles={[pdf('june.pdf')]}
+    />,
+    { wrapper: ToastProvider },
+  )
+
+  await userEvent.type(await screen.findByPlaceholderText(es.modalAccountPlaceholder), 'Savings')
+  await userEvent.type(screen.getByLabelText(es.importOpeningBalanceLabel), '1.234,56')
+  await userEvent.click(screen.getByRole('button', { name: es.modalBtnContinue }))
+  await userEvent.click(await screen.findByRole('button', { name: es.batchConfirmAllBtn(1) }))
+
+  await waitFor(() => expect(confirmed).toHaveLength(1))
+  expect(confirmed[0].account_name).toBe('Savings')
+  expect(confirmed[0].opening_balance).toBe(1234.56)
+  const close = screen.getAllByRole('button', { name: es.modalClose })
+    .find(button => button.classList.contains('modal-close'))!
+  await waitFor(() => expect(close).toBeEnabled())
+  if (dismissal === 'Escape') {
+    fireEvent.keyDown(document, { key: 'Escape' })
+  } else if (dismissal === 'close button') {
+    await userEvent.click(close)
+  } else {
+    const dialog = screen.getByRole('dialog')
+    fireEvent.pointerDown(dialog)
+    fireEvent.pointerUp(dialog)
+    fireEvent.click(dialog)
+  }
+  expect(onSuccess).toHaveBeenCalledExactlyOnceWith({
+    import_run_id: 0, num_parsed: 1, num_inserted: 1, num_duplicates: 0,
+  })
+  expect(onClose).not.toHaveBeenCalled()
 })

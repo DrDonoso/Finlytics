@@ -57,7 +57,7 @@ export function PrivacyProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('keydown', handler)
   }, [toggle])
 
-  // Apply on mount (after the FOUC-prevention script in index.html)
+  // Apply on mount (after the FOUC-prevention script, public/theme-init.js)
   useEffect(() => { applyPrivacy(hidden) }, [hidden])
 
   const value = useMemo(() => ({ hidden, setHidden, toggle }), [hidden, setHidden, toggle])

@@ -62,7 +62,7 @@ from finlytics.extraction.extractor import (
 )
 from finlytics.extraction.import_quality import compute_import_quality
 from finlytics.extraction.llm_client import LLMClient
-from finlytics.extraction.parser import parse_statement
+from finlytics.extraction.parser import UnsupportedFileTypeError, parse_statement
 from finlytics.extraction.prematch import pre_match_rules
 from finlytics.extraction.rules import apply_rules
 from finlytics.extraction.tag_colors import suggest_tag_colors
@@ -213,12 +213,22 @@ async def _parse_file(file_bytes: bytes, ext: str, error_status: int = 400) -> s
 
     pdfplumber is synchronous and CPU-bound (seconds on a long statement), so it
     runs in a worker thread instead of stalling the event loop for everyone.
+
+    Only a message written for the user reaches the response. A parser failure can
+    carry file paths or library internals, so it is logged and answered generically.
     """
     try:
         return await asyncio.to_thread(parse_statement, file_bytes, file_type=ext)
-    except Exception as exc:
+    except UnsupportedFileTypeError as exc:
+        raise HTTPException(status_code=error_status, detail=str(exc)) from exc
+    except NotImplementedError as exc:
         raise HTTPException(
-            status_code=error_status, detail=f"File parsing failed: {exc}"
+            status_code=error_status, detail=f"{ext} files are not supported yet."
+        ) from exc
+    except Exception as exc:
+        log.exception("File parsing failed for a .%s upload", one_line(ext))
+        raise HTTPException(
+            status_code=error_status, detail="File parsing failed."
         ) from exc
 
 
@@ -294,8 +304,8 @@ async def preview_import(
     except HTTPException:
         raise
     except Exception as exc:
-        log.error("LLM extraction failed: %s", exc)
-        raise HTTPException(status_code=502, detail=f"LLM extraction failed: {exc}") from exc
+        log.exception("LLM extraction failed")
+        raise HTTPException(status_code=502, detail="LLM extraction failed.") from exc
 
     extracted = apply_rules(extracted, rules)
     all_txs = sorted(matched_txs + extracted, key=lambda t: t.transaction_date)
@@ -544,9 +554,9 @@ async def create_import(
         except HTTPException:
             raise
         except Exception as exc:
-            log.error("LLM extraction failed: %s", exc)
+            log.exception("LLM extraction failed")
             raise HTTPException(
-                status_code=502, detail=f"LLM extraction failed: {exc}"
+                status_code=502, detail="LLM extraction failed."
             ) from exc
 
         extracted = apply_rules(extracted, rules)

@@ -637,14 +637,14 @@ export interface CashInvestedSplit {
 export interface InvestmentHolding {
   plugin_id: string
   name: string
-  ticker: string
+  ticker: string | null
   asset_class: string
-  units: number
+  units: number | null
   current_value: number
-  cost_basis: number
+  cost_basis: number | null
   currency: string
-  gain_loss: number
-  gain_loss_pct: number    // decimal: 0.1093 = 10.93%
+  gain_loss: number | null
+  gain_loss_pct: number | null    // decimal: 0.1093 = 10.93%
   last_updated: string
 }
 
@@ -678,7 +678,7 @@ export interface InvestmentPortfolio {
 export interface InvestmentConnection {
   id: number
   plugin_id: string
-  status: 'active' | 'error' | 'disconnected'
+  status: string    // 'active' | 'error' | 'disconnected' — read from the database, not constrained
   account_label_masked: string | null
   created_at: string
   last_synced_at: string | null
@@ -731,7 +731,7 @@ export interface FidelityLot {
   current_value_eur: number | null
   gain_loss_eur: number | null
   gain_loss_pct: number | null     // percentage: 12.5 = 12.5%
-  share_source: 'SP' | 'DO'
+  share_source: string             // 'SP' | 'DO'
   grant_date: string | null        // "YYYY-MM-DD"
 }
 
@@ -744,7 +744,7 @@ export interface FidelityImportPreviewLot {
   shares: number
   cost_basis_per_share_eur: number
   cost_basis_total_eur: number
-  share_source: 'SP' | 'DO'
+  share_source: string             // 'SP' | 'DO'
   grant_date: string | null
 }
 
@@ -813,9 +813,9 @@ export interface NotificationOut {
   id: number
   source: string
   type: string
-  severity: 'info' | 'warning'
+  severity: string    // 'info' | 'warning'
   title_key: string
-  title_args: Record<string, string | number>
+  title_args: Record<string, string>
   body_key: string | null
   body_args: Record<string, unknown> | null
   action_link: string | null
@@ -848,7 +848,7 @@ export interface TelegramTestIn {
 
 export interface TelegramTestOut {
   ok: boolean
-  error?: string
+  error?: string | null
 }
 
 // ─── Finance assistant ────────────────────────────────────────────────────────

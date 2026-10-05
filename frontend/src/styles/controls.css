@@ -85,15 +85,29 @@
 .btn-row-delete:hover { background: rgba(var(--expense-rgb), 0.10); color: var(--expense); border-color: var(--expense); }
 
 /* ─── Modal ──────────────────────────────────────────────────────────── */
-.modal-backdrop {
+/* The <dialog> spans the viewport and only centres the box; the top layer stacks it, so it
+   needs no z-index. Author rules beat the UA sheet's fit-content sizing and Canvas colours. */
+dialog.modal-dialog {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.55);
+  width: auto;
+  height: auto;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 16px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  overflow: hidden;
+}
+dialog.modal-dialog[open] {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
-  padding: 16px;
+}
+dialog.modal-dialog::backdrop {
+  background: rgba(15, 23, 42, 0.55);
 }
 .modal {
   background: var(--surface);
@@ -113,7 +127,8 @@
 }
 
 @media (max-width: 600px) {
-  .modal-backdrop { padding: 0; align-items: flex-end; }
+  dialog.modal-dialog { padding: 0; }
+  dialog.modal-dialog[open] { align-items: flex-end; }
   .modal {
     max-width: 100%;
     max-height: 94dvh;

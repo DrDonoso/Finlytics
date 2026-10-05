@@ -22,7 +22,7 @@ import logging
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 
-from sqlalchemy import case, func, or_, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from finlytics.assistant.prompts import (
@@ -32,7 +32,7 @@ from finlytics.assistant.prompts import (
     MAX_SYSTEM_PROMPT_CHARS,
     missing_safety_markers,
 )
-from finlytics.db.models import AssistantMessage, AssistantSettings, ImportSummaryAttempt
+from finlytics.db.models import AssistantSettings, AssistantUsage, ImportSummaryAttempt
 
 log = logging.getLogger(__name__)
 
@@ -174,22 +174,13 @@ async def tokens_used_since(
 ) -> int:
     """Total tokens this user's assistant has spent since ``since``.
 
-    Joins through the conversation because usage is recorded per message and
-    only conversations carry the owner. Sums every role: a turn that never
-    answered carries its cost on the question row.
+    Read from the usage ledger, which outlives the conversations: deleting a
+    chat must not hand its tokens back to the monthly budget.
     """
-    from finlytics.db.models import AssistantConversation
-
     total = await db.scalar(
-        select(func.coalesce(func.sum(AssistantMessage.total_tokens), 0))
-        .select_from(AssistantMessage)
-        .join(
-            AssistantConversation,
-            AssistantConversation.id == AssistantMessage.conversation_id,
-        )
-        .where(
-            AssistantConversation.user_id == user_id,
-            AssistantMessage.created_at >= since,
+        select(func.coalesce(func.sum(AssistantUsage.total_tokens), 0)).where(
+            AssistantUsage.user_id == user_id,
+            AssistantUsage.created_at >= since,
         )
     )
     summary_total = await db.scalar(select(
@@ -208,45 +199,26 @@ async def has_unknown_summary_usage(db: AsyncSession, user_id: int) -> bool:
     ).limit(1)))
 
 
-def _billed():
-    """Rows that carry a turn's cost: every answer, plus the questions of turns
-    that spent tokens without ever answering (see ``AssistantMessage``)."""
-    return or_(
-        AssistantMessage.role == "assistant",
-        AssistantMessage.total_tokens.is_not(None),
-    )
-
-
 def _answers():
-    return func.count(case((AssistantMessage.role == "assistant", AssistantMessage.id)))
+    return func.count(case((AssistantUsage.answered, AssistantUsage.id)))
 
 
 async def usage_totals(
     db: AsyncSession, user_id: int, since: datetime | None = None
 ) -> UsageTotals:
-    """Aggregate token usage, optionally restricted to messages after ``since``.
+    """Aggregate token usage, optionally restricted to turns after ``since``.
 
     ``messages`` counts answers; the token sums also include failed turns, so
     they agree with the monthly budget.
     """
-    from finlytics.db.models import AssistantConversation
-
-    stmt = (
-        select(
-            func.coalesce(func.sum(AssistantMessage.prompt_tokens), 0),
-            func.coalesce(func.sum(AssistantMessage.completion_tokens), 0),
-            func.coalesce(func.sum(AssistantMessage.total_tokens), 0),
-            _answers(),
-        )
-        .select_from(AssistantMessage)
-        .join(
-            AssistantConversation,
-            AssistantConversation.id == AssistantMessage.conversation_id,
-        )
-        .where(AssistantConversation.user_id == user_id, _billed())
-    )
+    stmt = select(
+        func.coalesce(func.sum(AssistantUsage.prompt_tokens), 0),
+        func.coalesce(func.sum(AssistantUsage.completion_tokens), 0),
+        func.coalesce(func.sum(AssistantUsage.total_tokens), 0),
+        _answers(),
+    ).where(AssistantUsage.user_id == user_id)
     if since is not None:
-        stmt = stmt.where(AssistantMessage.created_at >= since)
+        stmt = stmt.where(AssistantUsage.created_at >= since)
 
     row = (await db.execute(stmt)).one()
     summary_stmt = select(
@@ -271,25 +243,17 @@ async def usage_by_day(
     db: AsyncSession, user_id: int, since: datetime
 ) -> list[dict]:
     """Daily token totals since ``since``, chronological, for the usage chart."""
-    from finlytics.db.models import AssistantConversation
-
-    day = func.to_char(AssistantMessage.created_at, "YYYY-MM-DD")
+    day = func.to_char(AssistantUsage.created_at, "YYYY-MM-DD")
     rows = (
         await db.execute(
             select(
                 day.label("day"),
-                func.coalesce(func.sum(AssistantMessage.total_tokens), 0).label("tokens"),
+                func.coalesce(func.sum(AssistantUsage.total_tokens), 0).label("tokens"),
                 _answers().label("messages"),
             )
-            .select_from(AssistantMessage)
-            .join(
-                AssistantConversation,
-                AssistantConversation.id == AssistantMessage.conversation_id,
-            )
             .where(
-                AssistantConversation.user_id == user_id,
-                _billed(),
-                AssistantMessage.created_at >= since,
+                AssistantUsage.user_id == user_id,
+                AssistantUsage.created_at >= since,
             )
             .group_by(day)
             .order_by(day)

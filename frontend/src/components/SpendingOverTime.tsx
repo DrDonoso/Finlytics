@@ -21,7 +21,7 @@ function shortMonth(ym: string, locale: string): string {
 }
 
 export default function SpendingOverTime({ data, loading, error, selectedFlow, onFlowClick }: Props) {
-  const { t, lang, formatCurrency } = useT()
+  const { t, lang, formatCurrency, formatCompactCurrency } = useT()
   const locale = langLocale(lang)
   const chartData = data.map(d => ({ ...d, month: shortMonth(d.month, locale) }))
 
@@ -63,10 +63,11 @@ export default function SpendingOverTime({ data, loading, error, selectedFlow, o
               tick={{ fontSize: 12, fill: 'var(--text-muted)' as string }}
             />
             <YAxis
-              tickFormatter={v => `${(v / 1000).toFixed(0)}k€`}
+              tickFormatter={v => formatCompactCurrency(Number(v))}
               tick={{ fontSize: 12, fill: 'var(--text-muted)' as string }}
               axisLine={false}
               tickLine={false}
+              width="auto"
             />
             <Tooltip
               contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8 }}

@@ -21,6 +21,7 @@ import SettingsLayout from '../components/SettingsLayout'
 import { ThemeProvider } from '../contexts/ThemeContext'
 import { handlers } from '../demo/handlers'
 import { LanguageProvider } from '../i18n'
+import { ToastProvider } from '../contexts/ToastContext'
 
 import AboutPage from '../pages/AboutPage'
 import AnalyticsPage from '../pages/AnalyticsPage'
@@ -81,6 +82,7 @@ function renderDemoRoute(path: string, element: React.ReactNode) {
     <QueryClientProvider client={client}>
       <ThemeProvider>
         <LanguageProvider>
+          <ToastProvider>
           <MemoryRouter initialEntries={[path]}>
             <Routes>
               <Route path="/" element={<Layout />}>
@@ -91,6 +93,7 @@ function renderDemoRoute(path: string, element: React.ReactNode) {
               </Route>
             </Routes>
           </MemoryRouter>
+          </ToastProvider>
         </LanguageProvider>
       </ThemeProvider>
     </QueryClientProvider>,

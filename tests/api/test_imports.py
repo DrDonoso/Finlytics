@@ -12,6 +12,8 @@ from fastapi import HTTPException
 
 from finlytics.contracts import ExtractedTransaction
 from finlytics.db.models import Account
+from finlytics.extraction.llm_client import LLMError
+from finlytics.extraction.parser import UnsupportedFileTypeError
 
 
 def _make_rule(**overrides) -> SimpleNamespace:
@@ -134,10 +136,10 @@ async def test_import_unknown_account_id(client_with_llm):
 
 
 async def test_import_unsupported_file_type(client_with_llm):
-    """Uploading an unsupported file extension returns 422."""
+    """Uploading an unsupported file extension returns 422 with the parser's message."""
     client, _ = client_with_llm
     with patch("finlytics.api.imports.parse_statement",
-               side_effect=ValueError("Unsupported file type: 'docx'")):
+               side_effect=UnsupportedFileTypeError("Unsupported file type: 'docx'")):
         resp = await client.post(
             "/api/imports",
             files={"file": ("report.docx", io.BytesIO(b"fake"), "application/octet-stream")},
@@ -145,6 +147,93 @@ async def test_import_unsupported_file_type(client_with_llm):
         )
 
     assert resp.status_code == 422
+    assert "Unsupported file type" in resp.json()["detail"]
+
+
+async def test_import_unimplemented_type_names_the_extension(client_with_llm):
+    client, _ = client_with_llm
+    with patch("finlytics.api.imports.parse_statement",
+               side_effect=NotImplementedError("XLSX parsing requires openpyxl")):
+        resp = await client.post(
+            "/api/imports",
+            files={"file": ("statement.xlsx", io.BytesIO(b"fake"), "application/octet-stream")},
+            data={"account_name": "BBVA"},
+        )
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "xlsx files are not supported yet."
+
+
+async def test_import_parser_crash_does_not_leak_internals(client_with_llm, caplog):
+    client, _ = client_with_llm
+    with patch("finlytics.api.imports.parse_statement",
+               side_effect=RuntimeError("secret internals at C:\\data\\x.pdf")):
+        resp = await client.post(
+            "/api/imports",
+            files={"file": ("statement.pdf", io.BytesIO(b"fake"), "application/pdf")},
+            data={"account_name": "BBVA"},
+        )
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "File parsing failed."
+    assert "secret" in caplog.text
+
+
+async def test_preview_parser_crash_does_not_leak_internals(client_with_llm):
+    client, _ = client_with_llm
+    with patch("finlytics.api.imports.parse_statement",
+               side_effect=RuntimeError("secret internals")):
+        resp = await client.post(
+            "/api/imports/preview",
+            files={"file": ("statement.pdf", io.BytesIO(b"fake"), "application/pdf")},
+            data={"account_name": "BBVA"},
+        )
+
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "File parsing failed."
+
+
+async def test_import_llm_failure_does_not_leak_provider_message(client_with_llm, caplog):
+    client, _ = client_with_llm
+    fake_account = MagicMock()
+    fake_account.id = 1
+    fake_account.name = "BBVA"
+
+    with (
+        patch("finlytics.api.imports.parse_statement", return_value="text"),
+        patch("finlytics.api.imports._resolve_account", new_callable=AsyncMock,
+              return_value=fake_account),
+        patch("finlytics.api.imports.list_rules", new_callable=AsyncMock, return_value=[]),
+        patch("finlytics.api.imports.extract_transactions", new_callable=AsyncMock,
+              side_effect=LLMError("Incorrect API key provided: sk-abc123")),
+    ):
+        resp = await client.post(
+            "/api/imports",
+            files={"file": ("statement.pdf", io.BytesIO(b"fake"), "application/pdf")},
+            data={"account_name": "BBVA"},
+        )
+
+    assert resp.status_code == 502
+    assert resp.json()["detail"] == "LLM extraction failed."
+    assert "LLM extraction failed" in caplog.text
+
+
+async def test_preview_llm_failure_does_not_leak_provider_message(client_with_llm):
+    client, _ = client_with_llm
+    with (
+        patch("finlytics.api.imports.parse_statement", return_value="text"),
+        patch("finlytics.api.imports.list_rules", new_callable=AsyncMock, return_value=[]),
+        patch("finlytics.api.imports.extract_transactions", new_callable=AsyncMock,
+              side_effect=LLMError("Incorrect API key provided: sk-abc123")),
+    ):
+        resp = await client.post(
+            "/api/imports/preview",
+            files={"file": ("statement.pdf", io.BytesIO(b"fake"), "application/pdf")},
+            data={"account_name": "BBVA"},
+        )
+
+    assert resp.status_code == 502
+    assert resp.json()["detail"] == "LLM extraction failed."
 
 
 # ── POST /api/imports/preview ─────────────────────────────────────────────────

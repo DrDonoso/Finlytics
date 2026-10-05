@@ -1102,51 +1102,10 @@
   max-height: 90vh;
   /* Scrolling is handled by .modal-body (flex child, overflow-y: auto) */
 }
-/* Ensure rule modal stacks above import modal (z-index 1000) */
-.modal-backdrop.modal-backdrop-rule {
-  z-index: 1100;
-}
 /* Mobile: join the standard bottom-sheet pattern */
 @media (max-width: 600px) {
   .modal.modal-rule-form {
     width: 100%;
     max-width: 100%;
-  }
-}
-
-/* ── Rule created toast ──────────────────────────────────────────────── */
-.rule-toast {
-  position: fixed;
-  bottom: calc(28px + var(--chrome-bottom));
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 1200;
-  padding: 12px 20px;
-  border-radius: 10px;
-  border: 1px solid var(--border);
-  border-left: 3px solid rgba(var(--income-rgb), 0.45);
-  font-size: 13px;
-  pointer-events: none;
-  white-space: normal;
-  background: var(--surface);
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.14);
-  color: var(--text);
-  max-width: min(380px, calc(100vw - 32px));
-  text-align: center;
-  animation: rule-toast-in 0.2s ease-out;
-}
-@keyframes rule-toast-in {
-  from { opacity: 0; transform: translateX(-50%) translateY(6px); }
-  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
-}
-/* Mobile: pin to edges, drop the centered-translate */
-@media (max-width: 480px) {
-  .rule-toast {
-    left: 12px;
-    right: 12px;
-    bottom: calc(16px + var(--chrome-bottom));
-    transform: none;
-    max-width: none;
-    text-align: left;
   }
 }

@@ -15,6 +15,7 @@ price_history               – daily EOD close cache for portfolio valuation
 investment_portfolio_cache  – per-connection DB cache for live portfolio data (24h freshness)
 assistant_conversations     – chat threads with the finance assistant (per user)
 assistant_messages          – user/assistant turns inside a conversation
+assistant_usage             – append-only token ledger; survives deleting a conversation
 mortgages                   – mortgage loan contract (fixed / variable / mixed)
 mortgage_rate_periods       – interest-rate tranches; models all three rate types uniformly
 mortgage_bonuses            – linked-product discounts that reduce the effective spread
@@ -883,7 +884,8 @@ class AssistantMessage(Base):
     # tool round-trip makes. A turn's cost sits on exactly one row: its answer,
     # or — when it failed or was stopped before answering — the question that
     # opened it, because the calls that did finish were billed all the same.
-    # Nullable because not every provider reports usage.
+    # Display only: budgets and reports read ``assistant_usage``, which outlives
+    # the conversation. Nullable because not every provider reports usage.
     prompt_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
     completion_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
     total_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -895,6 +897,41 @@ class AssistantMessage(Base):
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"<AssistantMessage id={self.id} conv={self.conversation_id} role={self.role!r}>"
+
+
+class AssistantUsage(Base):
+    """Append-only token ledger: one row per billed assistant turn.
+
+    The monthly budget and the usage report read this table, never the
+    messages. Deleting a conversation cascades its messages away, so counting
+    them would hand back the tokens that conversation spent — deleting a thread
+    would reset the cap. ``conversation_id`` is kept only for reference and is
+    nulled when the thread goes.
+    """
+
+    __tablename__ = "assistant_usage"
+    __table_args__ = (
+        Index("ix_assistant_usage_user_created", "user_id", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    conversation_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("assistant_conversations.id", ondelete="SET NULL"), nullable=True
+    )
+    prompt_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    completion_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    total_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # False when the turn failed, hit the iteration cap or was stopped.
+    answered: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return f"<AssistantUsage id={self.id} user={self.user_id} total={self.total_tokens}>"
 
 
 # ── Mortgage ─────────────────────────────────────────────────────────────────

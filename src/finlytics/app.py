@@ -32,6 +32,9 @@ Route layout:
                             Serves frontend/dist/<path> when the file exists;
                             otherwise serves frontend/dist/index.html so
                             react-router handles client-side routes like /settings.
+
+Middlewares (api/middleware.py): every response carries the security headers
+(CSP, nosniff, frame denial) and an X-Request-ID that also tags the log lines.
 """
 
 from __future__ import annotations
@@ -46,6 +49,7 @@ from pathlib import Path
 
 from fastapi import Depends, FastAPI
 from fastapi.responses import FileResponse, JSONResponse, Response
+from starlette.types import ASGIApp
 
 from finlytics.api.accounts import router as accounts_router
 from finlytics.api.assistant import router as assistant_router
@@ -56,6 +60,7 @@ from finlytics.api.deps import get_current_user
 from finlytics.api.fidelity import router as fidelity_router
 from finlytics.api.imports import router as imports_router
 from finlytics.api.investments import router as investments_router
+from finlytics.api.middleware import RequestIdMiddleware, SecurityHeadersMiddleware
 from finlytics.api.mortgage import router as mortgage_router
 from finlytics.api.notifications import router as notifications_router
 from finlytics.api.rules import router as rules_router
@@ -163,7 +168,14 @@ async def lifespan(app_: FastAPI):
 
 # ── Application factory ───────────────────────────────────────────────────────
 
-app = FastAPI(
+class FinlyticsApp(FastAPI):
+    def build_middleware_stack(self) -> ASGIApp:
+        # Include Starlette's error responder, which sits outside user middleware.
+        stack = super().build_middleware_stack()
+        return RequestIdMiddleware(SecurityHeadersMiddleware(stack))
+
+
+app = FinlyticsApp(
     title="Finlytics",
     version="0.1.0",
     description="Personal bank-account expense tracking with AI-powered extraction",

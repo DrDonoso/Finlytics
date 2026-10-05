@@ -25,8 +25,15 @@ from finlytics.assistant.service import (
     ToolStarted,
     TurnUsage,
 )
+from finlytics.db.models import AssistantUsage
 
 NOW = datetime(2026, 7, 31, 10, 0, tzinfo=UTC)
+
+
+def _ledger_rows(session: MagicMock) -> list[AssistantUsage]:
+    return [
+        c.args[0] for c in session.add.call_args_list if isinstance(c.args[0], AssistantUsage)
+    ]
 
 
 def make_conversation(conv_id: int = 1, title: str = "Spending") -> MagicMock:
@@ -462,6 +469,10 @@ class TestSendMessageStream:
         assert params["completion_tokens"] == 60
         assert params["total_tokens"] == 960
         assert 41 in params.values()
+        [row] = _ledger_rows(billing)
+        assert row.answered is False
+        assert (row.prompt_tokens, row.completion_tokens, row.total_tokens) == (900, 60, 960)
+        assert (row.user_id, row.conversation_id) == (1, 1)
 
     async def test_a_crashed_turn_still_bills_what_it_spent(self, ready, mock_session):
         self._assign_question_id(mock_session)
@@ -484,6 +495,7 @@ class TestSendMessageStream:
             )
 
         assert billing.execute.await_args.args[0].compile().params["total_tokens"] == 300
+        assert [row.total_tokens for row in _ledger_rows(billing)] == [300]
 
     async def test_an_answered_turn_is_billed_on_the_answer_only(self, ready, mock_session):
         # Billing the question too would count the same turn twice.
@@ -510,6 +522,10 @@ class TestSendMessageStream:
             if getattr(c.args[0], "role", None) == "assistant"
         )
         assert answer.total_tokens == 500
+        [row] = _ledger_rows(mock_session)
+        assert row.answered is True
+        assert row.total_tokens == 500
+        assert (row.user_id, row.conversation_id) == (1, 1)
 
     async def test_a_turn_that_spent_nothing_writes_nothing(self, ready, mock_session):
         self._assign_question_id(mock_session)
@@ -547,7 +563,7 @@ class TestUnansweredUsage:
             with anyio.CancelScope() as scope:
                 scope.cancel()
                 await assistant_api._record_unanswered_usage(
-                    41, TurnUsage(total_tokens=5, reported=True)
+                    41, TurnUsage(total_tokens=5, reported=True), user_id=1, conversation_id=1
                 )
 
         billing.commit.assert_awaited_once()
@@ -561,7 +577,7 @@ class TestUnansweredUsage:
             assistant_api, "async_session_factory", MagicMock(return_value=_session_cm(billing))
         ):
             await assistant_api._record_unanswered_usage(
-                41, TurnUsage(total_tokens=5, reported=True)
+                41, TurnUsage(total_tokens=5, reported=True), user_id=1, conversation_id=1
             )
 
         assert "db is gone" in caplog.text

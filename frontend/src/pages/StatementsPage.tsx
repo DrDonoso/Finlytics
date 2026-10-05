@@ -9,6 +9,7 @@ import {
   useOverview, useByCategory,
 } from '../api/queries'
 import { errorMessage } from '../api/errors'
+import { useToast } from '../contexts/ToastContext'
 import { langLocale, useT } from '../i18n'
 import type { Lang } from '../i18n'
 import { IconAlert, IconDownload, IconFileText, TrendArrow } from '../components/icons'
@@ -60,6 +61,7 @@ function TxDeltaBadge({ delta, invert, neutral }: { delta: DeltaResult | null; i
 
 export default function StatementsPage() {
   const { t, lang, formatCurrency } = useT()
+  const showToast = useToast()
 
   const queryClient = useQueryClient()
 
@@ -89,7 +91,6 @@ export default function StatementsPage() {
   const [deleting,   setDeleting]   = useState(false)
   const [importFiles, setImportFiles] = useState<File[] | null>(null)
   const launcherRef = useRef<ImportLauncherHandle>(null)
-  const [toast,      setToast]      = useState<string | null>(null)
 
   // Originals dropdown UI state
   const [originalsDropdownOpen, setOriginalsDropdownOpen] = useState(false)
@@ -229,11 +230,6 @@ export default function StatementsPage() {
     void queryClient.invalidateQueries({ queryKey: queryKeys.assistantUsage })
   }
 
-  function showToast(msg: string) {
-    setToast(msg)
-    setTimeout(() => setToast(null), 6000)
-  }
-
   // ── Early return: loading ───────────────────────────────────────────────────
   if (monthsLoading) {
     return (
@@ -264,7 +260,7 @@ export default function StatementsPage() {
         // Skip keys an editable control needs, and anything typed inside a dialog
         const target = e.target as HTMLElement
         if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) return
-        if (target.closest('[role="dialog"]')) return
+        if (target.closest('dialog, [role="dialog"]')) return
         if (e.key === 'ArrowLeft')  navPrev()
         if (e.key === 'ArrowRight') navNext()
       }}
@@ -494,15 +490,6 @@ export default function StatementsPage() {
         />
       )}
 
-      {/* ── Toast ─────────────────────────────────────────────── */}
-      {toast && (
-        <div className="toast" role="status">
-          {toast}
-          <button type="button" className="toast-close" onClick={() => setToast(null)}>
-            {t.toastClose}
-          </button>
-        </div>
-      )}
     </main>
   )
 }

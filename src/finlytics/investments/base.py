@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from typing import Literal
 
 
 @dataclass
@@ -83,7 +84,7 @@ class NormalizedContributionEvent:
     date: str         # YYYY-MM-DD
     amount: float     # positive = contribution, negative = withdrawal (rounded to cents)
     cumulative: float # running net invested after this event (rounded to cents)
-    type: str         # "contribution" | "withdrawal"
+    type: Literal["contribution", "withdrawal"]
 
 
 @dataclass

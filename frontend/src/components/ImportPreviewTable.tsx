@@ -6,6 +6,7 @@ import TagTypeahead from './TagTypeahead'
 import PreviewTypeahead, { type PreviewTypeaheadOption } from './PreviewTypeahead'
 import type { LiveImportQuality } from './importQuality'
 import { IconAlert, IconInfo, IconSettings, IconClose, IconLink } from './icons'
+import { parseAmount } from '../utils/parseNumber'
 
 export type EditRow = ImportTransaction & {
   _key: number
@@ -27,6 +28,45 @@ interface Props {
   onCreateRule: (row: EditRow) => void
   showYearWarning?: boolean
   liveQuality: LiveImportQuality
+}
+
+// The sign select reads 0 as negative, so committing an empty or zero value
+// would silently turn an income row into an expense on the next keystroke.
+function AmountCellInput({ amount, color, label, onCommit }: {
+  amount: number
+  color: string
+  label: string
+  onCommit: (abs: number) => void
+}) {
+  const abs = Math.abs(amount)
+  const [text, setText] = useState(String(abs))
+  const [shown, setShown] = useState(abs)
+  if (abs !== shown) {
+    setShown(abs)
+    setText(String(abs))
+  }
+  const invalid = !(parseAmount(text) > 0)
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      className="cell-input cell-amount"
+      aria-label={label}
+      aria-invalid={invalid || undefined}
+      value={text}
+      style={{ color }}
+      onChange={e => {
+        const next = e.target.value
+        setText(next)
+        const v = parseAmount(next)
+        if (v > 0) {
+          setShown(v)
+          onCommit(v)
+        }
+      }}
+      onBlur={() => { if (invalid) setText(String(abs)) }}
+    />
+  )
 }
 
 export default function ImportPreviewTable({
@@ -270,18 +310,11 @@ export default function ImportPreviewTable({
                         <option value="-">{t.previewSignExpense}</option>
                         <option value="+">{t.previewSignIncome}</option>
                       </select>
-                      <input
-                        type="number"
-                        className="cell-input cell-amount"
-                        aria-label={t.previewColAmount}
-                        value={Math.abs(row.amount)}
-                        min="0"
-                        step="0.01"
-                        style={{ color: amountColor }}
-                        onChange={e => {
-                          const abs = Math.abs(Number(e.target.value))
-                          onUpdateRow(row._key, { amount: row.amount <= 0 ? -abs : abs })
-                        }}
+                      <AmountCellInput
+                        amount={row.amount}
+                        color={amountColor}
+                        label={t.previewColAmount}
+                        onCommit={abs => onUpdateRow(row._key, { amount: row.amount <= 0 ? -abs : abs })}
                       />
                     </div>
                     {flagBadges(row, 'amount')}
