@@ -4,6 +4,15 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20261005.04] - 2026-10-05
+
+- Require explicit USD CSV exports and reject EUR or ambiguous currency declarations.
+- Store native USD costs and translate portfolio values, cost bases, and gains consistently to EUR at current FX.
+- Deduplicate independently of monetary costs while preserving repeated dividends and isolating concurrent imports by connection.
+- Preserve legacy data through migration 0028 and provide an explicit, scoped Fidelity reset with backup guidance.
+- Cover currency guards, migrations, backups, valuation, and localized UI behavior with regression tests.
+
+
 ## [20261005.03] - 2026-10-05
 
 - Fix 422 errors when saving import summary settings (#93)
