@@ -647,7 +647,9 @@ export async function getImportSummarySettings(): Promise<ImportSummarySettings>
 
 export async function putImportSummarySettings(body: ImportSummarySettingsPayload): Promise<ImportSummarySettings> {
   return apiFetch<ImportSummarySettings>('/api/notifications/import-summary-settings', {
-    method: 'PUT', body: JSON.stringify(body),
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
   })
 }
 
@@ -657,7 +659,9 @@ export async function getImportSummaries(): Promise<ImportSummaryJob[]> {
 
 export async function retryImportSummary(id: number, acknowledgeUncertain = false): Promise<ImportSummaryJob> {
   return apiFetch<ImportSummaryJob>(`/api/notifications/import-summaries/${id}/retry`, {
-    method: 'POST', body: JSON.stringify({ acknowledge_uncertain: acknowledgeUncertain }),
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ acknowledge_uncertain: acknowledgeUncertain }),
   })
 }
 

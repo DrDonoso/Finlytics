@@ -4,6 +4,19 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20261005.03] - 2026-10-05
+
+- Fix 422 errors when saving import summary settings (#93)
+
+
+## [20261005.02] - 2026-10-05
+
+- Make Fidelity KPI cards fill the available width and keep labels and values inside their cards.
+- Open the CSV import wizard from pending ESPP reminders and refresh notifications after confirmation.
+- Cover import actions, responsive layouts, and demo write guards with regression tests.
+- Refresh the Fidelity demo screenshot and document reminder behavior.
+
+
 ## [20261005] - 2026-10-05
 
 - Add opt-in Telegram import summaries with spending analysis (#91)
