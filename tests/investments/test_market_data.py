@@ -45,6 +45,7 @@ class _Lot:
     purchase_date: date
     shares: Decimal
     cost_basis: Decimal
+    source_currency: str = "EUR"
 
 
 # ---------------------------------------------------------------------------

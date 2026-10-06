@@ -83,11 +83,39 @@ A cross-domain hub: net worth across accounts **and** investments, savings rate 
 Connectors are a plugin model, and there are two kinds of them:
 
 - **Live-API** (Indexa Capital) — connect with a personal API token, stored encrypted at rest and cached for 24h so a page load never waits on the provider.
-- **Statement-import** (Fidelity ESPP) — upload the "open lots" CSV; holdings are valued daily from public market data with EUR/USD conversion.
+- **Statement-import** (Fidelity ESPP) — upload the complete "View open lots" CSV in **USD**; holdings are valued from public market data with USD-to-EUR conversion.
 
 Both feed one **combined overview**: total value, invested, gain/loss, and allocation by provider and by asset class — plus a detail view per provider with its own charts and tables. Adding a third connector is a new plugin, not a new dashboard.
 
 Pending ESPP purchase reminders on Home and the Fidelity page open the CSV import wizard directly. Confirming an import refreshes the reminders as well as the portfolio; previewing a file does not clear a pending purchase.
+
+**Fidelity currency and import rules.** Select USD in Fidelity before exporting. The
+file must explicitly declare `The values are displayed in USD`; EUR, other
+currencies, missing declarations and contradictory declarations are rejected.
+Do not edit the declaration to relabel a EUR file.
+
+Costs are stored in their original USD amounts. The Fidelity KPIs, lot table,
+chart and combined overview translate USD costs and values at current FX. The
+USD return percentage is unchanged by this display conversion: it is not a
+historical return on EUR payroll contributions. The original USD cost and the
+available quote date remain visible. The chart also translates historical stock
+prices at current FX and includes reinvested dividends in its cost line.
+Unavailable conversion data stays unavailable, never zero.
+
+Lot identity is scoped to the connection and uses purchase date, shares, source,
+grant date and an occurrence number, not monetary costs. Equal dividend rows
+remain separate lots. Reimports skip known lots and retain their stored costs;
+they do not silently revise tax cost bases or reconcile sales.
+
+**Moving an existing EUR import to USD:** download an investments backup from
+**Settings > Backup**, obtain a complete USD export from Fidelity, then choose
+**Settings > Connectors > Fidelity ESPP > Clear Fidelity data** and confirm.
+This permanently removes only that Fidelity connection's lots and CSV import
+history; bank transactions, other connectors and shared market prices remain.
+Then use **Import CSV** and review the USD preview before confirming.
+Existing non-USD lots are preserved and flagged after upgrading, and block USD
+imports until this explicit reset. Migration 0028 does not convert or delete
+them. Downgrading a populated Fidelity database requires a pre-upgrade backup.
 
 ### 🏡 Mortgage
 

@@ -7,16 +7,19 @@ from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
+from time import perf_counter
 
 import pytest
 
 from finlytics.investments.fidelity_csv import (
     FidelityCsvError,
+    FidelityCurrencyError,
     ParsedOpenLots,
     _detect_currency,
     _parse_date,
     _parse_decimal,
     parse_open_lots_csv,
+    parse_usd_open_lots_csv,
 )
 
 # ---------------------------------------------------------------------------
@@ -101,8 +104,40 @@ class TestDetectCurrency:
     def test_case_insensitive(self):
         assert _detect_currency("the values are displayed in Eur") == "EUR"
 
-    def test_defaults_to_usd_when_missing(self):
-        assert _detect_currency("No footer here") == "USD"
+    def test_rejects_a_missing_currency(self):
+        with pytest.raises(FidelityCurrencyError):
+            _detect_currency("No footer here")
+
+    def test_rejects_conflicting_declarations(self):
+        with pytest.raises(FidelityCurrencyError):
+            _detect_currency("The values are displayed in EUR\nThe values are displayed in USD")
+
+    def test_malformed_footer_with_long_padding_is_rejected_promptly(self):
+        started = perf_counter()
+        with pytest.raises(FidelityCurrencyError):
+            _detect_currency("The values are displayed in USD" + " " * 100_000 + "!")
+        assert perf_counter() - started < 1
+
+    def test_import_rejects_eur(self):
+        with pytest.raises(FidelityCurrencyError):
+            parse_usd_open_lots_csv(_MAIN_CSV.encode())
+
+    def test_import_accepts_explicit_usd(self):
+        result = parse_usd_open_lots_csv(_USD_CSV.encode())
+        assert result.source_currency == "USD"
+        assert result.lots[0].cost_basis == Decimal("2000.00")
+
+    @pytest.mark.parametrize("quantity", ["1e100", "0", "-1", "10000000000"])
+    def test_import_rejects_unstorable_quantities(self, quantity):
+        csv = _USD_CSV.replace("50.0000", quantity)
+        with pytest.raises(FidelityCsvError, match="Quantity"):
+            parse_usd_open_lots_csv(csv.encode())
+
+    def test_cost_changes_do_not_change_identical_lot_ordinals(self):
+        csv = _MAIN_CSV.replace("22.00,40.00,27.50", "23.00,41.81,27.50", 1)
+        lots = parse_open_lots_csv(csv.encode()).lots
+        assert lots[2].dedup_ordinal == 0
+        assert lots[3].dedup_ordinal == 1
 
 
 class TestParseDate:

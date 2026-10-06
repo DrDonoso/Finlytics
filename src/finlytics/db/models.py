@@ -356,11 +356,14 @@ class InvestmentConnection(Base):
 class InvestmentImportRun(Base):
     """Audit trail for a single Fidelity ESPP CSV import.
 
-    file_hash (sha256 of raw file bytes) is UNIQUE — re-uploading the same
+    file_hash (sha256 of raw file bytes) is unique per connection — re-uploading the same
     file is detected here at the file level before touching espp_lots.
     """
 
     __tablename__ = "investment_import_runs"
+    __table_args__ = (
+        UniqueConstraint("connection_id", "file_hash", name="uq_investment_import_runs_connection_file"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     connection_id: Mapped[int] = mapped_column(
@@ -369,7 +372,7 @@ class InvestmentImportRun(Base):
         nullable=False,
     )
     # SHA-256 hex digest of the raw file bytes — file-level idempotency key
-    file_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    file_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     source_currency: Mapped[str] = mapped_column(String(3), nullable=False)
     lots_inserted: Mapped[int] = mapped_column(
         Integer, nullable=False, server_default="0"
@@ -391,12 +394,12 @@ class InvestmentImportRun(Base):
 class EsppLot(Base):
     """An immutable ESPP tax-lot record — one row per CSV purchase row.
 
-    dedup_hash = sha256(ticker|purchase_date|shares:.8f|cost_basis_per_share:.6f
-                        |share_source|dedup_ordinal)
+    The dedup key includes the connection, dates, shares, source and ordinal,
+    never a monetary amount or display currency.
 
     INSERT ON CONFLICT (dedup_hash) DO NOTHING makes re-imports idempotent.
     share_source: 'SP' = stock purchase, 'DO' = dividend reinvestment.
-    source_currency: detected from CSV footer (typically 'EUR' for Fidelity EU).
+    source_currency: USD for new imports; legacy currencies are preserved until reset.
     """
 
     __tablename__ = "espp_lots"
@@ -425,6 +428,7 @@ class EsppLot(Base):
     # 'SP' = stock purchase | 'DO' = dividend reinvestment
     share_source: Mapped[str] = mapped_column(String(2), nullable=False)
     holding_period: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    dedup_ordinal: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     dedup_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

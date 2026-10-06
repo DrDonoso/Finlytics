@@ -102,6 +102,7 @@ export default function InvestmentsLandingPage() {
     : overview.total_gain_loss_eur >= 0
       ? 'inv-kpi-card__value--pos'
       : 'inv-kpi-card__value--neg'
+  const hasCurrentFxCost = overview.providers.some(provider => provider.cost_basis_at_current_fx)
 
   const providerDonutData = overview.by_provider.map((item, i) => ({
     name: item.provider,
@@ -137,7 +138,7 @@ export default function InvestmentsLandingPage() {
           <div className="inv-kpi-card__value"><Private>{formatCurrency(overview.total_value_eur, lang)}</Private></div>
         </div>
         <div className="inv-kpi-card">
-          <div className="inv-kpi-card__label">{t.invSummaryAportaciones}</div>
+          <div className="inv-kpi-card__label">{overview.providers.some(provider => provider.id === 'fidelity-espp') ? t.invCostBasis : t.invSummaryAportaciones}</div>
           <div className="inv-kpi-card__value">{overview.total_invested_eur == null ? '—' : <Private>{formatCurrency(overview.total_invested_eur, lang)}</Private>}</div>
         </div>
         <div className="inv-kpi-card">
@@ -150,6 +151,8 @@ export default function InvestmentsLandingPage() {
           </div>
         </div>
       </div>
+
+      {hasCurrentFxCost && <p className="fid-currency-note">{t.invFidelityFxNote}</p>}
 
       {/* Donuts row */}
       <div className="inv-donuts-row">

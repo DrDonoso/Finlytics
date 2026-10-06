@@ -552,22 +552,38 @@ export async function getFidelityLots(): Promise<FidelityLots> {
 
 /** POST /api/investments/fidelity/import/preview — parse CSV and return new lots (not yet persisted). */
 export async function fidelityImportPreview(file: File): Promise<FidelityImportPreview> {
-  const form = new FormData()
-  form.append('file', file)
-  return apiFetch<FidelityImportPreview>('/api/investments/fidelity/import/preview', {
-    method: 'POST',
-    body: form,
-  })
+  return fidelityUpload<FidelityImportPreview>('/api/investments/fidelity/import/preview', file)
 }
 
 /** POST /api/investments/fidelity/import/confirm — re-send the file to persist new lots. */
 export async function fidelityImportConfirm(file: File): Promise<FidelityImportConfirmResult> {
+  return fidelityUpload<FidelityImportConfirmResult>('/api/investments/fidelity/import/confirm', file)
+}
+
+async function fidelityUpload<T>(path: string, file: File): Promise<T> {
   const form = new FormData()
   form.append('file', file)
-  return apiFetch<FidelityImportConfirmResult>('/api/investments/fidelity/import/confirm', {
+  const res = await fetch(path, {
     method: 'POST',
+    credentials: 'same-origin',
     body: form,
   })
+  if (res.status === 401) {
+    _on401?.()
+    throw new Error('HTTP 401 Unauthorized')
+  }
+  if (!res.ok) {
+    const body: { detail?: unknown } = await res.json().catch(() => ({}))
+    const detail = body.detail
+    const fallback = `HTTP ${res.status} ${res.statusText}`
+    if (detail && typeof detail === 'object') {
+      const message = 'message' in detail && typeof detail.message === 'string' ? detail.message : fallback
+      const code = 'code' in detail && typeof detail.code === 'string' ? detail.code : undefined
+      throw Object.assign(new Error(message), { code, status: res.status })
+    }
+    throw new Error(typeof detail === 'string' ? detail : fallback)
+  }
+  return res.json() as Promise<T>
 }
 
 /** GET /api/investments/fidelity/reminder — ESPP upload reminder status.

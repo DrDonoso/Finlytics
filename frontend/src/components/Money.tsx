@@ -9,6 +9,7 @@ interface MoneyProps {
   /** Rendered when there is no value. Never blurred — it leaks nothing. */
   fallback?: string
   className?: string
+  currency?: 'EUR' | 'USD'
 }
 
 function classes(base: string, extra?: string): string {
@@ -19,7 +20,7 @@ function classes(base: string, extra?: string): string {
  * Every monetary figure on screen goes through here, which is what makes the
  * privacy toggle a single CSS rule instead of a per-component concern.
  */
-export default function Money({ value, signed, fallback = '—', className }: MoneyProps) {
+export default function Money({ value, signed, fallback = '—', className, currency }: MoneyProps) {
   const { formatCurrency } = useT()
 
   if (value == null || !Number.isFinite(value)) {
@@ -29,7 +30,7 @@ export default function Money({ value, signed, fallback = '—', className }: Mo
   const sign = signed && value >= 0 ? '+' : ''
   return (
     <span className={classes('private num', className)}>
-      {sign}{formatCurrency(value)}
+      {sign}{formatCurrency(value, currency)}
     </span>
   )
 }

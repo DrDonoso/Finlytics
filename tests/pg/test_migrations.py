@@ -10,6 +10,7 @@ from types import SimpleNamespace
 from sqlalchemy.engine import URL
 
 from finlytics.db.repository import compute_dedup_hash
+from finlytics.investments.fidelity import _compute_dedup_hash as fidelity_hash
 from tests.pg.support import REPO, query, run_alembic
 
 _spec = importlib.util.spec_from_file_location(
@@ -44,6 +45,34 @@ def test_the_chain_downgrades_to_base_and_upgrades_again(empty_database):
 
     run_alembic(empty_database, "upgrade", "head")
     assert (public_tables(empty_database), public_types(empty_database)) == (tables, types)
+
+
+def test_0028_preserves_costs_currency_and_repeated_lots_when_rekeying(empty_database):
+    url = empty_database
+    run_alembic(url, "upgrade", "0027")
+    user_id = query(url, "INSERT INTO users (username, password_hash) VALUES ('fidelity', 'x') RETURNING id")[0]["id"]
+    connection_id = query(
+        url, "INSERT INTO investment_connections (user_id, plugin_id) VALUES ($1, 'fidelity-espp') RETURNING id",
+        user_id,
+    )[0]["id"]
+    for i, cost in enumerate([Decimal(10), Decimal(10), Decimal(12)]):
+        query(
+            url,
+            "INSERT INTO espp_lots (connection_id, ticker, purchase_date, shares, cost_basis, "
+            "cost_basis_per_share, source_currency, share_source, dedup_hash) "
+            "VALUES ($1, 'MSFT', '2025-06-02', 0.5, $2::numeric, $2::numeric * 2, 'EUR', 'DO', $3)",
+            connection_id, cost, f"old-{i}",
+        )
+    before = query(url, "SELECT id, cost_basis, source_currency FROM espp_lots ORDER BY id")
+    run_alembic(url, "upgrade", "head")
+    after = query(url, "SELECT id, cost_basis, source_currency FROM espp_lots ORDER BY id")
+    assert before == after
+    rows = query(url, "SELECT dedup_hash, dedup_ordinal FROM espp_lots ORDER BY id")
+    assert [r["dedup_ordinal"] for r in rows] == [0, 1, 2]
+    assert [r["dedup_hash"] for r in rows] == [
+        fidelity_hash(connection_id, "MSFT", date(2025, 6, 2), Decimal("0.5"), "DO", ordinal)
+        for ordinal in range(3)
+    ]
 
 
 def transactions(url: URL) -> list[SimpleNamespace]:

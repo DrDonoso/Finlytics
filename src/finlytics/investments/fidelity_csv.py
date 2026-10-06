@@ -18,11 +18,18 @@ _DATE_FMT = "%b-%d-%Y"   # e.g. Jun-30-2026
 _TICKER = "MSFT"
 
 # Footer pattern: "The values are displayed in EUR"
-_CURRENCY_RE = re.compile(r"the values are displayed in\s+(\w+)", re.IGNORECASE)
+_CURRENCY_RE = re.compile(
+    r'^[ \t]*"?the values are displayed in[ \t]+([a-z]{3})"?[ \t\r,]*$',
+    re.IGNORECASE | re.MULTILINE,
+)
 
 
 class FidelityCsvError(ValueError):
     """A problem with the uploaded file, worded for the person who uploaded it."""
+
+
+class FidelityCurrencyError(FidelityCsvError):
+    code = "fidelity_usd_required"
 
 
 # ---------------------------------------------------------------------------
@@ -58,9 +65,13 @@ class ParsedOpenLots:
 # ---------------------------------------------------------------------------
 
 def _detect_currency(text: str) -> str:
-    """Return ISO currency code from footer line; default 'USD'."""
-    m = _CURRENCY_RE.search(text)
-    return m.group(1).upper() if m else "USD"
+    """Read the explicit currency declaration; never infer it from numbers."""
+    currencies = {match.upper() for match in _CURRENCY_RE.findall(text)}
+    if len(currencies) != 1:
+        raise FidelityCurrencyError(
+            "Export the CSV from Fidelity in USD, including its currency declaration."
+        )
+    return currencies.pop()
 
 
 def _parse_decimal(raw: str, eu_style: bool = False) -> Decimal:
@@ -137,7 +148,7 @@ def parse_open_lots_csv(file_bytes: bytes) -> ParsedOpenLots:
     - Both US ('.') and EU (',') decimal styles; see :func:`_parse_decimal`.
     - Currency detected from footer text.
     - ``dedup_ordinal`` assigned 0, 1, 2 … within groups sharing identical
-      ``(purchase_date, shares, cost_basis_per_share, share_source)``.
+      ``(purchase_date, shares, share_source, grant_date)``.
     """
     try:
         text = file_bytes.decode("utf-8-sig")  # strips BOM when present
@@ -145,9 +156,6 @@ def parse_open_lots_csv(file_bytes: bytes) -> ParsedOpenLots:
         raise FidelityCsvError(
             "The file is not UTF-8 text; export the CSV again from Fidelity"
         ) from exc
-
-    currency = _detect_currency(text)
-    eu_style = currency == "EUR"
 
     try:
         rows = list(csv.reader(io.StringIO(text)))
@@ -166,6 +174,8 @@ def parse_open_lots_csv(file_bytes: bytes) -> ParsedOpenLots:
     if header_idx is None:
         raise FidelityCsvError("Header row 'Date acquired' not found in CSV")
 
+    currency = _detect_currency(text)
+    eu_style = currency == "EUR"
     ordinal_counter: dict[tuple, int] = defaultdict(int)
     lots: list[NormalizedLot] = []
 
@@ -191,13 +201,18 @@ def parse_open_lots_csv(file_bytes: bytes) -> ParsedOpenLots:
         if purchase_date is None:
             continue  # skip rows with unparseable dates
 
-        shares = _parse_decimal(quantity, eu_style=eu_style)
+        try:
+            shares = _parse_decimal(quantity, eu_style=eu_style).quantize(Decimal("0.00000001"))
+        except InvalidOperation as exc:
+            raise FidelityCsvError("Quantity exceeds the supported precision") from exc
+        if not Decimal(0) < shares < Decimal("10000000000"):
+            raise FidelityCsvError("Quantity must be positive and fit within 18 digits at 8 decimals")
         cb = _parse_decimal(cost_basis, eu_style=eu_style)
         cbps = _parse_decimal(cost_basis_per_share, eu_style=eu_style)
         grant_date = _parse_date(grant_date_raw)
         hp = holding_period if holding_period not in ("-", "") else None
 
-        dedup_key = (purchase_date, shares, cbps, share_source)
+        dedup_key = (purchase_date, shares, share_source, grant_date)
         ordinal = ordinal_counter[dedup_key]
         ordinal_counter[dedup_key] += 1
 
@@ -216,3 +231,12 @@ def parse_open_lots_csv(file_bytes: bytes) -> ParsedOpenLots:
         )
 
     return ParsedOpenLots(lots=lots, source_currency=currency, ticker=_TICKER)
+
+
+def parse_usd_open_lots_csv(file_bytes: bytes) -> ParsedOpenLots:
+    parsed = parse_open_lots_csv(file_bytes)
+    if parsed.source_currency != "USD":
+        raise FidelityCurrencyError(
+            "Only USD exports are supported. Select USD in Fidelity and export the CSV again."
+        )
+    return parsed

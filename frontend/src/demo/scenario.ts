@@ -553,6 +553,7 @@ function buildEspp(rng: Rng, today: Date): EsppBundle {
   const currentEur = currentUsd * USD_TO_EUR
 
   const lots: FidelityLot[] = []
+  const usdCosts: { date: string; amount: number }[] = []
   let id = 1
 
   for (const [idx, when] of purchaseDates.entries()) {
@@ -560,7 +561,9 @@ function buildEspp(rng: Rng, today: Date): EsppBundle {
     const closeEur = priceAt(prices, iso) * USD_TO_EUR
     const perShare = closeEur * (1 - ESPP_DISCOUNT)
     const shares = Math.round((ESPP_CONTRIBUTION_EUR / perShare) * 1000) / 1000
-    const costTotal = Math.round(shares * perShare * 100) / 100
+    const costUsd = Math.round(shares * perShare / USD_TO_EUR * 100) / 100
+    const costTotal = Math.round(costUsd * USD_TO_EUR * 100) / 100
+    usdCosts.push({ date: iso, amount: costUsd })
     const value = Math.round(shares * currentEur * 100) / 100
     const gain = Math.round((value - costTotal) * 100) / 100
     lots.push({
@@ -585,7 +588,9 @@ function buildEspp(rng: Rng, today: Date): EsppBundle {
       const heldShares = lots.reduce((sum, l) => sum + l.shares, 0)
       const divShares = Math.round(((heldShares * 0.0018 * divEur) / divEur) * 1000) / 1000
       if (divShares > 0) {
-        const divCost = Math.round(divShares * divEur * 100) / 100
+        const divCostUsd = Math.round(divShares * divEur / USD_TO_EUR * 100) / 100
+        const divCost = Math.round(divCostUsd * USD_TO_EUR * 100) / 100
+        usdCosts.push({ date: divIso, amount: divCostUsd })
         const divValue = Math.round(divShares * currentEur * 100) / 100
         const divGain = Math.round((divValue - divCost) * 100) / 100
         lots.push({
@@ -605,7 +610,8 @@ function buildEspp(rng: Rng, today: Date): EsppBundle {
   }
 
   const totalShares = Math.round(lots.reduce((s, l) => s + l.shares, 0) * 1000) / 1000
-  const investedEur = Math.round(lots.reduce((s, l) => s + l.cost_basis_total_eur, 0) * 100) / 100
+  const costBasisUsd = Math.round(usdCosts.reduce((sum, cost) => sum + cost.amount, 0) * 100) / 100
+  const investedEur = Math.round(costBasisUsd * USD_TO_EUR * 100) / 100
   const currentValueEur = Math.round(totalShares * currentEur * 100) / 100
   const gainLossEur = Math.round((currentValueEur - investedEur) * 100) / 100
 
@@ -616,9 +622,9 @@ function buildEspp(rng: Rng, today: Date): EsppBundle {
     const owned = lots
       .filter(l => l.purchase_date <= point.date)
       .reduce((s, l) => s + l.shares, 0)
-    const contributed = lots
-      .filter(l => l.purchase_date <= point.date && l.share_source === 'SP')
-      .reduce((s, l) => s + l.cost_basis_total_eur, 0)
+    const contributed = usdCosts
+      .filter(cost => cost.date <= point.date)
+      .reduce((sum, cost) => sum + cost.amount * USD_TO_EUR, 0)
     valueSeries.push({
       date: point.date,
       value: Math.round(owned * point.usd * USD_TO_EUR * 100) / 100,
@@ -632,6 +638,8 @@ function buildEspp(rng: Rng, today: Date): EsppBundle {
   const kpis: FidelityKpis = {
     total_shares: totalShares,
     invested_eur: investedEur,
+    cost_basis_usd: costBasisUsd,
+    requires_usd_reimport: false,
     current_value_eur: currentValueEur,
     gain_loss_eur: gainLossEur,
     gain_loss_pct: investedEur > 0
@@ -752,6 +760,7 @@ function buildCombined(portfolio: InvestmentPortfolio, espp: EsppBundle): Combin
           ? Math.round((esppGain / espp.investedEur) * 1000000) / 10000
           : null,
         route: '/investments/fidelity-espp',
+        cost_basis_at_current_fx: true,
       },
     ],
     partial: false,
