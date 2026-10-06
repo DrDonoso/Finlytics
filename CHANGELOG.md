@@ -4,6 +4,11 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20261006] - 2026-10-06
+
+- Improve Telegram import summaries with safe visual formatting (#95)
+
+
 ## [20261005.04] - 2026-10-05
 
 - Require explicit USD CSV exports and reject EUR or ambiguous currency declarations.
