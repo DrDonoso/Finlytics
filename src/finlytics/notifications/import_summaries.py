@@ -28,7 +28,11 @@ from finlytics.extraction.llm_client import (
     is_llm_configured,
 )
 from finlytics.investments.crypto import EncryptionNotConfiguredError, decrypt_token
-from finlytics.notifications.import_summary_prompt import analysis_messages, render_import_summary
+from finlytics.notifications.import_summary_prompt import (
+    analysis_messages,
+    import_summary_entities,
+    render_import_summary,
+)
 from finlytics.notifications.telegram import TelegramError, telegram_send_message
 
 log = logging.getLogger(__name__)
@@ -245,6 +249,7 @@ async def _deliver(job: ImportSummaryJob) -> None:
             await telegram_send_message(
                 destination.bot_token, destination.chat_id, job.message_text,
                 message_thread_id=destination.message_thread_id,
+                entities=import_summary_entities(job.message_text),
             )
         status, error = "sent", None
     except asyncio.CancelledError:

@@ -12,6 +12,8 @@ Security:
 
 from __future__ import annotations
 
+from typing import Literal, TypedDict
+
 import httpx
 
 TELEGRAM_API_BASE = "https://api.telegram.org"
@@ -22,6 +24,12 @@ TELEGRAM_API_BASE = "https://api.telegram.org"
 # a new authority into the URL the token is interpolated into.
 _TOKEN_ALPHABET = "-0123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz"
 _MAX_TOKEN_LEN = 256
+
+
+class TelegramTextEntity(TypedDict):
+    type: Literal["bold"]
+    offset: int
+    length: int
 
 
 class TelegramError(Exception):
@@ -93,11 +101,15 @@ async def telegram_send_message(
     chat_id: str,
     text: str,
     message_thread_id: int | None = None,
+    *,
+    entities: list[TelegramTextEntity] | None = None,
 ) -> None:
     """Send *text* to *chat_id* via the Telegram Bot API.
 
     ``message_thread_id`` targets a forum topic inside a supergroup. Telegram
     rejects it for non-forum chats, so it is only included when supplied.
+    Optional entities apply explicit formatting using UTF-16 offsets, without
+    interpreting message text as HTML or Markdown.
 
     Raises TelegramError (safe message, no token) on a malformed token, a
     non-2xx response or Telegram ok:false.
@@ -106,6 +118,8 @@ async def telegram_send_message(
     payload: dict[str, object] = {"chat_id": chat_id, "text": text}
     if message_thread_id is not None:
         payload["message_thread_id"] = message_thread_id
+    if entities:
+        payload["entities"] = entities
     try:
         async with httpx.AsyncClient(timeout=10.0, verify=True, follow_redirects=False) as client:
             resp = await client.post(url, json=payload)

@@ -41,6 +41,7 @@ from finlytics.investments.crypto import encrypt_token
 from finlytics.notifications import import_summaries as service
 from finlytics.notifications.import_summary_prompt import (
     analysis_messages,
+    import_summary_entities,
     render_import_summary,
     telegram_units,
 )
@@ -328,6 +329,84 @@ async def test_mortgage_context_reports_truncation(env, monkeypatch):
     assert context["truncated"] is True
 
 
+def bold_text(text):
+    encoded = text.encode("utf-16-le")
+    marked = []
+    previous_end = 0
+    for entity in import_summary_entities(text):
+        start = entity["offset"]
+        end = start + entity["length"]
+        assert entity["type"] == "bold"
+        assert previous_end <= start < end <= telegram_units(text)
+        marked.append(encoded[start * 2:end * 2].decode("utf-16-le"))
+        previous_end = end
+    return marked
+
+
+@pytest.mark.parametrize(("language", "income", "expense", "net", "heading"), [
+    ("es", "2.000,00 EUR", "100,00 EUR", "1.900,00 EUR", "\U0001f50e An\u00e1lisis"),
+    ("en", "2,000.00 EUR", "100.00 EUR", "1,900.00 EUR", "\U0001f50e Analysis"),
+])
+async def test_visual_summary_formats_only_titles_and_totals_with_unicode_offsets(
+    env, language, income, expense, net, heading,
+):
+    facts = await facts_for(env, await enqueue(env))
+    facts["account"] = "Home \U0001f3e1 & <Savings>"
+    commentary = "Groceries < 200 EUR & **literal markup**, not an instruction."
+    text = render_import_summary(facts, commentary, language)
+
+    assert text.startswith("\U0001f4ca Finlytics | ")
+    assert commentary in text
+    assert "<Savings>" in text
+    assert text.endswith(commentary)
+    assert bold_text(text) == [text.splitlines()[0], facts["account"], income, expense, net, heading]
+    assert len(import_summary_entities(text)[0]) == 3
+
+
+@pytest.mark.parametrize("language", ["es", "en"])
+async def test_truncated_visual_summary_keeps_valid_entities_and_mortgage_notes(env, language):
+    await seed_mortgage(env)
+    await seed_mortgage_charges(env)
+    facts = await facts_for(env, await enqueue(env))
+    text = render_import_summary(
+        facts, ("Synthetic observation \U0001f4ca < 200 EUR & unchanged. " * 200), language,
+    )
+    assert telegram_units(text) <= 4096
+    assert "2026-05-31" in text
+    assert ("[Resumen abreviado]" if language == "es" else "[Summary shortened]") in text
+    marked = bold_text(text)
+    assert any(value.startswith("\U0001f50e ") for value in marked)
+    assert any(value.startswith("\U0001f3e0 ") for value in marked)
+    assert "Basado solo en" not in text and "Based only on" not in text
+
+
+async def test_legacy_queued_plain_text_sends_without_regeneration_or_markup_parsing(env):
+    job_id = await enqueue(env)
+    original = (
+        "Finlytics | Statement summary\nHome <Savings> & family\n"
+        "Income: 200.00 EUR\nExpenses: 100.00 EUR\nNet cash flow: 100.00 EUR\n\n"
+        "Plain **analysis** with <literal> characters."
+    )
+    async with env.sessions() as db, db.begin():
+        job = await db.get(ImportSummaryJob, job_id)
+        job.message_text = original
+        job.status = "ready"
+    await service.process_next_summary()
+
+    assert not env.llm.calls
+    env.send.assert_awaited_once_with(
+        "test:placeholder", "-10012345", original, message_thread_id=42,
+        entities=import_summary_entities(original),
+    )
+    job = await stored(env, job_id)
+    assert job.status == "sent"
+    assert job.message_text == original
+    assert bold_text(original) == [
+        "Finlytics | Statement summary", "Home <Savings> & family",
+        "200.00 EUR", "100.00 EUR", "100.00 EUR",
+    ]
+
+
 async def test_generate_then_send_only_the_selected_destination(env):
     job_id = await enqueue(env)
     assert not env.llm.calls
@@ -345,6 +424,7 @@ async def test_generate_then_send_only_the_selected_destination(env):
     assert len(env.llm.calls) == 1
     env.send.assert_awaited_once_with(
         "test:placeholder", "-10012345", job.message_text, message_thread_id=42,
+        entities=import_summary_entities(job.message_text),
     )
     async with env.sessions() as db:
         assert await usage_queries.tokens_used_since(db, 1, datetime(2000, 1, 1, tzinfo=UTC)) == 60
@@ -375,6 +455,7 @@ async def test_retries_reuse_analysis_and_stop_after_three_sends(env):
     assert (job.status, job.delivery_attempts) == ("failed", 3)
     assert len(env.llm.calls) == 1
     assert env.send.await_count == 3
+    assert all(call == env.send.await_args_list[0] for call in env.send.await_args_list)
     assert not await service.process_next_summary()
 
 

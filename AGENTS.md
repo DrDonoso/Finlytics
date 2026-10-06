@@ -97,6 +97,10 @@ Telegram is the only supported transport. Credentials remain in `NotificationCha
 - `ImportSummaryJob` is the durable queue. Atomic claims and expiring leases protect
   against concurrent workers. A stale worker may not overwrite a newer claim. Persist
   the generated text before sending; a transport retry must not regenerate it.
+- Summary text stays plain in storage. Delivery adds explicit Telegram bold entities,
+  using UTF-16 offsets after truncation, never `parse_mode` on model or imported text.
+  Visual markers count toward the message limit. Older queued summaries must still
+  send without regeneration; existing reminder messages stay unformatted.
 - An expired in-flight send or ambiguous Telegram timeout becomes `uncertain`, requiring
   explicit manual acknowledgement before retry. Telegram has no exactly-once send key.
   Retry only known-safe transient failures, at most three times per phase.
