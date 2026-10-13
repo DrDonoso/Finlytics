@@ -4,6 +4,14 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20261013] - 2026-10-13
+
+- [Release notes](https://github.com/astral-sh/uv/releases)
+- [Changelog](https://github.com/astral-sh/uv/blob/main/CHANGELOG.md)
+- [Commits](https://github.com/astral-sh/uv/compare/0.12.19...0.13.0)
+- dependency-name: astral-sh/uv dependency-version: 0.12.23 dependency-type: direct:production update-type: version-update:semver-patch dependency-group: docker-minor-patch
+
+
 ## [20261006] - 2026-10-06
 
 - Improve Telegram import summaries with safe visual formatting (#95)
