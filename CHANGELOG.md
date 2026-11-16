@@ -4,6 +4,63 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20261116.08] - 2026-11-16
+
+- [Release notes](https://github.com/fastapi/fastapi/releases)
+- [Commits](https://github.com/fastapi/fastapi/compare/0.141.1...0.162.0)
+- [Release notes](https://github.com/MagicStack/asyncpg/releases)
+- [Commits](https://github.com/MagicStack/asyncpg/compare/v0.31.0...v0.32.0)
+- [Release notes](https://github.com/sqlalchemy/alembic/releases)
+- [Changelog](https://github.com/sqlalchemy/alembic/blob/main/CHANGES)
+- [Commits](https://github.com/sqlalchemy/alembic/commits)
+- [Release notes](https://github.com/openai/openai-python/releases)
+- [Changelog](https://github.com/openai/openai-python/blob/main/CHANGELOG.md)
+- [Commits](https://github.com/openai/openai-python/compare/v3.19.2...v3.46.0)
+- [Release notes](https://github.com/pydantic/pydantic-settings/releases)
+- [Commits](https://github.com/pydantic/pydantic-settings/compare/v2.15.0...v2.16.2)
+- [Release notes](https://github.com/Kludex/python-multipart/releases)
+- [Changelog](https://github.com/Kludex/python-multipart/blob/main/CHANGELOG.md)
+- [Commits](https://github.com/Kludex/python-multipart/compare/0.0.32...0.0.33)
+- [Release notes](https://github.com/jpadilla/pyjwt/releases)
+- [Changelog](https://github.com/jpadilla/pyjwt/blob/master/CHANGELOG.rst)
+- [Commits](https://github.com/jpadilla/pyjwt/compare/2.15.0...2.15.1)
+- [Changelog](https://github.com/pyca/cryptography/blob/main/CHANGELOG.rst)
+- [Commits](https://github.com/pyca/cryptography/compare/50.0.1...50.0.2)
+- [Release notes](https://github.com/ranaroussi/yfinance/releases)
+- [Changelog](https://github.com/ranaroussi/yfinance/blob/main/CHANGELOG.rst)
+- [Commits](https://github.com/ranaroussi/yfinance/compare/1.7.0...1.8.0)
+- [Changelog](https://github.com/mrabarnett/mrab-regex/blob/hg/changelog.txt)
+- [Commits](https://github.com/mrabarnett/mrab-regex/compare/2026.9.10...2026.9.29)
+- [Release notes](https://github.com/agronholm/anyio/releases)
+- [Commits](https://github.com/agronholm/anyio/compare/4.15.1...4.16.0)
+- [Release notes](https://github.com/pytest-dev/pytest/releases)
+- [Changelog](https://github.com/pytest-dev/pytest/blob/main/CHANGELOG.rst)
+- [Commits](https://github.com/pytest-dev/pytest/compare/9.1.1...9.2.0)
+- [Release notes](https://github.com/pytest-dev/pytest-asyncio/releases)
+- [Commits](https://github.com/pytest-dev/pytest-asyncio/compare/v1.4.0...v1.4.1.post1)
+- [Changelog](https://github.com/python/mypy/blob/master/CHANGELOG.md)
+- [Commits](https://github.com/python/mypy/compare/v2.3.1...v2.4.1)
+- [Release notes](https://github.com/astral-sh/ruff/releases)
+- [Changelog](https://github.com/astral-sh/ruff/blob/main/CHANGELOG.md)
+- [Commits](https://github.com/astral-sh/ruff/compare/0.16.9...0.17.4)
+- dependency-name: alembic dependency-version: 1.20.1 dependency-type: direct:production update-type: version-update:semver-patch dependency-group: python-minor-patch
+- dependency-name: anyio dependency-version: 4.16.0 dependency-type: direct:production update-type: version-update:semver-minor dependency-group: python-minor-patch
+- dependency-name: asyncpg dependency-version: 0.32.0 dependency-type: direct:production update-type: version-update:semver-minor dependency-group: python-minor-patch
+- dependency-name: cryptography dependency-version: 50.0.2 dependency-type: direct:production update-type: version-update:semver-patch dependency-group: python-minor-patch
+- dependency-name: fastapi dependency-version: 0.162.0 dependency-type: direct:production update-type: version-update:semver-minor dependency-group: python-minor-patch
+- dependency-name: mypy dependency-version: 2.4.1 dependency-type: direct:production update-type: version-update:semver-minor dependency-group: python-minor-patch
+- dependency-name: openai dependency-version: 3.46.0 dependency-type: direct:production update-type: version-update:semver-minor dependency-group: python-minor-patch
+- dependency-name: pydantic-settings dependency-version: 2.16.2 dependency-type: direct:production update-type: version-update:semver-minor dependency-group: python-minor-patch
+- dependency-name: pyjwt dependency-version: 2.15.1 dependency-type: direct:production update-type: version-update:semver-patch dependency-group: python-minor-patch
+- dependency-name: pytest dependency-version: 9.2.0 dependency-type: direct:production update-type: version-update:semver-minor dependency-group: python-minor-patch
+- dependency-name: pytest-asyncio dependency-version: 1.4.1.post1 dependency-type: direct:production update-type: version-update:semver-patch dependency-group: python-minor-patch
+- dependency-name: python-multipart dependency-version: 0.0.33 dependency-type: direct:production update-type: version-update:semver-patch dependency-group: python-minor-patch
+- dependency-name: regex dependency-version: 2026.9.29 dependency-type: direct:production update-type: version-update:semver-patch dependency-group: python-minor-patch
+- dependency-name: reportlab dependency-version: 5.1.0 dependency-type: direct:production update-type: version-update:semver-minor dependency-group: python-minor-patch
+- dependency-name: ruff dependency-version: 0.17.4 dependency-type: direct:production update-type: version-update:semver-minor dependency-group: python-minor-patch
+- dependency-name: yfinance dependency-version: 1.8.0 dependency-type: direct:production update-type: version-update:semver-minor dependency-group: python-minor-patch
+
+
 ## [20261116.07] - 2026-11-16
 
 - [Release notes](https://github.com/vitest-dev/vitest/releases)
