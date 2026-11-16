@@ -4,6 +4,13 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20261116.04] - 2026-11-16
+
+- oxlint 1.91 adds the React compiler purity and immutability checks. Read "today" once per mount through a useToday hook instead of calling Date during render, build the Fidelity carry-forward series with a loop, and cancel the import extraction with an AbortController.
+- axe 4.14 flags the language selector because its accessible name ("Language") does not contain its visible text ("English"). The name is now "Language: English".
+- ruff 0.17 no longer enables DTZ007 by default, so its noqa became an unused-noqa error while 0.16 still needs it. Parse the Fidelity date straight into a date, which satisfies both versions.
+
+
 ## [20261116.03] - 2026-11-16
 
 - [Release notes](https://github.com/nodejs/undici/releases)
