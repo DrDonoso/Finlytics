@@ -4,6 +4,24 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20261116] - 2026-11-16
+
+- [Release notes](https://github.com/astral-sh/uv/releases)
+- [Changelog](https://github.com/astral-sh/uv/blob/main/CHANGELOG.md)
+- [Commits](https://github.com/astral-sh/uv/compare/0.13.0...0.13.1)
+- dependency-name: astral-sh/uv dependency-version: 0.13.1 dependency-type: direct:production update-type: version-update:semver-patch dependency-group: docker-minor-patch
+- [Release notes](https://github.com/astral-sh/setup-uv/releases)
+- [Commits](https://github.com/astral-sh/setup-uv/compare/c18668ad3cf93ea998bef934396af7bb5c839dc7...1c37ad07a6a961277cf70c0d37d6f313000f5884)
+- [Release notes](https://github.com/github/codeql-action/releases)
+- [Changelog](https://github.com/github/codeql-action/blob/main/CHANGELOG.md)
+- [Commits](https://github.com/github/codeql-action/compare/v4.38.2...v4.39.0)
+- [Release notes](https://github.com/docker/login-action/releases)
+- [Commits](https://github.com/docker/login-action/compare/v4.4.0...v4.6.0)
+- dependency-name: astral-sh/setup-uv dependency-version: 10.3.0 dependency-type: direct:production update-type: version-update:semver-minor dependency-group: github-actions-minor-patch
+- dependency-name: github/codeql-action dependency-version: 4.39.0 dependency-type: direct:production update-type: version-update:semver-minor dependency-group: github-actions-minor-patch
+- dependency-name: docker/login-action dependency-version: 4.6.0 dependency-type: direct:production update-type: version-update:semver-minor dependency-group: github-actions-minor-patch
+
+
 ## [20261013] - 2026-10-13
 
 - [Release notes](https://github.com/astral-sh/uv/releases)
