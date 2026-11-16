@@ -4,6 +4,18 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20261116.09] - 2026-11-16
+
+- [Release notes](https://github.com/vitejs/vite-plugin-react/releases)
+- [Changelog](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/CHANGELOG.md)
+- [Commits](https://github.com/vitejs/vite-plugin-react/commits/plugin-react@6.2.1/packages/plugin-react)
+- [Release notes](https://github.com/vitejs/vite/releases)
+- [Changelog](https://github.com/vitejs/vite/blob/main/packages/vite/CHANGELOG.md)
+- [Commits](https://github.com/vitejs/vite/commits/v8.3.6/packages/vite)
+- dependency-name: "@vitejs/plugin-react" dependency-version: 6.1.2 dependency-type: direct:development update-type: version-update:semver-patch dependency-group: vite
+- dependency-name: vite dependency-version: 8.3.4 dependency-type: direct:development update-type: version-update:semver-patch dependency-group: vite
+
+
 ## [20261116.08] - 2026-11-16
 
 - [Release notes](https://github.com/fastapi/fastapi/releases)
