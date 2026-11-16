@@ -4,6 +4,13 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20261116.03] - 2026-11-16
+
+- [Release notes](https://github.com/nodejs/undici/releases)
+- [Commits](https://github.com/nodejs/undici/compare/v8.10.2...v8.12.4)
+- dependency-name: undici dependency-version: 8.12.4 dependency-type: indirect
+
+
 ## [20261116] - 2026-11-16
 
 - [Release notes](https://github.com/astral-sh/uv/releases)
