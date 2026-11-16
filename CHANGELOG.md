@@ -4,6 +4,33 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20261116.06] - 2026-11-16
+
+- [Release notes](https://github.com/TanStack/query/releases)
+- [Changelog](https://github.com/TanStack/query/blob/main/packages/react-query/CHANGELOG.md)
+- [Commits](https://github.com/TanStack/query/commits/@tanstack/react-query@5.106.1/packages/react-query)
+- [Release notes](https://github.com/remix-run/react-router/releases)
+- [Changelog](https://github.com/remix-run/react-router/blob/main/packages/react-router/CHANGELOG.md)
+- [Commits](https://github.com/remix-run/react-router/commits/react-router@8.5.1/packages/react-router)
+- [Release notes](https://github.com/dequelabs/axe-core-npm/releases)
+- [Changelog](https://github.com/dequelabs/axe-core-npm/blob/develop/CHANGELOG.md)
+- [Commits](https://github.com/dequelabs/axe-core-npm/compare/v4.13.0...v4.14.0)
+- [Release notes](https://github.com/microsoft/playwright/releases)
+- [Commits](https://github.com/microsoft/playwright/compare/v1.63.0...v1.65.0)
+- [Release notes](https://github.com/testing-library/user-event/releases)
+- [Changelog](https://github.com/testing-library/user-event/blob/main/CHANGELOG.md)
+- [Commits](https://github.com/testing-library/user-event/compare/v14.6.7...v14.6.8)
+- [Release notes](https://github.com/oxc-project/oxc/releases)
+- [Changelog](https://github.com/oxc-project/oxc/blob/main/npm/oxlint/CHANGELOG.md)
+- [Commits](https://github.com/oxc-project/oxc/commits/oxlint_v1.92.0/npm/oxlint)
+- dependency-name: "@axe-core/playwright" dependency-version: 4.14.0 dependency-type: direct:development update-type: version-update:semver-minor dependency-group: npm-minor-patch
+- dependency-name: "@playwright/test" dependency-version: 1.65.0 dependency-type: direct:development update-type: version-update:semver-minor dependency-group: npm-minor-patch
+- dependency-name: "@tanstack/react-query" dependency-version: 5.106.1 dependency-type: direct:production update-type: version-update:semver-minor dependency-group: npm-minor-patch
+- dependency-name: "@testing-library/user-event" dependency-version: 14.6.8 dependency-type: direct:development update-type: version-update:semver-patch dependency-group: npm-minor-patch
+- dependency-name: oxlint dependency-version: 1.91.0 dependency-type: direct:development update-type: version-update:semver-minor dependency-group: npm-minor-patch
+- dependency-name: react-router dependency-version: 8.5.1 dependency-type: direct:production update-type: version-update:semver-minor dependency-group: npm-minor-patch
+
+
 ## [20261116.05] - 2026-11-16
 
 - [Commits](https://github.com/certifi/python-certifi/compare/2026.07.22...2026.10.18)
