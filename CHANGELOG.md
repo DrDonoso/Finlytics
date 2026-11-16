@@ -4,6 +4,18 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20261116.07] - 2026-11-16
+
+- [Release notes](https://github.com/vitest-dev/vitest/releases)
+- [Changelog](https://github.com/vitest-dev/vitest/blob/main/docs/releases.md)
+- [Commits](https://github.com/vitest-dev/vitest/commits/v5.1.0/packages/coverage-v8)
+- [Release notes](https://github.com/vitest-dev/vitest/releases)
+- [Changelog](https://github.com/vitest-dev/vitest/blob/main/docs/releases.md)
+- [Commits](https://github.com/vitest-dev/vitest/commits/v5.1.0/packages/vitest)
+- dependency-name: "@vitest/coverage-v8" dependency-version: 5.0.3 dependency-type: direct:development update-type: version-update:semver-patch dependency-group: vitest
+- dependency-name: vitest dependency-version: 5.0.3 dependency-type: direct:development update-type: version-update:semver-patch dependency-group: vitest
+
+
 ## [20261116.06] - 2026-11-16
 
 - [Release notes](https://github.com/TanStack/query/releases)
