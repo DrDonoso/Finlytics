@@ -13,6 +13,7 @@ import { IconLoading, IconAlert, IconChartPie, IconChartLine, IconReceipt, IconB
 import SortableTh from '../../components/SortableTh'
 import Money, { Percent, Private } from '../../components/Money'
 import CardHeader from '../../components/CardHeader'
+import { useToday } from '../../hooks/useToday'
 
 const ASSET_CLASS_COLORS: Record<string, string> = {
   equity:       '#2563eb',
@@ -94,6 +95,7 @@ export default function IndexaView() {
 
   const [evPeriod, setEvPeriod] = useState<EvolutionPeriod>('All')
   const [evMode,   setEvMode]   = useState<EvolutionMode>('eur')
+  const today = useToday()
   const [matrixMode, setMatrixMode] = useState<MatrixMode>('pct')
 
   type HoldingsSortCol = 'name' | 'isin' | 'class' | 'units' | 'value' | 'weight' | 'cost' | 'pnl' | 'pnlpct'
@@ -105,9 +107,9 @@ export default function IndexaView() {
   const evolutionYears = useMemo((): string[] => {
     if (!portfolio?.value_series?.length) return []
     const firstYear = parseInt(portfolio.value_series[0].date.slice(0, 4), 10)
-    const lastYear  = new Date().getFullYear()
+    const lastYear  = today.getFullYear()
     return Array.from({ length: lastYear - firstYear + 1 }, (_, i) => String(firstYear + i))
-  }, [portfolio])
+  }, [portfolio, today])
 
   const evolutionData = useMemo(() => {
     if (!portfolio?.value_series?.length) return []
@@ -116,12 +118,11 @@ export default function IndexaView() {
       (portfolio.contributions_series ?? []).map(pt => [pt.date, pt.value])
     )
 
-    const now = new Date()
     const cutoff: Date | null = (() => {
-      if (evPeriod === '1M') return new Date(now.getFullYear(), now.getMonth() - 1, now.getDate())
-      if (evPeriod === '3M') return new Date(now.getFullYear(), now.getMonth() - 3, now.getDate())
-      if (evPeriod === '6M') return new Date(now.getFullYear(), now.getMonth() - 6, now.getDate())
-      if (evPeriod === '1A') return new Date(now.getFullYear() - 1, now.getMonth(), now.getDate())
+      if (evPeriod === '1M') return new Date(today.getFullYear(), today.getMonth() - 1, today.getDate())
+      if (evPeriod === '3M') return new Date(today.getFullYear(), today.getMonth() - 3, today.getDate())
+      if (evPeriod === '6M') return new Date(today.getFullYear(), today.getMonth() - 6, today.getDate())
+      if (evPeriod === '1A') return new Date(today.getFullYear() - 1, today.getMonth(), today.getDate())
       return null
     })()
 
@@ -149,7 +150,7 @@ export default function IndexaView() {
       value:         pt.value,
       contributions: contribMap.get(pt.date) ?? null,
     }))
-  }, [portfolio, evPeriod, evMode])
+  }, [portfolio, evPeriod, evMode, today])
 
   const evolutionDomain = useMemo((): [number, number] => {
     if (evolutionData.length === 0) return [0, 100]

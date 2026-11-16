@@ -9,9 +9,10 @@ from __future__ import annotations
 import csv
 import io
 import re
+import time
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date
 from decimal import Decimal, InvalidOperation
 
 _DATE_FMT = "%b-%d-%Y"   # e.g. Jun-30-2026
@@ -115,7 +116,7 @@ def _parse_date(raw: str) -> date | None:
     if not s or s == "-":
         return None
     try:
-        return datetime.strptime(s, _DATE_FMT).date()  # noqa: DTZ007 — a calendar date
+        return date(*time.strptime(s, _DATE_FMT)[:3])
     except ValueError as exc:
         raise FidelityCsvError(f"Cannot parse date from {raw!r}") from exc
 

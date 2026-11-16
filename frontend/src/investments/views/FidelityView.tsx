@@ -24,6 +24,7 @@ import SortableTh from '../../components/SortableTh'
 import Money, { Percent, Private } from '../../components/Money'
 import CardHeader from '../../components/CardHeader'
 import Modal from '../../components/Modal'
+import { useToday } from '../../hooks/useToday'
 
 // ── Date helpers (mirrored from IndexaView) ────────────────────────────────────
 
@@ -127,6 +128,7 @@ export default function FidelityView() {
 
   // ── Evolution chart state ──────────────────────────────────────────────────
   const [evPeriod, setEvPeriod] = useState<EvolutionPeriod>('All')
+  const today = useToday()
 
   // ── Import wizard state ────────────────────────────────────────────────────
   const [searchParams, setSearchParams]       = useSearchParams()
@@ -143,9 +145,9 @@ export default function FidelityView() {
   const evolutionYears = useMemo((): string[] => {
     if (!evolution?.value_series?.length) return []
     const firstYear = parseInt(evolution.value_series[0].date.slice(0, 4), 10)
-    const lastYear  = new Date().getFullYear()
+    const lastYear  = today.getFullYear()
     return Array.from({ length: lastYear - firstYear + 1 }, (_, i) => String(firstYear + i))
-  }, [evolution])
+  }, [evolution, today])
 
   // ── Lots: sorted + paginated ──────────────────────────────────────────────
   const sortedLots = useMemo(() => {
@@ -217,11 +219,10 @@ export default function FidelityView() {
       .sort((a, b) => a.date.localeCompare(b.date))
     const contribByDate = new Map(sortedContribs.map(c => [c.date, c.value]))
 
-    const now    = new Date()
     const cutoff: Date | null = (() => {
-      if (evPeriod === '1M') return new Date(now.getFullYear(), now.getMonth() - 1, now.getDate())
-      if (evPeriod === '3M') return new Date(now.getFullYear(), now.getMonth() - 3, now.getDate())
-      if (evPeriod === '1A') return new Date(now.getFullYear() - 1, now.getMonth(), now.getDate())
+      if (evPeriod === '1M') return new Date(today.getFullYear(), today.getMonth() - 1, today.getDate())
+      if (evPeriod === '3M') return new Date(today.getFullYear(), today.getMonth() - 3, today.getDate())
+      if (evPeriod === '1A') return new Date(today.getFullYear() - 1, today.getMonth(), today.getDate())
       return null
     })()
 
@@ -240,17 +241,19 @@ export default function FidelityView() {
       else break
     }
 
-    return filtered.map(pt => {
+    const points: { date: string; value: number; contributions: number | null }[] = []
+    for (const pt of filtered) {
       if (contribByDate.has(pt.date)) {
         lastContrib = contribByDate.get(pt.date)!
       }
-      return {
+      points.push({
         date:          pt.date,
         value:         pt.value,
         contributions: lastContrib,
-      }
-    })
-  }, [evolution, evPeriod])
+      })
+    }
+    return points
+  }, [evolution, evPeriod, today])
 
   // ── Evolution Y-axis domain ────────────────────────────────────────────────
   const evolutionDomain = useMemo((): [number, number] => {

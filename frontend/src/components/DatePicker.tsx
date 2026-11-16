@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import type { CSSProperties, KeyboardEvent } from 'react'
 import { langLocale, useT } from '../i18n'
 import type { Lang } from '../i18n'
+import { useToday } from '../hooks/useToday'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -96,7 +97,7 @@ interface DatePickerProps {
 export default function DatePicker({ value, onChange, min, max, id, ariaLabel, placeholder, disabled }: DatePickerProps) {
   const { t, lang } = useT()
 
-  const today  = new Date()
+  const today  = useToday()
   const todayY = today.getFullYear()
   const todayM = today.getMonth() + 1
   const todayD = today.getDate()

@@ -301,7 +301,7 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
   // ── S2: Sequential extraction ─────────────────────────────────────────────
   useEffect(() => {
     if (phase !== 'extracting') return
-    let cancelled = false
+    const controller = new AbortController()
 
     async function runExtract() {
       const previews: (PreviewResponse | null)[] = Array.from(
@@ -310,11 +310,11 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
       )
 
       for (let i = 0; i < initialFiles.length; i++) {
-        if (cancelled) break
+        if (controller.signal.aborted) break
         setFileItems(prev => prev.map((fi, idx) => idx === i ? { ...fi, extractStatus: 'running' } : fi))
         try {
           const p = await previewImport(initialFiles[i])
-          if (cancelled) break
+          if (controller.signal.aborted) break
           previews[i] = p
           const txns = (p.transactions ?? []).map(tx => ({
             ...tx,
@@ -334,14 +334,14 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
             } : fi
           ))
         } catch (e) {
-          if (cancelled) break
+          if (controller.signal.aborted) break
           setFileItems(prev => prev.map((fi, idx) =>
             idx === i ? { ...fi, extractStatus: 'error', extractError: friendlyError(e, t) } : fi
           ))
         }
       }
 
-      if (cancelled) return
+      if (controller.signal.aborted) return
 
       // With nothing extracted, "resolve" would be an empty step leading to a
       // disabled confirm button; the summary lists every file's error.
@@ -365,7 +365,7 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
     }
 
     runExtract()
-    return () => { cancelled = true }
+    return () => controller.abort()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps -- once per modal: re-running on a language change would restart the extraction and bill every file again
 
   const canProceedResolve = useMemo(() => {

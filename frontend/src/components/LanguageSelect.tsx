@@ -59,7 +59,7 @@ export default function LanguageSelect() {
         onClick={() => setOpen(v => !v)}
         aria-haspopup="listbox"
         aria-expanded={open}
-        aria-label={t.langSelectLabel}
+        aria-label={`${t.langSelectLabel}: ${LANG_NAMES[lang]}`}
       >
         <IconGlobe size={15} className="lang-select-icon" />
         <span className="lang-select-current">{LANG_NAMES[lang]}</span>

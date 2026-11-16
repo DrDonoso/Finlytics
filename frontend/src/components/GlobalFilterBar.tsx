@@ -3,6 +3,7 @@ import { useT, categoryLabel, DEFAULT_TAG_COLOR, tagTextColor, formatDate } from
 import { useId, useMemo, useState } from 'react'
 import TagFilterSelect from './TagFilterSelect'
 import DatePicker from './DatePicker'
+import { useToday } from '../hooks/useToday'
 import { RANGE_PRESETS, matchPreset, presetRange, type DateRange, type RangePreset } from '../utils'
 import { IconClose, IconTag, IconArrowUp, IconArrowDown, IconFilter, IconChevronDown } from './icons'
 
@@ -26,6 +27,7 @@ export default function GlobalFilterBar({ filters, defaults, accounts, categorie
   const { t, lang } = useT()
   const [open, setOpen] = useState(false)
   const [pickedPreset, setPickedPreset] = useState(lastPickedPreset)
+  const today = useToday()
   const uid = useId()
   const ids = {
     body:    `${uid}-body`,
@@ -53,7 +55,7 @@ export default function GlobalFilterBar({ filters, defaults, accounts, categorie
     '12m':     t.filterPreset12m,
     all:       t.filterPresetAll,
   }
-  const activePreset = matchPreset(filters, new Date(), pickedPreset)
+  const activePreset = matchPreset(filters, today, pickedPreset)
   const periodSummary = activePreset
     ? presetLabels[activePreset]
     : `${filters.from ? formatDate(filters.from, lang) : '…'} – ${filters.to ? formatDate(filters.to, lang) : '…'}`

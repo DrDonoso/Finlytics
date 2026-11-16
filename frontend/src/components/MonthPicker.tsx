@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import type { CSSProperties, KeyboardEvent } from 'react'
 import { langLocale, useT } from '../i18n'
 import type { Lang } from '../i18n'
+import { useToday } from '../hooks/useToday'
 import { IconChevronDown } from './icons'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -49,7 +50,7 @@ export default function MonthPicker({ value, onChange, min, max, activeMonths, d
   const selMonth = parts[1] ?? 0
 
   // Today
-  const today  = new Date()
+  const today  = useToday()
   const todayY = today.getFullYear()
   const todayM = today.getMonth() + 1
 
