@@ -15,6 +15,7 @@ import type { UseQueryResult } from '@tanstack/react-query'
 import {
   getAccounts,
   getAppVersion,
+  getWhatsNew,
   getAssistantConversation,
   getAssistantConversations,
   getAssistantSettings,
@@ -63,6 +64,7 @@ import type {
   Account,
   AccountSummary,
   AppVersion,
+  WhatsNewState,
   AssistantConversation,
   AssistantConversationDetail,
   AssistantSettings,
@@ -158,6 +160,7 @@ export const queryKeys = {
   importSummarySettings: ['notifications', 'import-summary-settings'] as const,
   importSummaries: ['notifications', 'import-summaries'] as const,
   appVersion: ['app-version'] as const,
+  whatsNew: ['whats-new'] as const,
   assistantStatus: ['assistant', 'status'] as const,
   assistantSuggestions: ['assistant', 'suggestions'] as const,
   assistantConversations: ['assistant', 'conversations'] as const,
@@ -448,6 +451,15 @@ export function useAppVersion(): UseQueryResult<AppVersion> {
     queryKey: queryKeys.appVersion,
     queryFn: getAppVersion,
     staleTime: CATALOG_STALE_MS,
+  })
+}
+
+/** The notes the user has read. Read once per session: the dialog decides from the first answer. */
+export function useWhatsNew(): UseQueryResult<WhatsNewState> {
+  return useQuery({
+    queryKey: queryKeys.whatsNew,
+    queryFn: getWhatsNew,
+    staleTime: Infinity,
   })
 }
 

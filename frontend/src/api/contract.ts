@@ -9,6 +9,7 @@ import type {
   AccountCreatePayload,
   AccountSummary,
   AppVersion,
+  WhatsNewState,
   AssistantConversation,
   AssistantConversationDetail,
   AssistantMessage,
@@ -155,6 +156,7 @@ export type ResponseContract = [
   Satisfies<Api.StatusResponse, AuthStatus>,
   Satisfies<Api.AuthResponse, AuthUser>,
   Satisfies<Api.VersionOut, AppVersion>,
+  Satisfies<Api.WhatsNewOut, WhatsNewState>,
 
   // ─── Investments ─────────────────────────────────────────────────────────
   Satisfies<Api.InvestmentPluginOut, InvestmentPlugin>,

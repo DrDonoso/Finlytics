@@ -720,6 +720,17 @@ const en: Dict = {
   aboutReportIssue: 'Report an issue',
   aboutChangelog: 'Changelog',
   aboutLicense: 'License',
+  // ── What's new ─────────────────────────────────────────────────────────────
+  whatsNewTitle: "What's new",
+  whatsNewIntro: "Here's what has changed in Finlytics since you last came in.",
+  whatsNewAllIntro: 'Everything that has come to Finlytics, newest first.',
+  whatsNewEmpty: 'Nothing new yet.',
+  whatsNewGotIt: 'Got it!',
+  whatsNewShowMore: (count) => `Show ${count} more`,
+  whatsNewGoThere: 'Take me there',
+  whatsNewKindNew: 'New',
+  whatsNewKindImproved: 'Improved',
+  whatsNewKindFixed: 'Fixed',
   // ── Notifications ──────────────────────────────────────────────────────────
   notifPanelTitle: 'Notifications',
   notifMarkAllRead: 'Mark all read',

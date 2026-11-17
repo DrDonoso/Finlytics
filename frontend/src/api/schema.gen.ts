@@ -1261,3 +1261,11 @@ export interface VersionOut {
   image_tag: string | null
   version: string
 }
+
+export interface WhatsNewOut {
+  seen: string[] | null
+}
+
+export interface WhatsNewSeenIn {
+  ids: string[]
+}

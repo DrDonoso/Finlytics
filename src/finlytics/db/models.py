@@ -73,6 +73,9 @@ class User(Base):
     token_version: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default=text("0")
     )
+    # Ids of the "what's new" notes the user has read (see api/whats_new.py); NULL until the
+    # interface records any, which is how a new user skips notes written before they existed.
+    whats_new_seen: Mapped[list[str] | None] = mapped_column(JSON(none_as_null=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

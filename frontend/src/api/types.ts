@@ -763,6 +763,13 @@ export interface FidelityImportConfirmResult {
   duplicates: number
 }
 
+// ─── What's new ──────────────────────────────────────────────────────────────
+
+/** Ids of the notes the user has read; null until the interface records any. */
+export interface WhatsNewState {
+  seen: string[] | null
+}
+
 // ─── App version ─────────────────────────────────────────────────────────────
 
 export interface AppVersion {

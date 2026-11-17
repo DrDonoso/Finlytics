@@ -138,6 +138,19 @@ jobs:
           echo "has_notes=false" >> "$GITHUB_OUTPUT"
         fi
 
+    # The interface's own notes (frontend/src/whatsNew/notes), added since the previous
+    # release. Best effort: the release is still published without the section.
+    - name: Generate What's new section
+      id: whatsnew
+      run: |
+        PREV=$(git describe --tags --abbrev=0 2>/dev/null || true)
+        if python3 scripts/release_notes.py "$PREV" > whats_new.md && [ -s whats_new.md ]; then
+          echo "has_whats_new=true" >> "$GITHUB_OUTPUT"
+        else
+          : > whats_new.md
+          echo "has_whats_new=false" >> "$GITHUB_OUTPUT"
+        fi
+
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v4
 
@@ -203,10 +216,14 @@ jobs:
       env:
         GH_TOKEN: ${{ github.token }}
         HAS_NOTES: ${{ steps.releasenotes.outputs.has_notes }}
+        HAS_WHATS_NEW: ${{ steps.whatsnew.outputs.has_whats_new }}
         VERSION: ${{ steps.calver.outputs.version }}
       run: |
         if [ "$HAS_NOTES" = "true" ]; then
-          gh release create "$VERSION" --title "$VERSION" --notes-file release_notes.md
+          cat whats_new.md release_notes.md > release_body.md
+          gh release create "$VERSION" --title "$VERSION" --notes-file release_body.md
+        elif [ "$HAS_WHATS_NEW" = "true" ]; then
+          gh release create "$VERSION" --title "$VERSION" --notes-file whats_new.md --generate-notes
         else
           gh release create "$VERSION" --title "$VERSION" --generate-notes
         fi

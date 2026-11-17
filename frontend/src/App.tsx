@@ -1,6 +1,7 @@
 import { lazy } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router'
 import Layout from './components/Layout'
+import { WhatsNewLayout } from './whatsNew/WhatsNewLayout'
 import SettingsLayout from './components/SettingsLayout'
 import LoginPage from './pages/LoginPage'
 import SetupPage from './pages/SetupPage'
@@ -43,6 +44,7 @@ const AboutPage = lazy(pageChunks['/settings/about'])
 function DemoRoutes() {
   return (
     <Routes>
+      <Route element={<WhatsNewLayout />}>
       <Route path="/" element={<Layout />}>
         <Route index element={<Dashboard />} />
         <Route path="finances" element={<FinancesOverviewPage />} />
@@ -61,6 +63,7 @@ function DemoRoutes() {
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
+      </Route>
     </Routes>
   )
 }
@@ -68,6 +71,7 @@ function DemoRoutes() {
 function FullRoutes() {
   return (
     <Routes>
+      <Route element={<WhatsNewLayout />}>
       <Route path="/" element={<Layout />}>
         <Route index element={<Dashboard />} />
         <Route path="finances" element={<FinancesOverviewPage />} />
@@ -93,6 +97,7 @@ function FullRoutes() {
           <Route path="rules" element={<RulesPage />} />
           <Route path="about" element={<AboutPage />} />
         </Route>
+      </Route>
       </Route>
     </Routes>
   )

@@ -69,6 +69,7 @@ from finlytics.api.summary import router as summary_router
 from finlytics.api.tags import router as tags_router
 from finlytics.api.transactions import router as transactions_router
 from finlytics.api.version import router as version_router
+from finlytics.api.whats_new import router as whats_new_router
 from finlytics.notifications.import_summaries import import_summary_loop
 
 log = logging.getLogger(__name__)
@@ -205,6 +206,7 @@ app.include_router(fidelity_router,      prefix="/api", dependencies=_auth)
 app.include_router(mortgage_router,      prefix="/api", dependencies=_auth)
 app.include_router(notifications_router, prefix="/api", dependencies=_auth)
 app.include_router(version_router,       prefix="/api", dependencies=_auth)
+app.include_router(whats_new_router,     prefix="/api", dependencies=_auth)
 
 
 @app.get("/health", tags=["health"])

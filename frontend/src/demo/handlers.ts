@@ -17,6 +17,7 @@ import type { Filters } from './store'
 import * as store from './store'
 import { answerFor } from './assistantAnswers'
 import { DEMO_PASSWORD, DEMO_USERNAME } from './config'
+import { NOTES } from '../whatsNew/notes'
 
 // ─── Query-string helpers ─────────────────────────────────────────────────────
 
@@ -364,6 +365,12 @@ const mortgage = [
 // ─── Misc ─────────────────────────────────────────────────────────────────────
 
 const misc = [
+  // Nothing to catch up on: the dialog would sit over every demo screen.
+  http.get('/api/whats-new', () => HttpResponse.json({ seen: NOTES.map((note) => note.id).sort() })),
+  http.post('/api/whats-new/seen', async ({ request }) => {
+    const { ids } = (await request.json()) as { ids: string[] }
+    return HttpResponse.json({ seen: [...new Set([...NOTES.map((note) => note.id), ...ids])].sort() })
+  }),
   http.get('/api/version', () => HttpResponse.json({
     version: __APP_VERSION__,
     image_tag: 'demo',
