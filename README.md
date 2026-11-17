@@ -201,6 +201,10 @@ A slide-out chat panel, reachable from every page, that answers natural-language
 
 > **Only the monthly budget can actually cap spend.** The rate limit is counted in memory, so it resets whenever the container restarts: it curbs a burst but hands back a full allowance on every deploy. The budget is counted in the database and survives.
 
+### 🆕 What's new
+
+Each release's user-visible changes appear once in a dialog the next time you open the app, and stay available from the sidebar. Notes are JSON files in `frontend/src/whatsNew/notes/` and also feed the GitHub release text.
+
 ### 🗂️ Management
 
 Categories, tags and accounts are editable from Settings, along with the connectors, a full JSON export/import of the whole dataset, and an About page showing the running image tag. The UI is bilingual (Spanish / English) with light, dark and system themes, behind single-user authentication with per-IP login throttling.

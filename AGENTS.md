@@ -47,9 +47,9 @@ The `IMAGE_TAG` / `BUILD_DATE` build args are injected there and surfaced by
 
 ## Migrations
 
-Alembic migrations live in `alembic/versions/`. The current head is `0028_fidelity_usd_identity.py`.
+Alembic migrations live in `alembic/versions/`. The current head is `0029_whats_new.py`.
 
-- Always create a new numbered migration (`0029_...`) for schema changes.
+- Always create a new numbered migration (`0030_...`) for schema changes.
 - Verify the head before writing one — this file goes stale. `down_revision` in the
   highest-numbered file is the source of truth, not this document.
 - The entrypoint runs `alembic upgrade head` automatically on container start.
@@ -339,6 +339,22 @@ A `reduce_term` prepayment deliberately keeps the instalment and shortens the lo
 
 ---
 
+## What's new
+
+User-visible changes ship with a release note: a JSON file in `frontend/src/whatsNew/notes/`
+named `YYYY-MM-DD-slug.json`. The file name is the note's id; **never rename or reuse one**,
+since it is what a user's "read" state refers to.
+
+- Fields: `kind` (`new`, `improved`, `fixed`), `icon` (a key of `whatsNew/icons.ts`), optional
+  `link` (an in-app path) and `es` / `en`, each with `title` (<= 70 characters) and `body`
+  (<= 300). `notes.test.ts` enforces them.
+- Read state is `users.whats_new_seen` (JSON). `GET /api/whats-new` returns it; `NULL` means
+  nothing was ever recorded, so a new user's first visit marks every note as read without
+  showing a dialog. `POST /api/whats-new/seen` merges ids under a row lock and keeps the newest 1000.
+- `WhatsNewLayout` wraps both route trees; the sidebar button opens every note. The demo handler
+  answers with all ids as seen, so the demo never opens the dialog.
+- Releases: `scripts/release_notes.py` lists the notes added since the previous tag, and
+  `docker-deploy.yml` puts them in a "What's new" section above the commit-derived notes.
 ## Auth sessions
 
 The session is a JWT in an HttpOnly cookie, and it is revocable. Each token carries a `jti`

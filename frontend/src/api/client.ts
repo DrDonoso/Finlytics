@@ -20,7 +20,7 @@ import type {
   Mortgage, MortgageInput, MortgageSummary, MortgageOverview, MortgageSchedule,
   MortgageCharts, MortgageReconciliation, MortgagePrepayment, MortgagePrepaymentInput,
   MortgageSimulation, MortgageSimulationRequest, MortgageNetWorth, EuriborSeries,
-  MortgagePaymentCandidates,
+  MortgagePaymentCandidates, WhatsNewState,
 } from './types'
 import {
   mockGetAccounts, mockGetCategories, mockGetTags, mockGetTransactions,
@@ -611,6 +611,20 @@ export async function getOverviewMonths(): Promise<SummaryMonths> {
  *  Fails silently — callers fall back to the frontend build version. */
 export async function getAppVersion(): Promise<AppVersion> {
   return apiFetch<AppVersion>('/api/version')
+}
+
+/** GET /api/whats-new → the ids of the notes the user has read. */
+export async function getWhatsNew(): Promise<WhatsNewState> {
+  return apiFetch<WhatsNewState>('/api/whats-new')
+}
+
+/** POST /api/whats-new/seen — marks notes as read (the API takes up to 500 ids). */
+export async function markWhatsNewSeen(ids: string[]): Promise<WhatsNewState> {
+  return apiFetch<WhatsNewState>('/api/whats-new/seen', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids }),
+  })
 }
 
 // ─── Notifications ────────────────────────────────────────────────────────────

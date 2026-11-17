@@ -1,0 +1,12 @@
+{
+  "kind": "new",
+  "icon": "sparkles",
+  "es": {
+    "title": "Ahora te contamos las novedades",
+    "body": "Cuando Finlytics traiga algo nuevo, te lo enseñaremos aquí al entrar. Para volver a leerlo, abre el menú lateral y pulsa «Novedades»."
+  },
+  "en": {
+    "title": "Now we tell you what's new",
+    "body": "When Finlytics gets something new, we'll show it to you here when you come in. To read it again, open the side menu and choose \"What's new\"."
+  }
+}

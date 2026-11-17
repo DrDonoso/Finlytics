@@ -730,6 +730,17 @@ export interface Dict {
   aboutReportIssue: string
   aboutChangelog: string
   aboutLicense: string
+  // ── What's new ─────────────────────────────────────────────────────────────
+  whatsNewTitle: string
+  whatsNewIntro: string
+  whatsNewAllIntro: string
+  whatsNewEmpty: string
+  whatsNewGotIt: string
+  whatsNewShowMore: (count: number) => string
+  whatsNewGoThere: string
+  whatsNewKindNew: string
+  whatsNewKindImproved: string
+  whatsNewKindFixed: string
   // ── Notifications ──────────────────────────────────────────────────────────
   notifPanelTitle: string
   notifMarkAllRead: string

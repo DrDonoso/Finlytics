@@ -14,12 +14,13 @@ import PrivacyToggle from './PrivacyToggle'
 import PageLoading from './PageLoading'
 import RouteErrorBoundary from './RouteErrorBoundary'
 import { BrandMark } from './Brand'
+import { useWhatsNewMenu } from '../whatsNew/WhatsNewLayout'
 import { IS_DEMO } from '../demo/config'
 import { useIsCompactNav } from '../hooks/useMediaQuery'
 import {
   IconMenu, IconHome, IconWallet, IconReceipt, IconChartLine, IconFileText,
   IconTrendingUp, IconSettings, IconChevronDown, IconUser, IconLogout,
-  IconBuilding, IconAlert,
+  IconBuilding, IconAlert, IconSparkles,
 } from './icons'
 
 const LS_COLLAPSED = 'finlytics_sidebar_collapsed'
@@ -51,6 +52,7 @@ function useExpandedWhenActive(active: boolean) {
 export default function Layout() {
   const { t } = useT()
   const { username, onLogout } = useAuth()
+  const whatsNew = useWhatsNewMenu()
   const location = useLocation()
   const navigate = useNavigate()
   const compactNav = useIsCompactNav()
@@ -412,6 +414,16 @@ export default function Layout() {
                 {t.authLogout}
               </button>
             </div>
+          )}
+          {whatsNew && (
+            <button
+              className="sidebar-whats-new"
+              onClick={() => { setMobileOpen(false); whatsNew.openAll() }}
+              type="button"
+            >
+              <IconSparkles size={15} />
+              {t.whatsNewTitle}
+            </button>
           )}
           <LanguageSelect />
         </div>

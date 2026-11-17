@@ -218,3 +218,19 @@ def test_0026_backfills_the_usage_ledger(empty_database):
 
     run_alembic(url, "downgrade", "0025")
     assert "assistant_usage" not in public_tables(url)
+
+
+def test_0029_marks_existing_users_as_having_read_nothing_and_downgrades(empty_database):
+    url = empty_database
+    run_alembic(url, "upgrade", "0028")
+    query(url, "INSERT INTO users (username, password_hash) VALUES ('old', 'x')")
+
+    run_alembic(url, "upgrade", "0029")
+    query(url, "INSERT INTO users (username, password_hash) VALUES ('new', 'x')")
+    rows = query(url, "SELECT username, whats_new_seen FROM users ORDER BY username")
+    assert [(r['username'], r['whats_new_seen']) for r in rows] == [('new', None), ('old', '[]')]
+
+    run_alembic(url, "downgrade", "0028")
+    assert not query(
+        url, "SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'whats_new_seen'"
+    )

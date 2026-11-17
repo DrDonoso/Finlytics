@@ -1,0 +1,58 @@
+.sidebar-whats-new {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: 32px;
+  padding: 0 var(--space-2);
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.sidebar-whats-new:hover { color: var(--primary); background: rgba(var(--primary-rgb), 0.06); }
+
+.wn-modal { max-width: 560px; width: 100%; }
+.wn-intro { margin: 0 0 var(--space-4); font-size: var(--text-base); color: var(--text-muted); }
+.wn-notes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-3); }
+.wn-note {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.wn-icon {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  color: var(--primary);
+  background: rgba(var(--primary-rgb), 0.08);
+}
+.wn-improved .wn-icon { color: var(--warning-text); background: var(--warning-bg); }
+.wn-fixed .wn-icon { color: var(--income); background: rgba(var(--income-rgb), 0.1); }
+.wn-text { min-width: 0; flex: 1; }
+.wn-kind {
+  margin: 0 0 2px;
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.wn-title { margin: 0; font-size: var(--text-md); font-weight: 600; color: var(--text); }
+.wn-title:focus-visible { outline: var(--focus-ring); outline-offset: 2px; }
+.wn-body { margin: var(--space-1) 0 0; font-size: var(--text-base); line-height: 1.55; color: var(--text); }
+.wn-go { margin-top: var(--space-3); display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
+.wn-more { margin-top: var(--space-3); }
+.wn-month + .wn-month { margin-top: var(--space-5); }
+.wn-month-title { margin: 0 0 var(--space-3); font-size: var(--text-md); font-weight: 600; color: var(--text); }
