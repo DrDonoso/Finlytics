@@ -4,6 +4,11 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20261117] - 2026-11-17
+
+- Add What's new release notes with per-user read state (#120)
+
+
 ## [20261116.09] - 2026-11-16
 
 - [Release notes](https://github.com/vitejs/vite-plugin-react/releases)
