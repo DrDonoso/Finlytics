@@ -144,8 +144,12 @@ async def test_what_each_answer_means(
     assert result == outcome
     # The address of a subscription is never logged, only its push service (and its reason).
     assert browser.endpoint not in caplog.text
-    if outcome in {"retry", "rejected"}:
-        assert "web.push.apple.com" in caplog.text
+    logged = [
+        record.args[0]
+        for record in caplog.records
+        if record.name == webpush.log.name and isinstance(record.args, tuple)
+    ]
+    assert logged == (["web.push.apple.com"] if outcome in {"retry", "rejected"} else [])
     if outcome == "rejected":
         assert "TestRefusal" in caplog.text
 
