@@ -521,7 +521,6 @@ export interface Dict {
   settingsSubConnectors: string
   investmentsManageConnectors: string
   connectorsInvestmentsTitle: string
-  connectorsNotificationsTitle: string
   // ── Indexa Wizard ─────────────────────────────────────────────────────────
   wizardTitle: string
   wizardProgressLabel: string
@@ -827,6 +826,21 @@ export interface Dict {
   importSummaryErrors: Record<string, string>
   importSummaryQueued: string
   importSummaryViewStatus: string
+  // ── Push notifications and alert types (Settings → Notifications) ──────────
+  pushTitle: string
+  pushHint: string
+  pushSwitch: string
+  pushEnabled: string
+  pushTest: string
+  pushTestSent: string
+  /** Why a test notification did not go out, by `PushTestResult.error`. */
+  pushTestErrors: Record<string, string>
+  /** Why push cannot be turned on here, by `PushStatus`. */
+  pushStatus: Record<string, string>
+  notifTypesTitle: string
+  notifTypesHint: string
+  /** Each alert type, by its detector's `source`. */
+  notifTypes: Record<string, { label: string; description: string }>
   // ── Transaction detail modal ──────────────────────────────────────────────
   txDetailModalTitle: string
   // ── Finances drill-down table ─────────────────────────────────────────────

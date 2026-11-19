@@ -1,0 +1,13 @@
+{
+  "kind": "new",
+  "icon": "bell",
+  "link": "/settings/notifications",
+  "es": {
+    "title": "Alertas en el móvil y el ordenador",
+    "body": "Finlytics puede avisarte con una notificación cuando falta un extracto o la compra del ESPP, aunque no tengas la app abierta. Actívalas en cada dispositivo en Ajustes → Notificaciones, donde también eliges qué alertas recibir."
+  },
+  "en": {
+    "title": "Alerts on your phone and computer",
+    "body": "Finlytics can notify you when a statement or the ESPP purchase is missing, even with the app closed. Turn notifications on for each device in Settings → Notifications, where you also choose which alerts you get."
+  }
+}

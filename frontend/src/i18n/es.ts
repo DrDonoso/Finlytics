@@ -509,7 +509,6 @@ const es: Dict = {
   // ── Connectors settings page ──────────────────────────────────────────────
   settingsSubConnectors: 'Conectores',
   connectorsInvestmentsTitle: 'Inversiones',
-  connectorsNotificationsTitle: 'Notificaciones',
   investmentsManageConnectors: 'Gestionar conectores',
   // ── Indexa Wizard ─────────────────────────────────────────────────────────
   wizardTitle: 'Conectar Indexa Capital',
@@ -841,6 +840,37 @@ const es: Dict = {
   },
   importSummaryQueued: 'Extractos guardados. Sus resúmenes se procesarán en segundo plano.',
   importSummaryViewStatus: 'Ver estado de envío',
+  pushTitle: 'Notificaciones push',
+  pushHint: 'Recibe las alertas en este dispositivo aunque Finlytics esté cerrado. Se activan en cada dispositivo por separado.',
+  pushSwitch: 'Activar en este dispositivo',
+  pushEnabled: 'Notificaciones activadas en este dispositivo.',
+  pushTest: 'Enviar notificación de prueba',
+  pushTestSent: 'Notificación de prueba enviada.',
+  pushTestErrors: {
+    gone: 'Este dispositivo ya no recibe notificaciones. Vuelve a activarlas.',
+    unreachable: 'No se pudo contactar con el servicio de notificaciones del navegador. Inténtalo más tarde.',
+    rejected: 'El servicio de notificaciones del navegador rechazó el mensaje.',
+  },
+  pushStatus: {
+    insecure: 'Las notificaciones push necesitan que Finlytics se sirva por HTTPS.',
+    install: 'En iPhone y iPad, añade Finlytics a la pantalla de inicio (Compartir → Añadir a pantalla de inicio) y ábrelo desde allí para activarlas.',
+    unsupported: 'Este navegador no admite notificaciones push.',
+    error: 'No se pudo comprobar si el servidor admite notificaciones push.',
+    unavailable: 'El servidor necesita la variable AUTH_SECRET para enviar notificaciones push.',
+    denied: 'Las notificaciones de Finlytics están bloqueadas en este navegador. Permítelas en los ajustes del sitio y vuelve aquí.',
+  },
+  notifTypesTitle: 'Qué alertas enviar',
+  notifTypesHint: 'Se aplica a las notificaciones push y a Telegram. La campana de Finlytics las muestra siempre todas.',
+  notifTypes: {
+    statement: {
+      label: 'Extractos pendientes',
+      description: 'Cuando falta importar el extracto del mes anterior de una cuenta.',
+    },
+    espp: {
+      label: 'Subida ESPP pendiente',
+      description: 'Cuando falta importar la compra trimestral del ESPP de Fidelity.',
+    },
+  },
   txDetailModalTitle: 'Detalle de transacción',
   drillDownActiveFilters: 'Filtros activos',
   drillDownClearAll: 'Limpiar todo',

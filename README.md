@@ -136,9 +136,21 @@ The counterweight to the investments side: the first **liability** the app model
 
 ### 🔔 Notifications
 
-Detectors run in the background and raise reminders when something needs you — today a missing monthly statement or an overdue ESPP upload; adding another is one entry in a registry. They surface in the in-app bell (read/dismissed state stored server-side, so it follows you across devices) and, optionally, in **Telegram**: connect a bot from Settings → Connectors and the same reminders arrive there too.
+Detectors run in the background and raise reminders when something needs you — today a missing monthly statement or an overdue ESPP upload; adding another is one entry in a registry. They surface in the in-app bell (read/dismissed state stored server-side, so it follows you across devices) and, optionally, outside the app. Everything is configured in **Settings → Notifications**:
 
-**Optional post-import analysis:** in **Settings → Connectors → Notifications**, enable
+- **Push notifications** to your phone or computer, even with Finlytics closed. Turn them on per device; a new alert arrives at once, and the statements missing on the 1st of a month arrive as one notification. Tapping it opens the right page and marks those alerts as read, and the installed app's icon shows how many are unread. *Send a test notification* checks the whole chain.
+- **Telegram**: connect a bot and the same reminders arrive there too.
+- **Which alerts to send**: turn each type off for push and Telegram alike; the bell always shows them all.
+
+Push uses the standard Web Push protocol, implemented by the server itself (no third-party service or account), and only contacts the push services of Google, Apple, Mozilla and Microsoft. It needs:
+
+1. **HTTPS** (or `http://localhost`): browsers only offer push to secure pages. Over plain HTTP on a LAN the settings page says so.
+2. **`AUTH_SECRET` set**: the signing key (VAPID) is derived from it, so there is nothing else to generate or keep. Rotating it makes each device subscribe again the next time Finlytics opens there.
+3. **Outbound HTTPS** from the container to `fcm.googleapis.com`, `*.push.apple.com`, `*.push.services.mozilla.com` and `*.notify.windows.com`.
+
+On **iPhone and iPad** (iOS/iPadOS 16.4 or later) only the app added to the Home Screen gets notifications: in Safari, *Share → Add to Home Screen*, then open it from there. A registration belongs to the device's session: signing out stops it, and changing the password or signing out other devices pauses the other devices until they sign in again. Notification texts carry account names and periods, never amounts.
+
+**Optional post-import analysis:** in **Settings → Notifications**, enable
 **Import summaries** and select your configured Telegram channel. Each bank statement
 that saves new transactions queues its own AI summary, covering that account's recorded
 period, income, expenses, spending categories and available historical changes.
@@ -302,8 +314,9 @@ Open `.env` and set at minimum:
 # Required
 POSTGRES_PASSWORD=a-strong-password
 
-# Strongly recommended — signs session cookies. If unset, a new key is
-# generated on every restart and all sessions are invalidated.
+# Strongly recommended — signs session cookies, and the push notifications'
+# key is derived from it. If unset, a new key is generated on every restart,
+# all sessions are invalidated and push notifications are unavailable.
 # Generate: python -c "import secrets; print(secrets.token_urlsafe(32))"
 AUTH_SECRET=your-own-generated-secret
 

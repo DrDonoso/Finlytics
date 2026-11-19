@@ -47,9 +47,9 @@ The `IMAGE_TAG` / `BUILD_DATE` build args are injected there and surfaced by
 
 ## Migrations
 
-Alembic migrations live in `alembic/versions/`. The current head is `0029_whats_new.py`.
+Alembic migrations live in `alembic/versions/`. The current head is `0030_push_notifications.py`.
 
-- Always create a new numbered migration (`0030_...`) for schema changes.
+- Always create a new numbered migration (`0031_...`) for schema changes.
 - Verify the head before writing one — this file goes stale. `down_revision` in the
   highest-numbered file is the source of truth, not this document.
 - The entrypoint runs `alembic upgrade head` automatically on container start.
@@ -66,7 +66,7 @@ data, surfaced as a slide-out chat panel.
 
 `notifications/import_summaries.py` processes opt-in jobs created by the two bank
 import saving routes, not by a detector or a frontend callback. Preferences live in
-Settings -> Connectors -> Notifications and reference one owned, enabled channel;
+Settings -> Notifications and reference one owned, enabled channel;
 Telegram is the only supported transport. Credentials remain in `NotificationChannel`.
 
 - Enqueue inside the import transaction, after final persistence, and wake the worker
@@ -383,6 +383,48 @@ and the `ver` (`users.token_version`) it was minted under; `load_session_user` i
 
 ---
 
+## Push notifications
+
+Detector alerts (`notifications/detectors.py`) reach a phone or computer through Web Push,
+which the server implements itself: `notifications/webpush.py` holds the protocol (RFC 8291
+encryption, RFC 8292 VAPID), `notifications/push.py` the devices, the queue and the worker,
+`api/push.py` the `/api/push` routes. The frontend side is `frontend/src/push/` and
+`frontend/public/sw.js`; everything is configured in Settings -> Notifications.
+
+- **The VAPID key is derived from `AUTH_SECRET`** (HKDF), so there is nothing to store. A secret
+  generated at startup (`Settings.auth_secret_is_persistent` false) would change on every
+  restart, so push is then unavailable: `GET /api/push` answers a null key and nothing is queued.
+- **Only the push services of Google, Apple, Mozilla and Microsoft are contacted**
+  (`webpush.PUSH_SERVICES`), without redirects. A subscription endpoint is an address the
+  browser chose; never relax the allowlist, and never log an endpoint, only its host.
+- **A registration belongs to a session.** `push_subscriptions` stores the session's `jti` and
+  `token_version`: logout deletes it (even with an expired token, `token_id`), and a password
+  change or "sign out other devices" moves the calling device to its new session and pauses
+  the others until they sign in again. The interface registers the device again on every
+  open and language change, so its session, locale and origin stay current.
+- **The origin is the registering request's `Origin` header**, accepted only for HTTPS or
+  `http://localhost`; it builds the `navigate` and icon URLs and the VAPID subject.
+- **Alerts are queued in the transaction that creates them** (`push.enqueue` inside
+  `evaluate_notifications`) and the worker is woken after commit. Only newly created alerts are
+  sent, never re-detected or re-activated ones, just like Telegram.
+- **A round claims due rows by moving `next_attempt_at` past a lease** (`UPDATE ... RETURNING`),
+  so two workers never send the same delivery and a crash only delays it. Read, dismissed,
+  resolved or muted alerts and paused devices are dropped at send time. Transient failures are
+  retried for a day; `404`/`410` forget the device, and three refusals in a row forget it too.
+- **One notification per device and alert type**: the statements of one month are grouped. The
+  page it opens carries `?notif=<ids>`, which `main.tsx` removes before the router starts and
+  `NotificationsProvider` marks as read; `app_badge` is the unread count.
+- **Texts are server-side, in the device's language** (`push.TEXTS`), and never include amounts.
+  Titles say what the alert is: iOS already adds "from Finlytics" beneath them.
+- **Alert types are per-user preferences shared by push and Telegram**
+  (`notification_preferences`; no row means on). The bell always lists every alert. A new
+  detector appears automatically; give it texts in `push.TEXTS` and `notifTypes` in i18n.
+- **`sw.js` has no fetch handler and caches nothing.** It only shows declarative messages
+  (`"web_push": 8030`), which Safari 18.4+ shows by itself, and opens same-origin pages. The demo
+  build drops it (`dropPublicFile` in `vite.config.ts`): its only service worker is MSW's.
+
+---
+
 ## Transaction dedup key
 
 `transactions.dedup_hash` is what makes re-importing a statement a no-op.
@@ -450,7 +492,7 @@ non-empty — the detail line.
   - **Mock layer:** `frontend/src/api/mock.ts`, activated build-time by `VITE_USE_MOCK=1`. Coverage is **partial** — roughly 40 of 68 client functions have a mock branch. Rules, backup, statements, all Fidelity endpoints and `combined-overview` have none.
   - ⚠️ **Never fall back to the mock on an error** (`catch { return mockGetX() }`). Thirteen reads used to, so in production a 500 or a network drop rendered **fake data as if it were the user's** — and the unconditional reference also shipped the whole mock dataset in the production bundle. The mock is reachable only behind `if (USE_MOCK)`, which the bundler drops; `api/client.test.ts` asserts that a failed read rejects. The same goes for "degrade to zeros": a figure that feeds a total (the mortgage's net-worth contribution, say) must throw, so the page can mark the total as partial instead of silently omitting a line of it.
 - **Data layer:** every read goes through a hook in `api/queries.ts`, keyed from `queryKeys`. A component never calls a `getX()` from a `useEffect`: that pattern let a slow response for the previous filter overwrite the current one, and every screen refetched what another had just loaded. After a write, invalidate by key prefix (`['summary']`, `['investments']`, `queryKeys.transactionsAll`) rather than threading a `refreshKey` prop through the tree.
-  - **Deliberate exceptions**, all of them either writes or wizard state rather than cacheable reads: the auth bootstrap in `AuthContext`, the streamed conversation in `AssistantContext`, the import previews (`previewImport` / `checkDuplicates` in `ImportModal`, `fidelityImportPreview` in `FidelityView`) and the on-demand `simulateMortgagePrepayment`. Anything else fetched by hand is a bug.
+  - **Deliberate exceptions**, all of them either writes or wizard state rather than cacheable reads: the auth bootstrap in `AuthContext`, the streamed conversation in `AssistantContext`, the import previews (`previewImport` / `checkDuplicates` in `ImportModal`, `fidelityImportPreview` in `FidelityView`), the on-demand `simulateMortgagePrepayment` and the device's push registration in `PushProvider`. Anything else fetched by hand is a bug.
   - **The cache belongs to a session.** `AuthContext` clears it when `authenticated` goes from true to false, which covers logout and a 401 alike; otherwise the next user to sign in on the same tab would briefly see the previous one's figures.
   - **Never poll `GET /api/notifications`:** it runs every detector and writes. `useNotificationChangePoll` polls `/unread-count` and invalidates the list only when the two disagree, and the badge is derived from the list, so it cannot contradict the dropdown under it.
   - **A form seeded from a query mounts only once the data exists** (see `AssistantSettingsPage`). Rendering it with empty defaults first flashes validation errors about values nobody typed, and `useState` initialisers do not re-run when the data arrives.
@@ -532,7 +574,9 @@ SPA catch-all and `nginx.demo.conf` already serve any real file at the root.
 > PNGs are rasterised from `icon.svg` at 180 (Apple), 192 and 512, plus a `maskable` 512
 > whose mark is scaled to 0.72 so Android's mask cannot clip it. Regenerate all four with
 > any rasteriser when the mark changes — there is no build step for it, and no npm
-> dependency is carried for a once-a-year task.
+> dependency is carried for a once-a-year task. `badge-96.png` is different again: the
+> mark alone, white on transparent, because Android draws a notification's status-bar icon
+> from its alpha channel only.
 
 > **`theme-color` is media-less on purpose.** The theme is a stored user choice, so a
 > `prefers-color-scheme` media query would get it wrong whenever the two disagree. The

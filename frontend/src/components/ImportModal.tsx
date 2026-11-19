@@ -997,7 +997,7 @@ export default function ImportModal({ accounts, categories, allTags, onClose, on
         {doneItems.some(fi => fi.confirmResult?.summary_job_id != null) && (
           <p role="status">
             {t.importSummaryQueued}{' '}
-            <Link to="/settings/connectors#import-summaries" onClick={handleClose}>{t.importSummaryViewStatus}</Link>
+            <Link to="/settings/notifications#import-summaries" onClick={handleClose}>{t.importSummaryViewStatus}</Link>
           </p>
         )}
         <div className="batch-detail-title">{t.previewColDesc}</div>

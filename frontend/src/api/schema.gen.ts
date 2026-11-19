@@ -848,6 +848,16 @@ export interface NotificationOut {
   type: string
 }
 
+export interface NotificationPreferenceIn {
+  enabled: boolean
+  source: string
+}
+
+export interface NotificationPreferenceOut {
+  enabled: boolean
+  source: string
+}
+
 export interface OverviewOut {
   currency: string
   net: number
@@ -927,6 +937,30 @@ export interface ProviderCardOut {
   name: string
   route: string
   value_eur: number | null
+}
+
+export interface PushConfigOut {
+  public_key: string | null
+}
+
+export interface PushEndpointIn {
+  endpoint: string
+}
+
+export interface PushSubscriptionIn {
+  endpoint: string
+  keys: PushSubscriptionKeysIn
+  locale: 'es' | 'en'
+}
+
+export interface PushSubscriptionKeysIn {
+  auth: string
+  p256dh: string
+}
+
+export interface PushTestOut {
+  error: 'gone' | 'unreachable' | 'rejected' | null
+  ok: boolean
 }
 
 export interface RatePeriodIn {

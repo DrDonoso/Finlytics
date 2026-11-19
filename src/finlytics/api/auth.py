@@ -14,6 +14,7 @@ so the device making the request stays signed in.
 from __future__ import annotations
 
 import asyncio
+import secrets
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
@@ -37,10 +38,12 @@ from finlytics.auth.security import (
     decode_token,
     hash_password,
     password_exceeds_bcrypt_limit,
+    token_id,
     verify_password,
 )
 from finlytics.config import settings
 from finlytics.db.models import RevokedToken, User
+from finlytics.notifications import push
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -124,13 +127,14 @@ class StatusResponse(BaseModel):
 
 # ── Session helpers ───────────────────────────────────────────────────────────
 
-def _start_session(response: Response, user: User, *, remember: bool) -> None:
-    """Mint a token under the user's current version and set it as the cookie.
+def _start_session(response: Response, user: User, *, remember: bool) -> str:
+    """Mint a token under the user's current version, set it as the cookie and return its id.
 
     Without remember-me the cookie has no max-age, so the browser drops it on
     close; the token inside still expires after ``auth_token_expire_days``.
     """
-    token = create_token(user.username, version=user.token_version, remember=remember)
+    jti = secrets.token_hex(16)
+    token = create_token(user.username, version=user.token_version, remember=remember, jti=jti)
     max_age = settings.auth_remember_expire_days * 24 * 3600 if remember else None
     response.set_cookie(
         key=SESSION_COOKIE,
@@ -141,6 +145,7 @@ def _start_session(response: Response, user: User, *, remember: bool) -> None:
         max_age=max_age,
         path="/",
     )
+    return jti
 
 
 def _check_login_limit(ip: str) -> None:
@@ -272,8 +277,13 @@ async def auth_logout(
     Deleting the cookie alone would leave a copied token valid until it expired,
     so a token that still verifies is recorded in ``revoked_tokens``.  Anything
     else — no cookie, a forged or expired one — just gets the cookie cleared.
+    Either way a token this server signed stops the device's push notifications.
     """
     token = request.cookies.get(SESSION_COOKIE)
+    jti = token_id(token) if token else None
+    if jti is not None:
+        await push.forget_session(db, jti)
+        await db.commit()
     claims = decode_token(token) if token else None
     if claims is not None:
         await _revoke(db, claims)
@@ -297,9 +307,9 @@ async def auth_logout_others(
     """Protected — ends every session except the one making the request."""
     user = await _load_user(db, session)
     user.token_version += 1
+    jti = _start_session(response, user, remember=session.remember)
+    await push.follow_session(db, session.jti, jti, user.token_version)
     await db.commit()
-
-    _start_session(response, user, remember=session.remember)
     return {"message": "Other sessions signed out"}
 
 
@@ -325,10 +335,11 @@ async def auth_change_password(
 
     user.password_hash = await asyncio.to_thread(hash_password, body.new_password)
     user.token_version += 1
+    jti = _start_session(response, user, remember=session.remember)
+    await push.follow_session(db, session.jti, jti, user.token_version)
     await db.commit()
     login_rate_limiter.reset(ip)
 
-    _start_session(response, user, remember=session.remember)
     return {"message": "Password changed"}
 
 

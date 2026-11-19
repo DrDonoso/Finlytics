@@ -1040,6 +1040,55 @@ class TelegramTestOut(BaseModel):
     error: str | None = None
 
 
+class NotificationPreferenceOut(BaseModel):
+    """Whether one alert type (a detector's ``source``) is sent by push and Telegram."""
+
+    source: str
+    enabled: bool
+
+
+class NotificationPreferenceIn(BaseModel):
+    """Request body for PATCH /api/notifications/preferences."""
+
+    source: str = Field(..., min_length=1, max_length=50)
+    enabled: bool
+
+
+# ── Push notifications ────────────────────────────────────────────────────────
+
+class PushConfigOut(BaseModel):
+    """The key browsers subscribe with; null when push is unavailable (no AUTH_SECRET)."""
+
+    public_key: str | None
+
+
+class PushSubscriptionKeysIn(BaseModel):
+    p256dh: str = Field(..., min_length=1, max_length=100)
+    auth: str = Field(..., min_length=1, max_length=40)
+
+
+class PushSubscriptionIn(BaseModel):
+    """Request body for PUT /api/push/subscription: the browser's PushSubscription."""
+
+    endpoint: str = Field(..., min_length=1, max_length=2048)
+    keys: PushSubscriptionKeysIn
+    locale: Literal["es", "en"]
+
+
+class PushEndpointIn(BaseModel):
+    """Identifies this device's registration by its push address."""
+
+    endpoint: str = Field(..., min_length=1, max_length=2048)
+
+
+class PushTestOut(BaseModel):
+    """Response for POST /api/push/test. ``error``: the device is no longer subscribed
+    (``gone``), its push service could not be reached, or it refused the message."""
+
+    ok: bool
+    error: Literal["gone", "unreachable", "rejected"] | None = None
+
+
 # ── Finance assistant ─────────────────────────────────────────────────────────
 
 class AssistantStatusOut(BaseModel):

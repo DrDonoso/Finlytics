@@ -1,4 +1,4 @@
-import { createContext, useContext, useCallback, useMemo } from 'react'
+import { createContext, useContext, useCallback, useEffect, useMemo } from 'react'
 import type { ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import type { NotificationOut } from '../api/types'
@@ -8,6 +8,8 @@ import {
   dismissNotification as apiDismiss,
 } from '../api/client'
 import { queryKeys, unreadCountOf, useNotificationChangePoll, useNotificationList } from '../api/queries'
+import { consumeLaunchIntent } from '../push/launch'
+import { setAppBadge } from '../push/support'
 
 interface NotificationsContextValue {
   notifications: NotificationOut[]
@@ -44,6 +46,19 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   const refresh = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: queryKeys.notifications, exact: true })
   }, [queryClient])
+
+  // Opened from a push notification: the alerts it told count as read.
+  useEffect(() => {
+    const told = consumeLaunchIntent()
+    if (told.length === 0) return
+    void Promise.allSettled(told.map(id => apiMarkRead(id))).then(refresh)
+  }, [refresh])
+
+  // The icon's badge, which a push notification sets, follows what is read here.
+  const listed = list.isSuccess
+  useEffect(() => {
+    if (listed) setAppBadge(unreadCount)
+  }, [listed, unreadCount])
 
   const markRead = useCallback(async (id: number) => {
     await apiMarkRead(id)

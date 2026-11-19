@@ -13,6 +13,9 @@ Routes
   DELETE /api/notifications/channels/{id}             — remove channel
   POST   /api/notifications/channels/telegram/test    — test send
 
+  GET    /api/notifications/preferences  — which alert types push and Telegram send
+  PATCH  /api/notifications/preferences  — turn one alert type on or off
+
 All routes are auth-gated at the router-registration level in app.py.
 Notification state (read/dismiss) is backend-owned so it survives cross-device
 access and Telegram delivery tracking (Slice 2).
@@ -37,6 +40,8 @@ from finlytics.api.schemas import (
     ImportSummarySettingsOut,
     NotificationChannelOut,
     NotificationOut,
+    NotificationPreferenceIn,
+    NotificationPreferenceOut,
     ReadAllOut,
     TelegramChannelIn,
     TelegramTestIn,
@@ -49,6 +54,7 @@ from finlytics.db.queries import import_summaries as summary_queries
 from finlytics.extraction.llm_client import is_llm_configured
 from finlytics.investments.crypto import EncryptionNotConfiguredError, decrypt_token, encrypt_token
 from finlytics.notifications.import_summaries import summary_destination, wake_import_summaries
+from finlytics.notifications.preferences import alert_types, get_preferences, set_preference
 from finlytics.notifications.service import evaluate_notifications
 from finlytics.notifications.telegram import TelegramError, telegram_get_me, telegram_send_message
 
@@ -389,6 +395,37 @@ async def delete_channel(
             db, user.id, channel_id=channel_id, reason="channel_removed",
         )
         await db.delete(channel)
+
+
+@router.get("/preferences", response_model=list[NotificationPreferenceOut])
+async def list_notification_preferences(
+    user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db),
+) -> list[NotificationPreferenceOut]:
+    """Every alert type, with whether push and Telegram send it (the bell shows them all)."""
+    return [
+        NotificationPreferenceOut(source=source, enabled=enabled)
+        for source, enabled in await get_preferences(db, user.id)
+    ]
+
+
+@router.patch("/preferences", response_model=list[NotificationPreferenceOut])
+async def update_notification_preference(
+    body: NotificationPreferenceIn,
+    user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db),
+) -> list[NotificationPreferenceOut]:
+    """Turn one alert type on or off for push and Telegram; 422 for an unknown type."""
+    if body.source not in alert_types():
+        raise HTTPException(status_code=422, detail="Unknown notification type.")
+    async with db.begin():
+        # Serialises two devices saving at once, so neither overwrites the other's row.
+        await db.execute(select(User.id).where(User.id == user.id).with_for_update())
+        await set_preference(db, user.id, body.source, body.enabled)
+        await db.flush()
+        preferences = await get_preferences(db, user.id)
+    return [
+        NotificationPreferenceOut(source=source, enabled=enabled)
+        for source, enabled in preferences
+    ]
 
 
 def _summary_settings_out(row: ImportSummarySettings | None) -> ImportSummarySettingsOut:

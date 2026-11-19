@@ -509,7 +509,6 @@ const en: Dict = {
   // ── Connectors settings page ──────────────────────────────────────────────
   settingsSubConnectors: 'Connectors',
   connectorsInvestmentsTitle: 'Investments',
-  connectorsNotificationsTitle: 'Notifications',
   investmentsManageConnectors: 'Manage connectors',
   // ── Indexa Wizard ─────────────────────────────────────────────────────────
   wizardTitle: 'Connect Indexa Capital',
@@ -841,6 +840,37 @@ const en: Dict = {
   },
   importSummaryQueued: 'Statements saved. Their summaries will be processed in the background.',
   importSummaryViewStatus: 'View delivery status',
+  pushTitle: 'Push notifications',
+  pushHint: 'Get alerts on this device even when Finlytics is closed. Turn them on separately on each device.',
+  pushSwitch: 'Turn on for this device',
+  pushEnabled: 'Notifications turned on for this device.',
+  pushTest: 'Send a test notification',
+  pushTestSent: 'Test notification sent.',
+  pushTestErrors: {
+    gone: 'This device no longer receives notifications. Turn them on again.',
+    unreachable: "Couldn't reach the browser's push service. Try again later.",
+    rejected: "The browser's push service refused the message.",
+  },
+  pushStatus: {
+    insecure: 'Push notifications need Finlytics to be served over HTTPS.',
+    install: 'On iPhone and iPad, add Finlytics to the Home Screen (Share → Add to Home Screen) and open it from there to turn them on.',
+    unsupported: "This browser doesn't support push notifications.",
+    error: "Couldn't check whether the server supports push notifications.",
+    unavailable: 'The server needs the AUTH_SECRET variable to send push notifications.',
+    denied: 'Finlytics notifications are blocked in this browser. Allow them in the site settings and come back.',
+  },
+  notifTypesTitle: 'Which alerts to send',
+  notifTypesHint: 'Applies to push notifications and Telegram. The Finlytics bell always shows them all.',
+  notifTypes: {
+    statement: {
+      label: 'Missing statements',
+      description: "When last month's statement of an account hasn't been imported.",
+    },
+    espp: {
+      label: 'ESPP upload overdue',
+      description: "When the quarterly Fidelity ESPP purchase hasn't been imported.",
+    },
+  },
   txDetailModalTitle: 'Transaction detail',
   drillDownActiveFilters: 'Active filters',
   drillDownClearAll: 'Clear all',

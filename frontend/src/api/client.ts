@@ -12,6 +12,7 @@ import type {
   FidelityImportPreview, FidelityImportConfirmResult, FidelityReminderResponse,
   CombinedOverview, SummaryMonths, AppVersion, NotificationOut,
   NotificationChannelOut, TelegramChannelIn, TelegramTestIn, TelegramTestOut,
+  NotificationPreference, PushConfig, PushSubscriptionPayload, PushTestResult,
   ImportSummarySettings, ImportSummarySettingsPayload, ImportSummaryJob,
   AccountCreatePayload,
   AssistantConversation, AssistantConversationDetail, AssistantStatus,
@@ -729,6 +730,61 @@ export async function testTelegramChannel(body: TelegramTestIn): Promise<Telegra
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
+  })
+}
+
+/** GET /api/notifications/preferences → every alert type, with whether push and Telegram send it. */
+export async function getNotificationPreferences(): Promise<NotificationPreference[]> {
+  return apiFetch<NotificationPreference[]>('/api/notifications/preferences')
+}
+
+export async function patchNotificationPreference(body: NotificationPreference): Promise<NotificationPreference[]> {
+  return apiFetch<NotificationPreference[]>('/api/notifications/preferences', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+// ─── Push notifications ───────────────────────────────────────────────────────
+
+/** GET /api/push → the key browsers subscribe with (null: the server cannot send them). */
+export async function getPushConfig(): Promise<PushConfig> {
+  return apiFetch<PushConfig>('/api/push')
+}
+
+/** A write to /api/push whose answer has no body; the server's `detail` becomes the message. */
+async function pushWrite(path: string, method: 'PUT' | 'POST', body: unknown): Promise<void> {
+  const res = await fetch(path, {
+    method,
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (res.status === 401) { _on401?.(); throw new Error('HTTP 401 Unauthorized') }
+  if (!res.ok) {
+    const data: { detail?: unknown } = await res.json().catch(() => ({}))
+    const detail = typeof data.detail === 'string' ? data.detail : `HTTP ${res.status}`
+    throw Object.assign(new Error(detail), { status: res.status })
+  }
+}
+
+/** PUT /api/push/subscription → 204. Registers this device for the signed-in session. */
+export async function putPushSubscription(body: PushSubscriptionPayload): Promise<void> {
+  return pushWrite('/api/push/subscription', 'PUT', body)
+}
+
+/** POST /api/push/unsubscribe → 204. Stops this device's notifications. */
+export async function unsubscribePush(endpoint: string): Promise<void> {
+  return pushWrite('/api/push/unsubscribe', 'POST', { endpoint })
+}
+
+/** POST /api/push/test → whether the device's push service accepted a test notification. */
+export async function testPush(endpoint: string): Promise<PushTestResult> {
+  return apiFetch<PushTestResult>('/api/push/test', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ endpoint }),
   })
 }
 

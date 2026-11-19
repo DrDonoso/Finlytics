@@ -25,6 +25,7 @@ Route layout:
   POST /api/imports       — upload statement → parse → LLM extract → persist
   GET  /api/version       — app version + optional build metadata (PROTECTED)
   /api/notifications      — notification list, badge count, read/dismiss
+  /api/push               — devices that receive push notifications, test send
   /api/assistant          — finance chat assistant (SSE streaming, read-only tools)
   /api/mortgages          — mortgage CRUD, amortization schedule, prepayment simulator
 
@@ -63,6 +64,7 @@ from finlytics.api.investments import router as investments_router
 from finlytics.api.middleware import RequestIdMiddleware, SecurityHeadersMiddleware
 from finlytics.api.mortgage import router as mortgage_router
 from finlytics.api.notifications import router as notifications_router
+from finlytics.api.push import router as push_router
 from finlytics.api.rules import router as rules_router
 from finlytics.api.statements import router as statements_router
 from finlytics.api.summary import router as summary_router
@@ -71,6 +73,7 @@ from finlytics.api.transactions import router as transactions_router
 from finlytics.api.version import router as version_router
 from finlytics.api.whats_new import router as whats_new_router
 from finlytics.notifications.import_summaries import import_summary_loop
+from finlytics.notifications.push import push_loop
 
 log = logging.getLogger(__name__)
 
@@ -129,9 +132,10 @@ async def _notifications_loop() -> None:
 
 @asynccontextmanager
 async def lifespan(app_: FastAPI):
-    """Application lifespan: start/stop the background notifications loop."""
+    """Application lifespan: start/stop the background notification workers."""
     _task: asyncio.Task | None = None
     _summary_task: asyncio.Task | None = None
+    _push_task: asyncio.Task | None = None
 
     # Guard: never run the loop inside pytest (no real DB; httpx may trigger
     # lifespan in newer versions).
@@ -154,11 +158,12 @@ async def lifespan(app_: FastAPI):
             )
         _task = asyncio.create_task(_notifications_loop())
         _summary_task = asyncio.create_task(import_summary_loop())
+        _push_task = asyncio.create_task(push_loop())
 
     try:
         yield
     finally:
-        tasks = [task for task in (_task, _summary_task) if task is not None]
+        tasks = [task for task in (_task, _summary_task, _push_task) if task is not None]
         for task in tasks:
             task.cancel()
         for task in tasks:
@@ -205,6 +210,7 @@ app.include_router(investments_router,   prefix="/api", dependencies=_auth)
 app.include_router(fidelity_router,      prefix="/api", dependencies=_auth)
 app.include_router(mortgage_router,      prefix="/api", dependencies=_auth)
 app.include_router(notifications_router, prefix="/api", dependencies=_auth)
+app.include_router(push_router,          prefix="/api", dependencies=_auth)
 app.include_router(version_router,       prefix="/api", dependencies=_auth)
 app.include_router(whats_new_router,     prefix="/api", dependencies=_auth)
 
