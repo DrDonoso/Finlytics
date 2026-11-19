@@ -4,6 +4,11 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20261119] - 2026-11-19
+
+- Send detector alerts as push notifications to phones and computers (#121)
+
+
 ## [20261117] - 2026-11-17
 
 - Add What's new release notes with per-user read state (#120)
