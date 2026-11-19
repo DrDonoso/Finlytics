@@ -14,11 +14,9 @@ Algorithm per detector:
 
 Idempotency: running twice in a row creates nothing new and resends nothing.
 
-Slice 2 delivery seam:
-  After all upserts, ``deliver_new(db, user_id, new_notifs)`` is called with
-  the freshly inserted Notification rows.  In Slice 1 it is a NO-OP.
-  Slice 2 fills it: iterate enabled NotificationChannels, guard with
-  UNIQUE(notification_id, channel) in notification_deliveries, send.
+Delivery: the alerts just created are queued for push (``push.enqueue``) in the
+same transaction that creates them, and once committed they go to Telegram
+(``deliver_new``). Both skip the alert types the user muted (``preferences``).
 """
 
 from __future__ import annotations
@@ -33,8 +31,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from finlytics.clock import today as local_today
 from finlytics.db.models import Notification, NotificationChannel, NotificationDelivery
 from finlytics.investments.crypto import EncryptionNotConfiguredError, decrypt_token
+from finlytics.notifications import push
 from finlytics.notifications.detectors import REGISTRY, DetectedNotification
 from finlytics.notifications.messages import render_notification_text
+from finlytics.notifications.preferences import muted_sources
 from finlytics.notifications.telegram import TelegramError, telegram_send_message
 
 log = logging.getLogger(__name__)
@@ -55,10 +55,8 @@ async def evaluate_notifications(
 
     Returns the list of **newly created** Notification rows (have IDs, both
     read_at and dismissed_at = None).  Existing rows that are re-detected or
-    newly resolved are NOT included in the return value.
-
-    The caller (API endpoint or background loop) can pass the return value to
-    ``deliver_new`` as a delivery seam; calling it is a no-op in Slice 1.
+    newly resolved are NOT included in the return value; they are never sent
+    again by push or Telegram.
     """
     if today is None:
         today = local_today()
@@ -156,8 +154,10 @@ async def evaluate_notifications(
                             user_id,
                         )
 
-    # ── Slice 2 delivery seam ─────────────────────────────────────────────────
-    # new_notifications have been committed above; pass them for delivery.
+        queued = await push.enqueue(db, user_id, new_notifications, now)
+
+    if queued:
+        push.wake_push()
     await deliver_new(db, user_id, new_notifications)
 
     return new_notifications
@@ -179,7 +179,7 @@ async def deliver_new(
          Failures are caught and recorded; they do NOT propagate to the caller.
 
     Safe to call when new_notifs is empty or no channels are configured
-    (returns immediately — Slice 1 behaviour is preserved).
+    (returns immediately). Alerts of a type the user muted are not sent.
     """
     if not new_notifs:
         return
@@ -193,8 +193,10 @@ async def deliver_new(
             )
         )
         channels = result.scalars().all()
+        muted = await muted_sources(db, user_id) if channels else set()
 
-    if not channels:
+    new_notifs = [notif for notif in new_notifs if notif.source not in muted]
+    if not channels or not new_notifs:
         return
 
     now = datetime.now(UTC)

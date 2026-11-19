@@ -46,11 +46,13 @@ import {
   getMortgageSchedule,
   getMortgages,
   getNotificationChannels,
+  getNotificationPreferences,
   getImportSummarySettings,
   getImportSummaries,
   getNotifications,
   getOverview,
   getOverviewMonths,
+  getPushConfig,
   getRules,
   getStatementMonths,
   getStatementOriginals,
@@ -95,10 +97,12 @@ import type {
   MortgageSchedule,
   MortgageSummary,
   NotificationChannelOut,
+  NotificationPreference,
   ImportSummarySettings,
   ImportSummaryJob,
   NotificationOut,
   Overview,
+  PushConfig,
   Rule,
   RuleConditions,
   StatementMonth,
@@ -157,8 +161,10 @@ export const queryKeys = {
   notifications: ['notifications', 'list'] as const,
   notificationsUnreadCount: ['notifications', 'unread-count'] as const,
   notificationChannels: ['notifications', 'channels'] as const,
+  notificationPreferences: ['notifications', 'preferences'] as const,
   importSummarySettings: ['notifications', 'import-summary-settings'] as const,
   importSummaries: ['notifications', 'import-summaries'] as const,
+  pushConfig: ['push', 'config'] as const,
   appVersion: ['app-version'] as const,
   whatsNew: ['whats-new'] as const,
   assistantStatus: ['assistant', 'status'] as const,
@@ -425,6 +431,23 @@ export function useNotificationChannels(): UseQueryResult<NotificationChannelOut
     queryKey: queryKeys.notificationChannels,
     queryFn: getNotificationChannels,
     staleTime: CATALOG_STALE_MS,
+  })
+}
+
+export function useNotificationPreferences(): UseQueryResult<NotificationPreference[]> {
+  return useQuery({
+    queryKey: queryKeys.notificationPreferences,
+    queryFn: getNotificationPreferences,
+  })
+}
+
+/** The server's push key. Only changes with AUTH_SECRET, so it is read once per session. */
+export function usePushConfig(options?: QueryOptions): UseQueryResult<PushConfig> {
+  return useQuery({
+    queryKey: queryKeys.pushConfig,
+    queryFn: getPushConfig,
+    staleTime: Infinity,
+    enabled: options?.enabled,
   })
 }
 

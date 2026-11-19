@@ -310,6 +310,11 @@ jobs:
           echo "--- SPA is served ---"
           curl -fsS http://localhost:7777/ | grep -qi '<div id="root">'
 
+          # Browsers refuse to register a service worker served with any other type,
+          # and without it push notifications only reach Safari.
+          echo "--- push service worker is served as JavaScript ---"
+          curl -fsS -o /dev/null -w '%{content_type}\n' http://localhost:7777/sw.js | tee /dev/stderr | grep -qi 'javascript'
+
       - name: Verify migrations reached head
         run: |
           set -euo pipefail

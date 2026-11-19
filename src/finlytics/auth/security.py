@@ -43,20 +43,22 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         return False
 
 
-def create_token(username: str, *, version: int, remember: bool = False) -> str:
+def create_token(
+    username: str, *, version: int, remember: bool = False, jti: str | None = None
+) -> str:
     """Mint a session token for ``username``.
 
     ``version`` must be the user's current ``token_version``: bumping that column
     ends every session at once.  ``jti`` names this one token so that logout can
-    revoke it alone, and ``rem`` records the remember-me choice, so a token
-    re-issued later keeps the lifetime the user asked for.
+    revoke it alone (random unless given), and ``rem`` records the remember-me
+    choice, so a token re-issued later keeps the lifetime the user asked for.
     """
     days = settings.auth_remember_expire_days if remember else settings.auth_token_expire_days
     now = datetime.now(UTC)
     payload = {
         "sub": username,
         "ver": version,
-        "jti": secrets.token_hex(16),
+        "jti": jti or secrets.token_hex(16),
         "rem": remember,
         "iat": now,
         "exp": now + timedelta(days=days),
@@ -69,3 +71,15 @@ def decode_token(token: str) -> dict | None:
         return jwt.decode(token, settings.auth_secret, algorithms=["HS256"])
     except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
         return None
+
+
+def token_id(token: str) -> str | None:
+    """The ``jti`` of a session token this server signed, even an expired one."""
+    try:
+        claims = jwt.decode(
+            token, settings.auth_secret, algorithms=["HS256"], options={"verify_exp": False}
+        )
+    except jwt.InvalidTokenError:
+        return None
+    jti = claims.get("jti")
+    return jti if isinstance(jti, str) else None

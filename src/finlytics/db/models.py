@@ -22,6 +22,9 @@ mortgage_bonuses            – linked-product discounts that reduce the effecti
 mortgage_prepayments        – lump-sum overpayments (reduce term or reduce payment)
 euribor_rates               – monthly Euribor index series (ECB Data Portal)
 revoked_tokens              – session ids ended by logout, kept until the token expires
+notification_preferences    – alert types a user muted for push and Telegram
+push_subscriptions          – devices that receive push notifications, tied to a session
+push_deliveries             – alerts still to be pushed to each device (worker queue)
 """
 
 from __future__ import annotations
@@ -33,6 +36,7 @@ from sqlalchemy import (
     JSON,
     BigInteger,
     Boolean,
+    CheckConstraint,
     Column,
     Date,
     DateTime,
@@ -702,6 +706,96 @@ class NotificationDelivery(Base):
             f"<NotificationDelivery id={self.id} notif={self.notification_id} "
             f"channel={self.channel!r} status={self.status!r}>"
         )
+
+
+class NotificationPreference(Base):
+    """Whether one alert type (a detector's ``source``) leaves the app, by push or Telegram.
+
+    No row means it does: every type is on until the user turns it off. The in-app
+    bell always lists every alert, whatever is chosen here.
+    """
+
+    __tablename__ = "notification_preferences"
+
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    source: Mapped[str] = mapped_column(String(50), primary_key=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False)
+
+
+class PushSubscription(Base):
+    """A browser or installed app that receives push notifications (Web Push).
+
+    It belongs to the session that registered it: signing out there deletes it,
+    and a ``token_version`` behind the user's (password change, "sign out other
+    devices") pauses it until the device signs in again and registers anew. The
+    endpoint is an address of the browser's push service and is never logged.
+    """
+
+    __tablename__ = "push_subscriptions"
+    __table_args__ = (
+        UniqueConstraint("endpoint", name="uq_push_subscriptions_endpoint"),
+        Index("ix_push_subscriptions_user_id", "user_id"),
+        Index("ix_push_subscriptions_session_jti", "session_jti"),
+        CheckConstraint("locale IN ('es', 'en')", name="ck_push_subscriptions_locale"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    token_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    session_jti: Mapped[str] = mapped_column(String(64), nullable=False)
+    endpoint: Mapped[str] = mapped_column(String(2048), nullable=False)
+    p256dh: Mapped[str] = mapped_column(String(100), nullable=False)
+    auth: Mapped[str] = mapped_column(String(40), nullable=False)
+    # The origin the device uses Finlytics from: the pages a notification opens.
+    origin: Mapped[str] = mapped_column(String(255), nullable=False)
+    locale: Mapped[str] = mapped_column(String(2), nullable=False)
+    # Notifications in a row its push service refused; reset by a delivery.
+    failures: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return f"<PushSubscription id={self.id} user={self.user_id}>"
+
+
+class PushDelivery(Base):
+    """An alert still to be pushed to one device: the push worker's durable queue.
+
+    Queued in the transaction that creates the alert, deleted once delivered or
+    dropped. A round claims a row by moving ``next_attempt_at`` past its lease
+    before sending, so another worker skips it and a send lost in a crash is
+    tried again once the lease expires.
+    """
+
+    __tablename__ = "push_deliveries"
+    __table_args__ = (
+        UniqueConstraint("subscription_id", "notification_id", name="uq_push_deliveries_target"),
+        Index("ix_push_deliveries_next_attempt_at", "next_attempt_at"),
+        Index("ix_push_deliveries_notification_id", "notification_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    subscription_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("push_subscriptions.id", ondelete="CASCADE"), nullable=False
+    )
+    notification_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("notifications.id", ondelete="CASCADE"), nullable=False
+    )
+    attempts: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    next_attempt_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 # ── Finance assistant ─────────────────────────────────────────────────────────

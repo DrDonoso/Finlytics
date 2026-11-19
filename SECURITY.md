@@ -29,8 +29,8 @@ reasonable window to ship a fix before public disclosure.
 
 **In scope** — authentication and session handling, authorization gaps between
 accounts, injection, path traversal or arbitrary file access, SSRF via the
-investment connectors, leakage of connector tokens or statement contents, and
-RCE.
+investment connectors or the push notification endpoints, leakage of connector
+tokens or statement contents, and RCE.
 
 **Out of scope** — anything that requires an already-compromised host, findings
 against a deployment that ignores the hardening rules below, denial of service
@@ -43,7 +43,7 @@ Getting these wrong is the most likely cause of a real-world compromise:
 
 | Setting | Requirement |
 |---------|-------------|
-| `AUTH_SECRET` | Generate your own. Signs session JWTs — a shared or placeholder value lets anyone forge a session cookie. The app refuses to start on known placeholders. |
+| `AUTH_SECRET` | Generate your own. Signs session JWTs — a shared or placeholder value lets anyone forge a session cookie. The app refuses to start on known placeholders. The push notifications' signing key (VAPID) is derived from it. |
 | `FINLYTICS_ENCRYPTION_KEY` | Generate your own Fernet key. Encrypts connector API tokens at rest. |
 | `POSTGRES_PASSWORD` | Required; never leave it at the example value. |
 | `AUTH_COOKIE_SECURE` | Set to `true` when serving over HTTPS. |

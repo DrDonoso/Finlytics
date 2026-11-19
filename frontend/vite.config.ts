@@ -8,17 +8,19 @@ import react from '@vitejs/plugin-react'
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const appVersion: string = (globalThis as any).process?.env?.npm_package_version ?? '0.1.0'
 
-/** `public/mockServiceWorker.js` is MSW's worker script. Vite copies everything
- *  in public/ verbatim, so without this it also lands in the PRODUCTION bundle,
- *  publishing an unused service worker at the app's root. Nothing registers it
- *  there, but a request interceptor is not something a finance app should ship
- *  by accident — drop it from every build except the demo. */
-function excludeMswWorker(outDir: string): Plugin {
+/** Files of `public/` that Vite copies into every build but belong to only one:
+ *
+ *  - `mockServiceWorker.js` is MSW's worker script, the demo's API. Nothing
+ *    registers it in production, but a request interceptor is not something a
+ *    finance app should ship by accident.
+ *  - `sw.js` shows the server's push notifications. The demo has no server, and
+ *    its scope would clash with MSW's worker. */
+function dropPublicFile(outDir: string, file: string): Plugin {
   return {
-    name: 'finlytics:exclude-msw-worker',
+    name: `finlytics:drop-${file}`,
     apply: 'build',
     async closeBundle() {
-      await rm(resolve(outDir, 'mockServiceWorker.js'), { force: true })
+      await rm(resolve(outDir, file), { force: true })
     },
   }
 }
@@ -100,7 +102,9 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [
       react(),
-      ...(isDemo ? [emitStaticHostConfig(outDir)] : [excludeMswWorker(outDir)]),
+      ...(isDemo
+        ? [emitStaticHostConfig(outDir), dropPublicFile(outDir, 'sw.js')]
+        : [dropPublicFile(outDir, 'mockServiceWorker.js')]),
     ],
     define: {
       __APP_VERSION__: JSON.stringify(appVersion),

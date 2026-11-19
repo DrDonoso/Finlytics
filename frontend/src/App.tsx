@@ -9,6 +9,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { AssistantProvider } from './contexts/AssistantContext'
 import { NotificationsProvider } from './contexts/NotificationsContext'
 import { ToastProvider } from './contexts/ToastContext'
+import { PushProvider } from './push/PushContext'
 import { useT } from './i18n'
 import { IS_DEMO } from './demo/config'
 import { pageChunks } from './routePrefetch'
@@ -34,6 +35,7 @@ const MortgagePage = lazy(pageChunks['/mortgage'])
 const FinancesOverviewPage = lazy(pageChunks['/finances'])
 const PluginViewWrapper = lazy(pageChunks['/investments/:pluginId'])
 const ConnectorsPage = lazy(pageChunks['/settings/connectors'])
+const NotificationsSettingsPage = lazy(pageChunks['/settings/notifications'])
 const AssistantSettingsPage = lazy(pageChunks['/settings/assistant'])
 const AboutPage = lazy(pageChunks['/settings/about'])
 
@@ -93,6 +95,7 @@ function FullRoutes() {
           <Route path="backup" element={<BackupPage />} />
           <Route path="security" element={<SecurityPage />} />
           <Route path="connectors" element={<ConnectorsPage />} />
+          <Route path="notifications" element={<NotificationsSettingsPage />} />
           <Route path="assistant" element={<AssistantSettingsPage />} />
           <Route path="rules" element={<RulesPage />} />
           <Route path="about" element={<AboutPage />} />
@@ -121,11 +124,13 @@ function AppContent() {
   return (
     <ToastProvider>
     <NotificationsProvider>
+      <PushProvider>
       <AssistantProvider>
         <BrowserRouter>
           {IS_DEMO ? <DemoRoutes /> : <FullRoutes />}
         </BrowserRouter>
       </AssistantProvider>
+      </PushProvider>
     </NotificationsProvider>
     </ToastProvider>
   )

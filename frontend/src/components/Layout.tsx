@@ -358,6 +358,9 @@ export default function Layout() {
                         <NavLink to="/settings/connectors" className={navLinkClass}>
                           <span className="nav-label">{t.settingsSubConnectors}</span>
                         </NavLink>
+                        <NavLink to="/settings/notifications" className={navLinkClass}>
+                          <span className="nav-label">{t.settingsSubNotifications}</span>
+                        </NavLink>
                         <NavLink to="/settings/assistant" className={navLinkClass}>
                           <span className="nav-label">{t.settingsSubAssistant}</span>
                         </NavLink>

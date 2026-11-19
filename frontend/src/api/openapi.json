@@ -5011,6 +5011,46 @@
         "title": "NotificationOut",
         "type": "object"
       },
+      "NotificationPreferenceIn": {
+        "description": "Request body for PATCH /api/notifications/preferences.",
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "source": {
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "enabled"
+        ],
+        "title": "NotificationPreferenceIn",
+        "type": "object"
+      },
+      "NotificationPreferenceOut": {
+        "description": "Whether one alert type (a detector's ``source``) is sent by push and Telegram.",
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "enabled"
+        ],
+        "title": "NotificationPreferenceOut",
+        "type": "object"
+      },
       "OverviewOut": {
         "properties": {
           "currency": {
@@ -5482,6 +5522,124 @@
           "route"
         ],
         "title": "ProviderCardOut",
+        "type": "object"
+      },
+      "PushConfigOut": {
+        "description": "The key browsers subscribe with; null when push is unavailable (no AUTH_SECRET).",
+        "properties": {
+          "public_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Public Key"
+          }
+        },
+        "required": [
+          "public_key"
+        ],
+        "title": "PushConfigOut",
+        "type": "object"
+      },
+      "PushEndpointIn": {
+        "description": "Identifies this device's registration by its push address.",
+        "properties": {
+          "endpoint": {
+            "maxLength": 2048,
+            "minLength": 1,
+            "title": "Endpoint",
+            "type": "string"
+          }
+        },
+        "required": [
+          "endpoint"
+        ],
+        "title": "PushEndpointIn",
+        "type": "object"
+      },
+      "PushSubscriptionIn": {
+        "description": "Request body for PUT /api/push/subscription: the browser's PushSubscription.",
+        "properties": {
+          "endpoint": {
+            "maxLength": 2048,
+            "minLength": 1,
+            "title": "Endpoint",
+            "type": "string"
+          },
+          "keys": {
+            "$ref": "#/components/schemas/PushSubscriptionKeysIn"
+          },
+          "locale": {
+            "enum": [
+              "es",
+              "en"
+            ],
+            "title": "Locale",
+            "type": "string"
+          }
+        },
+        "required": [
+          "endpoint",
+          "keys",
+          "locale"
+        ],
+        "title": "PushSubscriptionIn",
+        "type": "object"
+      },
+      "PushSubscriptionKeysIn": {
+        "properties": {
+          "auth": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Auth",
+            "type": "string"
+          },
+          "p256dh": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "P256Dh",
+            "type": "string"
+          }
+        },
+        "required": [
+          "p256dh",
+          "auth"
+        ],
+        "title": "PushSubscriptionKeysIn",
+        "type": "object"
+      },
+      "PushTestOut": {
+        "description": "Response for POST /api/push/test. ``error``: the device is no longer subscribed\n(``gone``), its push service could not be reached, or it refused the message.",
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "enum": [
+                  "gone",
+                  "unreachable",
+                  "rejected"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "title": "PushTestOut",
         "type": "object"
       },
       "RatePeriodIn": {
@@ -8075,7 +8233,7 @@
     },
     "/api/auth/logout": {
       "post": {
-        "description": "Public (idempotent) — revokes the session token and clears the cookie.\n\nDeleting the cookie alone would leave a copied token valid until it expired,\nso a token that still verifies is recorded in ``revoked_tokens``.  Anything\nelse — no cookie, a forged or expired one — just gets the cookie cleared.",
+        "description": "Public (idempotent) — revokes the session token and clears the cookie.\n\nDeleting the cookie alone would leave a copied token valid until it expired,\nso a token that still verifies is recorded in ``revoked_tokens``.  Anything\nelse — no cookie, a forged or expired one — just gets the cookie cleared.\nEither way a token this server signed stops the device's push notifications.",
         "operationId": "auth_logout_api_auth_logout_post",
         "responses": {
           "200": {
@@ -10090,6 +10248,76 @@
         ]
       }
     },
+    "/api/notifications/preferences": {
+      "get": {
+        "description": "Every alert type, with whether push and Telegram send it (the bell shows them all).",
+        "operationId": "list_notification_preferences_api_notifications_preferences_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/NotificationPreferenceOut"
+                  },
+                  "title": "Response List Notification Preferences Api Notifications Preferences Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Notification Preferences",
+        "tags": [
+          "notifications"
+        ]
+      },
+      "patch": {
+        "description": "Turn one alert type on or off for push and Telegram; 422 for an unknown type.",
+        "operationId": "update_notification_preference_api_notifications_preferences_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotificationPreferenceIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/NotificationPreferenceOut"
+                  },
+                  "title": "Response Update Notification Preference Api Notifications Preferences Patch",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Notification Preference",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
     "/api/notifications/read-all": {
       "post": {
         "description": "Mark all unread, active notifications as read for the current user.",
@@ -10203,6 +10431,139 @@
         "summary": "Mark Read",
         "tags": [
           "notifications"
+        ]
+      }
+    },
+    "/api/push": {
+      "get": {
+        "operationId": "push_config_api_push_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushConfigOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Push Config",
+        "tags": [
+          "push"
+        ]
+      }
+    },
+    "/api/push/subscription": {
+      "put": {
+        "description": "Register the device for the signed-in session. 422 when its browser uses a push service\nFinlytics does not send to, or the page is not served over HTTPS (or localhost).",
+        "operationId": "subscribe_api_push_subscription_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushSubscriptionIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Subscribe",
+        "tags": [
+          "push"
+        ]
+      }
+    },
+    "/api/push/test": {
+      "post": {
+        "description": "Send this device a test notification; 404 when it is not registered.",
+        "operationId": "send_test_api_push_test_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushEndpointIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushTestOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Send Test",
+        "tags": [
+          "push"
+        ]
+      }
+    },
+    "/api/push/unsubscribe": {
+      "post": {
+        "description": "Forget this device (nothing happens unless it is registered for the signed-in user).",
+        "operationId": "unsubscribe_api_push_unsubscribe_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushEndpointIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Unsubscribe",
+        "tags": [
+          "push"
         ]
       }
     },

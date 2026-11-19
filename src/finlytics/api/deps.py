@@ -54,6 +54,8 @@ class CurrentSession:
 
     user: User
     remember: bool
+    # The token's id: what logout revokes and what a device's push registration follows.
+    jti: str = ""
 
 
 async def load_session_user(db: AsyncSession, claims: dict) -> User | None:
@@ -105,7 +107,7 @@ async def get_current_session(request: Request) -> CurrentSession:
         user = await load_session_user(auth_db, claims)
     if user is None:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    return CurrentSession(user=user, remember=claims.get("rem") is True)
+    return CurrentSession(user=user, remember=claims.get("rem") is True, jti=claims["jti"])
 
 
 async def get_current_user(request: Request) -> User:

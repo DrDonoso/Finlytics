@@ -25,6 +25,7 @@ export const pageChunks = {
   '/settings/backup': () => import('./pages/BackupPage'),
   '/settings/security': () => import('./pages/SecurityPage'),
   '/settings/connectors': () => import('./pages/ConnectorsPage'),
+  '/settings/notifications': () => import('./pages/NotificationsSettingsPage'),
   '/settings/assistant': () => import('./pages/AssistantSettingsPage'),
   '/settings/rules': () => import('./pages/RulesPage'),
   '/settings/about': () => import('./pages/AboutPage'),

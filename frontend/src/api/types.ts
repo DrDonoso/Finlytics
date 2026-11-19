@@ -861,6 +861,32 @@ export interface TelegramTestOut {
   error?: string | null
 }
 
+/** Whether push and Telegram send one alert type (a detector's `source`). */
+export interface NotificationPreference {
+  source: string
+  enabled: boolean
+}
+
+// ─── Push notifications ───────────────────────────────────────────────────────
+
+/** `public_key` is null when the server cannot send push notifications (no AUTH_SECRET). */
+export interface PushConfig {
+  public_key: string | null
+}
+
+export interface PushSubscriptionPayload {
+  endpoint: string
+  keys: { p256dh: string; auth: string }
+  locale: 'es' | 'en'
+}
+
+export type PushTestError = 'gone' | 'unreachable' | 'rejected'
+
+export interface PushTestResult {
+  ok: boolean
+  error?: PushTestError | null
+}
+
 // ─── Finance assistant ────────────────────────────────────────────────────────
 
 export interface AssistantStatus {

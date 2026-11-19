@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import secrets
 
-from pydantic import model_validator
+from pydantic import PrivateAttr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Values that have ever appeared in the public .env.example / docs. Using any of
@@ -106,6 +106,14 @@ class Settings(BaseSettings):
     # Generate: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
     finlytics_encryption_key: str | None = None
 
+    # Set when AUTH_SECRET was generated at startup: anything derived from it
+    # (sessions, the push notifications' signing key) dies with the process.
+    _auth_secret_generated: bool = PrivateAttr(default=False)
+
+    @property
+    def auth_secret_is_persistent(self) -> bool:
+        return not self._auth_secret_generated
+
     @model_validator(mode="after")
     def _ensure_auth_secret(self) -> Settings:
         """Reject public placeholders; auto-generate when AUTH_SECRET is unset.
@@ -122,9 +130,10 @@ class Settings(BaseSettings):
             )
         if not self.auth_secret:
             self.auth_secret = secrets.token_urlsafe(32)
+            self._auth_secret_generated = True
             logging.getLogger("finlytics.config").warning(
                 "AUTH_SECRET not set — generated ephemeral key; "
-                "sessions won't survive restarts."
+                "sessions won't survive restarts and push notifications are off."
             )
         return self
 

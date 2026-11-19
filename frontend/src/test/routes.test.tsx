@@ -34,6 +34,7 @@ import Dashboard from '../pages/Dashboard'
 import FinancesOverviewPage from '../pages/FinancesOverviewPage'
 import InvestmentsLandingPage from '../pages/InvestmentsLandingPage'
 import MortgagePage from '../pages/MortgagePage'
+import NotificationsSettingsPage from '../pages/NotificationsSettingsPage'
 import RulesPage from '../pages/RulesPage'
 import SecurityPage from '../pages/SecurityPage'
 import SettingsPage from '../pages/SettingsPage'
@@ -96,6 +97,17 @@ vi.mock('../api/client', () => {
     getNotifications: empty([]),
     getUnreadCount: empty({ count: 0 }),
     getNotificationChannels: empty([]),
+    getNotificationPreferences: empty([{ source: 'statement', enabled: true }, { source: 'espp', enabled: true }]),
+    getImportSummarySettings: empty({ enabled: false, channel_id: null, language: 'en', ai_available: false }),
+    getImportSummaries: empty([]),
+    getPushConfig: empty({ public_key: null }),
+    patchNotificationPreference: vi.fn(),
+    putImportSummarySettings: vi.fn(),
+    retryImportSummary: vi.fn(),
+    deleteNotificationChannel: vi.fn(),
+    putPushSubscription: vi.fn(),
+    unsubscribePush: vi.fn(),
+    testPush: vi.fn(),
     getBackupPreview: empty(null),
     // The assistant reports itself disabled here, so Layout mounts the launcher
     // and the launcher correctly renders nothing — which is the path a route
@@ -166,6 +178,7 @@ const ROUTES: [string, React.ReactNode][] = [
   ['/settings/rules', <RulesPage key="sr" />],
   ['/settings/appearance', <AppearancePage key="sap" />],
   ['/settings/connectors', <ConnectorsPage key="scon" />],
+  ['/settings/notifications', <NotificationsSettingsPage key="snot" />],
   ['/settings/assistant', <AssistantSettingsPage key="sasi" />],
   ['/settings/backup', <BackupPage key="sb" />],
   ['/settings/security', <SecurityPage key="ssec" />],

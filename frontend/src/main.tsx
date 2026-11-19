@@ -7,6 +7,10 @@ import { LanguageProvider } from './i18n'
 import { ThemeProvider } from './contexts/ThemeContext'
 import { PrivacyProvider } from './contexts/PrivacyContext'
 import { queryClient } from './api/queryClient'
+import { takeLaunchIntent } from './push/launch'
+
+// Before the router reads the address: a push notification's `?notif=` is for the alerts only.
+takeLaunchIntent()
 
 function render() {
   createRoot(document.getElementById('root')!).render(
