@@ -4,6 +4,11 @@ All notable changes to Finlytics are documented here.
 
 <!-- releases -->
 
+## [20261120] - 2026-11-20
+
+- Add yearly Modelo 720 check of the Fidelity shares (#122)
+
+
 ## [20261119] - 2026-11-19
 
 - Send detector alerts as push notifications to phones and computers (#121)
