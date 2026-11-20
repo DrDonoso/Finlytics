@@ -509,6 +509,37 @@
   margin-left: 6px;
 }
 
+/* Modelo 720 check: the warning above when it exceeds the threshold, a note when it does not. */
+.modelo720-banner--info {
+  background: rgba(var(--primary-rgb), 0.06);
+  border-color: rgba(var(--primary-rgb), 0.22);
+  border-left-color: var(--primary);
+  color: var(--text);
+}
+.modelo720-banner > svg {
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+.modelo720-banner__text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.modelo720-banner__dismiss {
+  flex-shrink: 0;
+  display: flex;
+  padding: var(--space-1);
+  background: none;
+  border: 0;
+  border-radius: 4px;
+  color: inherit;
+  cursor: pointer;
+}
+.modelo720-banner__dismiss:hover {
+  background: rgba(var(--primary-rgb), 0.10);
+}
+
 /* Amber stale-price indicator inside the account header strip */
 .inv-account-header__updated--stale {
   color: var(--warning-text);

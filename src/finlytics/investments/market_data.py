@@ -433,6 +433,29 @@ async def get_latest_price(db: AsyncSession) -> LatestPriceRow | None:
     )
 
 
+async def year_end_close(db: AsyncSession, year: int) -> Decimal | None:
+    """MSFT's last close of *year* in EUR, at that day's exchange rate, from the cache only.
+
+    None until a close of a later day is cached: before that, the last stored close of the
+    year may not be its last trading day, or may still be an intraday price.
+    """
+    year_end = date(year, 12, 31)
+    later = await db.scalar(
+        select(PriceHistory.price_date)
+        .where(PriceHistory.ticker == _MSFT_TICKER, PriceHistory.price_date > year_end)
+        .limit(1)
+    )
+    if later is None:
+        return None
+    close = await db.scalar(
+        select(PriceHistory.close_eur)
+        .where(PriceHistory.ticker == _MSFT_TICKER, PriceHistory.price_date <= year_end)
+        .order_by(PriceHistory.price_date.desc())
+        .limit(1)
+    )
+    return Decimal(str(close)) if close is not None else None
+
+
 async def backfill_price_history(earliest_date: date, db: AsyncSession) -> int:
     """Fetch MSFT price history from *earliest_date* to today and bulk-insert.
 

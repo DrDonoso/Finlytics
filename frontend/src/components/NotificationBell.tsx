@@ -39,6 +39,10 @@ function resolveBody(notif: NotificationOut, t: Dict): string | null {
       })
     case 'notif.espp_overdue':
       return t.notifBodyEsppOverdue({ period: String(a.period ?? '') })
+    case 'notif.modelo720_exceeds':
+      return t.notifBodyModelo720Exceeds
+    case 'notif.modelo720_below':
+      return t.notifBodyModelo720Below
     default:
       return null
   }
@@ -56,6 +60,10 @@ function resolveTitle(notif: NotificationOut, t: Dict): string {
       })
     case 'notif.espp_overdue':
       return t.notifTitleEsppOverdue({ period: a.period ?? '' })
+    case 'notif.modelo720_exceeds':
+      return t.notifTitleModelo720Exceeds({ year: a.year ?? '' })
+    case 'notif.modelo720_below':
+      return t.notifTitleModelo720Below({ year: a.year ?? '' })
     default:
       return notif.title_key.split('.').pop() ?? notif.title_key
   }

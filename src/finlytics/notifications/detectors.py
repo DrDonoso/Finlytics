@@ -17,6 +17,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from datetime import date
+from decimal import Decimal
 from typing import Protocol, runtime_checkable
 
 from sqlalchemy import select
@@ -188,11 +189,91 @@ class EsppDetector:
         ]
 
 
+# ── Modelo720Detector ─────────────────────────────────────────────────────────
+
+# Spanish tax residents declare their foreign securities (Modelo 720) when, on December 31,
+# they were worth more than this. The same figure appears in the i18n texts.
+MODELO_720_THRESHOLD_EUR = Decimal(50_000)
+
+
+class Modelo720Detector:
+    """From January 1 to March 31, tells whether the Fidelity shares held on the previous
+    December 31 exceeded the Modelo 720 threshold, and also when they did not.
+
+    Valued as the declaration values them: the shares held that day at its close and
+    exchange rate, read from the cached ``price_history`` only. Waits until a later close
+    proves the year's last one final and, in January, until the December ESPP purchase is
+    imported when one is expected, so no verdict is given on incomplete data. The verdict
+    is part of the dedup key: when it changes, a new alert is sent.
+    """
+
+    id = "modelo720"
+    is_condition = True
+
+    async def evaluate(
+        self,
+        db: AsyncSession,
+        user_id: int,
+        *,
+        today: date,
+    ) -> list[DetectedNotification]:
+        from finlytics.api.fidelity import _get_fidelity_connection, _last_weekday_of_month
+        from finlytics.db.models import EsppLot
+        from finlytics.investments.market_data import year_end_close
+
+        if today.month > 3:
+            return []
+        year = today.year - 1
+
+        conn = await _get_fidelity_connection(user_id, db)
+        if conn is None:
+            return []
+        lots = (
+            await db.execute(
+                select(EsppLot).where(
+                    EsppLot.connection_id == conn.id,
+                    EsppLot.purchase_date <= date(year, 12, 31),
+                )
+            )
+        ).scalars().all()
+        shares = sum((Decimal(str(lot.shares)) for lot in lots), Decimal(0))
+        if shares <= 0:
+            return []
+
+        purchases = [lot.purchase_date for lot in lots if lot.share_source == "SP"]
+        september, december = _last_weekday_of_month(year, 9), _last_weekday_of_month(year, 12)
+        still_buying = any(day >= september for day in purchases)
+        if today.month == 1 and still_buying and not any(day >= december for day in purchases):
+            return []
+
+        close = await year_end_close(db, year)
+        if close is None:
+            return []
+
+        value = (shares * close).quantize(Decimal("0.01"))
+        verdict = "exceeds" if value > MODELO_720_THRESHOLD_EUR else "below"
+        key = f"notif.modelo720_{verdict}"
+        return [
+            DetectedNotification(
+                source=self.id,
+                type=f"modelo720_{verdict}",
+                severity="warning" if verdict == "exceeds" else "info",
+                dedup_key=f"modelo720:{year}:{verdict}",
+                title_key=key,
+                title_args={"year": str(year)},
+                body_key=key,
+                body_args={"value_eur": float(value)},
+                action_link="/investments/fidelity-espp",
+            )
+        ]
+
+
 # ── Registry ──────────────────────────────────────────────────────────────────
 
 REGISTRY: list[Detector] = [
     StatementDetector(),
     EsppDetector(),
+    Modelo720Detector(),
 ]
 """All active detectors.  Append a new Detector instance here to add a
 notification type — the orchestrator discovers it automatically."""

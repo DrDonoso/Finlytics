@@ -261,6 +261,7 @@ async def test_each_alert_type_can_be_muted(factory) -> None:
         assert (await device.get("/api/notifications/preferences")).json() == [
             {"source": "statement", "enabled": True},
             {"source": "espp", "enabled": True},
+            {"source": "modelo720", "enabled": True},
         ]
         resp = await device.patch(
             "/api/notifications/preferences", json={"source": "espp", "enabled": False}
@@ -268,6 +269,7 @@ async def test_each_alert_type_can_be_muted(factory) -> None:
         assert resp.json() == [
             {"source": "statement", "enabled": True},
             {"source": "espp", "enabled": False},
+            {"source": "modelo720", "enabled": True},
         ]
         await device.patch(
             "/api/notifications/preferences", json={"source": "espp", "enabled": True}

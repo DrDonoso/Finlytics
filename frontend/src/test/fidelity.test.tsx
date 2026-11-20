@@ -10,6 +10,7 @@ import * as api from '../api/client'
 import { queryKeys } from '../api/queries'
 import { createQueryClient } from '../api/queryClient'
 import type { FidelityImportPreview, InvestmentPlugin, NotificationOut } from '../api/types'
+import NotificationBell from '../components/NotificationBell'
 import { NotificationsProvider } from '../contexts/NotificationsContext'
 import { ToastProvider } from '../contexts/ToastContext'
 import { handlers } from '../demo/handlers'
@@ -99,6 +100,7 @@ function renderPage(path = '/investments/fidelity-espp') {
     { path: '/', element: <Dashboard /> },
     { path: '/investments/fidelity-espp', element: <FidelityView /> },
     { path: '/settings/connectors', element: <ConnectorsPage /> },
+    { path: '/bell', element: <NotificationBell /> },
   ], { initialEntries: [path] })
   render(
     <QueryClientProvider client={client}>
@@ -267,5 +269,85 @@ describe('Fidelity import actions', () => {
     expect(screen.queryByRole('button', { name: en.esppReminderAction })).toBeNull()
     await user.click(screen.getByRole('button', { name: en.fidelityImportBtn }))
     expect(await screen.findByRole('dialog', { name: en.fidelityImportTitle })).toBeVisible()
+  })
+})
+
+function modelo720Check(verdict: 'exceeds' | 'below', value: number): NotificationOut {
+  return {
+    id: 2,
+    source: 'modelo720',
+    type: `modelo720_${verdict}`,
+    severity: verdict === 'exceeds' ? 'warning' : 'info',
+    title_key: `notif.modelo720_${verdict}`,
+    title_args: { year: '2026' },
+    body_key: `notif.modelo720_${verdict}`,
+    body_args: { value_eur: value },
+    action_link: '/investments/fidelity-espp',
+    created_at: '2027-01-15T00:00:00Z',
+    read_at: null,
+    dismissed_at: null,
+  }
+}
+
+function serveChecks(...checks: NotificationOut[]) {
+  let listed = checks
+  const dismissed: string[] = []
+  server.use(
+    http.get('/api/notifications', () => HttpResponse.json(listed)),
+    http.get('/api/notifications/unread-count', () => HttpResponse.json({ count: listed.length })),
+    http.post('/api/notifications/:id/dismiss', ({ params }) => {
+      dismissed.push(String(params.id))
+      listed = listed.filter(check => String(check.id) !== params.id)
+      return new HttpResponse(null, { status: 204 })
+    }),
+  )
+  return dismissed
+}
+
+describe('Modelo 720 check', () => {
+  it.each(['/', '/investments/fidelity-espp'])('tells the verdict and its blurred value on %s', async path => {
+    const dismissed = serveChecks(modelo720Check('exceeds', 52200))
+    const user = userEvent.setup()
+    renderPage(path)
+
+    const title = await screen.findByText(en.notifTitleModelo720Exceeds({ year: '2026' }))
+    const banner = title.closest('.modelo720-banner') as HTMLElement
+    expect(banner).toHaveAttribute('role', 'alert')
+    expect(within(banner).getByText(en.notifBodyModelo720Exceeds)).toBeInTheDocument()
+    expect(within(banner).getByText('€52,200.00')).toHaveClass('private')
+    const link = within(banner).queryByRole('link', { name: en.modelo720Action })
+    if (path === '/') expect(link).toHaveAttribute('href', '/investments/fidelity-espp')
+    else expect(link).toBeNull()
+
+    await user.click(within(banner).getByRole('button', { name: en.notifDismiss }))
+
+    await waitFor(() => expect(screen.queryByText(en.notifTitleModelo720Exceeds({ year: '2026' }))).toBeNull())
+    expect(dismissed).toEqual(['2'])
+  })
+
+  it('also tells when the shares stay below the threshold', async () => {
+    localStorage.setItem('finlytics_lang', 'es')
+    serveChecks(modelo720Check('below', 42000))
+    renderPage()
+
+    const title = await screen.findByText(es.notifTitleModelo720Below({ year: '2026' }))
+    const banner = title.closest('.modelo720-banner') as HTMLElement
+    expect(banner).toHaveAttribute('role', 'status')
+    expect(banner).toHaveClass('modelo720-banner--info')
+    expect(within(banner).getByText(es.notifBodyModelo720Below)).toBeInTheDocument()
+    expect(within(banner).getByText(/42\.000,00\s€/)).toHaveClass('private')
+  })
+
+  it('lists it in the bell with what it means', async () => {
+    serveChecks(modelo720Check('exceeds', 52200))
+    const user = userEvent.setup()
+    renderPage('/bell')
+
+    await user.click(screen.getByRole('button', { name: en.notifPanelTitle }))
+
+    const panel = within(await screen.findByRole('dialog', { name: en.notifPanelTitle }))
+    expect(await panel.findByText(en.notifTitleModelo720Exceeds({ year: '2026' }))).toBeInTheDocument()
+    expect(panel.getByText(en.notifBodyModelo720Exceeds)).toBeInTheDocument()
+    expect(panel.queryByText(/52,200/)).toBeNull()
   })
 })

@@ -136,7 +136,7 @@ The counterweight to the investments side: the first **liability** the app model
 
 ### 🔔 Notifications
 
-Detectors run in the background and raise reminders when something needs you — today a missing monthly statement or an overdue ESPP upload; adding another is one entry in a registry. They surface in the in-app bell (read/dismissed state stored server-side, so it follows you across devices) and, optionally, outside the app. Everything is configured in **Settings → Notifications**:
+Detectors run in the background and raise reminders when something needs you — today a missing monthly statement, an overdue ESPP upload and the yearly Modelo 720 check; adding another is one entry in a registry. They surface in the in-app bell (read/dismissed state stored server-side, so it follows you across devices) and, optionally, outside the app. Everything is configured in **Settings → Notifications**:
 
 - **Push notifications** to your phone or computer, even with Finlytics closed. Turn them on per device; a new alert arrives at once, and the statements missing on the 1st of a month arrive as one notification. Tapping it opens the right page and marks those alerts as read, and the installed app's icon shows how many are unread. *Send a test notification* checks the whole chain.
 - **Telegram**: connect a bot and the same reminders arrive there too.
@@ -149,6 +149,8 @@ Push uses the standard Web Push protocol, implemented by the server itself (no t
 3. **Outbound HTTPS** from the container to `fcm.googleapis.com`, `*.push.apple.com`, `*.push.services.mozilla.com` and `*.notify.windows.com`.
 
 On **iPhone and iPad** (iOS/iPadOS 16.4 or later) only the app added to the Home Screen gets notifications: in Safari, *Share → Add to Home Screen*, then open it from there. A registration belongs to the device's session: signing out stops it, and changing the password or signing out other devices pauses the other devices until they sign in again. Notification texts carry account names and periods, never amounts.
+
+**Modelo 720 check.** From January 1 to March 31, Finlytics tells you whether the Fidelity shares you held on the previous December 31 were worth more than €50,000, the threshold of Spain's foreign-assets declaration (Modelo 720), and also when they were not. They are valued as the declaration values them: the shares held that day at its MSFT close and exchange rate, taken from the price cache that opening Home or the investments pages keeps current. The check waits until a close after December 31 is cached and, in January, until the December ESPP purchase is imported when one is expected. Home and the Fidelity page show the verdict with the value behind it; push and Telegram carry only the verdict. Only the imported Fidelity lots count: Finlytics does not know about sold shares, other foreign brokers or cash. If you filed in an earlier year, you only need to file again when the value rose by more than €20,000 since that declaration.
 
 **Optional post-import analysis:** in **Settings → Notifications**, enable
 **Import summaries** and select your configured Telegram channel. Each bank statement

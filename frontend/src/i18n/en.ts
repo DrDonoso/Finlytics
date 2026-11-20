@@ -710,6 +710,9 @@ const en: Dict = {
       ? `There is a pending ESPP purchase to import (${periodLabel}). Export your Fidelity CSV and upload it.`
       : 'There is a pending ESPP purchase to import. Export your Fidelity CSV and upload it.',
   esppReminderAction: 'Import now',
+  // ── Modelo 720 banner (the `modelo720` alert, on the Dashboard and Fidelity) ─
+  modelo720Value: (year) => `Value on 31 December ${year}, from the imported lots:`,
+  modelo720Action: 'View shares',
   // ── About page ────────────────────────────────────────────────────────────
   settingsSubAbout: 'About',
   aboutTitle: 'About',
@@ -742,11 +745,15 @@ const en: Dict = {
   notifTimeWeeks: (n) => n === 1 ? '1 week ago' : `${n} weeks ago`,
   notifTitleStatementMissing: ({ month, account }) => `Missing statement for ${account} — ${month}`,
   notifTitleEsppOverdue: ({ period }) => `ESPP upload overdue — ${period}`,
+  notifTitleModelo720Exceeds: ({ year }) => `Modelo 720 (tax year ${year}): above the threshold`,
+  notifTitleModelo720Below: ({ year }) => `Modelo 720 (tax year ${year}): below the threshold`,
   notifActionView: 'View',
   notifMarkRead: 'Mark as read',
   notifTitleUnknown: 'Notification',
   notifBodyStatementMissing: ({ month, account }) => `The ${account} statement for ${month} has not been imported yet.`,
   notifBodyEsppOverdue: ({ period }) => `The ESPP CSV for period ${period} has not been imported.`,
+  notifBodyModelo720Exceeds: 'Your Fidelity shares were worth more than €50,000 on 31 December. The deadline is 31 March. If you filed it in an earlier year, you only need to file again if their value has risen by more than €20,000 since your last declaration.',
+  notifBodyModelo720Below: "Your Fidelity shares were worth no more than €50,000 on 31 December, so they don't require filing.",
   // ── Telegram wizard ────────────────────────────────────────────────────────
   tgWizardTitle: 'Set up Telegram',
   tgWizardProgressLabel: 'Setup steps',
@@ -869,6 +876,10 @@ const en: Dict = {
     espp: {
       label: 'ESPP upload overdue',
       description: "When the quarterly Fidelity ESPP purchase hasn't been imported.",
+    },
+    modelo720: {
+      label: 'Modelo 720',
+      description: 'Between January and March, whether or not your Fidelity shares exceeded €50,000 on 31 December.',
     },
   },
   txDetailModalTitle: 'Transaction detail',

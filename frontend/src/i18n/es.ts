@@ -710,6 +710,9 @@ const es: Dict = {
       ? `Hay una compra ESPP pendiente de importar (${periodLabel}). Exporta tu CSV de Fidelity y súbelo.`
       : 'Hay una compra ESPP pendiente de importar. Exporta tu CSV de Fidelity y súbelo.',
   esppReminderAction: 'Importar ahora',
+  // ── Modelo 720 banner (the `modelo720` alert, on the Dashboard and Fidelity) ─
+  modelo720Value: (year) => `Valor a 31 de diciembre de ${year} según los lotes importados:`,
+  modelo720Action: 'Ver acciones',
   // ── About page ────────────────────────────────────────────────────────────
   settingsSubAbout: 'Acerca de',
   aboutTitle: 'Acerca de',
@@ -742,11 +745,15 @@ const es: Dict = {
   notifTimeWeeks: (n) => n === 1 ? 'hace 1 semana' : `hace ${n} semanas`,
   notifTitleStatementMissing: ({ month, account }) => `Falta subir el extracto de ${account} — ${month}`,
   notifTitleEsppOverdue: ({ period }) => `Subida ESPP pendiente — ${period}`,
+  notifTitleModelo720Exceeds: ({ year }) => `Modelo 720 (ejercicio ${year}): superas el umbral`,
+  notifTitleModelo720Below: ({ year }) => `Modelo 720 (ejercicio ${year}): no superas el umbral`,
   notifActionView: 'Ver',
   notifMarkRead: 'Marcar como leído',
   notifTitleUnknown: 'Notificación',
   notifBodyStatementMissing: ({ month, account }) => `El extracto de ${account} de ${month} no se ha importado aún.`,
   notifBodyEsppOverdue: ({ period }) => `No se ha importado el CSV de ESPP para el periodo ${period}.`,
+  notifBodyModelo720Exceeds: 'Tus acciones de Fidelity valían más de 50.000 € a 31 de diciembre. El plazo acaba el 31 de marzo. Si ya lo presentaste otro año, solo tienes que repetirlo si su valor ha subido más de 20.000 € desde la última declaración.',
+  notifBodyModelo720Below: 'Tus acciones de Fidelity no superaban los 50.000 € a 31 de diciembre: por ellas no tienes que presentarlo.',
   // ── Telegram wizard ────────────────────────────────────────────────────────
   tgWizardTitle: 'Configurar Telegram',
   tgWizardProgressLabel: 'Pasos de configuración',
@@ -869,6 +876,10 @@ const es: Dict = {
     espp: {
       label: 'Subida ESPP pendiente',
       description: 'Cuando falta importar la compra trimestral del ESPP de Fidelity.',
+    },
+    modelo720: {
+      label: 'Modelo 720',
+      description: 'Entre enero y marzo, si tus acciones de Fidelity superaban o no los 50.000 € a 31 de diciembre.',
     },
   },
   txDetailModalTitle: 'Detalle de transacción',

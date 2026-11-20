@@ -242,7 +242,8 @@ def wake_push() -> None:
 @dataclass(frozen=True)
 class Texts:
     """The notifications' texts in one language. ``statement``: one account; ``statements``:
-    several, of the same month."""
+    several, of the same month. ``modelo720``: whether the Fidelity shares exceeded the
+    threshold, never with the figures."""
 
     statement_title: str
     statement_body: str
@@ -250,6 +251,10 @@ class Texts:
     statements_body: str
     espp_title: str
     espp_body: str
+    modelo720_exceeds_title: str
+    modelo720_exceeds_body: str
+    modelo720_below_title: str
+    modelo720_below_body: str
     other_title: str
     other_body: str
     test_title: str
@@ -267,6 +272,16 @@ TEXTS: dict[Locale, Texts] = {
         statements_body="Falta subir el extracto de {month} de {accounts}.",
         espp_title="Subida ESPP pendiente",
         espp_body="Falta importar el CSV del ESPP de {period}.",
+        modelo720_exceeds_title="Modelo 720 (ejercicio {year}): superas el umbral",
+        modelo720_exceeds_body=(
+            "Tus acciones de Fidelity lo superaban a 31 de diciembre. "
+            "El plazo acaba el 31 de marzo."
+        ),
+        modelo720_below_title="Modelo 720 (ejercicio {year}): no superas el umbral",
+        modelo720_below_body=(
+            "Tus acciones de Fidelity no lo superaban a 31 de diciembre: "
+            "por ellas no tienes que presentarlo."
+        ),
         other_title="Nueva alerta",
         other_body="Ábrela en Finlytics para ver los detalles.",
         test_title="Notificación de prueba",
@@ -285,6 +300,15 @@ TEXTS: dict[Locale, Texts] = {
         statements_body="The {month} statements of {accounts} haven't been imported yet.",
         espp_title="ESPP upload overdue",
         espp_body="The ESPP CSV for {period} hasn't been imported yet.",
+        modelo720_exceeds_title="Modelo 720 (tax year {year}): above the threshold",
+        modelo720_exceeds_body=(
+            "Your Fidelity shares exceeded it on 31 December. The deadline is 31 March."
+        ),
+        modelo720_below_title="Modelo 720 (tax year {year}): below the threshold",
+        modelo720_below_body=(
+            "Your Fidelity shares did not exceed it on 31 December, "
+            "so they don't require filing."
+        ),
         other_title="New alert",
         other_body="Open it in Finlytics to see the details.",
         test_title="Test notification",
@@ -305,6 +329,7 @@ class Alert:
 
     id: int
     source: str
+    type: str
     args: dict[str, Any]
     link: str | None
 
@@ -398,6 +423,12 @@ def alert_message(
     elif first.source == "espp":
         title = texts.espp_title
         body = texts.espp_body.format(period=first.args.get("period", "—"))
+    elif first.source == "modelo720":
+        if first.type == "modelo720_exceeds":
+            title, body = texts.modelo720_exceeds_title, texts.modelo720_exceeds_body
+        else:
+            title, body = texts.modelo720_below_title, texts.modelo720_below_body
+        title = title.format(year=first.args.get("year", "—"))
     else:
         title, body = texts.other_title, texts.other_body
     ids = sorted(alert.id for alert in alerts)
@@ -507,6 +538,7 @@ async def _claim(now: datetime) -> tuple[list[Group], list[int], int]:
             alert = Alert(
                 id=notification.id,
                 source=notification.source,
+                type=notification.type,
                 args=dict(notification.title_args or {}),
                 link=notification.action_link,
             )

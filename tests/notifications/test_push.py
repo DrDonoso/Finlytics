@@ -89,7 +89,7 @@ async def add_alerts(factory, *alerts: dict[str, Any], now: datetime = NOW) -> l
     async with factory() as db, db.begin():
         rows = [
             Notification(
-                user_id=1, source=alert["source"], type="t", severity="warning",
+                    user_id=1, source=alert["source"], type=alert.get("type", "t"), severity="warning",
                 dedup_key=f"{alert['source']}:{next(_keys)}",
                 title_key="notif.x", title_args=alert.get("args", {}),
                 action_link=alert.get("link"), created_at=now, updated_at=now,
@@ -158,6 +158,15 @@ async def test_each_alert_type_tells_what_it_is_and_opens_its_page(factory, serv
         {"source": "espp", "args": {"period": "Q3 2026"}, "link": "/investments/fidelity-espp"},
         {"source": "future", "args": {}, "link": "https://elsewhere.example.com"},
     )
+    shares = "/investments/fidelity-espp"
+    third = await add_alerts(
+        factory,
+        *(
+            {"source": "modelo720", "type": f"modelo720_{verdict}", "args": {"year": "2026"},
+             "link": shares}
+            for verdict in ("exceeds", "below")
+        ),
+    )
 
     await push.push_round(NOW)
 
@@ -178,6 +187,23 @@ async def test_each_alert_type_tells_what_it_is_and_opens_its_page(factory, serv
             "Nueva alerta",
             "Ábrela en Finlytics para ver los detalles.",
             f"{ORIGIN}/?notif={second[1]}",
+        ),
+        # The verdict, never the figures.
+        (
+            "Modelo 720 (ejercicio 2026): superas el umbral",
+            (
+                "Tus acciones de Fidelity lo superaban a 31 de diciembre. "
+                "El plazo acaba el 31 de marzo."
+            ),
+            f"{ORIGIN}{shares}?notif={third[0]}",
+        ),
+        (
+            "Modelo 720 (ejercicio 2026): no superas el umbral",
+            (
+                "Tus acciones de Fidelity no lo superaban a 31 de diciembre: "
+                "por ellas no tienes que presentarlo."
+            ),
+            f"{ORIGIN}{shares}?notif={third[1]}",
         ),
     ]
 
