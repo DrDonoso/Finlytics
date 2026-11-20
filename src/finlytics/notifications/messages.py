@@ -38,5 +38,19 @@ def render_notification_text(notification: Notification) -> str:
         period = args.get("period", "—")
         return f"⚠️ Subida ESPP pendiente — {period}"
 
+    if key == "notif.modelo720_exceeds":
+        year = args.get("year", "—")
+        return (
+            f"⚠️ Modelo 720 (ejercicio {year}): tus acciones de Fidelity superaban el umbral "
+            "a 31 de diciembre. El plazo acaba el 31 de marzo."
+        )
+
+    if key == "notif.modelo720_below":
+        year = args.get("year", "—")
+        return (
+            f"ℹ️ Modelo 720 (ejercicio {year}): tus acciones de Fidelity no superaban el umbral "
+            "a 31 de diciembre."
+        )
+
     # Generic fallback — readable even for future notification types
     return f"📌 Finlytics: {key or 'nueva notificación'}"

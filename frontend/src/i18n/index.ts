@@ -720,6 +720,9 @@ export interface Dict {
   // ── ESPP upload-reminder banner ───────────────────────────────────────────
   esppReminderBanner: (periodLabel: string | null) => string
   esppReminderAction: string
+  // ── Modelo 720 banner (the `modelo720` alert, on the Dashboard and Fidelity) ─
+  modelo720Value: (year: string) => string
+  modelo720Action: string
   // ── About page ────────────────────────────────────────────────────────────
   settingsSubAbout: string
   aboutTitle: string
@@ -752,11 +755,15 @@ export interface Dict {
   notifTimeWeeks: (n: number) => string
   notifTitleStatementMissing: (args: { month: string | number; account: string | number }) => string
   notifTitleEsppOverdue: (args: { period: string | number }) => string
+  notifTitleModelo720Exceeds: (args: { year: string | number }) => string
+  notifTitleModelo720Below: (args: { year: string | number }) => string
   notifActionView: string
   notifMarkRead: string
   notifTitleUnknown: string
   notifBodyStatementMissing: (args: { month: string | number; account: string | number }) => string
   notifBodyEsppOverdue: (args: { period: string | number }) => string
+  notifBodyModelo720Exceeds: string
+  notifBodyModelo720Below: string
   // ── Telegram wizard ────────────────────────────────────────────────────────
   tgWizardTitle: string
   tgWizardProgressLabel: string

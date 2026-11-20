@@ -423,6 +423,26 @@ encryption, RFC 8292 VAPID), `notifications/push.py` the devices, the queue and 
   (`"web_push": 8030`), which Safari 18.4+ shows by itself, and opens same-origin pages. The demo
   build drops it (`dropPublicFile` in `vite.config.ts`): its only service worker is MSW's.
 
+### Modelo 720 check
+
+`Modelo720Detector` (`source` `modelo720`) tells, from January 1 to March 31, whether the
+Fidelity shares held on the previous December 31 exceeded `MODELO_720_THRESHOLD_EUR`, and also
+when they did not. The verdict is in the `type`, `title_key` and `dedup_key`, so a changed verdict
+is a new alert and the old one resolves. `Modelo720Banner` shows it on Home and the Fidelity page.
+
+- **Valued as the declaration is:** shares of lots bought on or before December 31, at that
+  day's `close_eur` (its close and exchange rate). `market_data.year_end_close` reads the cache
+  only and answers None until a later close is cached, which proves the year's last one final.
+  No network in a detector: the cache is topped up when Home or the investments pages load.
+- **No verdict on incomplete data:** in January it waits for the December ESPP purchase when
+  the plan bought in September; from February it uses whatever lots exist.
+- **The value is in `body_args.value_eur` for the banner only,** rendered through `Money`.
+  Push and Telegram say the verdict, never a figure, not even the threshold.
+- **The law is not known in full:** only Fidelity lots count (Indexa is a Spanish entity), sold
+  shares are not tracked, and re-filing depends on the last declared value (a rise of more
+  than 20,000 €), which the texts explain instead of checking. The 50,000 € and 20,000 €
+  figures also appear in the i18n texts.
+
 ---
 
 ## Transaction dedup key

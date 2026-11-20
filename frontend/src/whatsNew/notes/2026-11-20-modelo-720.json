@@ -1,0 +1,13 @@
+{
+  "kind": "new",
+  "icon": "bell",
+  "link": "/settings/notifications",
+  "es": {
+    "title": "Comprobación del Modelo 720",
+    "body": "Entre enero y marzo, Finlytics te dirá si tus acciones de Fidelity superaban los 50.000 € a 31 de diciembre, y también si no. Lo verás en Inicio y en la página de Fidelity, y como alerta en la campana, el móvil y Telegram."
+  },
+  "en": {
+    "title": "Modelo 720 check",
+    "body": "Between January and March, Finlytics tells you whether your Fidelity shares were worth more than €50,000 on 31 December, and also when they weren't. You'll see it on Home and the Fidelity page, and as an alert in the bell, on your phone and in Telegram."
+  }
+}

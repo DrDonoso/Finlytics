@@ -755,6 +755,20 @@ const MOCK_NOTIFICATIONS_INITIAL: NotificationOut[] = [
     read_at: null,
     dismissed_at: null,
   },
+  {
+    id: 3,
+    source: 'modelo720',
+    type: 'modelo720_exceeds',
+    severity: 'warning',
+    title_key: 'notif.modelo720_exceeds',
+    title_args: { year: '2025' },
+    body_key: 'notif.modelo720_exceeds',
+    body_args: { value_eur: 61234.56 },
+    action_link: '/investments/fidelity-espp',
+    created_at: '2026-01-15T09:00:00+01:00',
+    read_at: null,
+    dismissed_at: null,
+  },
 ]
 
 let _mockNotifications: NotificationOut[] = [...MOCK_NOTIFICATIONS_INITIAL]

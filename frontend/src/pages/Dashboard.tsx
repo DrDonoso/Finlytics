@@ -8,6 +8,7 @@ import {
 } from '../api/queries'
 import { errorMessage } from '../api/errors'
 import InvestmentSnapshotCard from '../components/InvestmentSnapshotCard'
+import Modelo720Banner from '../components/Modelo720Banner'
 import MortgageSnapshotCard from '../components/MortgageSnapshotCard'
 import { Private } from '../components/Money'
 import { formatCurrency, formatNumber, formatPercent, langLocale, useT } from '../i18n'
@@ -423,6 +424,8 @@ export default function Dashboard() {
           </div>
         )
       })()}
+
+      <Modelo720Banner showLink />
     </main>
   )
 }

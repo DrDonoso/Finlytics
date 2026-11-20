@@ -22,6 +22,7 @@ import { useNotifications } from '../../contexts/NotificationsContext'
 import { IconLoading, IconAlert, IconBriefcase, IconChartLine, IconReceipt, IconClose, IconFolder, IconCheck, IconArrowLeft, IconArrowRight } from '../../components/icons'
 import SortableTh from '../../components/SortableTh'
 import Money, { Percent, Private } from '../../components/Money'
+import Modelo720Banner from '../../components/Modelo720Banner'
 import CardHeader from '../../components/CardHeader'
 import Modal from '../../components/Modal'
 import { useToday } from '../../hooks/useToday'
@@ -445,6 +446,8 @@ export default function FidelityView() {
           </div>
         )
       })()}
+
+      <Modelo720Banner />
 
       {isEmpty ? (
 
