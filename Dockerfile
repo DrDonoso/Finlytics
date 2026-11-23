@@ -62,14 +62,14 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 # ─── uv binary ───────────────────────────────────────────────────────────────
 # A FROM line of its own, so Dependabot's docker ecosystem bumps it, and CI reads
 # the same tag. The base stage mounts the binary instead of copying it.
-FROM ghcr.io/astral-sh/uv:0.13.1 AS uv
+FROM ghcr.io/astral-sh/uv:0.13.9 AS uv
 
 
 # ─── Stage 4: Python runtime (DEFAULT TARGET — keep last) ────────────────────
 # A plain `docker build .` builds the LAST stage, so this one must stay at the
 # bottom: moving it above `demo` would silently make the demo image the default
 # production build.
-FROM python:3.14-slim AS base
+FROM python:3.15-slim AS base
 
 # The base image runs in UTC. The application resolves its calendar day from
 # TIMEZONE (see finlytics/clock.py), but the process clock is worth aligning too
